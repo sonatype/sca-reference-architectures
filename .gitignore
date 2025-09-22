@@ -18,8 +18,8 @@ Thumbs.db
 
 # Terraform
 .terraform/
-.terraform.lock*
 terraform.tfstate*
+.terraform.tfstate.lock.info
 *.tfvars
 !*.tfvars.example
 *tfvars.backup
