@@ -17,7 +17,6 @@ TERRAFORM_DIR="$SCRIPT_DIR"
 LOG_FILE="$SCRIPT_DIR/deploy.log"
 TFVARS_FILE="$SCRIPT_DIR/terraform.tfvars"
 STATE_BUCKET=""
-ENABLE_HA=false
 DRY_RUN=false
 FORCE_DESTROY=false
 SKIP_VALIDATION=false
@@ -131,13 +130,10 @@ db_password = "change-me-secure-password"
 # private_subnet_cidr   = "10.100.10.0/24"
 # db_subnet_cidr        = "10.100.20.0/24"
 
-# High Availability Configuration
-enable_ha = false
 
 # SSL/TLS Configuration
 enable_ssl = true
 # domain_name = "nexus-iq.example.com"
-# domain_name_ha = "nexus-iq-ha.example.com"
 
 # Security Configuration
 enable_cloud_armor = true
@@ -341,7 +337,6 @@ OPTIONS:
     -h, --help              Show this help message
     -p, --project PROJECT   GCP Project ID (overrides terraform.tfvars)
     -s, --state-bucket BUCKET  GCS bucket for Terraform state
-    -ha, --high-availability    Enable high availability mode
     -d, --dry-run              Run terraform plan only (no deployment)
     -f, --force-destroy        Auto-destroy on failure (dangerous!)
     --skip-validation          Skip prerequisites validation
@@ -354,8 +349,6 @@ EXAMPLES:
     # Deploy with default configuration
     $0 --project my-gcp-project
     
-    # Deploy with high availability
-    $0 --project my-gcp-project --high-availability
     
     # Dry run (plan only)
     $0 --project my-gcp-project --dry-run
@@ -390,10 +383,6 @@ main() {
             -s|--state-bucket)
                 STATE_BUCKET="$2"
                 shift 2
-                ;;
-            -ha|--high-availability)
-                ENABLE_HA=true
-                shift
                 ;;
             -d|--dry-run)
                 DRY_RUN=true
@@ -432,13 +421,6 @@ main() {
         GCP_PROJECT_ID=$(grep "^gcp_project_id[[:space:]]*=" "$TFVARS_FILE" | cut -d'"' -f2)
     fi
     
-    # Override HA setting if specified via CLI
-    if [[ "$ENABLE_HA" == "true" ]]; then
-        print_status "High availability mode enabled via command line"
-        echo "enable_ha = true" >> "$TFVARS_FILE.tmp"
-        grep -v "^enable_ha[[:space:]]*=" "$TFVARS_FILE" >> "$TFVARS_FILE.tmp" || true
-        mv "$TFVARS_FILE.tmp" "$TFVARS_FILE"
-    fi
     
     # Check prerequisites
     if [[ "$SKIP_VALIDATION" != "true" ]]; then
@@ -459,9 +441,6 @@ main() {
         # Confirm deployment
         echo ""
         print_warning "This will create infrastructure in GCP project: $GCP_PROJECT_ID"
-        if [[ "$ENABLE_HA" == "true" ]]; then
-            print_warning "High Availability mode is enabled (additional costs apply)"
-        fi
         echo ""
         read -p "Do you want to proceed with deployment? (yes/no): " -r
         if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then

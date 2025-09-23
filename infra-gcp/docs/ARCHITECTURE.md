@@ -39,7 +39,7 @@ Internet
 │  ┌───────────────┐  ┌─────────────┐  ┌─────────────┐│
 │  │   Cloud SQL   │  │ Filestore   │  │   Secrets   ││
 │  │  PostgreSQL   │  │    (NFS)    │  │  Manager    ││
-│  │      HA       │  │             │  │             ││
+│  │   Regional    │  │             │  │             ││
 │  └───────────────┘  └─────────────┘  └─────────────┘│
 └─────────────────────────────────────────────────────┘
                   │
@@ -74,9 +74,9 @@ Internet
 
 ### 2. Application Layer
 
-#### Cloud Run Services
+#### Cloud Run Service
 
-##### Single Instance Configuration
+##### Production Configuration
 ```yaml
 Service: nexus-iq-server
 Resources:
@@ -90,21 +90,6 @@ Networking:
   VPC Connector: nexus-iq-connector
   Egress: Private ranges only
   Ports: 8070 (HTTP), 8071 (Admin)
-```
-
-##### High Availability Configuration
-```yaml
-Service: nexus-iq-ha-server
-Resources:
-  CPU: 4000m (4 vCPU)
-  Memory: 8Gi
-  Scaling: 2-20 instances
-  Concurrency: 80 requests/instance
-  
-Multi-Region:
-  Primary: us-central1
-  Secondary: us-east1
-  Failover: Automatic via load balancer
 ```
 
 #### Container Specifications
@@ -129,12 +114,12 @@ Health Checks:
 
 #### Cloud SQL PostgreSQL
 
-##### Single Instance
+##### Production Instance
 ```yaml
 Configuration:
   Tier: db-custom-2-7680 (2 vCPU, 7.5GB RAM)
   Storage: 100GB SSD, auto-expand to 1TB
-  Availability: Zonal
+  Availability: Zonal with automated backups
   
 Networking:
   Type: Private IP only
@@ -147,23 +132,6 @@ Backup:
   Point-in-time: 7 days
 ```
 
-##### High Availability
-```yaml
-Configuration:
-  Tier: db-custom-4-15360 (4 vCPU, 15GB RAM)
-  Storage: 200GB SSD, auto-expand to 2TB
-  Availability: Regional (multi-zone)
-  
-Replication:
-  Sync: Regional replicas in same region
-  Async: Read replicas in other regions (optional)
-  
-Failover:
-  Type: Automatic
-  RTO: ~60-120 seconds
-  RPO: Near zero (sync replication)
-```
-
 #### Cloud Filestore (NFS)
 
 ##### Standard Configuration
@@ -174,15 +142,6 @@ Capacity: 1TB (expandable)
 Performance: 100 MB/s read/write
 Network: Private VPC access only
 Mount: /nexus_iq_data
-```
-
-##### HA Configuration
-```yaml
-Instance: nexus-iq-ha-filestore
-Tier: HIGH_SCALE_SSD
-Capacity: 2TB
-Performance: 1000+ MB/s read/write
-Availability: Multi-zone backup
 ```
 
 ### 4. Storage Layer
@@ -403,8 +362,8 @@ Notification Channels:
 ```yaml
 Cloud Run Autoscaling:
   Trigger: CPU utilization > 70%
-  Min Instances: 1 (single), 2 (HA)
-  Max Instances: 10 (single), 20 (HA)
+  Min Instances: 1
+  Max Instances: 10
   Scale-up: 30 seconds
   Scale-down: 15 minutes (gradual)
 ```
@@ -421,12 +380,12 @@ Database Scaling:
   Storage: Auto-expand enabled
 ```
 
-### Multi-Region Scaling
+### Multi-Region Support
 ```yaml
 Primary Region: us-central1
 Secondary Regions: us-east1, europe-west1
 Load Distribution: Latency-based routing
-Failover: Automatic health check based
+Failover: Manual promotion if needed
 ```
 
 ## 🏛️ Compliance & Governance
@@ -465,7 +424,6 @@ Throughput:
 
 Availability:
   - Single Instance: 99.5%
-  - HA Configuration: 99.9%
   - RTO: <5 minutes
   - RPO: <1 minute
 ```
@@ -488,7 +446,7 @@ Large Deployment (50+ users):
   - Cloud Run: 5-20 instances
   - CPU: 4000m per instance
   - Memory: 8Gi per instance
-  - Database: db-custom-4-15360 (HA)
+  - Database: db-custom-4-15360
 ```
 
 This architecture provides a robust, scalable, and secure foundation for running Nexus IQ Server on Google Cloud Platform, leveraging cloud-native services for optimal performance and operational efficiency.
