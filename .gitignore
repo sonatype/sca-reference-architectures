@@ -23,3 +23,5 @@ terraform.tfstate*
 *.tfvars
 !*.tfvars.example
 *tfvars.backup
+tfplan
+*.tfplan
