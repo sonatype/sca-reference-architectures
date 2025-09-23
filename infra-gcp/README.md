@@ -1,13 +1,13 @@
 # Nexus IQ Server - GCP Cloud Native Infrastructure
 
-This repository contains Terraform infrastructure code to deploy Sonatype Nexus IQ Server on Google Cloud Platform using cloud-native services. The infrastructure supports both single-instance and high-availability (HA) configurations.
+This repository contains Terraform infrastructure code to deploy Sonatype Nexus IQ Server on Google Cloud Platform using cloud-native services. The infrastructure provides a robust single-instance deployment optimized for performance and cost-effectiveness.
 
 ## 🏗️ Architecture Overview
 
 This infrastructure translates the AWS ECS-based reference architecture to GCP native services:
 
 - **Cloud Run** (replaces ECS Fargate) - Serverless container platform
-- **Cloud SQL PostgreSQL** (replaces RDS) - Managed database with HA options
+- **Cloud SQL PostgreSQL** (replaces RDS) - Managed database with backup and recovery
 - **Cloud Filestore** (replaces EFS) - Managed NFS for persistent storage
 - **Global Load Balancer** (replaces ALB) - Global load balancing with SSL
 - **Cloud Armor** - WAF protection and DDoS mitigation
@@ -69,8 +69,6 @@ cd infra-gcp
 # Deploy single-instance configuration
 ./deploy.sh --project your-project-id
 
-# Or deploy with high availability
-./deploy.sh --project your-project-id --high-availability
 ```
 
 ### 4. Access Nexus IQ Server
@@ -111,7 +109,6 @@ db_password    = "secure-password-12-chars-minimum"
 
 # Optional Settings
 environment    = "dev"        # dev, staging, prod
-enable_ha      = false        # Enable high availability
 enable_ssl     = true         # Enable HTTPS
 domain_name    = ""           # Custom domain for SSL
 
@@ -131,16 +128,6 @@ enable_monitoring_alerts = true
 alert_email_addresses   = ["admin@example.com"]
 ```
 
-### High Availability Configuration
-```hcl
-enable_ha = true
-
-# HA-specific settings
-iq_ha_min_instances = "2"
-iq_ha_max_instances = "20"
-db_availability_type = "REGIONAL"
-filestore_ha_tier = "HIGH_SCALE_SSD"
-```
 
 ## 🔧 Deployment Scripts
 
@@ -152,14 +139,12 @@ Options:
   -h, --help              Show help message
   -p, --project PROJECT   GCP Project ID
   -s, --state-bucket BUCKET  Remote state bucket
-  -ha, --high-availability    Enable HA mode
   -d, --dry-run              Plan only (no deployment)
   -f, --force-destroy        Auto-destroy on failure
   -v, --verbose              Enable verbose logging
 
 Examples:
   ./deploy.sh --project my-project
-  ./deploy.sh --project my-project --high-availability
   ./deploy.sh --project my-project --dry-run
 ```
 
@@ -209,14 +194,12 @@ Examples:
 
 ### Database (Cloud SQL PostgreSQL)
 - **Single Instance**: db-custom-2-7680 (2 vCPU, 7.5GB RAM)
-- **HA Instance**: db-custom-4-15360 (4 vCPU, 15GB RAM)
 - **Storage**: 100GB SSD (auto-expand to 1TB)
 - **Backups**: Daily automated backups, 7-day retention
 - **Security**: Private IP, SSL required, encryption at rest
 
 ### File Storage (Cloud Filestore)
 - **Single Instance**: BASIC_SSD, 1TB capacity
-- **HA Instance**: HIGH_SCALE_SSD, 2TB capacity
 - **Mount Path**: /nexus_iq_data
 - **Access**: NFS v3, private network only
 
@@ -270,7 +253,7 @@ Examples:
 ## 🔄 Scaling & Performance
 
 ### Auto Scaling
-- **Cloud Run**: 1-10 instances (single), 2-20 instances (HA)
+- **Cloud Run**: 1-10 instances with automatic scaling
 - **CPU-based**: Scales on CPU utilization
 - **Concurrency**: Up to 80 requests per instance
 - **Cold starts**: ~2-3 seconds
@@ -313,7 +296,6 @@ gcloud billing budgets list
 gcloud monitoring dashboards list
 
 # Optimize resources
-# - Disable HA if not needed
 # - Reduce instance sizes
 # - Adjust storage tiers
 ```

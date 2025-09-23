@@ -35,7 +35,7 @@ resource "google_project_service" "required_apis" {
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com"
   ])
-  
+
   project = var.gcp_project_id
   service = each.key
 
@@ -58,23 +58,14 @@ resource "google_compute_subnetwork" "public_subnet" {
   network       = google_compute_network.iq_vpc.id
   region        = var.gcp_region
 
-  secondary_ip_range {
-    range_name    = "services-range"
-    ip_cidr_range = var.services_subnet_cidr
-  }
-
-  secondary_ip_range {
-    range_name    = "pods-range"
-    ip_cidr_range = var.pods_subnet_cidr
-  }
 }
 
 # Private subnet for Cloud Run and internal services
 resource "google_compute_subnetwork" "private_subnet" {
   name                     = "ref-arch-iq-private-subnet"
-  ip_cidr_range           = var.private_subnet_cidr
-  network                 = google_compute_network.iq_vpc.id
-  region                  = var.gcp_region
+  ip_cidr_range            = var.private_subnet_cidr
+  network                  = google_compute_network.iq_vpc.id
+  region                   = var.gcp_region
   private_ip_google_access = true
 }
 
@@ -97,9 +88,9 @@ resource "google_compute_router" "iq_router" {
 
 resource "google_compute_router_nat" "iq_nat" {
   name                               = "ref-arch-iq-nat"
-  router                            = google_compute_router.iq_router.name
-  region                            = var.gcp_region
-  nat_ip_allocate_option            = "AUTO_ONLY"
+  router                             = google_compute_router.iq_router.name
+  region                             = var.gcp_region
+  nat_ip_allocate_option             = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 
   log_config {

@@ -1,0 +1,35 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+.terraform/
+tfplan
+.terraform.tfstate.lock.info
+destroy-plan
+
+# Log files
+*.log
+deploy.log
+destroy.log
+plan.log
+apply.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.backup.*
+pre-destroy-backup-*/
+
+# Temporary files
+backend.tf.backup
+*.tmp
