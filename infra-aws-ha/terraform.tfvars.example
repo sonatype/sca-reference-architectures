@@ -1,0 +1,111 @@
+# Copy this file to terraform.tfvars and update the values
+# cp terraform.tfvars.example terraform.tfvars
+
+# ================================
+# GENERAL CONFIGURATION
+# ================================
+aws_region   = "us-east-1"
+cluster_name = "ref-arch-iq-ha-cluster"
+
+# ================================
+# NETWORK CONFIGURATION
+# ================================
+vpc_cidr               = "10.0.0.0/16"
+public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"]
+db_subnet_cidrs        = ["10.0.40.0/24", "10.0.50.0/24", "10.0.60.0/24"]
+enable_nat_gateway     = true
+
+# ================================
+# ECS CONFIGURATION
+# ================================
+ecs_cpu                 = 2048  # 2 vCPU
+ecs_memory              = 4096  # 4 GB
+ecs_memory_reservation  = 3072  # 3 GB soft limit
+
+# ================================
+# IQ SERVER CONFIGURATION
+# ================================
+iq_desired_count        = 2  # HA deployment with clustering
+iq_min_count           = 2  # Minimum for auto scaling (HA requires 2+)
+iq_max_count           = 6  # Maximum for auto scaling
+iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
+iq_memory_target_value = 80  # Memory target for auto scaling (%)
+iq_docker_image        = "sonatypecommunity/nexus-iq-server:latest"
+java_opts              = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+# ================================
+# DATABASE CONFIGURATION (Aurora PostgreSQL)
+# ================================
+db_name                     = "nexusiq"
+db_username                 = "nexusiq"
+db_password                 = "YourSecurePassword123!"  # CHANGE THIS!
+aurora_engine_version       = "15.4"
+aurora_instance_class       = "db.r6g.large"
+aurora_instances            = 2  # Minimum 2 for HA
+db_backup_retention_period  = 7
+db_backup_window           = "03:00-04:00"
+db_maintenance_window      = "sun:04:00-sun:05:00"
+db_skip_final_snapshot     = false  # Set to true for development
+db_deletion_protection     = true   # Set to false for development
+
+# ================================
+# LOAD BALANCER CONFIGURATION
+# ================================
+# Uncomment and provide SSL certificate ARN for HTTPS
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+alb_deletion_protection = false  # Set to true for production
+
+# ================================
+# EFS CONFIGURATION
+# ================================
+efs_throughput_mode                  = "provisioned"
+efs_provisioned_throughput_in_mibps = 100
+
+
+# ================================
+# MONITORING CONFIGURATION
+# ================================
+enable_container_insights = true
+enable_prometheus        = true
+log_retention_days       = 30
+
+# ================================
+# COMMON TAGS
+# ================================
+common_tags = {
+  Project     = "nexus-iq-server-ha"
+  Environment = "production"  # or "development", "staging"
+  Terraform   = "true"
+  Owner       = "platform-team"
+  CostCenter  = "engineering"
+}
+
+# ================================
+# SECURITY NOTES
+# ================================
+# 1. Change the db_password to a strong, unique password
+# 2. Consider using AWS Secrets Manager rotation for the database password
+# 3. Provide an SSL certificate ARN for HTTPS termination
+# 4. Restrict public access CIDRs in production
+# 5. Enable deletion protection for production resources
+# 6. Use specific Helm chart versions rather than "latest" in production
+
+# ================================
+# COST OPTIMIZATION NOTES
+# ================================
+# 1. ECS Fargate pricing based on vCPU and memory usage
+# 2. Use smaller task sizes (ecs_cpu/ecs_memory) for development
+# 3. Adjust backup retention periods based on requirements
+# 4. Use burstable EFS throughput mode if consistent high throughput isn't needed
+# 5. Consider using Fargate Spot for non-production workloads
+
+# ================================
+# HIGH AVAILABILITY NOTES
+# ================================
+# 1. Minimum 2 IQ Server tasks (iq_desired_count = 2)
+# 2. Minimum 2 Aurora instances (aurora_instances = 2)
+# 3. ECS tasks run across multiple Availability Zones
+# 4. Auto scaling based on CPU and memory utilization
+# 5. Service discovery for inter-task communication
+# 6. Shared EFS storage for stateful data
