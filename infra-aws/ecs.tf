@@ -49,7 +49,7 @@ resource "aws_ecs_task_definition" "iq_task" {
         },
         {
           name  = "DB_HOST"
-          value = aws_db_instance.iq_db.endpoint
+          value = aws_db_instance.iq_db.address
         },
         {
           name  = "DB_PORT"
@@ -58,17 +58,99 @@ resource "aws_ecs_task_definition" "iq_task" {
         {
           name  = "DB_NAME"
           value = aws_db_instance.iq_db.db_name
+        },
+        {
+          name  = "NEXUS_SECURITY_RANDOMPASSWORD"
+          value = "false"
         }
+      ]
+
+      # Override entrypoint to create custom config.yml with database configuration
+      entryPoint = ["/bin/sh"]
+      command = [
+        "-c",
+        <<-EOF
+          set -e
+          echo "Generating custom config.yml with PostgreSQL database configuration"
+
+          # Generate custom config.yml with PostgreSQL database configuration
+          cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
+sonatypeWork: /sonatype-work
+
+# Database configuration for PostgreSQL
+database:
+  type: postgresql
+  hostname: $DB_HOST
+  port: $DB_PORT
+  name: $DB_NAME
+  username: $DB_USER
+  password: $DB_PASSWORD
+
+server:
+  applicationConnectors:
+  - type: http
+    port: 8070
+  adminConnectors:
+  - type: http
+    port: 8071
+  requestLog:
+    appenders:
+    - type: file
+      currentLogFilename: "/var/log/nexus-iq-server/request.log"
+      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+      archivedFileCount: 5
+logging:
+  level: DEBUG
+  loggers:
+    com.sonatype.insight.scan: INFO
+    eu.medsea.mimeutil.MimeUtil2: INFO
+    org.apache.http: INFO
+    org.apache.http.wire: ERROR
+    org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
+    org.eclipse.jetty: INFO
+    org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
+    com.networknt.schema: OFF
+    com.sonatype.insight.audit:
+      appenders:
+      - type: file
+        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        archivedFileCount: 50
+  appenders:
+  - type: console
+    threshold: INFO
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+  - type: file
+    threshold: ALL
+    currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
+    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+    archivedFileCount: 5
+createSampleData: true
+CONFIGEOF
+
+          # Replace placeholders with actual values
+          sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+
+          echo "Generated config.yml with PostgreSQL database configuration"
+
+          # Start IQ Server with custom config
+          exec java $JAVA_OPTS -jar /opt/sonatype/nexus-iq-server/nexus-iq-server-*.jar server /etc/nexus-iq-server/config.yml
+        EOF
       ]
 
       secrets = [
         {
           name      = "DB_USER"
-          valueFrom = aws_secretsmanager_secret.db_credentials.arn
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:username::"
         },
         {
           name      = "DB_PASSWORD"
-          valueFrom = aws_secretsmanager_secret.db_credentials.arn
+          valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:password::"
         }
       ]
 

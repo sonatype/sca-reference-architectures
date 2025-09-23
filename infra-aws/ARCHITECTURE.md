@@ -15,12 +15,12 @@
 - Single availability zone primary deployment with multi-AZ database
 
 ## Overview
-This reference architecture deploys Nexus IQ Server on AWS using cloud-native services (ECS Fargate, RDS, EFS) for operational excellence and security. This single-instance deployment provides a foundation that can scale to [Active/Passive configurations](https://sonatype.atlassian.net/wiki/spaces/CS/pages/429654120/Sonatype+IQ+Reference+Architecture+Active+Passive) as your organization grows.
+This reference architecture deploys Nexus IQ Server on AWS using cloud-native services (ECS Fargate, RDS, EFS) for operational excellence and security. This single-instance deployment provides a solid foundation for development, testing, and small to medium production workloads.
 
-## Scaling Path
-- **Current**: Single Instance (up to 100 applications)
-- **Next**: [Active/Passive](https://sonatype.atlassian.net/wiki/spaces/CS/pages/429654120/Sonatype+IQ+Reference+Architecture+Active+Passive) (100-1000 applications, 8 vCPU, 16GB RAM)
-- **Enterprise**: Multi-instance with load balancing
+## Scaling Options
+- **Current Deployment**: Single Instance (up to 100 applications)
+- **Vertical Scaling**: Increase CPU/memory resources as needed
+- **Database Scaling**: Enable Multi-AZ RDS deployment for enhanced availability
 
 ## 1. High-Level Architecture
 
