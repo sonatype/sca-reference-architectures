@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Terraform plan script with MFA support for IQ Server Single Instance deployment
+# Terraform plan script with MFA support for IQ Server HA deployment
 # Usage: ./tf-plan.sh
 
 set -e
@@ -16,14 +16,14 @@ NC='\033[0m' # No Color
 AWS_PROFILE="admin@iq-sandbox"
 TERRAFORM_DIR="$(dirname "$0")"
 
-echo -e "${BLUE}🚀 Nexus IQ Server Single Instance - Terraform Plan${NC}"
-echo "================================================="
+echo -e "${BLUE}🚀 Nexus IQ Server HA - Terraform Plan${NC}"
+echo "=========================================="
 echo ""
 
 # Check if we're in the right directory
 if [[ ! -f "main.tf" ]]; then
     echo -e "${RED}❌ Error: main.tf not found in current directory${NC}"
-    echo "Please run this script from the infra-aws directory"
+    echo "Please run this script from the infra-aws-ha directory"
     exit 1
 fi
 
@@ -85,13 +85,13 @@ if [[ $? -eq 0 ]]; then
     echo "2. If everything looks correct, run: ./tf-apply.sh"
     echo "3. The plan has been saved to 'tfplan' file"
     echo ""
-    echo -e "${YELLOW}⚠️  Important notes for single instance deployment:${NC}"
-    echo "• This will create an ECS cluster with a single Fargate task"
-    echo "• RDS PostgreSQL database (single instance)"
-    echo "• EFS file system for persistent storage"
-    echo "• Application Load Balancer for high availability"
-    echo "• NAT Gateway for outbound internet access"
-    echo "• No auto scaling (single instance for dev/test use)"
+    echo -e "${YELLOW}⚠️  Important notes for HA deployment:${NC}"
+    echo "• This will create an ECS cluster with minimum 2 Fargate tasks"
+    echo "• Aurora PostgreSQL cluster with 2+ instances"
+    echo "• EFS file system for shared storage with backup vault"
+    echo "• Application Load Balancer with WAF protection"
+    echo "• Auto scaling and service discovery enabled"
+    echo "• Resources will be distributed across multiple AZs"
     echo "• Estimated deployment time: 15-20 minutes"
     echo ""
 else

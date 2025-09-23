@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Terraform apply script with MFA support for IQ Server Single Instance deployment
+# Terraform apply script with MFA support for IQ Server HA deployment
 # Usage: ./tf-apply.sh
 
 set -e
@@ -16,14 +16,14 @@ NC='\033[0m' # No Color
 AWS_PROFILE="admin@iq-sandbox"
 TERRAFORM_DIR="$(dirname "$0")"
 
-echo -e "${BLUE}🚀 Nexus IQ Server Single Instance - Terraform Apply${NC}"
-echo "================================================="
+echo -e "${BLUE}🚀 Nexus IQ Server HA - Terraform Apply${NC}"
+echo "==========================================="
 echo ""
 
 # Check if we're in the right directory
 if [[ ! -f "main.tf" ]]; then
     echo -e "${RED}❌ Error: main.tf not found in current directory${NC}"
-    echo "Please run this script from the infra-aws directory"
+    echo "Please run this script from the infra-aws-ha directory"
     exit 1
 fi
 
@@ -52,23 +52,24 @@ echo "• Plan file: tfplan ✓"
 echo ""
 
 # Confirmation prompt
-echo -e "${YELLOW}⚠️  You are about to deploy IQ Server Single Instance infrastructure${NC}"
+echo -e "${YELLOW}⚠️  You are about to deploy IQ Server HA infrastructure${NC}"
 echo "This will create AWS resources that may incur costs."
 echo ""
 echo -e "${YELLOW}Resources to be created:${NC}"
-echo "• ECS cluster with single Fargate task"
-echo "• RDS PostgreSQL database (single instance)"
-echo "• Application Load Balancer"
-echo "• EFS file system for persistent storage"
-echo "• NAT Gateway for outbound internet access"
+echo "• ECS cluster with Fargate tasks (2+ instances)"
+echo "• Aurora PostgreSQL cluster (2+ instances)"
+echo "• Application Load Balancer with WAF"
+echo "• EFS file system with backup vault"
+echo "• NAT Gateways (if enabled)"
 echo "• CloudWatch Log Groups"
+echo "• Service Discovery and Auto Scaling"
 echo "• Various security groups and IAM roles"
 echo ""
 
 echo "🚀 Proceeding with deployment..."
 echo ""
 echo -e "${BLUE}🏗️  Applying Terraform configuration...${NC}"
-echo "This may take 15-20 minutes to complete."
+echo "This may take 20-30 minutes to complete."
 echo ""
 
 # Apply the plan
@@ -84,17 +85,15 @@ if [[ $? -eq 0 ]]; then
     echo "===================="
 
     # Extract key outputs
-    CLUSTER_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw ecs_cluster_name 2>/dev/null || echo "N/A")
-    ALB_DNS=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw load_balancer_dns_name 2>/dev/null || echo "N/A")
+    CLUSTER_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw cluster_name 2>/dev/null || echo "N/A")
+    ALB_DNS=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw alb_dns_name 2>/dev/null || echo "N/A")
     APP_URL=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw application_url 2>/dev/null || echo "N/A")
     SERVICE_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw ecs_service_name 2>/dev/null || echo "N/A")
-    DB_ENDPOINT=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw db_instance_endpoint 2>/dev/null || echo "N/A")
 
     echo "• ECS Cluster: $CLUSTER_NAME"
     echo "• ECS Service: $SERVICE_NAME"
     echo "• Load Balancer DNS: $ALB_DNS"
     echo "• Application URL: $APP_URL"
-    echo "• Database: PostgreSQL (single instance)"
     echo ""
 
     echo -e "${BLUE}🎯 Next Steps${NC}"
@@ -107,12 +106,9 @@ if [[ $? -eq 0 ]]; then
     echo "   aws ecs describe-tasks --cluster $CLUSTER_NAME --tasks \$(aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --query 'taskArns[0]' --output text)"
     echo ""
     echo "3. Monitor application logs:"
-    echo "   aws logs tail /ecs/ref-arch-nexus-iq-server --follow"
+    echo "   aws logs tail /ecs/$CLUSTER_NAME/nexus-iq-server --follow"
     echo ""
-    echo "4. Verify PostgreSQL database connection:"
-    echo "   aws logs filter-log-events --log-group-name /ecs/ref-arch-nexus-iq-server --filter-pattern \"postgresql\""
-    echo ""
-    echo "5. Access IQ Server at: $APP_URL"
+    echo "4. Access IQ Server at: $APP_URL"
     echo "   Default credentials: admin / admin123"
     echo ""
 
@@ -121,15 +117,14 @@ if [[ $? -eq 0 ]]; then
     echo "• Consider enabling HTTPS with SSL certificate"
     echo "• Review security group rules for production use"
     echo "• Set up monitoring and alerting"
-    echo "• This is a single instance deployment for development and testing"
     echo ""
 
     echo -e "${BLUE}🔍 Monitoring Commands${NC}"
     echo "• View cluster info: aws ecs describe-clusters --clusters $CLUSTER_NAME"
     echo "• Check service status: aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME"
     echo "• Monitor tasks: aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME"
-    echo "• View logs: aws logs tail /ecs/ref-arch-nexus-iq-server --follow"
-    echo "• Check database connection: aws logs filter-log-events --log-group-name /ecs/ref-arch-nexus-iq-server --filter-pattern \"postgresql\""
+    echo "• View logs: aws logs tail /ecs/$CLUSTER_NAME/nexus-iq-server --follow"
+    echo "• Check auto scaling: aws application-autoscaling describe-scalable-targets --service-namespace ecs"
     echo ""
 
     # Clean up plan file
