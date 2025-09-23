@@ -65,16 +65,10 @@ variable "iq_docker_image" {
   default     = "sonatypecommunity/nexus-iq-server:latest"
 }
 
-variable "iq_min_instances" {
-  description = "Minimum number of Cloud Run instances"
+variable "iq_desired_count" {
+  description = "Desired number of Cloud Run instances"
   type        = string
   default     = "1"
-}
-
-variable "iq_max_instances" {
-  description = "Maximum number of Cloud Run instances"
-  type        = string
-  default     = "10"
 }
 
 variable "container_concurrency" {

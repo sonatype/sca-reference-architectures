@@ -7,8 +7,8 @@ resource "google_cloud_run_service" "iq_service" {
   template {
     metadata {
       annotations = {
-        "autoscaling.knative.dev/minScale"         = var.iq_min_instances
-        "autoscaling.knative.dev/maxScale"         = var.iq_max_instances
+        "autoscaling.knative.dev/minScale"         = var.iq_desired_count
+        "autoscaling.knative.dev/maxScale"         = var.iq_desired_count
         "run.googleapis.com/cpu-throttling"        = "false"
         "run.googleapis.com/execution-environment" = "gen2"
         "run.googleapis.com/vpc-access-connector"  = google_vpc_access_connector.iq_connector.name

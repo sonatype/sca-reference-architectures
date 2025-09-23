@@ -150,8 +150,7 @@ backup_retention_days = 30
 log_retention_days = 30
 
 # Scaling Configuration
-iq_min_instances = "1"
-iq_max_instances = "10"
+iq_desired_count = "1"
 iq_cpu_limit = "2000m"
 iq_memory_limit = "4Gi"
 EOF
