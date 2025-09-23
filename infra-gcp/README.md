@@ -113,8 +113,7 @@ enable_ssl     = true         # Enable HTTPS
 domain_name    = ""           # Custom domain for SSL
 
 # Scaling Configuration
-iq_min_instances = "1"
-iq_max_instances = "10"
+iq_desired_count = "1"  # Single instance (recommended)
 iq_cpu_limit     = "2000m"
 iq_memory_limit  = "4Gi"
 
@@ -329,13 +328,13 @@ vi terraform.tfvars
 
 ### Scaling Operations
 ```bash
-# Scale up for high load
-echo 'iq_max_instances = "20"' >> terraform.tfvars
+# Scale up for high load (multiple instances)
+echo 'iq_desired_count = "2"' >> terraform.tfvars
 echo 'iq_cpu_limit = "4000m"' >> terraform.tfvars
 ./gcp-apply.sh
 
-# Scale down for cost optimization
-echo 'iq_max_instances = "5"' >> terraform.tfvars
+# Scale back to single instance
+echo 'iq_desired_count = "1"' >> terraform.tfvars
 ./gcp-apply.sh
 ```
 

@@ -33,7 +33,7 @@ Load Balancer → Cloud Run → Cloud SQL PostgreSQL
 |--------|------------------|-----------------|
 | **Service Type** | Container orchestration platform | Serverless container platform |
 | **Configuration** | Task definition with detailed container specs | Simple container configuration |
-| **Scaling** | Manual desired count (default: 2) | Auto-scaling (1-100 instances) |
+| **Scaling** | **Manual desired count (default: 1)** | **Manual desired count (default: 1)** |
 | **Networking** | VPC with private subnets | VPC connector for private access |
 | **Health Checks** | Container-level health checks | HTTP-based liveness/startup probes |
 | **Persistent Storage** | EFS volume mounts | External Filestore (no direct mounting) |
@@ -44,7 +44,7 @@ Load Balancer → Cloud Run → Cloud SQL PostgreSQL
 **AWS Configuration:**
 ```hcl
 resource "aws_ecs_service" "iq_service" {
-  desired_count   = var.iq_desired_count  # Default: 2
+  desired_count   = var.iq_desired_count  # Default: 1 (single instance)
   launch_type     = "FARGATE"
   # Detailed network and load balancer configuration
 }
@@ -53,7 +53,7 @@ resource "aws_ecs_service" "iq_service" {
 **GCP Configuration:**
 ```hcl
 resource "google_cloud_run_service" "iq_service" {
-  # Serverless with auto-scaling annotations
+  # Fixed scaling with desired_count = 1 (single instance)
   # Custom entrypoint with config.yml generation
   # Identical application behavior to AWS
 }
@@ -153,11 +153,11 @@ Both implementations now generate identical `config.yml` files with:
 - Simpler, more straightforward configuration
 
 ### ✅ GCP Has But AWS Doesn't:
-- **Auto-scaling capabilities** (Cloud Run serverless scaling)
 - **Advanced database features** (query insights, point-in-time recovery)  
 - **Certificate management** (automatic SSL certificate provisioning)
 - **Integrated secrets management** (Secret Manager vs external setup)
 - **Cloud-native networking** (VPC connector, private Google access)
+- **Serverless compute platform** (Cloud Run vs ECS Fargate orchestration)
 
 ## Operational Differences
 
@@ -170,8 +170,8 @@ Both implementations now generate identical `config.yml` files with:
 ### GCP Approach: "Simplified Cloud-Native Platform"
 - **Philosophy**: Leverage core managed services with simplicity
 - **Complexity**: Similar to AWS, focused on essential features
-- **Management**: Basic logging, auto-scaling, essential security  
-- **Best For**: Teams wanting serverless benefits with straightforward setup
+- **Management**: Basic logging, fixed scaling, essential security  
+- **Best For**: Teams wanting serverless compute with traditional scaling patterns
 
 ## Resource Utilization
 
@@ -229,11 +229,11 @@ Both implementations now generate identical `config.yml` files with:
 - ✅ You plan to **build monitoring separately**
 
 ### Choose GCP Implementation When:
-- ✅ You want **serverless auto-scaling** capabilities
 - ✅ **Integrated secrets management** is preferred
 - ✅ **Cloud-native networking** benefits are important
-- ✅ You prefer **pay-per-request** pricing model
+- ✅ **Serverless compute platform** (Cloud Run) is desired
 - ✅ **SSL certificate automation** is desired
+- ✅ **Advanced database features** (query insights, point-in-time recovery) are needed
 - ✅ Team is comfortable with **GCP services**
 
 ## Evolution Path
