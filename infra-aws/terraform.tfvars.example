@@ -1,40 +1,39 @@
-# Copy this file to terraform.tfvars and update the values
+# Copy this file to terraform.tfvars and update the values                                                                                                                                                                                                                  
 # cp terraform.tfvars.example terraform.tfvars
-
+ 
 # General Configuration
 aws_region  = "us-east-1"
-environment = "dev"
-
+ 
 # Network Configuration
 vpc_cidr               = "10.0.0.0/16"
 public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
-
+ 
 # ECS Configuration
 ecs_cpu           = 2048
 ecs_memory        = 4096
-iq_desired_count  = 2
+iq_desired_count  = 1 # Single instance (recommended)
 iq_docker_image   = "sonatypecommunity/nexus-iq-server:latest"
 java_opts         = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-
+ 
 # Database Configuration
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
 db_instance_class           = "db.t3.medium"
-db_allocated_storage        = 100
+db_allocated_storage        = 100 
 db_max_allocated_storage    = 1000
-postgres_version            = "15.4"
-db_backup_retention_period  = 7
+postgres_version            = "15"
+db_backup_retention_period  = 7 
 db_backup_window           = "03:00-04:00"
 db_maintenance_window      = "sun:04:00-sun:05:00"
-db_skip_final_snapshot     = false
-db_deletion_protection     = true
-
+db_skip_final_snapshot     = true
+db_deletion_protection     = false
+ 
 # Load Balancer Configuration
 # ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
 alb_deletion_protection = false
-
+ 
 # Logging Configuration
 log_retention_days = 30
