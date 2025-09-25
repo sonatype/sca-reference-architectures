@@ -68,10 +68,6 @@ output "container_app_id" {
   value       = azurerm_container_app.iq_app.id
 }
 
-output "container_app_fqdn" {
-  description = "FQDN of the Container App"
-  value       = azurerm_container_app.iq_app.latest_revision_fqdn
-}
 
 # Database Outputs
 output "db_server_name" {
@@ -79,11 +75,6 @@ output "db_server_name" {
   value       = azurerm_postgresql_flexible_server.iq_db.name
 }
 
-output "db_server_fqdn" {
-  description = "FQDN of the PostgreSQL server"
-  value       = azurerm_postgresql_flexible_server.iq_db.fqdn
-  sensitive   = true
-}
 
 output "db_server_id" {
   description = "ID of the PostgreSQL server"
@@ -96,10 +87,6 @@ output "storage_account_name" {
   value       = azurerm_storage_account.iq_storage.name
 }
 
-output "storage_account_primary_endpoint" {
-  description = "Primary endpoint of the storage account"
-  value       = azurerm_storage_account.iq_storage.primary_blob_endpoint
-}
 
 output "file_share_name" {
   description = "Name of the file share"
@@ -112,11 +99,6 @@ output "key_vault_id" {
   value       = azurerm_key_vault.iq_kv.id
 }
 
-output "key_vault_uri" {
-  description = "URI of the Key Vault"
-  value       = azurerm_key_vault.iq_kv.vault_uri
-  sensitive   = true
-}
 
 # Log Analytics Outputs
 output "log_analytics_workspace_id" {
@@ -129,22 +111,10 @@ output "log_analytics_workspace_name" {
   value       = azurerm_log_analytics_workspace.iq_logs.name
 }
 
-# Application Insights Outputs
+# Application Insights Outputs (basic ID only)
 output "application_insights_id" {
   description = "ID of Application Insights"
   value       = var.enable_monitoring ? azurerm_application_insights.iq_insights[0].id : null
-}
-
-output "application_insights_instrumentation_key" {
-  description = "Instrumentation key for Application Insights"
-  value       = var.enable_monitoring ? azurerm_application_insights.iq_insights[0].instrumentation_key : null
-  sensitive   = true
-}
-
-output "application_insights_connection_string" {
-  description = "Connection string for Application Insights"
-  value       = var.enable_monitoring ? azurerm_application_insights.iq_insights[0].connection_string : null
-  sensitive   = true
 }
 
 # Application URL

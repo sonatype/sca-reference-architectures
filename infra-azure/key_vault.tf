@@ -59,20 +59,5 @@ resource "azurerm_key_vault_access_policy" "container_app" {
   depends_on = [azurerm_container_app.iq_app]
 }
 
-# Store database credentials in Key Vault
-resource "azurerm_key_vault_secret" "db_username" {
-  name         = "db-username"
-  value        = var.db_username
-  key_vault_id = azurerm_key_vault.iq_kv.id
-
-  depends_on = [azurerm_key_vault_access_policy.current_user]
-}
-
-resource "azurerm_key_vault_secret" "db_password" {
-  name         = "db-password"
-  value        = var.db_password
-  key_vault_id = azurerm_key_vault.iq_kv.id
-
-  depends_on = [azurerm_key_vault_access_policy.current_user]
-}
+# Database credentials stored directly in Container App secrets for simplicity
 

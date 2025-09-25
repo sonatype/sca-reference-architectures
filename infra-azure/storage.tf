@@ -10,11 +10,10 @@ resource "azurerm_storage_account" "iq_storage" {
   # Enable secure transfer
   https_traffic_only_enabled = true
 
-  # Network rules - Restrict to VNet for security
+  # Network rules - Allow Azure services and trusted Microsoft services for management
   network_rules {
-    default_action             = "Deny"
-    virtual_network_subnet_ids = [azurerm_subnet.private_subnet.id]
-    bypass                     = ["AzureServices"]
+    default_action = "Allow"
+    bypass         = ["AzureServices", "Logging", "Metrics"]
   }
 
   tags = {
