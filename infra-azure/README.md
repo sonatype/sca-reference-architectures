@@ -364,22 +364,26 @@ terraform destroy -target=azurerm_container_app.iq_app
 
 ### **Important: Admin Port 8071 Limitation**
 
-**Azure Container Apps has a fundamental ingress limitation:**
+**Azure Container Apps ingress has specific port exposure limitations:**
 
-- **Single External Port**: Container Apps ingress supports **only ONE external port** (currently port 8070 via port 80)
-- **Admin Port 8071**: Available **internally within the container only**
+- **Primary Port**: Container Apps ingress exposes one primary external port (currently port 8070 via port 80)
+- **Additional Ports**: While Azure supports up to 5 additional TCP ports, these have significant restrictions:
+  - Only work with VNET-integrated environments
+  - Must be unique across the entire Container Apps environment
+  - Limited to basic TCP (no HTTP features like health probes)
+  - Require CLI extension and special configuration
 
-**Impact:**
-- ✅ **Main application access**: Works perfectly via Application Gateway port 80
-- ❌ **Admin port 8071 health checks**: **NOT possible** - port not externally accessible
-- ❌ **Direct admin access**: Cannot access port 8071 from outside the container
+**Current Configuration Impact:**
+- ✅ **Main application access**: Works perfectly via Application Gateway port 80 with full HTTP support
+- ❌ **Admin port 8071 health checks**: **NOT possible** - additional ports don't support Application Gateway HTTP health probes
+- ❌ **Admin port external access**: Would require complex additional port configuration with limited functionality
 
-**Admin port 8071 is only accessible:**
+**Admin port 8071 is accessible:**
 - Within the container itself (internal communication)
 - Via Container App exec/debug sessions
-- **NOT via Application Gateway health probes or external access**
+- **NOT recommended for external access** due to Azure Container Apps additional port limitations
 
-This is a **platform architectural limitation**, not a configuration issue.
+**Reference**: [Azure Container Apps Ingress Documentation](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)
 
 ## Production Considerations
 

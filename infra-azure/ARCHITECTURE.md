@@ -19,18 +19,22 @@ This reference architecture deploys Nexus IQ Server on Microsoft Azure using clo
 
 ### **⚠️ Important: Azure Container Apps Port Limitation**
 
-**Azure Container Apps has a fundamental ingress limitation:**
+**Azure Container Apps ingress has specific architectural constraints:**
 
-- **Single External Port**: Container Apps ingress can only expose **ONE port externally** (port 8070 via ingress port 80)
-- **Admin Port 8071**: Available **internally within the container only** - NOT accessible for external health checks
-- **Health Probes**: Application Gateway can only perform health checks on the exposed ingress port (80)
+- **Primary Port**: Container Apps exposes one primary port with full HTTP features (port 8070 via ingress port 80)
+- **Additional Ports**: Azure supports up to 5 additional TCP ports, but with major restrictions:
+  - Limited to basic TCP traffic (no HTTP health probe support)
+  - Only available in VNET-integrated environments
+  - Must be unique across the entire Container Apps environment
+  - No built-in HTTP features (CORS, session affinity, health probes)
+- **Health Probes**: Application Gateway HTTP health probes only work with the primary ingress port
 
-**This means:**
-- ✅ **Main application**: Fully accessible via Application Gateway → Container App ingress
-- ❌ **Admin port health checks**: Cannot be implemented due to Container Apps architecture
-- ❌ **Direct admin port access**: Port 8071 not reachable from Application Gateway
+**Architecture Impact:**
+- ✅ **Main application**: Full HTTP support via Application Gateway → Container App primary ingress
+- ❌ **Admin port health checks**: Additional ports don't support Application Gateway HTTP health probes
+- ❌ **Admin port HTTP features**: Limited to basic TCP connectivity if exposed
 
-This is a **platform architectural limitation**, not a configuration issue.
+**Reference**: [Azure Container Apps Ingress Limitations](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview) - Microsoft Documentation
 
 ## Scaling Options
 - **Current Deployment**: Single Instance (up to 100 applications)
