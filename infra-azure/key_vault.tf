@@ -38,7 +38,7 @@ resource "azurerm_key_vault_access_policy" "current_user" {
   ]
 
   secret_permissions = [
-    "Get", "List", "Set", "Delete", "Recover", "Backup", "Restore"
+    "Get", "List", "Set", "Delete", "Recover", "Backup", "Restore", "Purge"
   ]
 
   certificate_permissions = [
@@ -76,14 +76,3 @@ resource "azurerm_key_vault_secret" "db_password" {
   depends_on = [azurerm_key_vault_access_policy.current_user]
 }
 
-# Store database connection string in Key Vault
-resource "azurerm_key_vault_secret" "db_connection_string" {
-  name         = "db-connection-string"
-  value        = "postgresql://${var.db_username}:${var.db_password}@${azurerm_postgresql_flexible_server.iq_db.fqdn}:5432/${var.db_name}?sslmode=require"
-  key_vault_id = azurerm_key_vault.iq_kv.id
-
-  depends_on = [
-    azurerm_key_vault_access_policy.current_user,
-    azurerm_postgresql_flexible_server.iq_db
-  ]
-}

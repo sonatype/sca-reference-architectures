@@ -1,18 +1,20 @@
+# Copy this file to terraform.tfvars and update the values
+# cp terraform.tfvars.example terraform.tfvars
+
 # General Configuration
-azure_region  = "East US"
+azure_region = "East US"
 
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
 public_subnet_cidr  = "10.0.1.0/24"
-private_subnet_cidr = "10.0.10.0/24"
+private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
-container_cpu      = 2.0
-container_memory   = "4Gi"
-iq_replica_count   = 1
-iq_docker_image    = "sonatypecommunity/nexus-iq-server:latest"
-java_opts          = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+container_cpu    = 2.0
+container_memory = "4Gi"
+iq_docker_image  = "sonatypecommunity/nexus-iq-server:latest"
+java_opts        = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
@@ -20,7 +22,7 @@ db_username                         = "nexusiq"
 db_password                         = "YourSecurePassword123!"  # Change this!
 postgres_version                    = "15"
 db_sku_name                        = "B_Standard_B2s"
-db_storage_mb                      = 32768  # 32 GB
+db_storage_mb                   = 32768
 db_auto_grow_enabled               = true
 db_backup_retention_days           = 7
 db_geo_redundant_backup_enabled    = false
@@ -31,14 +33,14 @@ app_gateway_sku_name    = "Standard_v2"
 app_gateway_sku_tier    = "Standard_v2"
 app_gateway_capacity    = 2
 
-# SSL Certificate (optional - leave empty for HTTP only)
-ssl_certificate_path     = ""
-ssl_certificate_password = ""
+# SSL Certificate Configuration (optional)
+# ssl_certificate_path     = "/path/to/certificate.pfx"
+# ssl_certificate_password = "certificate_password"
 
 # Storage Configuration
 storage_account_tier             = "Standard"
 storage_account_replication_type = "LRS"
-file_share_quota                 = 100  # GB
+file_share_quota                 = 100
 
 # Monitoring Configuration
 log_retention_days = 30

@@ -77,33 +77,3 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "allow_azure_service
   end_ip_address   = "0.0.0.0"
 }
 
-# PostgreSQL Configuration (optional performance tuning)
-resource "azurerm_postgresql_flexible_server_configuration" "shared_preload_libraries" {
-  name      = "shared_preload_libraries"
-  server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "pg_stat_statements"
-}
-
-resource "azurerm_postgresql_flexible_server_configuration" "log_checkpoints" {
-  name      = "log_checkpoints"
-  server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "on"
-}
-
-resource "azurerm_postgresql_flexible_server_configuration" "log_connections" {
-  name      = "log_connections"
-  server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "on"
-}
-
-resource "azurerm_postgresql_flexible_server_configuration" "log_disconnections" {
-  name      = "log_disconnections"
-  server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "on"
-}
-
-resource "azurerm_postgresql_flexible_server_configuration" "log_lock_waits" {
-  name      = "log_lock_waits"
-  server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "on"
-}

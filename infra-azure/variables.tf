@@ -43,12 +43,6 @@ variable "container_memory" {
   default     = "4Gi"
 }
 
-variable "iq_replica_count" {
-  description = "Number of container replicas"
-  type        = number
-  default     = 1
-}
-
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
