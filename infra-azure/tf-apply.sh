@@ -83,11 +83,106 @@ echo ""
 echo -e "${YELLOW}ℹ️  Deploying Azure resources automatically...${NC}"
 echo ""
 
-# Run terraform apply
+# Function to import existing resources automatically
+import_existing_resource() {
+    local resource_address="$1"
+    local resource_id="$2"
+
+    echo -e "${YELLOW}📥 Auto-importing existing resource: $resource_address${NC}"
+    if terraform import "$resource_address" "$resource_id"; then
+        echo -e "${GREEN}✅ Successfully imported: $resource_address${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Failed to import: $resource_address${NC}"
+        return 1
+    fi
+}
+
+# Function to handle terraform apply with auto-import
+run_terraform_apply() {
+    local apply_output
+    local exit_code
+
+    echo -e "${BLUE}🚀 Running terraform apply...${NC}"
+
+    # Run terraform apply and capture output
+    apply_output=$(terraform apply -auto-approve tfplan 2>&1)
+    exit_code=$?
+
+    # Always show the output to user
+    echo "$apply_output"
+
+    # Check if apply failed due to existing resources that need importing
+    if [[ $exit_code -ne 0 ]] && echo "$apply_output" | grep -q "already exists - to be managed via Terraform this resource needs to be imported"; then
+        echo ""
+        echo -e "${YELLOW}⚠️  Detected existing resources that need to be imported${NC}"
+        echo -e "${BLUE}🔄 Attempting automatic import...${NC}"
+        echo ""
+
+        # Try to import the most common resources that cause this issue
+        local imported_any=false
+
+        # Check for Application Gateway import needed
+        if echo "$apply_output" | grep -q "azurerm_application_gateway.*already exists"; then
+            local app_gw_id="/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/applicationGateways/appgw-ref-arch-iq"
+
+            echo -e "${YELLOW}📥 Importing Application Gateway...${NC}"
+            if terraform import azurerm_application_gateway.iq_app_gateway "$app_gw_id" >/dev/null 2>&1; then
+                echo -e "${GREEN}✅ Successfully imported Application Gateway${NC}"
+                imported_any=true
+            else
+                echo -e "${RED}❌ Failed to import Application Gateway${NC}"
+            fi
+        fi
+
+        # Check for Resource Group import needed
+        if echo "$apply_output" | grep -q "azurerm_resource_group.*already exists"; then
+            local rg_id="/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq"
+
+            echo -e "${YELLOW}📥 Importing Resource Group...${NC}"
+            if terraform import azurerm_resource_group.iq_rg "$rg_id" >/dev/null 2>&1; then
+                echo -e "${GREEN}✅ Successfully imported Resource Group${NC}"
+                imported_any=true
+            else
+                echo -e "${RED}❌ Failed to import Resource Group${NC}"
+            fi
+        fi
+
+        # Check for Container App import needed
+        if echo "$apply_output" | grep -q "azurerm_container_app.*already exists"; then
+            local ca_id="/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/containerApps/ca-ref-arch-iq"
+
+            echo -e "${YELLOW}📥 Importing Container App...${NC}"
+            if terraform import azurerm_container_app.iq_app "$ca_id" >/dev/null 2>&1; then
+                echo -e "${GREEN}✅ Successfully imported Container App${NC}"
+                imported_any=true
+            else
+                echo -e "${RED}❌ Failed to import Container App${NC}"
+            fi
+        fi
+
+        # If we imported anything, retry the apply
+        if [[ "$imported_any" == "true" ]]; then
+            echo ""
+            echo -e "${BLUE}🔄 Retrying terraform apply after imports...${NC}"
+            echo ""
+            terraform apply -auto-approve tfplan
+            return $?
+        else
+            echo -e "${RED}❌ No resources were imported successfully${NC}"
+            echo -e "${YELLOW}💡 You may need to manually import resources${NC}"
+            return 1
+        fi
+    else
+        return $exit_code
+    fi
+}
+
+# Run terraform apply with auto-import handling
 echo -e "${GREEN}🚀 Starting deployment...${NC}"
 echo ""
 
-if terraform apply -auto-approve tfplan; then
+if run_terraform_apply; then
     echo ""
     echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
     echo ""
