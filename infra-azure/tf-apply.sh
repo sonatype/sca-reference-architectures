@@ -98,91 +98,104 @@ import_existing_resource() {
     fi
 }
 
-# Function to handle terraform apply with auto-import
-run_terraform_apply() {
-    local apply_output
-    local exit_code
 
-    echo -e "${BLUE}🚀 Running terraform apply...${NC}"
+# Function to check if resource is already in terraform state
+is_in_state() {
+    local terraform_address="$1"
+    terraform state show "$terraform_address" >/dev/null 2>&1
+}
 
-    # Run terraform apply and capture output
-    apply_output=$(terraform apply -auto-approve tfplan 2>&1)
-    exit_code=$?
+# Function to import a single resource in background
+import_resource_async() {
+    local terraform_address="$1"
+    local azure_id="$2"
+    local temp_file="$3"
 
-    # Always show the output to user
-    echo "$apply_output"
-
-    # Check if apply failed due to existing resources that need importing
-    if [[ $exit_code -ne 0 ]] && echo "$apply_output" | grep -q "already exists - to be managed via Terraform this resource needs to be imported"; then
-        echo ""
-        echo -e "${YELLOW}⚠️  Detected existing resources that need to be imported${NC}"
-        echo -e "${BLUE}🔄 Attempting automatic import...${NC}"
-        echo ""
-
-        # Try to import the most common resources that cause this issue
-        local imported_any=false
-
-        # Check for Application Gateway import needed
-        if echo "$apply_output" | grep -q "azurerm_application_gateway.*already exists"; then
-            local app_gw_id="/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/applicationGateways/appgw-ref-arch-iq"
-
-            echo -e "${YELLOW}📥 Importing Application Gateway...${NC}"
-            if terraform import azurerm_application_gateway.iq_app_gateway "$app_gw_id" >/dev/null 2>&1; then
-                echo -e "${GREEN}✅ Successfully imported Application Gateway${NC}"
-                imported_any=true
-            else
-                echo -e "${RED}❌ Failed to import Application Gateway${NC}"
-            fi
-        fi
-
-        # Check for Resource Group import needed
-        if echo "$apply_output" | grep -q "azurerm_resource_group.*already exists"; then
-            local rg_id="/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq"
-
-            echo -e "${YELLOW}📥 Importing Resource Group...${NC}"
-            if terraform import azurerm_resource_group.iq_rg "$rg_id" >/dev/null 2>&1; then
-                echo -e "${GREEN}✅ Successfully imported Resource Group${NC}"
-                imported_any=true
-            else
-                echo -e "${RED}❌ Failed to import Resource Group${NC}"
-            fi
-        fi
-
-        # Check for Container App import needed
-        if echo "$apply_output" | grep -q "azurerm_container_app.*already exists"; then
-            local ca_id="/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/containerApps/ca-ref-arch-iq"
-
-            echo -e "${YELLOW}📥 Importing Container App...${NC}"
-            if terraform import azurerm_container_app.iq_app "$ca_id" >/dev/null 2>&1; then
-                echo -e "${GREEN}✅ Successfully imported Container App${NC}"
-                imported_any=true
-            else
-                echo -e "${RED}❌ Failed to import Container App${NC}"
-            fi
-        fi
-
-        # If we imported anything, retry the apply
-        if [[ "$imported_any" == "true" ]]; then
-            echo ""
-            echo -e "${BLUE}🔄 Retrying terraform apply after imports...${NC}"
-            echo ""
-            terraform apply -auto-approve tfplan
-            return $?
-        else
-            echo -e "${RED}❌ No resources were imported successfully${NC}"
-            echo -e "${YELLOW}💡 You may need to manually import resources${NC}"
-            return 1
-        fi
+    if is_in_state "$terraform_address"; then
+        echo "SKIP:$terraform_address:already in state" >> "$temp_file"
     else
-        return $exit_code
+        if terraform import "$terraform_address" "$azure_id" >/dev/null 2>&1; then
+            echo "SUCCESS:$terraform_address:imported" >> "$temp_file"
+        else
+            echo "SKIP:$terraform_address:doesn't exist" >> "$temp_file"
+        fi
     fi
 }
 
-# Run terraform apply with auto-import handling
+# Function to proactively import all possible resources (optimized for speed)
+import_all_resources() {
+    echo -e "${BLUE}📥 Fast parallel resource import...${NC}"
+    echo ""
+
+    # Critical resources that commonly cause import issues (prioritized list)
+    local critical_resources=(
+        "azurerm_resource_group.iq_rg:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq"
+        "azurerm_application_gateway.iq_app_gateway:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/applicationGateways/appgw-ref-arch-iq"
+        "azurerm_container_app.iq_app:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/containerApps/ca-ref-arch-iq"
+        "azurerm_container_app_environment.iq_env:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/managedEnvironments/cae-ref-arch-iq"
+        "azurerm_virtual_network.iq_vnet:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq"
+        "azurerm_public_ip.app_gateway_pip:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/publicIPAddresses/pip-ref-arch-iq-appgw"
+        "azurerm_storage_account.iq_storage:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Storage/storageAccounts/strefarchiqmg73kk"
+        "azurerm_postgresql_flexible_server.iq_db:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-ref-arch-iq"
+        "azurerm_log_analytics_workspace.iq_logs:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.OperationalInsights/workspaces/log-ref-arch-iq"
+        "azurerm_key_vault.iq_kv:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.KeyVault/vaults/kv-ref-arch-iq-768w0o"
+    )
+
+    # Create temporary file for results
+    local temp_file=$(mktemp)
+    local pids=()
+
+    echo -e "${YELLOW}🚀 Launching parallel imports...${NC}"
+
+    # Launch all imports in parallel
+    for resource in "${critical_resources[@]}"; do
+        local terraform_address="${resource%%:*}"
+        local azure_id="${resource#*:}"
+
+        import_resource_async "$terraform_address" "$azure_id" "$temp_file" &
+        pids+=($!)
+    done
+
+    # Wait for all background processes to complete
+    echo -e "${BLUE}⏳ Waiting for imports to complete...${NC}"
+    for pid in "${pids[@]}"; do
+        wait "$pid"
+    done
+
+    # Process results
+    local imported_count=0
+    local skipped_count=0
+
+    while IFS=':' read -r status terraform_address reason; do
+        case "$status" in
+            "SUCCESS")
+                echo -e "${GREEN}✅ Imported: $terraform_address${NC}"
+                imported_count=$((imported_count + 1))
+                ;;
+            "SKIP")
+                echo -e "${BLUE}ℹ️  Skipped: $terraform_address ($reason)${NC}"
+                skipped_count=$((skipped_count + 1))
+                ;;
+        esac
+    done < "$temp_file"
+
+    # Cleanup
+    rm -f "$temp_file"
+
+    echo ""
+    echo -e "${GREEN}📊 Import Summary: $imported_count imported, $skipped_count skipped${NC}"
+    echo ""
+}
+
+# Run comprehensive import then apply
 echo -e "${GREEN}🚀 Starting deployment...${NC}"
 echo ""
 
-if run_terraform_apply; then
+# First, import everything that might exist
+import_all_resources
+
+# Then run terraform apply (simplified, no import error handling needed)
+if terraform apply -auto-approve tfplan; then
     echo ""
     echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
     echo ""
