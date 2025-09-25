@@ -46,10 +46,6 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     port = 443
   }
 
-  frontend_port {
-    name = "admin-port"
-    port = 8071
-  }
 
   frontend_ip_configuration {
     name                 = "frontend-ip-configuration"
@@ -61,24 +57,7 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     fqdns = [azurerm_container_app.iq_app.ingress[0].fqdn]
   }
 
-  backend_address_pool {
-    name  = "iq-admin-backend-pool"
-    fqdns = [azurerm_container_app.iq_app.ingress[0].fqdn]
-  }
-
   # Removed conflicting iq-http-settings - using only iq-http-settings-new for HTTP port 80
-
-  backend_http_settings {
-    name                                = "iq-admin-http-settings"
-    cookie_based_affinity               = "Disabled"
-    path                                = "/"
-    port                                = 8071
-    protocol                            = "Http"
-    request_timeout                     = 60
-    pick_host_name_from_backend_address = true
-
-    probe_name = "iq-admin-health-probe"
-  }
 
   # HTTP backend settings for Nexus IQ Server
   backend_http_settings {
@@ -100,12 +79,6 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     protocol                       = "Http"
   }
 
-  http_listener {
-    name                           = "admin-http-listener"
-    frontend_ip_configuration_name = "frontend-ip-configuration"
-    frontend_port_name             = "admin-port"
-    protocol                       = "Http"
-  }
 
   request_routing_rule {
     name                       = "iq-routing-rule"
@@ -117,30 +90,8 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     priority                   = 100
   }
 
-  request_routing_rule {
-    name                       = "iq-admin-routing-rule"
-    rule_type                  = "Basic"
-    http_listener_name         = "admin-http-listener"
-    backend_address_pool_name  = "iq-admin-backend-pool"
-    backend_http_settings_name = "iq-admin-http-settings"
-    priority                   = 200
-  }
 
   # Removed old iq-health-probe - using only iq-http-probe-new for HTTP port 80
-
-  probe {
-    name                                      = "iq-admin-health-probe"
-    protocol                                  = "Http"
-    path                                      = "/"
-    interval                                  = 30
-    timeout                                   = 30
-    unhealthy_threshold                       = 3
-    pick_host_name_from_backend_http_settings = true
-
-    match {
-      status_code = ["200-399", "404"]
-    }
-  }
 
   # HTTP health probe for Nexus IQ Server
   probe {

@@ -42,7 +42,7 @@ resource "azurerm_key_vault_access_policy" "current_user" {
   ]
 
   certificate_permissions = [
-    "Get", "List", "Update", "Create", "Import", "Delete", "Recover", "Backup", "Restore", "ManageContacts", "ManageIssuers", "GetIssuers", "ListIssuers", "SetIssuers", "DeleteIssuers"
+    "Get", "List"
   ]
 }
 
