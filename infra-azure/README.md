@@ -107,13 +107,12 @@ azure_region = "East US"
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
 public_subnet_cidr  = "10.0.1.0/24"
-private_subnet_cidr = "10.0.10.0/24"
+private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
 container_cpu      = 2.0           # 2.0 vCPU
 container_memory   = "4Gi"         # 4GB RAM
-iq_replica_count   = 1             # Single instance (recommended)
 iq_docker_image    = "sonatypecommunity/nexus-iq-server:latest"
 
 # Database Configuration
@@ -126,7 +125,7 @@ postgres_version                 = "15"
 
 ### 2. Important Settings
 
-- **`iq_replica_count = 1`** - Keep this at 1. Only use a single Nexus IQ Server
+- **Single Instance** - Container App configured for exactly 1 replica (hardcoded for Nexus IQ requirements)
 - **`db_password`** - Use a strong, unique password
 - **Resource Names** - All Azure resources follow naming conventions (e.g., "rg-ref-arch-iq")
 - **`environment`** - Used as suffix for all resource names
@@ -179,7 +178,7 @@ postgres_version                 = "15"
 
 ### Network Security Groups
 - **Public NSG**: Allows HTTP (80), HTTPS (443) from internet, management traffic
-- **Private NSG**: Allows traffic from Application Gateway on ports 8070/8071
+- **Private NSG**: Allows HTTP/HTTPS traffic and Azure Load Balancer health probes
 - **Database NSG**: Allows PostgreSQL (5432) from private subnet
 
 ## Automated Deployment Scripts
@@ -232,8 +231,8 @@ Example output:
 ```
 application_url = "http://ref-arch-iq-abc123.eastus.cloudapp.azure.com"
 resource_group_name = "rg-ref-arch-iq"
-container_app_fqdn = "ca-ref-arch-iq--abc123.politewater-12345678.eastus.azurecontainerapps.io"
-db_server_fqdn = "psql-ref-arch-iq.postgres.database.azure.com"
+application_gateway_fqdn = "ref-arch-iq-abc123.eastus.cloudapp.azure.com"
+db_server_name = "psql-ref-arch-iq"
 ```
 
 ### 2. Access the Application
@@ -361,6 +360,27 @@ terraform destroy -target=azurerm_container_app.iq_app
 
 **Warning**: Complete cleanup will permanently delete all data including the database. Ensure you have backups if needed.
 
+## Azure Container Apps Port Limitation
+
+### **Important: Admin Port 8071 Limitation**
+
+**Azure Container Apps has a fundamental ingress limitation:**
+
+- **Single External Port**: Container Apps ingress supports **only ONE external port** (currently port 8070 via port 80)
+- **Admin Port 8071**: Available **internally within the container only**
+
+**Impact:**
+- ✅ **Main application access**: Works perfectly via Application Gateway port 80
+- ❌ **Admin port 8071 health checks**: **NOT possible** - port not externally accessible
+- ❌ **Direct admin access**: Cannot access port 8071 from outside the container
+
+**Admin port 8071 is only accessible:**
+- Within the container itself (internal communication)
+- Via Container App exec/debug sessions
+- **NOT via Application Gateway health probes or external access**
+
+This is a **platform architectural limitation**, not a configuration issue.
+
 ## Production Considerations
 
 For production deployments, consider:
@@ -373,6 +393,7 @@ For production deployments, consider:
 6. **Resource Sizing**: Adjust CPU/memory based on usage patterns
 7. **Network Security**: Restrict Application Gateway access to specific IP ranges
 8. **Database Protection**: Enable high availability and geo-redundant backups
+9. **Admin Access**: Plan alternative admin access methods (Container App exec, logs analysis)
 
 ## Reference Architecture
 

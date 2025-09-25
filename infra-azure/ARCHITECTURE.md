@@ -17,6 +17,21 @@
 ## Overview
 This reference architecture deploys Nexus IQ Server on Microsoft Azure using cloud-native services (Container Apps, PostgreSQL Flexible Server, Azure File Share) for operational excellence and security. This single-instance deployment provides a solid foundation for development, testing, and small to medium production workloads.
 
+### **⚠️ Important: Azure Container Apps Port Limitation**
+
+**Azure Container Apps has a fundamental ingress limitation:**
+
+- **Single External Port**: Container Apps ingress can only expose **ONE port externally** (port 8070 via ingress port 80)
+- **Admin Port 8071**: Available **internally within the container only** - NOT accessible for external health checks
+- **Health Probes**: Application Gateway can only perform health checks on the exposed ingress port (80)
+
+**This means:**
+- ✅ **Main application**: Fully accessible via Application Gateway → Container App ingress
+- ❌ **Admin port health checks**: Cannot be implemented due to Container Apps architecture
+- ❌ **Direct admin port access**: Port 8071 not reachable from Application Gateway
+
+This is a **platform architectural limitation**, not a configuration issue.
+
 ## Scaling Options
 - **Current Deployment**: Single Instance (up to 100 applications)
 - **Vertical Scaling**: Increase CPU/memory resources as needed
@@ -39,7 +54,7 @@ This reference architecture deploys Nexus IQ Server on Microsoft Azure using clo
 │   │   ┌──────────────────────────────────────────────────────────────────────────────┐ │   │
 │   │   │                      Application Gateway                                     │ │   │
 │   │   │                        Port 80 → Backend Pool                                │ │   │
-│   │   │                     Health Probes: 8070, 8071                                │ │   │
+│   │   │                     Health Probes: Port 80 Only                             │ │   │
 │   │   └───────────────────────────────────┬──────────────────────────────────────────┘ │   │
 │   └───────────────────────────────────────┼────────────────────────────────────────────┘   │
 │                                           │
@@ -50,7 +65,7 @@ This reference architecture deploys Nexus IQ Server on Microsoft Azure using clo
 │   │   │   ┌──────────────────────────────────────────────────────────────────────┐  │  │   │
 │   │   │   │                 Nexus IQ Server Container                            │  │  │   │
 │   │   │   │                   Port 8070: Application                             │  │  │   │
-│   │   │   │                   Port 8071: Admin (Health Check Only)               │  │  │   │
+│   │   │   │                   Port 8071: Admin (Internal Only)                   │  │  │   │
 │   │   │   │                   CPU: 2.0, Memory: 4Gi                              │  │  │   │
 │   │   │   │                   Replicas: 1 (Single Instance)                      │  │  │   │
 │   │   │   └───────────────────────────────┬──────────────────────────────────────┘  │  │   │
@@ -98,10 +113,10 @@ Internet → Application Gateway (Port 80)
 Application Gateway NSG (HTTP: 80, HTTPS: 443)
     ↓
 Backend Pool Health Probes:
-    • Port 8070: /         (accepts 200,302,303,404)
-    • Port 8071: /healthcheck (accepts 200,404) - Internal Only
+    • Port 80: /           (accepts 200,301,302,303) - External ingress
+    • Port 8071: NOT ACCESSIBLE - Container Apps ingress limitation
     ↓
-Container Apps NSG (Port 8070, 8071 from App Gateway only)
+Container Apps NSG (HTTP/HTTPS and Load Balancer probes only)
     ↓
 Nexus IQ Container (Private Subnet)
     ↓
@@ -126,8 +141,8 @@ Network Security Groups (Least Privilege):
 ┌─────────────────┬──────────────────┬─────────────────┬──────────────────┐
 │   Component     │    Inbound       │    Outbound     │    Protocol      │
 ├─────────────────┼──────────────────┼─────────────────┼──────────────────┤
-│ App Gateway     │ Internet:80,443  │ Container:8070  │ HTTP             │
-│ Container Apps  │ AppGW:8070,8071  │ PostgreSQL:5432 │ TCP              │
+│ App Gateway     │ Internet:80,443  │ Container:80    │ HTTP             │
+│ Container Apps  │ AppGW:80,443     │ PostgreSQL:5432 │ TCP              │
 │                 │                  │ FileShare:445   │ TCP/SMB          │
 │ PostgreSQL      │ Container:5432   │ None            │ PostgreSQL       │
 │ File Share      │ Container:445    │ None            │ SMB              │
@@ -282,3 +297,73 @@ All resources use the prefix `ref-arch-iq` for easy identification:
 | **Monitoring** |
 | Log Analytics | `log-ref-arch-iq` | Centralized logging |
 | Application Insights | `appi-ref-arch-iq` | Application performance monitoring |
+
+## 6. Azure Container Apps Port Architecture
+
+### **Current Port Configuration**
+
+| **Component** | **Port** | **Accessibility** | **Purpose** |
+|---------------|----------|-------------------|-------------|
+| **Container App Ingress** | 80 | ✅ External | Main application access |
+| **Nexus IQ Application** | 8070 | ✅ Internal | Application server (mapped from port 80) |
+| **Nexus IQ Admin** | 8071 | ❌ Internal only | Admin interface (not externally accessible) |
+
+### **Azure Container Apps Ingress Architecture**
+
+**Current Working Pattern:**
+```
+Internet → Application Gateway (Port 80) → Container App Ingress → Nexus IQ Container (Port 8070) ✅
+```
+
+**Attempted Admin Pattern:**
+```
+Internet → Application Gateway (Port 8071) → ❌ BLOCKED - Container Apps doesn't expose port 8071
+```
+
+### **Admin Port Access Limitations**
+
+**❌ What Cannot Be Done:**
+- External health checks on port 8071
+- Direct admin port access from Application Gateway
+- Multi-port load balancing configurations
+- Admin-specific health probe endpoints
+
+**✅ What Works:**
+- Main application access and health monitoring
+- Internal admin functionality within the container
+- Database connectivity and file storage
+- Application monitoring and logging
+
+### **Workarounds for Admin Access**
+
+**1. Container App Exec (Direct Shell Access):**
+```bash
+az containerapp exec --name ca-ref-arch-iq --resource-group rg-ref-arch-iq
+# Once inside container, access admin port via localhost:8071
+```
+
+**2. Application Logs Monitoring:**
+```bash
+az containerapp logs show --name ca-ref-arch-iq --resource-group rg-ref-arch-iq --follow
+```
+
+**3. Port Forwarding (Development):**
+```bash
+az containerapp up --source . --target-port 8071
+# Temporary development access only
+```
+
+### **Production Recommendations**
+
+**For Admin Access in Production:**
+- **Use Container App exec** for direct administrative tasks
+- **Monitor via Application Insights** and Log Analytics
+- **Plan admin workflows** that don't require external port 8071 access
+- **Consider admin API calls** through the main application port if supported
+
+**Architecture Benefits:**
+- **Simplified ingress** - Single external port reduces attack surface
+- **Secure admin access** - Admin functions not externally exposed
+- **Cloud-native design** - Follows Azure Container Apps architectural patterns
+
+**This single-port architecture provides excellent security and functionality for most Nexus IQ Server deployments.**

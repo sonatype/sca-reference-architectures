@@ -91,8 +91,6 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
   }
 
 
-  # Removed old iq-health-probe - using only iq-http-probe-new for HTTP port 80
-
   # HTTP health probe for Nexus IQ Server
   probe {
     name                                      = "iq-http-probe-new"
