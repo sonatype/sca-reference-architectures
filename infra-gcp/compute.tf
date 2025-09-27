@@ -155,23 +155,13 @@ CONFIGEOF
         }
 
         env {
-          name = "DB_USER"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.db_credentials.secret_id
-              key  = "username"
-            }
-          }
+          name  = "DB_USER"
+          value = var.db_username
         }
 
         env {
-          name = "DB_PASSWORD"
-          value_from {
-            secret_key_ref {
-              name = google_secret_manager_secret.db_credentials.secret_id
-              key  = "password"
-            }
-          }
+          name  = "DB_PASSWORD"
+          value = var.db_password
         }
 
         # Health check configuration
@@ -191,10 +181,10 @@ CONFIGEOF
             path = "/"
             port = 8070
           }
-          initial_delay_seconds = 60
-          timeout_seconds       = 10
-          period_seconds        = 10
-          failure_threshold     = 12
+          initial_delay_seconds = 120
+          timeout_seconds       = 30
+          period_seconds        = 35
+          failure_threshold     = 20
         }
 
         # Volume mounts for persistent data

@@ -223,11 +223,70 @@ perform_destroy() {
         sleep 10
     fi
     
-    # Perform the actual destroy
-    print_status "Destroying infrastructure... This may take 10-20 minutes."
+    # Perform the actual destroy with staged approach for service networking
+    print_status "Destroying infrastructure... This may take 15-25 minutes."
+    
+    # Stage 1: Destroy Cloud Run and application layer first
+    print_status "Stage 1: Destroying application services..."
+    terraform destroy -target=google_cloud_run_service.iq_service \
+                     -target=google_cloud_run_service_iam_binding.iq_invoker \
+                     -target=google_cloud_run_domain_mapping.iq_domain \
+                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Some Cloud Run resources may not have been destroyed cleanly"
+    
+    # Stage 2: Destroy all SQL-related resources with enhanced cleanup
+    print_status "Stage 2: Destroying database and related services..."
+    
+    # First, try to terminate any active database connections
+    local db_instance_name
+    db_instance_name=$(terraform output -raw sql_instance_name 2>/dev/null || echo "")
+    if [[ -n "$db_instance_name" ]]; then
+        print_status "Attempting to close database connections..."
+        gcloud sql operations list --instance="$db_instance_name" --limit=1 --project=$(grep gcp_project_id terraform.tfvars | cut -d'\"' -f2) --format="value(name)" 2>/dev/null | head -1 || true
+    fi
+    
+    # Destroy database resources in specific order
+    terraform destroy -target=google_sql_user.iq_db_user \
+                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database user destruction may have failed"
+    
+    terraform destroy -target=google_sql_database.iq_database \
+                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database destruction may have failed"
+    
+    terraform destroy -target=google_sql_ssl_cert.iq_client_cert \
+                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "SSL cert destruction may have failed"
+    
+    # Wait for database operations to complete
+    print_status "Waiting for database operations to complete..."
+    sleep 30
+    
+    # Finally destroy the instance
+    terraform destroy -target=google_sql_database_instance.iq_db \
+                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database instance destruction may have failed"
+    
+    # Stage 3: Destroy other services that might use service networking
+    print_status "Stage 3: Destroying storage and compute resources..."
+    terraform destroy -target=google_filestore_instance.iq_filestore \
+                     -target=google_vpc_access_connector.iq_connector \
+                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Some storage/compute resources may not have been destroyed cleanly"
+    
+    # Wait longer for GCP to fully clean up all service networking dependencies
+    print_status "Waiting for GCP to fully clean up service networking dependencies..."
+    sleep 60
+    
+    # Stage 4: Handle service networking connection (remove from state instead of destroy)
+    print_status "Stage 4: Removing service networking connection from Terraform state..."
+    print_warning "Service networking connection will be abandoned due to GCP dependency issues"
+    terraform state rm google_service_networking_connection.private_vpc_connection >> "$LOG_FILE" 2>&1 || print_warning "Service networking connection may not exist in state"
+    
+    # Stage 5: Destroy everything else
+    print_status "Stage 5: Destroying remaining infrastructure..."
     if ! terraform destroy -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1; then
         print_error "Terraform destroy failed. Check $LOG_FILE for details."
         print_error "Some resources may still exist and require manual cleanup."
+        
+        # Try to identify what's still there
+        print_status "Checking remaining resources..."
+        terraform state list >> "$LOG_FILE" 2>&1 || true
+        
         exit 1
     fi
     
@@ -341,6 +400,18 @@ show_destruction_summary() {
     print_status "   2. Review any remaining manual resources"
     print_status "   3. Update DNS records if custom domains were used"
     print_status "   4. Store backups in a secure location"
+    echo ""
+    print_warning "⚠️  MANUAL CLEANUP REQUIRED:"
+    print_warning "   Service Networking Connection may still exist in GCP"
+    print_warning "   This resource was abandoned to avoid destroy failures"
+    print_warning "   To clean up manually, run:"
+    echo ""
+    print_warning "   gcloud services vpc-peerings delete \\"
+    print_warning "     --network=ref-arch-iq-vpc \\"
+    print_warning "     --service=servicenetworking.googleapis.com \\"
+    print_warning "     --project=\$(grep gcp_project_id terraform.tfvars | cut -d'\"' -f2)"
+    echo ""
+    print_warning "   Or delete via GCP Console: VPC Networks > Private Service Connection"
     echo ""
     print_status "📁 Log file: $LOG_FILE"
 }

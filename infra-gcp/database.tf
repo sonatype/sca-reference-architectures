@@ -23,10 +23,6 @@ resource "google_sql_database_instance" "iq_db" {
       value = var.db_max_connections
     }
 
-    database_flags {
-      name  = "shared_preload_libraries"
-      value = "pg_stat_statements"
-    }
 
     backup_configuration {
       enabled                        = true
@@ -49,12 +45,7 @@ resource "google_sql_database_instance" "iq_db" {
     ip_configuration {
       ipv4_enabled    = false
       private_network = google_compute_network.iq_vpc.id
-      require_ssl     = true
-
-      authorized_networks {
-        name  = "private-subnet"
-        value = var.private_subnet_cidr
-      }
+      ssl_mode        = "ENCRYPTED_ONLY"
     }
 
     insights_config {
