@@ -33,7 +33,9 @@ resource "google_project_service" "required_apis" {
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "cloudresourcemanager.googleapis.com",
-    "iam.googleapis.com"
+    "iam.googleapis.com",
+    "vpcaccess.googleapis.com",
+    "servicenetworking.googleapis.com"
   ])
 
   project = var.gcp_project_id
@@ -112,6 +114,7 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   network                 = google_compute_network.iq_vpc.id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
+  deletion_policy         = "ABANDON"
 
   depends_on = [google_project_service.required_apis]
 }

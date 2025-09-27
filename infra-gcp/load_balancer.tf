@@ -34,7 +34,7 @@ resource "google_compute_backend_service" "iq_backend" {
     group = google_compute_region_network_endpoint_group.iq_neg.id
   }
 
-  health_checks = [google_compute_health_check.iq_health_check.id]
+  # Health checks not supported for serverless backends
 
   log_config {
     enable      = true
@@ -58,24 +58,8 @@ resource "google_compute_region_network_endpoint_group" "iq_neg" {
 }
 
 
-# Health check for the backend service
-resource "google_compute_health_check" "iq_health_check" {
-  name               = "nexus-iq-health-check"
-  project            = var.gcp_project_id
-  check_interval_sec = 5
-  timeout_sec        = 5
-
-  http_health_check {
-    port         = 8070
-    request_path = "/"
-    response     = ""
-    proxy_header = "NONE"
-  }
-
-  log_config {
-    enable = true
-  }
-}
+# Health check not needed for serverless backends (Cloud Run)
+# Cloud Run manages its own health checking internally
 
 
 # URL Map for routing
@@ -124,7 +108,7 @@ resource "google_compute_global_forwarding_rule" "iq_https_forwarding_rule" {
   target                = google_compute_target_https_proxy.iq_https_proxy[0].id
   port_range            = "443"
   ip_address            = google_compute_global_address.iq_lb_ip.address
-  load_balancing_scheme = "EXTERNAL_MANAGED"
+  load_balancing_scheme = "EXTERNAL"
 }
 
 # Global Forwarding Rule for HTTP
@@ -134,6 +118,6 @@ resource "google_compute_global_forwarding_rule" "iq_http_forwarding_rule" {
   target                = google_compute_target_http_proxy.iq_http_proxy.id
   port_range            = "80"
   ip_address            = google_compute_global_address.iq_lb_ip.address
-  load_balancing_scheme = "EXTERNAL_MANAGED"
+  load_balancing_scheme = "EXTERNAL"
 }
 
