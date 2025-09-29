@@ -33,12 +33,12 @@ resource "google_cloud_run_service" "iq_service" {
           set -e
           echo "Generating custom config.yml with PostgreSQL database configuration"
 
-          # Create necessary directories
-          mkdir -p /etc/nexus-iq-server
-          mkdir -p /var/log/nexus-iq-server
+          # Create necessary directories in writable locations
+          mkdir -p /sonatype-work/config
+          mkdir -p /sonatype-work/logs
 
           # Generate custom config.yml with PostgreSQL database configuration
-          cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
+          cat > /sonatype-work/config/config.yml << 'CONFIGEOF'
 sonatypeWork: /sonatype-work
 
 # Database configuration for PostgreSQL
@@ -60,8 +60,8 @@ server:
   requestLog:
     appenders:
     - type: file
-      currentLogFilename: "/var/log/nexus-iq-server/request.log"
-      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+      currentLogFilename: "/sonatype-work/logs/request.log"
+      archivedLogFilenamePattern: "/sonatype-work/logs/request-%d.log.gz"
       archivedFileCount: 5
 logging:
   level: DEBUG
@@ -77,8 +77,8 @@ logging:
     com.sonatype.insight.audit:
       appenders:
       - type: file
-        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        currentLogFilename: "/sonatype-work/logs/audit.log"
+        archivedLogFilenamePattern: "/sonatype-work/logs/audit-%d.log.gz"
         archivedFileCount: 50
   appenders:
   - type: console
@@ -86,24 +86,24 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
   - type: file
     threshold: ALL
-    currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+    currentLogFilename: "/sonatype-work/logs/clm-server.log"
+    archivedLogFilenamePattern: "/sonatype-work/logs/clm-server-%d.log.gz"
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
     archivedFileCount: 5
 createSampleData: true
 CONFIGEOF
 
           # Replace placeholders with actual values
-          sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_HOST|$DB_HOST|g" /sonatype-work/config/config.yml
+          sed -i "s|\$DB_PORT|$DB_PORT|g" /sonatype-work/config/config.yml
+          sed -i "s|\$DB_NAME|$DB_NAME|g" /sonatype-work/config/config.yml
+          sed -i "s|\$DB_USER|$DB_USER|g" /sonatype-work/config/config.yml
+          sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /sonatype-work/config/config.yml
 
           echo "Generated config.yml with PostgreSQL database configuration"
 
           # Start IQ Server with custom config
-          exec java $JAVA_OPTS -jar /opt/sonatype/nexus-iq-server/nexus-iq-server-*.jar server /etc/nexus-iq-server/config.yml
+          exec java $JAVA_OPTS -jar /opt/sonatype/nexus-iq-server/nexus-iq-server-*.jar server /sonatype-work/config/config.yml
           EOF
         ]
 
@@ -181,10 +181,10 @@ CONFIGEOF
             path = "/"
             port = 8070
           }
-          initial_delay_seconds = 120
-          timeout_seconds       = 30
-          period_seconds        = 35
-          failure_threshold     = 20
+          initial_delay_seconds = 60
+          timeout_seconds       = 10
+          period_seconds        = 10
+          failure_threshold     = 12
         }
 
         # Volume mounts for persistent data
