@@ -1,0 +1,68 @@
+# Nexus IQ Server High Availability Infrastructure Configuration
+# Copy this file to terraform.tfvars and customize for your environment
+
+# General Configuration
+azure_region  = "East US"
+cluster_name  = "ref-arch-iq-ha"
+
+# Network Configuration (Multi-zone for HA)
+vnet_cidr               = "10.0.0.0/16"
+public_subnet_cidrs     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]    # Multiple subnets for zone redundancy
+private_subnet_cidrs    = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"] # Multiple subnets for zone redundancy
+db_subnet_cidr          = "10.0.40.0/24"
+
+# High Availability Container App Configuration
+container_cpu           = 2.0      # CPU per replica
+container_memory       = "4Gi"     # Memory per replica
+iq_min_replicas        = 2         # Minimum replicas for HA (must be >= 2)
+iq_max_replicas        = 10        # Maximum replicas for auto-scaling
+iq_docker_image        = "sonatypecommunity/nexus-iq-server:latest"
+java_opts              = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+# Auto Scaling Configuration
+cpu_utilization_threshold     = 70    # CPU threshold for scaling (%)
+memory_utilization_threshold  = 80    # Memory threshold for scaling (%)
+scale_rule_concurrent_requests = 100  # Concurrent requests threshold
+
+# Zone-Redundant Database Configuration (HA)
+db_name                         = "nexusiq"
+db_username                     = "nexusiq"
+db_password                     = "YourSecurePassword123!"  # Change this!
+postgres_version               = "15"
+db_sku_name                    = "GP_Standard_D4s_v3"      # 4 vCores, 16GB RAM
+db_backup_retention_days       = 7
+db_geo_redundant_backup_enabled = true
+db_high_availability_mode      = "ZoneRedundant"           # Zone-redundant HA
+
+# Zone-Redundant Application Gateway Configuration (HA)
+app_gateway_sku_name    = "Standard_v2"    # v2 required for zone redundancy
+app_gateway_sku_tier    = "Standard_v2"    # v2 required for zone redundancy
+app_gateway_capacity    = 2                # Number of instances
+app_gateway_zones       = ["1", "2", "3"] # Availability zones
+
+# Premium Storage Configuration (HA)
+storage_account_tier            = "Premium"  # Premium for better performance
+storage_account_replication_type = "ZRS"     # Zone-Redundant Storage
+file_share_quota_gb            = 200         # File share size in GB
+
+# Monitoring and Logging
+enable_monitoring         = true
+log_retention_days       = 30
+enable_container_insights = true
+
+# Backup Configuration
+enable_backup = true
+
+# Key Vault Configuration
+key_vault_sku_name                   = "standard"
+key_vault_soft_delete_retention_days = 7
+
+# Tags
+common_tags = {
+  Project         = "nexus-iq-server-ha"
+  Environment     = "production"
+  Terraform       = "true"
+  DeploymentType  = "high-availability"
+  Owner          = "platform-team"
+  CostCenter     = "engineering"
+}
