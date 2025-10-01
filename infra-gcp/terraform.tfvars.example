@@ -1,0 +1,55 @@
+# Copy this file to terraform.tfvars and update the values                                                                                                                                                                                                                  
+# cp terraform.tfvars.example terraform.tfvars
+
+# General Configuration
+gcp_project_id = "your-gcp-project-id"
+gcp_region     = "us-central1"
+environment    = "dev"
+
+# Network Configuration
+vpc_cidr              = "10.100.0.0/16"
+public_subnet_cidr    = "10.100.1.0/24"
+private_subnet_cidr   = "10.100.10.0/24"
+db_subnet_cidr        = "10.100.20.0/24"
+vpc_connector_cidr    = "10.100.50.0/28"
+
+# Cloud Run Configuration
+iq_desired_count      = "1"  # Single instance (recommended)
+iq_docker_image       = "sonatypecommunity/nexus-iq-server:latest"
+iq_cpu_limit          = "2"
+iq_memory_limit       = "4Gi"
+iq_cpu_request        = "1"
+iq_memory_request     = "2Gi"
+container_concurrency = 80
+container_timeout     = 300
+java_opts             = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+# Database Configuration
+db_name                             = "nexusiq"
+db_username                         = "nexusiq"
+db_password                         = "YourSecurePassword123!"  # Change this!
+postgres_version                    = "POSTGRES_15"
+db_instance_tier                    = "db-custom-2-7680"
+db_availability_type                = "ZONAL"
+db_disk_size                        = 100
+db_max_disk_size                    = 1000
+db_backup_start_time                = "03:00"
+db_max_connections                  = "200"
+db_transaction_log_retention_days   = 7
+db_backup_retention_count           = 7
+db_maintenance_window_day           = 7
+db_maintenance_window_hour          = 4
+db_deletion_protection              = false
+
+# Storage Configuration
+filestore_zone        = "us-central1-a"
+filestore_tier        = "BASIC_SSD"
+filestore_capacity_gb = 1024
+
+# Load Balancer Configuration
+enable_ssl     = true
+domain_name    = ""  # Set to your domain for managed SSL certificate
+custom_domain  = ""  # Set to your domain for Cloud Run domain mapping
+
+# Logging Configuration
+log_retention_days = 30
