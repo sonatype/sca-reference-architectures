@@ -31,7 +31,7 @@ iq_min_count           = 2  # Minimum for auto scaling
 iq_max_count           = 6  # Maximum for auto scaling
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%) 
 iq_memory_target_value = 80  # Memory target for auto scaling (%) 
-iq_docker_image        = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image        = "sonatype/nexus-iq-server:latest"
 java_opts              = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # ================================

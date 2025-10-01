@@ -44,8 +44,8 @@ resource "aws_ecs_task_definition" "iq_task" {
           value = var.java_opts
         },
         {
-          name  = "DB_TYPE"
-          value = "postgresql"
+          name  = "NEXUS_SECURITY_RANDOMPASSWORD"
+          value = "false"
         },
         {
           name  = "DB_HOST"
@@ -58,33 +58,20 @@ resource "aws_ecs_task_definition" "iq_task" {
         {
           name  = "DB_NAME"
           value = aws_db_instance.iq_db.db_name
-        },
-        {
-          name  = "NEXUS_SECURITY_RANDOMPASSWORD"
-          value = "false"
         }
       ]
 
-      # Override entrypoint to create custom config.yml with database configuration
-      entryPoint = ["/bin/sh"]
+      # Create a basic config file and use JAVA_OPTS to override database settings
+      entryPoint = ["/bin/sh", "-c"]
       command = [
-        "-c",
         <<-EOF
           set -e
-          echo "Generating custom config.yml with PostgreSQL database configuration"
 
-          # Generate custom config.yml with PostgreSQL database configuration
-          cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
+          # Create basic config.yml if it doesn't exist
+          if [ ! -f /etc/nexus-iq-server/config.yml ]; then
+            mkdir -p /etc/nexus-iq-server
+            cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: /sonatype-work
-
-# Database configuration for PostgreSQL
-database:
-  type: postgresql
-  hostname: $DB_HOST
-  port: $DB_PORT
-  name: $DB_NAME
-  username: $DB_USER
-  password: $DB_PASSWORD
 
 server:
   applicationConnectors:
@@ -93,59 +80,31 @@ server:
   adminConnectors:
   - type: http
     port: 8071
-  requestLog:
-    appenders:
-    - type: file
-      currentLogFilename: "/var/log/nexus-iq-server/request.log"
-      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
-      archivedFileCount: 5
+
 logging:
-  level: DEBUG
-  loggers:
-    com.sonatype.insight.scan: INFO
-    eu.medsea.mimeutil.MimeUtil2: INFO
-    org.apache.http: INFO
-    org.apache.http.wire: ERROR
-    org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
-    org.eclipse.jetty: INFO
-    org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
-    com.networknt.schema: OFF
-    com.sonatype.insight.audit:
-      appenders:
-      - type: file
-        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
-        archivedFileCount: 50
+  level: INFO
   appenders:
   - type: console
     threshold: INFO
-    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
   - type: file
     threshold: ALL
     currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
     archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
-    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
     archivedFileCount: 5
-createSampleData: true
 CONFIGEOF
+          fi
 
-          # Replace placeholders with actual values
-          sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+          # Start with database configuration via JAVA_OPTS
+          JAVA_OPTS="$JAVA_OPTS -Ddw.database.type=postgresql -Ddw.database.hostname=$DB_HOST -Ddw.database.port=$DB_PORT -Ddw.database.name=$DB_NAME -Ddw.database.username=$DB_USERNAME -Ddw.database.password=$DB_PASSWORD"
+          export JAVA_OPTS
 
-          echo "Generated config.yml with PostgreSQL database configuration"
-
-          # Start IQ Server with custom config
-          exec java $JAVA_OPTS -jar /opt/sonatype/nexus-iq-server/nexus-iq-server-*.jar server /etc/nexus-iq-server/config.yml
+          exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
         EOF
       ]
 
       secrets = [
         {
-          name      = "DB_USER"
+          name      = "DB_USERNAME"
           valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:username::"
         },
         {
@@ -176,6 +135,11 @@ CONFIGEOF
           sourceVolume  = "iq-data"
           containerPath = "/sonatype-work"
           readOnly      = false
+        },
+        {
+          sourceVolume  = "iq-logs"
+          containerPath = "/var/log/nexus-iq-server"
+          readOnly      = false
         }
       ]
     }
@@ -188,6 +152,18 @@ CONFIGEOF
       transit_encryption = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.iq_access_point.id
+        iam             = "ENABLED"
+      }
+    }
+  }
+
+  volume {
+    name = "iq-logs"
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.iq_efs.id
+      transit_encryption = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.iq_logs_access_point.id
         iam             = "ENABLED"
       }
     }
@@ -264,20 +240,20 @@ resource "aws_efs_mount_target" "iq_efs_mt" {
   security_groups = [aws_security_group.efs.id]
 }
 
-# EFS Access Point for proper permissions
+# EFS Access Point for data (sonatype-work)
 resource "aws_efs_access_point" "iq_access_point" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
   posix_user {
-    uid = 997
-    gid = 997
+    uid = 1000
+    gid = 1000
   }
 
   root_directory {
     path = "/nexus-iq-data"
     creation_info {
-      owner_uid   = 997
-      owner_gid   = 997
+      owner_uid   = 1000
+      owner_gid   = 1000
       permissions = "0755"
     }
   }
@@ -286,3 +262,27 @@ resource "aws_efs_access_point" "iq_access_point" {
     Name        = "ref-arch-iq-efs-access-point"
   }
 }
+
+# EFS Access Point for logs
+resource "aws_efs_access_point" "iq_logs_access_point" {
+  file_system_id = aws_efs_file_system.iq_efs.id
+
+  posix_user {
+    uid = 1000
+    gid = 1000
+  }
+
+  root_directory {
+    path = "/nexus-iq-logs"
+    creation_info {
+      owner_uid   = 1000
+      owner_gid   = 1000
+      permissions = "0755"
+    }
+  }
+
+  tags = {
+    Name        = "ref-arch-iq-efs-logs-access-point"
+  }
+}
+
