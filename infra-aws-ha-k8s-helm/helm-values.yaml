@@ -1,120 +1,62 @@
-# Nexus IQ Server HA Helm Chart Values
-# This file contains the configuration for deploying Nexus IQ Server in High Availability mode
+# Fixed Nexus IQ Server HA Helm Chart Values
+# Addresses the hardcoded service account and PV issues
 
-# Global Configuration
-global:
-  # Nexus IQ Server image configuration
-  image:
-    repository: sonatype/nexus-iq-server
-    tag: "1.195.0"
-    pullPolicy: IfNotPresent
+# Nexus IQ Server HA configuration
+iq_server:
+  image: "sonatype/nexus-iq-server"
+  tag: "1.195.0"
+  imagePullPolicy: "IfNotPresent"
 
-# IQ Server Configuration
-iq:
-  # Number of replicas for high availability
-  replicaCount: 2
-
-  # Admin password for initial setup
-  adminPassword: "admin123"
-
-  # License configuration (base64 encoded)
-  licenseSecret:
-    enabled: true
-    secretName: "nexus-iq-license"
-    key: "license"
-
-  # Database configuration
-  database:
-    type: postgresql
-    hostname: "" # Will be set by Terraform output
-    port: 5432
-    name: nexusiq
-    username: nexusiq
-    password:
-      secretName: "nexus-iq-db-credentials"
-      key: "password"
-
-  # Persistence configuration using EFS
-  persistence:
-    enabled: true
-    storageClass: "efs-sc"
-    accessMode: ReadWriteMany
-    size: 100Gi
-    # volumeName: "nexus-iq-data-pv"  # Let the chart handle PV binding
-
-  # Logging configuration
-  logging:
-    enabled: true
-    level: INFO
-    persistence:
-      enabled: true
-      storageClass: "efs-sc"
-      accessMode: ReadWriteMany
-      size: 20Gi
-      # volumeName: "nexus-iq-logs-pv"  # Let the chart handle PV binding
-
-  # Resource configuration
+  # Resources - optimized for m5.large nodes (single replica)
   resources:
     requests:
-      memory: "4Gi"
-      cpu: "2"
+      cpu: "1"
+      memory: "3Gi"
     limits:
-      memory: "6Gi"
-      cpu: "4"
+      cpu: "2"
+      memory: "4Gi"
 
-  # Probes configuration
-  startupProbe:
-    enabled: true
-    failureThreshold: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
+  # Java options
+  javaOpts: "-Xms2g -Xmx4g -XX:+UseG1GC"
 
-  readinessProbe:
-    enabled: true
-    failureThreshold: 3
-    periodSeconds: 30
-    timeoutSeconds: 5
+  # Environment variables
+  env:
+    - name: NXIQ_DATABASE_MIGRATION
+      value: "true"
 
-  livenessProbe:
-    enabled: true
-    failureThreshold: 3
-    periodSeconds: 30
-    timeoutSeconds: 5
+  # License
+  licenseSecret: "nexus-iq-license"
 
-  # Security context
-  securityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-    runAsNonRoot: true
+  # Database configuration - matching official chart structure
+  database:
+    hostname: ""  # Will be set by script
+    port: 5432
+    name: "nexusiq"
+    username: "nexusiq"  # Keep our RDS username
+    password: ""  # Will be set by script
+    type: "postgresql"
+    migration: true  # Enable database migration
 
-  # Pod disruption budget
-  podDisruptionBudget:
-    enabled: true
-    minAvailable: 1
+  # Persistence - use existing PVC to skip PV creation entirely
+  persistence:
+    existingPersistentVolumeClaimName: "nexus-iq-pvc"
 
-  # Node affinity for pod distribution
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchExpressions:
-            - key: app.kubernetes.io/name
-              operator: In
-              values:
-              - nexus-iq-server-ha
-          topologyKey: kubernetes.io/hostname
+  # Let Helm create ServiceAccount with proper name
+  serviceAccountName: "nexus-iq-sa"
 
-# Service Configuration
-service:
-  type: ClusterIP
-  port: 8070
-  targetPort: 8070
+  # Service configuration
+  serviceType: "ClusterIP"
+
+  # Replica count - reduced to 1 for m5.large nodes
+  replicaCount: 1
+
+# Service Account - let Helm manage it properly
+serviceAccount:
+  create: true
+  name: "nexus-iq-sa"
   annotations: {}
 
-# Ingress Configuration
+# Ingress configuration
 ingress:
   enabled: true
   ingressClassName: "alb"
@@ -123,203 +65,15 @@ ingress:
     alb.ingress.kubernetes.io/target-type: "ip"
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
     alb.ingress.kubernetes.io/healthcheck-path: "/ping"
-    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
-    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
-    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
-    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
-  hosts:
-    - host: "" # Will be set if hostname is provided
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
 
-# Horizontal Pod Autoscaler
-autoscaling:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
-
-# Fluentd Configuration for Log Aggregation
+# Disable fluentd to avoid complexity
 fluentd:
-  enabled: true
-  image:
-    repository: bitnami/fluentd
-    tag: "1.16.2"
-
-  # CloudWatch configuration
-  cloudWatch:
-    enabled: true
-    region: "us-east-1"
-    logGroupName: "/aws/eks/nexus-iq-ha/fluentd"
-    autoCreateStream: true
-
-  # Log parsing configuration
-  config:
-    # Request logs
-    requestLogs:
-      enabled: true
-      pattern: >
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \+\d{4} INFO  \[qtp\d+-\d+-\d+\] .*com.sonatype.insight.brain.hds.HdsClient.* - Request: (GET|POST|PUT|DELETE) (.+) took (\d+)ms, status: (\d+)$/
-      format: >
-        {
-          "timestamp": "${time}",
-          "level": "INFO",
-          "method": "${method}",
-          "path": "${path}",
-          "duration_ms": "${duration}",
-          "status_code": "${status}"
-        }
-
-    # Audit logs
-    auditLogs:
-      enabled: true
-      pattern: >
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \+\d{4} INFO  \[.*\] .*com.sonatype.insight.audit.* - (.+)$/
-      format: >
-        {
-          "timestamp": "${time}",
-          "level": "INFO",
-          "audit_message": "${message}"
-        }
-
-    # Policy violation logs
-    policyLogs:
-      enabled: true
-      pattern: >
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \+\d{4} (INFO|WARN|ERROR)  \[.*\] .*com.sonatype.insight.policy.* - (.+)$/
-      format: >
-        {
-          "timestamp": "${time}",
-          "level": "${level}",
-          "policy_message": "${message}"
-        }
-
-  # Resource configuration for Fluentd
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-
-# Ingress NGINX Controller (Alternative to ALB)
-ingress-nginx:
-  enabled: false
-  controller:
-    service:
-      type: LoadBalancer
-      annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-
-# Service Monitor for Prometheus (if monitoring is enabled)
-serviceMonitor:
-  enabled: false
-  namespace: monitoring
-  interval: 30s
-  scrapeTimeout: 10s
-
-# Network Policies
-networkPolicy:
-  enabled: true
-  ingress:
-    - from:
-      - namespaceSelector:
-          matchLabels:
-            name: kube-system
-      ports:
-      - protocol: TCP
-        port: 8070
-    - from: []
-      ports:
-      - protocol: TCP
-        port: 8070
-
-# Pod Security Policy
-podSecurityPolicy:
   enabled: false
 
-# Service Account
-serviceAccount:
-  create: true
-  annotations: {}
-  name: "nexus-iq-server-ha"
+# Disable external-dns
+external-dns:
+  enabled: false
 
-# RBAC
-rbac:
-  create: true
-
-# Init containers for setup tasks
-initContainers:
-  # Database migration init container
-  dbMigration:
-    enabled: true
-    image:
-      repository: sonatype/nexus-iq-server
-      tag: "1.195.0"
-    resources:
-      requests:
-        memory: "1Gi"
-        cpu: "500m"
-      limits:
-        memory: "2Gi"
-        cpu: "1"
-
-# Additional environment variables
-extraEnvVars:
-  - name: JAVA_OPTS
-    value: "-Xms2g -Xmx4g -XX:+UseG1GC -XX:+UseStringDeduplication"
-  - name: IQ_CLUSTER_ENABLED
-    value: "true"
-  - name: IQ_CLUSTER_MEMBERS
-    value: "nexus-iq-server-ha-0.nexus-iq-server-ha-headless.nexus-iq.svc.cluster.local,nexus-iq-server-ha-1.nexus-iq-server-ha-headless.nexus-iq.svc.cluster.local"
-
-# Configuration files
-config:
-  # config.yml will be mounted as a ConfigMap
-  configYml: |
-    # Nexus IQ Server Configuration
-    sonatypeWork: /sonatype-work/clm-server
-
-    # Database configuration
-    database:
-      type: postgresql
-      hostname: ${DB_HOSTNAME}
-      port: ${DB_PORT}
-      name: ${DB_NAME}
-      username: ${DB_USERNAME}
-      password: ${DB_PASSWORD}
-
-    # Logging configuration
-    logging:
-      level: INFO
-      loggers:
-        com.sonatype.insight: DEBUG
-        com.sonatype.clm: DEBUG
-      appenders:
-        - type: file
-          currentLogFilename: /var/log/nexus-iq-server/clm-server.log
-          archivedLogFilenamePattern: /var/log/nexus-iq-server/clm-server-%d.log.gz
-          archivedFileCount: 50
-        - type: console
-          logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %logger - %msg%n"
-
-    # HTTP configuration
-    http:
-      port: 8070
-      adminPort: 8071
-      requestLog:
-        appenders:
-          - type: file
-            currentLogFilename: /var/log/nexus-iq-server/request.log
-            archivedLogFilenamePattern: /var/log/nexus-iq-server/request-%d.log.gz
-            archivedFileCount: 50
-
-    # Clustering configuration for HA
-    clustering:
-      enabled: true
-      membershipEventLogging: false
+# Disable separate migration job (main pods handle migration)
+migrationJob:
+  enabled: false

@@ -60,7 +60,7 @@ if command -v kubectl &> /dev/null; then
         aws-vault exec "$AWS_PROFILE" -- aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
 
         # Check for Nexus IQ Server deployment
-        if kubectl get namespace nexus-iq >/dev/null 2>&1; then
+        if aws-vault exec "$AWS_PROFILE" -- kubectl get namespace nexus-iq >/dev/null 2>&1; then
             echo -e "${YELLOW}⚠️  Found Nexus IQ Server namespace${NC}"
             echo ""
             echo -e "${RED}IMPORTANT: Nexus IQ Server appears to be deployed!${NC}"
@@ -131,21 +131,47 @@ aws-vault exec "$AWS_PROFILE" -- aws secretsmanager delete-secret \
 
 # Disable RDS deletion protection if it exists
 echo "🛡️  Disabling RDS deletion protection..."
-aws-vault exec "$AWS_PROFILE" -- aws rds modify-db-cluster \
+if aws-vault exec "$AWS_PROFILE" -- aws rds modify-db-cluster \
   --db-cluster-identifier "nexus-iq-ha-aurora-cluster" \
   --no-deletion-protection \
   --apply-immediately \
-  --region us-east-1 || echo "⚠️  RDS cluster may not exist or already unprotected"
+  --region us-east-1 2>/dev/null; then
 
-# Wait for RDS modification
-sleep 10
+  # Wait for modification to complete (silently)
+  timeout=600  # 10 minutes timeout
+  elapsed=0
+  while true; do
+    STATUS=$(aws-vault exec "$AWS_PROFILE" -- aws rds describe-db-clusters \
+      --db-cluster-identifier "nexus-iq-ha-aurora-cluster" \
+      --region us-east-1 \
+      --query 'DBClusters[0].Status' \
+      --output text 2>/dev/null || echo "deleted")
+
+    DELETION_PROTECTION=$(aws-vault exec "$AWS_PROFILE" -- aws rds describe-db-clusters \
+      --db-cluster-identifier "nexus-iq-ha-aurora-cluster" \
+      --region us-east-1 \
+      --query 'DBClusters[0].DeletionProtection' \
+      --output text 2>/dev/null || echo "false")
+
+    if [[ "$STATUS" == "available" && "$DELETION_PROTECTION" == "False" ]]; then
+      break
+    elif [[ "$STATUS" == "deleted" ]]; then
+      break
+    elif [ $elapsed -ge $timeout ]; then
+      break
+    fi
+
+    sleep 15
+    elapsed=$((elapsed + 15))
+  done
+fi
 
 # Check for Load Balancers that might block destruction
 if command -v kubectl &> /dev/null && [[ -n "$CLUSTER_NAME" ]]; then
     echo "🔍  Checking for load balancers..."
 
     # Delete any LoadBalancer services that might create ELBs
-    kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer --ignore-not-found=true >/dev/null 2>&1 || true
+    aws-vault exec "$AWS_PROFILE" -- kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer --ignore-not-found=true >/dev/null 2>&1 || true
 
     # Wait a moment for ELBs to be cleaned up
     echo "   Waiting for load balancer cleanup..."

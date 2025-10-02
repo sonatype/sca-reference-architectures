@@ -17,7 +17,7 @@ NAMESPACE="nexus-iq"
 HELM_RELEASE_NAME="nexus-iq-server-ha"
 HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
-VALUES_FILE="helm-values-fixed.yaml"
+VALUES_FILE="helm-values.yaml"
 
 echo -e "${BLUE}🚀 Nexus IQ Server HA - Helm Installation${NC}"
 echo "=============================================="
@@ -121,7 +121,8 @@ EFS_ID=$($TERRAFORM_PREFIX terraform output -raw efs_id 2>/dev/null || echo "")
 EFS_DATA_ACCESS_POINT=$($TERRAFORM_PREFIX terraform output -raw efs_data_access_point_id 2>/dev/null || echo "")
 EFS_LOGS_ACCESS_POINT=$($TERRAFORM_PREFIX terraform output -raw efs_logs_access_point_id 2>/dev/null || echo "")
 AWS_REGION=$($TERRAFORM_PREFIX terraform output -raw aws_region 2>/dev/null || grep '^aws_region' terraform.tfvars | cut -d'"' -f2 || echo "us-east-1")
-CLUSTER_NAME=$($TERRAFORM_PREFIX terraform output -raw cluster_id 2>/dev/null || echo "")
+CLUSTER_NAME=$($TERRAFORM_PREFIX terraform output -raw cluster_name 2>/dev/null || echo "")
+
 
 echo "   Database Endpoint: $DB_ENDPOINT"
 echo "   EFS ID: $EFS_ID"
@@ -166,12 +167,9 @@ sed -e "s/\${EFS_ID}/$EFS_ID/g" \
     efs-storageclass.yaml | $KUBECTL_PREFIX kubectl apply -f -
 
 echo "  Creating namespace..."
-$KUBECTL_PREFIX kubectl apply -f pre-resources.yaml
+$KUBECTL_PREFIX kubectl apply -f nexus-iq-namespace.yaml
 
-echo "  Creating PVC with Helm labels..."
-$KUBECTL_PREFIX kubectl apply -f manual-pvc.yaml
-
-# Verify namespace was created
+# Verify namespace was created BEFORE creating other resources
 echo "  Verifying namespace creation..."
 timeout=30
 elapsed=0
@@ -184,6 +182,64 @@ while ! $KUBECTL_PREFIX kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; do
     sleep 2
     elapsed=$((elapsed + 2))
 done
+
+echo -e "${GREEN}    ✅ Namespace verified and ready${NC}"
+
+echo "  Creating PVC with Helm labels..."
+if $KUBECTL_PREFIX kubectl apply -f nexus-iq-pvc.yaml; then
+    echo -e "${GREEN}    ✅ PVC configuration applied${NC}"
+else
+    echo -e "${RED}    ❌ Failed to apply PVC configuration${NC}"
+    exit 1
+fi
+
+# Verify PVC was created and is bound
+echo "  Verifying PVC creation and binding..."
+# Give PVC a moment to be created before checking
+sleep 2
+timeout=60
+elapsed=0
+while true; do
+    PVC_STATUS=$($KUBECTL_PREFIX kubectl get pvc nexus-iq-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+
+    if [[ "$PVC_STATUS" == "Bound" ]]; then
+        echo -e "${GREEN}    ✅ PVC is bound and ready${NC}"
+        break
+    elif [[ "$PVC_STATUS" == "NotFound" ]]; then
+        if [ $elapsed -eq 0 ]; then
+            echo -e "${RED}    ❌ PVC not found immediately after creation, this indicates a serious issue${NC}"
+            $KUBECTL_PREFIX kubectl get pvc -n "$NAMESPACE" || true
+            exit 1
+        fi
+    elif [ $elapsed -ge $timeout ]; then
+        echo -e "${RED}❌ Error: PVC failed to bind within timeout${NC}"
+        echo "    Current PVC status: $PVC_STATUS"
+        $KUBECTL_PREFIX kubectl describe pvc nexus-iq-pvc -n "$NAMESPACE" || true
+        exit 1
+    fi
+
+    echo "    PVC Status: $PVC_STATUS (${elapsed}s/${timeout}s)"
+    sleep 5
+    elapsed=$((elapsed + 5))
+done
+
+# Create license secret if it doesn't exist
+echo "  Creating license secret..."
+if $KUBECTL_PREFIX kubectl get secret nexus-iq-license -n "$NAMESPACE" >/dev/null 2>&1; then
+    echo -e "${GREEN}    ✅ License secret already exists${NC}"
+else
+    echo "    Creating placeholder license secret..."
+    if $KUBECTL_PREFIX kubectl create secret generic nexus-iq-license \
+        --from-literal=license_lic="sample-license-content" \
+        -n "$NAMESPACE"; then
+        echo -e "${GREEN}    ✅ License secret created${NC}"
+        echo -e "${YELLOW}    ⚠️  Remember to update with your actual license:${NC}"
+        echo "      $KUBECTL_PREFIX kubectl create secret generic nexus-iq-license --from-file=license_lic=path/to/your/license.lic -n $NAMESPACE --dry-run=client -o yaml | $KUBECTL_PREFIX kubectl replace -f -"
+    else
+        echo -e "${RED}    ❌ Failed to create license secret${NC}"
+        exit 1
+    fi
+fi
 
 echo -e "${GREEN}✅ EFS resources and prerequisites created${NC}"
 echo ""
@@ -229,46 +285,7 @@ if $HELM_PREFIX helm list -n "$NAMESPACE" | grep -q "$HELM_RELEASE_NAME"; then
     exit 1
 fi
 
-# Check for conflicting resources and clean them up
-echo -e "${BLUE}🧹 Checking for conflicting resources...${NC}"
-if $KUBECTL_PREFIX kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-    echo -e "${YELLOW}⚠️  Namespace '$NAMESPACE' already exists${NC}"
-    echo "Forcing cleanup of all resources in namespace..."
-
-    # First try to delete any existing helm releases
-    $HELM_PREFIX helm uninstall "$HELM_RELEASE_NAME" -n "$NAMESPACE" --ignore-not-found --timeout=2m || echo "  No helm release to uninstall"
-
-    # Force delete all resources in the namespace
-    echo "  Deleting all resources in namespace..."
-    $KUBECTL_PREFIX kubectl delete all --all -n "$NAMESPACE" --timeout=60s --ignore-not-found=true || true
-    $KUBECTL_PREFIX kubectl delete secrets --all -n "$NAMESPACE" --timeout=30s --ignore-not-found=true || true
-    $KUBECTL_PREFIX kubectl delete configmaps --all -n "$NAMESPACE" --timeout=30s --ignore-not-found=true || true
-    $KUBECTL_PREFIX kubectl delete serviceaccounts --all -n "$NAMESPACE" --timeout=30s --ignore-not-found=true || true
-    $KUBECTL_PREFIX kubectl delete pvc --all -n "$NAMESPACE" --timeout=30s --ignore-not-found=true || true
-    $KUBECTL_PREFIX kubectl delete rolebindings --all -n "$NAMESPACE" --timeout=30s --ignore-not-found=true || true
-    $KUBECTL_PREFIX kubectl delete roles --all -n "$NAMESPACE" --timeout=30s --ignore-not-found=true || true
-
-    # Force delete the namespace
-    echo "  Force deleting namespace..."
-    $KUBECTL_PREFIX kubectl delete namespace "$NAMESPACE" --force --grace-period=0 --ignore-not-found=true || true
-
-    # Wait for complete deletion
-    echo "  Waiting for namespace deletion to complete..."
-    timeout=90
-    elapsed=0
-    while $KUBECTL_PREFIX kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; do
-        if [ $elapsed -ge $timeout ]; then
-            echo -e "${YELLOW}⚠️  Force removing namespace finalizers${NC}"
-            # Remove finalizers if stuck
-            $KUBECTL_PREFIX kubectl patch namespace "$NAMESPACE" -p '{"metadata":{"finalizers":[]}}' --type=merge || true
-            break
-        fi
-        echo "   Still deleting... (${elapsed}s/${timeout}s)"
-        sleep 5
-        elapsed=$((elapsed + 5))
-    done
-    echo -e "${GREEN}✅ Namespace cleanup completed${NC}"
-fi
+# Resources have been created above, proceeding with Helm installation
 
 # Install Nexus IQ Server HA
 echo -e "${BLUE}🚀 Installing Nexus IQ Server HA...${NC}"
@@ -311,6 +328,58 @@ echo ""
 
 # Clean up temporary files
 rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+
+# Configure database security group for EKS access (prevent connection failures)
+echo -e "${BLUE}🔒 Configuring database security group for EKS access...${NC}"
+RDS_SG_ID=$($TERRAFORM_PREFIX terraform output -raw rds_security_group_id 2>/dev/null || echo "")
+if [[ -n "$RDS_SG_ID" && "$RDS_SG_ID" != "null" ]]; then
+    # Get EKS node security groups - wait for nodes to be ready first
+    echo "  Waiting for EKS nodes to be available..."
+    timeout=120
+    elapsed=0
+    EKS_NODE_SG=""
+    while [[ -z "$EKS_NODE_SG" ]] && [ $elapsed -lt $timeout ]; do
+        EKS_NODE_SG=$(aws-vault exec "$AWS_PROFILE" -- aws ec2 describe-instances \
+            --filters "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[].Instances[0].SecurityGroups[].GroupId' \
+            --output text 2>/dev/null | awk '{print $1}')
+
+        if [[ -z "$EKS_NODE_SG" ]]; then
+            echo "    Waiting for EKS nodes... (${elapsed}s/${timeout}s)"
+            sleep 10
+            elapsed=$((elapsed + 10))
+        fi
+    done
+
+    if [[ -n "$EKS_NODE_SG" ]]; then
+        echo "  Adding EKS node security group ($EKS_NODE_SG) to RDS security group ($RDS_SG_ID)..."
+
+        # Check if rule already exists
+        EXISTING_RULE=$(aws-vault exec "$AWS_PROFILE" -- aws ec2 describe-security-groups \
+            --group-ids "$RDS_SG_ID" \
+            --query "SecurityGroups[0].IpPermissions[?FromPort==\`5432\` && ToPort==\`5432\`].UserIdGroupPairs[?GroupId==\`$EKS_NODE_SG\`]" \
+            --output text 2>/dev/null || echo "")
+
+        if [[ -n "$EXISTING_RULE" ]]; then
+            echo -e "${GREEN}    ✅ Security group rule already exists${NC}"
+        else
+            if aws-vault exec "$AWS_PROFILE" -- aws ec2 authorize-security-group-ingress \
+                --group-id "$RDS_SG_ID" \
+                --protocol tcp --port 5432 \
+                --source-group "$EKS_NODE_SG" 2>/dev/null; then
+                echo -e "${GREEN}    ✅ Database security group rule added${NC}"
+            else
+                echo -e "${YELLOW}    ⚠️  Failed to add security group rule (may already exist)${NC}"
+            fi
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Could not determine EKS node security group after ${timeout}s${NC}"
+        echo "    You may need to manually configure database connectivity"
+        echo "    Run: aws ec2 authorize-security-group-ingress --group-id $RDS_SG_ID --protocol tcp --port 5432 --source-group <eks-node-sg>"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Could not determine RDS security group ID${NC}"
+fi
 
 # Show deployment status
 echo -e "${BLUE}📊 Deployment Status:${NC}"
@@ -361,13 +430,13 @@ echo ""
 # Show access information
 echo -e "${BLUE}🚀 Next Steps:${NC}"
 echo "1. Check pod status:"
-echo "   kubectl get pods -n $NAMESPACE"
+echo "   $KUBECTL_PREFIX kubectl get pods -n $NAMESPACE"
 echo ""
 echo "2. View logs:"
-echo "   kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n $NAMESPACE"
+echo "   $KUBECTL_PREFIX kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n $NAMESPACE"
 echo ""
 echo "3. Port forward for local access (if needed):"
-echo "   kubectl port-forward svc/nexus-iq-server-ha 8070:8070 -n $NAMESPACE"
+echo "   $KUBECTL_PREFIX kubectl port-forward svc/nexus-iq-server-ha 8070:8070 -n $NAMESPACE"
 echo ""
 
 if [[ -n "$ALB_ADDRESS" ]]; then
@@ -377,9 +446,84 @@ if [[ -n "$ALB_ADDRESS" ]]; then
     echo "   Password: $(grep '^nexus_iq_admin_password' terraform.tfvars | cut -d'"' -f2)"
 else
     echo "4. Get the load balancer URL:"
-    echo "   kubectl get ingress -n $NAMESPACE"
+    echo "   $KUBECTL_PREFIX kubectl get ingress -n $NAMESPACE"
     echo "   (It may take 5-10 minutes for the ALB to be ready)"
 fi
 
+# Final deployment verification
 echo ""
-echo -e "${GREEN}🎉 Nexus IQ Server HA deployment completed successfully!${NC}"
+echo -e "${BLUE}🔍 Final deployment verification...${NC}"
+
+# Check critical resources
+echo "• Verifying critical resources..."
+CRITICAL_RESOURCES_OK=true
+
+# Check namespace
+if ! $KUBECTL_PREFIX kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+    echo -e "${RED}  ❌ Namespace missing${NC}"
+    CRITICAL_RESOURCES_OK=false
+else
+    echo -e "${GREEN}  ✅ Namespace exists${NC}"
+fi
+
+# Check PVC
+PVC_STATUS=$($KUBECTL_PREFIX kubectl get pvc nexus-iq-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+if [[ "$PVC_STATUS" == "Bound" ]]; then
+    echo -e "${GREEN}  ✅ PVC is bound${NC}"
+else
+    echo -e "${RED}  ❌ PVC status: $PVC_STATUS${NC}"
+    CRITICAL_RESOURCES_OK=false
+fi
+
+# Check license secret
+if $KUBECTL_PREFIX kubectl get secret nexus-iq-license -n "$NAMESPACE" >/dev/null 2>&1; then
+    echo -e "${GREEN}  ✅ License secret exists${NC}"
+else
+    echo -e "${RED}  ❌ License secret missing${NC}"
+    CRITICAL_RESOURCES_OK=false
+fi
+
+# Check Helm release
+if $HELM_PREFIX helm list -n "$NAMESPACE" | grep -q "$HELM_RELEASE_NAME"; then
+    RELEASE_STATUS=$($HELM_PREFIX helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" -o json | jq -r '.info.status' 2>/dev/null || echo "unknown")
+    if [[ "$RELEASE_STATUS" == "deployed" ]]; then
+        echo -e "${GREEN}  ✅ Helm release deployed${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  Helm release status: $RELEASE_STATUS${NC}"
+    fi
+else
+    echo -e "${RED}  ❌ Helm release not found${NC}"
+    CRITICAL_RESOURCES_OK=false
+fi
+
+# Check ALB ingress
+ALB_ADDRESS=$($KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE" -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+if [[ -n "$ALB_ADDRESS" ]]; then
+    echo -e "${GREEN}  ✅ ALB provisioned: $ALB_ADDRESS${NC}"
+
+    # Test ALB connectivity (basic check)
+    echo "• Testing ALB connectivity..."
+    if curl -sf -m 10 "http://$ALB_ADDRESS/ping" >/dev/null 2>&1; then
+        echo -e "${GREEN}  ✅ ALB is responding to health checks${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  ALB not responding yet (pods may still be starting)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠️  ALB not ready yet${NC}"
+fi
+
+if [[ "$CRITICAL_RESOURCES_OK" == "true" ]]; then
+    echo ""
+    echo -e "${GREEN}🎉 Nexus IQ Server HA deployment completed successfully!${NC}"
+    echo ""
+    if [[ -n "$ALB_ADDRESS" ]]; then
+        echo -e "${BLUE}🌐 Access your Nexus IQ Server at:${NC}"
+        echo "   http://$ALB_ADDRESS"
+        echo ""
+        echo -e "${YELLOW}📝 Note: It may take 5-10 minutes for pods to be fully ready${NC}"
+    fi
+else
+    echo ""
+    echo -e "${YELLOW}⚠️  Deployment completed with some issues${NC}"
+    echo "Please check the resources above and troubleshoot as needed."
+fi

@@ -103,6 +103,8 @@ vi terraform.tfvars
 ./helm-install.sh
 ```
 
+> **Note**: The installation script will automatically create all required Kubernetes resources including namespace, StorageClass, and PersistentVolumeClaim.
+
 ### 4. Access Your Application
 
 After deployment, access Nexus IQ Server via:
@@ -116,6 +118,25 @@ kubectl get ingress -n nexus-iq
 # Or port forward for local access
 kubectl port-forward svc/nexus-iq-server-ha 8070:8070 -n nexus-iq
 ```
+
+## File Structure
+
+### Key Files
+
+**Terraform Infrastructure:**
+- `main.tf`, `variables.tf`, `outputs.tf` - Core Terraform configuration
+- `eks.tf`, `rds.tf`, `efs.tf`, `alb.tf` - AWS resource definitions
+- `terraform.tfvars` - Your environment-specific configuration
+
+**Kubernetes Resources:**
+- `helm-values.yaml` - Main Helm chart values file
+- `efs-storageclass.yaml` - EFS StorageClass definition
+- `nexus-iq-namespace.yaml` - Namespace definition
+- `nexus-iq-pvc.yaml` - PersistentVolumeClaim definition
+
+**Deployment Scripts:**
+- `tf-*.sh` - Terraform deployment scripts
+- `helm-*.sh` - Helm deployment and management scripts
 
 ## Configuration
 
@@ -184,6 +205,9 @@ autoscaling:
 
 - **`helm-install.sh`** - Install Nexus IQ Server HA
 - **`helm-upgrade.sh`** - Upgrade existing deployment
+- **`helm-uninstall.sh`** - Uninstall deployment (complete cleanup by default)
+  - Default: Complete cleanup (removes cluster-wide resources)
+  - `--graceful`: Graceful uninstall (preserves cluster resources)
 
 ### Script Features
 
@@ -287,6 +311,19 @@ kubectl get all -n nexus-iq -o yaml > backup-k8s-resources.yaml
 
    # Verify EFS security group
    kubectl describe pv | grep efs
+   ```
+
+5. **Stuck resources during cleanup**
+   ```bash
+   # Force complete cleanup (default behavior)
+   ./helm-uninstall.sh
+
+   # If namespace is stuck in Terminating state
+   kubectl patch namespace nexus-iq -p '{"metadata":{"finalizers":[]}}' --type=merge
+
+   # Remove stuck PersistentVolumes
+   kubectl get pv | grep nexus
+   kubectl patch pv <pv-name> -p '{"metadata":{"finalizers":[]}}' --type=merge
    ```
 
 4. **Load Balancer not accessible**
@@ -404,12 +441,14 @@ EKS cluster version updates should be performed carefully:
 ### Remove Application Only
 
 ```bash
-# Uninstall Nexus IQ Server HA
-helm uninstall nexus-iq-server-ha -n nexus-iq
+# Complete cleanup (default) - removes everything including cluster resources
+./helm-uninstall.sh
 
-# Delete namespace (optional)
-kubectl delete namespace nexus-iq
+# Graceful uninstall - preserves cluster-wide resources like EFS StorageClass
+./helm-uninstall.sh --graceful
 ```
+
+> **Note**: The default behavior performs a complete cleanup including removal of cluster-wide resources (StorageClass, PersistentVolumes) and handles stuck finalizers. This ensures a clean state for fresh installations.
 
 ### Remove All Infrastructure
 

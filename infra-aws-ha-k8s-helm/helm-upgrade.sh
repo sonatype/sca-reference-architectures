@@ -17,7 +17,7 @@ NAMESPACE="nexus-iq"
 HELM_RELEASE_NAME="nexus-iq-server-ha"
 HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
-VALUES_FILE="helm-values-fixed.yaml"
+VALUES_FILE="helm-values.yaml"
 
 echo -e "${BLUE}🔄 Nexus IQ Server HA - Helm Upgrade${NC}"
 echo "=========================================="

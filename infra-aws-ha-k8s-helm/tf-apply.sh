@@ -195,9 +195,9 @@ if aws-vault exec "$AWS_PROFILE" -- terraform apply tfplan; then
             echo ""
             # Wait for cluster to be ready
             echo -e "${BLUE}⏳ Waiting for EKS cluster to be ready...${NC}"
-            timeout=300
+            timeout=900  # Increased to 15 minutes
             elapsed=0
-            while ! kubectl get nodes >/dev/null 2>&1; do
+            while ! aws-vault exec "$AWS_PROFILE" -- kubectl get nodes >/dev/null 2>&1; do
                 if [ $elapsed -ge $timeout ]; then
                     echo -e "${YELLOW}⚠️  Timeout waiting for cluster nodes. You may need to wait longer.${NC}"
                     break
@@ -207,9 +207,9 @@ if aws-vault exec "$AWS_PROFILE" -- terraform apply tfplan; then
                 elapsed=$((elapsed + 10))
             done
 
-            if kubectl get nodes >/dev/null 2>&1; then
+            if aws-vault exec "$AWS_PROFILE" -- kubectl get nodes >/dev/null 2>&1; then
                 echo -e "${GREEN}✅ EKS cluster is ready${NC}"
-                kubectl get nodes -o wide
+                aws-vault exec "$AWS_PROFILE" -- kubectl get nodes -o wide
                 echo ""
             fi
         else
