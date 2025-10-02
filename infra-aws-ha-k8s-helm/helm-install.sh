@@ -265,11 +265,17 @@ cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 # Get database password from terraform
 DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
 
-# Substitute runtime values
+# Substitute runtime values - both database config and environment variables
 sed -i.bak \
     -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
     -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
     -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
+    -e "s/value: \"\"  # Will be set by script/value: \"$DB_ENDPOINT\"/g" \
+    "$TEMP_VALUES_FILE"
+
+# Second pass for DB_PASSWORD (more complex pattern)
+sed -i \
+    -e "/name: DB_PASSWORD/{n;s/value: \"\"/value: \"$DB_PASSWORD\"/;}" \
     "$TEMP_VALUES_FILE"
 
 echo -e "${GREEN}✅ Helm values prepared${NC}"
