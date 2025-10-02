@@ -254,10 +254,10 @@ Container App: ca-ref-arch-iq-ha (HA Configuration)
     │   ├── CPU Utilization: >70%
     │   └── Memory Utilization: >80%
     ├── Container Configuration (Per Replica):
-    │   ├── Image: sonatypecommunity/nexus-iq-server:latest
+    │   ├── Image: sonatype/nexus-iq-server:latest
     │   ├── CPU: 2.0 vCPU
     │   ├── Memory: 4Gi (4 GB)
-    │   ├── Custom entrypoint with HA config.yml generation
+    │   ├── Custom entrypoint with HA config.yml generation (EmptyDir volume)
     │   ├── Environment Variables:
     │   │   ├── DB_HOST: <PostgreSQL_FQDN>
     │   │   ├── DB_PORT: 5432

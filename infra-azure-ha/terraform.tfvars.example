@@ -16,7 +16,7 @@ container_cpu           = 2.0      # CPU per replica
 container_memory       = "4Gi"     # Memory per replica
 iq_min_replicas        = 2         # Minimum replicas for HA (must be >= 2)
 iq_max_replicas        = 10        # Maximum replicas for auto-scaling
-iq_docker_image        = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image        = "sonatype/nexus-iq-server:latest"
 java_opts              = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
