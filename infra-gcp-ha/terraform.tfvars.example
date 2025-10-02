@@ -1,0 +1,101 @@
+# GCP Project Configuration
+gcp_project_id = "your-gcp-project-id"
+gcp_region     = "us-central1"
+
+# Availability zones for multi-zone deployment
+availability_zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
+
+# Environment
+environment = "prod"
+
+# Network Configuration
+vpc_cidr               = "10.200.0.0/16"
+public_subnet_cidr     = "10.200.1.0/24"
+private_subnet_cidrs   = ["10.200.10.0/24", "10.200.11.0/24", "10.200.12.0/24"]
+db_subnet_cidr         = "10.200.20.0/24"
+
+# Security - SSH access (restrict to your IP range)
+allowed_ssh_cidrs = ["0.0.0.0/0"]  # Change this to your IP range for security
+
+# Nexus IQ Server Configuration
+iq_docker_image = "sonatypecommunity/nexus-iq-server:latest"
+
+# Compute Engine Instance Configuration  
+instance_machine_type = "e2-standard-2"  # 2 vCPU, 8GB RAM
+
+# High Availability Configuration
+iq_min_instances    = 2  # Minimum for HA
+iq_max_instances    = 6  # Maximum for scaling
+iq_target_instances = 2  # Initial target
+
+# Database Configuration
+db_name     = "nexusiq"
+db_username = "nexusiq"
+db_password = "your-secure-database-password"  # Change this!
+
+# Database settings
+postgres_version       = "POSTGRES_15"
+db_instance_tier      = "db-custom-2-7680"  # 2 vCPU, 7.5GB RAM
+db_availability_type  = "REGIONAL"          # REGIONAL for HA, ZONAL for single-zone
+db_disk_size          = 100
+db_max_disk_size      = 1000
+db_max_connections    = "200"
+
+# Database backup configuration
+db_backup_start_time              = "03:00"  # UTC time
+db_transaction_log_retention_days = 7
+db_backup_retention_count         = 7
+db_maintenance_window_day         = 7        # Sunday
+db_maintenance_window_hour        = 4        # 4 AM UTC
+db_deletion_protection           = true
+
+# Enable read replica for load distribution
+enable_read_replica = true
+
+# Shared Storage Configuration
+shared_disk_size_gb = 100      # GB
+shared_disk_type   = "pd-ssd"  # Options: pd-standard, pd-balanced, pd-ssd
+
+# Load Balancer and SSL Configuration
+enable_ssl  = true
+domain_name = ""  # Leave empty to use IP address, or set to your domain (e.g., "nexus-iq.example.com")
+
+# Auto Scaling Configuration
+cpu_target_utilization      = 0.7   # 70% CPU utilization target
+scale_in_cooldown_seconds   = 300   # 5 minutes
+scale_out_cooldown_seconds  = 60    # 1 minute
+
+# Java Configuration
+java_opts = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+# Logging
+log_retention_days = 30
+
+# Common Tags/Labels
+common_tags = {
+  environment = "prod"
+  component   = "nexus-iq-ha"
+  managed-by  = "terraform"
+  team        = "platform"
+  cost-center = "engineering"
+}
+
+# Example configurations for different environments:
+
+# Development Environment:
+# iq_min_instances    = 1
+# iq_max_instances    = 2
+# iq_target_instances = 1
+# db_instance_tier    = "db-custom-1-3840"  # Smaller instance
+# db_availability_type = "ZONAL"            # Single zone for cost savings
+# enable_read_replica  = false
+# shared_disk_size_gb  = 50
+
+# Production Environment:
+# iq_min_instances    = 3
+# iq_max_instances    = 10
+# iq_target_instances = 3
+# db_instance_tier    = "db-custom-4-15360"  # Larger instance
+# db_availability_type = "REGIONAL"          # Regional for HA
+# enable_read_replica  = true
+# shared_disk_size_gb  = 500
