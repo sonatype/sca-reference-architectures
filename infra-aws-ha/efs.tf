@@ -53,15 +53,15 @@ resource "aws_efs_access_point" "iq_access_point" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
   posix_user {
-    uid = 997  # IQ Server container user ID
-    gid = 997  # IQ Server container group ID
+    uid = 1000  # IQ Server container user ID (official image)
+    gid = 1000  # IQ Server container group ID (official image)
   }
 
   root_directory {
     path = "/nexus-iq-data"
     creation_info {
-      owner_uid   = 997
-      owner_gid   = 997
+      owner_uid   = 1000
+      owner_gid   = 1000
       permissions = "0755"
     }
   }
@@ -76,15 +76,15 @@ resource "aws_efs_access_point" "iq_logs_access_point" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
   posix_user {
-    uid = 997
-    gid = 997
+    uid = 1000  # IQ Server container user ID (official image)
+    gid = 1000  # IQ Server container group ID (official image)
   }
 
   root_directory {
     path = "/nexus-iq-logs"
     creation_info {
-      owner_uid   = 997
-      owner_gid   = 997
+      owner_uid   = 1000
+      owner_gid   = 1000
       permissions = "0755"
     }
   }

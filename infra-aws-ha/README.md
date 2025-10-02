@@ -128,7 +128,7 @@ ecs_cpu               = 2048        # 2 vCPU per task
 ecs_memory           = 4096        # 4GB RAM per task
 iq_desired_count     = 2           # Initial number of tasks (2-6)
 iq_max_capacity      = 6           # Maximum auto scaling capacity
-iq_docker_image      = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
 
 # Auto Scaling Configuration
 cpu_target_percent    = 70         # CPU utilization target for scaling
