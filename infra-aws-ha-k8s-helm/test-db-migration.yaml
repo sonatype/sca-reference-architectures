@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-db-migration
+  namespace: nexus-iq
+spec:
+  completions: 1
+  parallelism: 1
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: nexus-iq-sa
+      volumes:
+        - name: nexus-iq-server-ha-iq-server-pod-config-volume
+          configMap:
+            name: nexus-iq-server-ha-iq-server-config-configmap
+            items:
+              - key: config
+                path: config.yml
+      containers:
+        - name: nexus-iq-server-ha-iq-server-container
+          image: sonatype/nexus-iq-server:1.195.0
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - mountPath: "/etc/nexus-iq-server"
+              name: nexus-iq-server-ha-iq-server-pod-config-volume
+          env:
+            - name: NXIQ_DATABASE_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: "nexus-iq-server-ha-iq-server-database-hostname-secret"
+                  key: "hostname"
+            - name: NXIQ_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: "nexus-iq-server-ha-iq-server-database-port-secret"
+                  key: "port"
+            - name: NXIQ_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: "nexus-iq-server-ha-iq-server-database-name-secret"
+                  key: "name"
+            - name: NXIQ_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: "nexus-iq-server-ha-iq-server-database-username-secret"
+                  key: "username"
+            - name: NXIQ_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "nexus-iq-server-ha-iq-server-database-password-secret"
+                  key: "password"
+          command:
+            - /bin/sh
+            - -c
+            - "/opt/sonatype/nexus-iq-server/bin/nexus-iq-server migrate-db /etc/nexus-iq-server/config.yml"
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+      restartPolicy: OnFailure

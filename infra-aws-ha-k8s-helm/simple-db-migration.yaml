@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nexus-iq-simple-migrate-db
+  namespace: nexus-iq
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: nexus-iq-migration
+        image: sonatype/nexus-iq-server:1.195.0
+        env:
+        - name: NXIQ_DATABASE_HOSTNAME
+          value: "nexus-iq-ha-aurora-cluster.cluster-clgcxnjioa7x.us-east-1.rds.amazonaws.com"
+        - name: NXIQ_DATABASE_PORT
+          value: "5432"
+        - name: NXIQ_DATABASE_NAME
+          value: "nexusiq"
+        - name: NXIQ_DATABASE_USERNAME
+          value: "nexusiq"
+        - name: NXIQ_DATABASE_PASSWORD
+          value: "SuperSecurePassword123!"
+        - name: NXIQ_DATABASE_MIGRATION
+          value: "true"
+        command: ["/opt/sonatype/nexus-iq-server/start-nexus-iq-server.sh"]

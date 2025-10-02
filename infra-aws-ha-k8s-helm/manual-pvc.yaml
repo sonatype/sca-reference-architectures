@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nexus-iq-pvc
+  namespace: nexus-iq
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: nexus-iq-server-ha
+    meta.helm.sh/release-namespace: nexus-iq
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: efs-sc

@@ -1,0 +1,100 @@
+# Simplified Nexus IQ Server HA Helm Chart Values
+# Compatible with sonatype/nexus-iq-server-ha chart
+
+# Nexus IQ Server HA configuration
+iq_server:
+  image: "sonatype/nexus-iq-server"
+  tag: "1.195.0"
+  imagePullPolicy: "IfNotPresent"
+
+  # Resources
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "6Gi"
+
+  # Java options
+  javaOpts: "-Xms2g -Xmx4g -XX:+UseG1GC"
+
+  # License (will be set by script)
+  licenseSecret: "nexus-iq-license"
+
+# Database configuration
+database:
+  type: "postgresql"
+  # These will be set by the script from terraform outputs
+  hostname: ""
+  port: 5432
+  name: "nexusiq"
+  username: "nexusiq"
+  passwordSecret: "nexus-iq-db-credentials"
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8070
+  targetPort: 8070
+
+# Ingress configuration
+ingress:
+  enabled: true
+  ingressClassName: "alb"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: "/ping"
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Persistence
+persistence:
+  enabled: true
+  storageClass: "efs-sc"
+  size: 100Gi
+  accessMode: ReadWriteMany
+
+# Replica count for HA
+replicaCount: 2
+
+# Service Account
+serviceAccount:
+  create: true
+  name: "nexus-iq-server-ha-sa"
+  annotations: {}
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Security context
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  runAsNonRoot: true
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# Node affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: nexus-iq-server-ha
+        topologyKey: kubernetes.io/hostname

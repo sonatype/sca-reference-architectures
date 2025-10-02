@@ -1,0 +1,75 @@
+# Fixed Nexus IQ Server HA Helm Chart Values
+# Addresses the hardcoded service account and PV issues
+
+# Nexus IQ Server HA configuration
+iq_server:
+  image: "sonatype/nexus-iq-server"
+  tag: "1.195.0"
+  imagePullPolicy: "IfNotPresent"
+
+  # Resources - optimized for m5.large nodes (single replica)
+  resources:
+    requests:
+      cpu: "1"
+      memory: "3Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+
+  # Java options
+  javaOpts: "-Xms2g -Xmx4g -XX:+UseG1GC"
+
+  # Environment variables
+  env:
+    - name: NXIQ_DATABASE_MIGRATION
+      value: "true"
+
+  # License
+  licenseSecret: "nexus-iq-license"
+
+  # Database configuration - matching official chart structure
+  database:
+    hostname: ""  # Will be set by script
+    port: 5432
+    name: "nexusiq"
+    username: "nexusiq"  # Keep our RDS username
+    password: ""  # Will be set by script
+    type: "postgresql"
+    migration: true  # Enable database migration
+
+  # Persistence - use existing PVC to skip PV creation entirely
+  persistence:
+    existingPersistentVolumeClaimName: "nexus-iq-pvc"
+
+  # Let Helm create ServiceAccount with proper name
+  serviceAccountName: "nexus-iq-sa"
+
+  # Service configuration
+  serviceType: "ClusterIP"
+
+  # Replica count - reduced to 1 for m5.large nodes
+  replicaCount: 1
+
+# Service Account - let Helm manage it properly
+serviceAccount:
+  create: true
+  name: "nexus-iq-sa"
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: true
+  ingressClassName: "alb"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: "/ping"
+
+# Disable fluentd to avoid complexity
+fluentd:
+  enabled: false
+
+# Disable external-dns
+external-dns:
+  enabled: false
