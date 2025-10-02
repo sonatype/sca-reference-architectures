@@ -37,6 +37,7 @@ resource "aws_ecs_task_definition" "iq_task" {
       name         = "nexus-iq-server"
       image        = var.iq_docker_image
       essential    = true
+      user         = "0:0"
       portMappings = [
         {
           containerPort = 8070
@@ -56,8 +57,8 @@ resource "aws_ecs_task_definition" "iq_task" {
           value = var.java_opts
         },
         {
-          name  = "DB_TYPE"
-          value = "postgresql"
+          name  = "NEXUS_SECURITY_RANDOMPASSWORD"
+          value = "false"
         },
         {
           name  = "DB_HOST"
@@ -72,40 +73,35 @@ resource "aws_ecs_task_definition" "iq_task" {
           value = var.db_name
         },
         {
-          name  = "NEXUS_SECURITY_RANDOMPASSWORD"
-          value = "false"
-        },
-        {
           name  = "CLUSTER_DIRECTORY"
           value = "/sonatype-work/clm-cluster"
         }
       ]
 
-      # Override entrypoint to create unique config.yml
-      entryPoint = ["/bin/sh"]
+      # Create HA config with unique work directories and use JAVA_OPTS for database
+      entryPoint = ["/bin/sh", "-c"]
       command = [
-        "-c",
         <<-EOF
           set -e
           echo "Creating unique sonatypeWork directory for $HOSTNAME"
 
-          # Create directories
+          # Create unique work directory and shared cluster directory
           UNIQUE_WORK="/sonatype-work/clm-server-$HOSTNAME"
           mkdir -p "$UNIQUE_WORK"
           mkdir -p "/sonatype-work/clm-cluster"
 
-          # Generate custom config.yml with unique sonatypeWork, PostgreSQL database, and cluster directory
+          # Create config.yml with HA settings and database config
+          mkdir -p /etc/nexus-iq-server
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: $UNIQUE_WORK
 clusterDirectory: /sonatype-work/clm-cluster
 
-# Database configuration for PostgreSQL
 database:
   type: postgresql
   hostname: $DB_HOST
   port: $DB_PORT
   name: $DB_NAME
-  username: $DB_USER
+  username: $DB_USERNAME
   password: $DB_PASSWORD
 
 server:
@@ -115,60 +111,46 @@ server:
   adminConnectors:
   - type: http
     port: 8071
-  requestLog:
-    appenders:
-    - type: file
-      currentLogFilename: "/var/log/nexus-iq-server/request.log"
-      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
-      archivedFileCount: 5
+
 logging:
-  level: DEBUG
-  loggers:
-    com.sonatype.insight.scan: INFO
-    eu.medsea.mimeutil.MimeUtil2: INFO
-    org.apache.http: INFO
-    org.apache.http.wire: ERROR
-    org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
-    org.eclipse.jetty: INFO
-    org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
-    com.networknt.schema: OFF
-    com.sonatype.insight.audit:
-      appenders:
-      - type: file
-        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
-        archivedFileCount: 50
+  level: INFO
   appenders:
   - type: console
     threshold: INFO
-    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
   - type: file
     threshold: ALL
     currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
     archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
-    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
     archivedFileCount: 5
+
 createSampleData: true
 CONFIGEOF
 
-          # Replace placeholders with actual values
+          # Replace all placeholders with actual values
           sed -i "s|\$UNIQUE_WORK|$UNIQUE_WORK|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 
-          echo "Generated config.yml with sonatypeWork: $UNIQUE_WORK"
+          # Debug: Show what's actually in the config file
+          echo "=== DEBUG: Contents of config.yml after ALL replacements ==="
+          cat /etc/nexus-iq-server/config.yml
+          echo "=== END DEBUG ==="
 
-          # Start IQ Server with default command
-          exec java $JAVA_OPTS -jar /opt/sonatype/nexus-iq-server/nexus-iq-server-*.jar server /etc/nexus-iq-server/config.yml
+          # Keep original JAVA_OPTS (no database overrides)
+          export JAVA_OPTS
+
+          echo "Starting Nexus IQ Server with sonatypeWork: $UNIQUE_WORK"
+          echo "JAVA_OPTS: $JAVA_OPTS"
+          exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
         EOF
       ]
 
       secrets = [
         {
-          name      = "DB_USER"
+          name      = "DB_USERNAME"
           valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:username::"
         },
         {
@@ -199,6 +181,11 @@ CONFIGEOF
           sourceVolume  = "iq-data"
           containerPath = "/sonatype-work"
           readOnly      = false
+        },
+        {
+          sourceVolume  = "iq-logs"
+          containerPath = "/var/log/nexus-iq-server"
+          readOnly      = false
         }
       ]
 
@@ -214,6 +201,18 @@ CONFIGEOF
       transit_encryption = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.iq_access_point.id
+        iam             = "ENABLED"
+      }
+    }
+  }
+
+  volume {
+    name = "iq-logs"
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.iq_efs.id
+      transit_encryption = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.iq_logs_access_point.id
         iam             = "ENABLED"
       }
     }

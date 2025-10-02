@@ -21,6 +21,8 @@ This reference architecture deploys Nexus IQ Server in a High Availability confi
 
 The architecture resolves critical IQ Server clustering challenges including work directory locking conflicts, database sharing requirements, and file upload compatibility through custom configuration management and infrastructure design.
 
+**⚠️ Important**: HA deployments require complete config.yml file for database and clustering configuration. JAVA_OPTS cannot be used for unique per-container settings needed for clustering.
+
 ## Scaling Path
 
 - **Previous**: [Single Instance](../infra-aws/ARCHITECTURE.md) (up to 100 applications)
@@ -85,7 +87,7 @@ The architecture resolves critical IQ Server clustering challenges including wor
 │   │   │  Performance: General Purpose           │   │   │   │  Automated backups    │  │   │
 │   │   │  Throughput: Provisioned (100 MiB/s)    │   │   │   │  Secrets Manager      │  │   │
 │   │   │  Encryption: Transit + At Rest          │   │   │   │  Auto failover: ~30s  │  │   │
-│   │   │  Access Point: UID/GID 997              │   │   │   └───────────────────────┘  │   │
+│   │   │  Access Point: UID/GID 1000             │   │   │   └───────────────────────┘  │   │
 │   │   │  AWS Backup: Daily/Weekly policies      │   │   └──────────────────────────────┘   │
 │   │   └─────────────────────────────────────────┘   │                                      │
 │   └─────────────────────────────────────────────────┘                                      │
@@ -177,23 +179,25 @@ Task Definition: ref-arch-iq-ha-cluster-nexus-iq-server
     ├── Memory: 4096 MB (4 GB)
     ├── Network Mode: awsvpc
     ├── Container: nexus-iq-server
-    │   ├── Image: sonatypecommunity/nexus-iq-server:latest
+    │   ├── Image: sonatype/nexus-iq-server:latest
+    │   ├── Configuration: Complete config.yml file for database + HA clustering (required for unique settings)
     │   ├── Custom Startup Script:
     │   │   ├── Create unique work directory: /sonatype-work/clm-server-${HOSTNAME}
     │   │   ├── Create shared cluster directory: /sonatype-work/clm-cluster
-    │   │   └── Generate custom config.yml with database configuration
+    │   │   └── Generate complete config.yml with database and unique HA clustering settings
     │   ├── Environment Variables:
-    │   │   ├── DB_TYPE: postgresql
+    │   │   ├── JAVA_OPTS: JVM options only (config.yml used for application settings)
     │   │   ├── DB_HOST: <AURORA_ENDPOINT>
     │   │   ├── DB_PORT: 5432
     │   │   ├── DB_NAME: nexusiq
     │   │   └── CLUSTER_DIRECTORY: /sonatype-work/clm-cluster
     │   ├── Secrets (from Secrets Manager):
-    │   │   ├── DB_USER
+    │   │   ├── DB_USERNAME
     │   │   └── DB_PASSWORD
     │   ├── Health Check: curl -f http://localhost:8070/
     │   └── Volume Mounts:
-    │       └── /sonatype-work ← EFS (Shared Persistent Data)
+    │       ├── /sonatype-work ← EFS (Shared Persistent Data)
+    │       └── /var/log/nexus-iq-server ← EFS (Application Logs)
     └── CloudWatch Logs: /ecs/ref-arch-iq-ha-cluster/nexus-iq-server
 
 Auto Scaling Configuration:
