@@ -124,7 +124,7 @@ db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 ecs_cpu           = 2048        # 2 vCPU
 ecs_memory        = 4096        # 4GB RAM
 iq_desired_count  = 1           # Single instance (recommended)
-iq_docker_image   = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image   = "sonatype/nexus-iq-server:latest"
 
 # Database Configuration
 db_name                     = "nexusiq"

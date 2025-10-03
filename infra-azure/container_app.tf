@@ -53,10 +53,18 @@ resource "azurerm_container_app" "iq_app" {
     min_replicas = 1
     max_replicas = 1
 
+    # Init container approach - commented out due to provider version compatibility
+    # Will use alternative approach in main container
+
     volume {
       name         = "iq-data"
       storage_type = "AzureFile"
       storage_name = azurerm_container_app_environment_storage.iq_storage.name
+    }
+
+    volume {
+      name         = "config-volume"
+      storage_type = "EmptyDir"
     }
 
     container {
@@ -65,19 +73,19 @@ resource "azurerm_container_app" "iq_app" {
       cpu    = var.container_cpu
       memory = var.container_memory
 
-      # Override entrypoint to create custom config.yml with database configuration
+      # Single instance: Create config in proper location using mounted EmptyDir volume
       command = ["/bin/sh"]
       args = [
         "-c",
         <<-EOF
           set -e
-          echo "Generating custom config.yml with PostgreSQL database configuration"
+          echo "Creating config.yml in proper /etc/nexus-iq-server location"
 
-          # Generate custom config.yml with PostgreSQL database configuration
+          # Create config.yml with proper database configuration (same approach as HA)
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: /sonatype-work
 
-# Database configuration for PostgreSQL
+# Database configuration for PostgreSQL (single instance)
 database:
   type: postgresql
   hostname: $DB_HOST
@@ -90,52 +98,62 @@ server:
   applicationConnectors:
   - type: http
     port: 8070
+    bindHost: 0.0.0.0
   adminConnectors:
   - type: http
     port: 8071
+    bindHost: 0.0.0.0
   requestLog:
     appenders:
     - type: file
       currentLogFilename: "/var/log/nexus-iq-server/request.log"
       archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
-      archivedFileCount: 50
+      archivedFileCount: 5
 
 logging:
-  level: INFO
+  level: DEBUG
   loggers:
     com.sonatype.insight.scan: INFO
     eu.medsea.mimeutil.MimeUtil2: INFO
     org.apache.http: INFO
-    org.apache.http.wire: INFO
+    org.apache.http.wire: ERROR
     org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
     org.eclipse.jetty: INFO
     org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
+    com.networknt.schema: OFF
+    com.sonatype.insight.audit:
+      appenders:
+      - type: file
+        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        archivedFileCount: 50
   appenders:
-  - type: file
-    threshold: ALL
-    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
-    currentLogFilename: "/var/log/nexus-iq-server/nexus-iq-server.log"
-    archivedLogFilenamePattern: "/var/log/nexus-iq-server/nexus-iq-server-%d.log.gz"
-    archivedFileCount: 50
   - type: console
     threshold: INFO
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+  - type: file
+    threshold: ALL
+    currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
+    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+    archivedFileCount: 5
 
-# Create base directory structure
 createSampleData: true
 CONFIGEOF
 
-          # Replace placeholders with actual values (same approach as AWS)
+          # Replace placeholders with actual environment values
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 
-          echo "Generated config.yml with PostgreSQL database configuration"
+          echo "Successfully created config.yml with PostgreSQL configuration at /etc/nexus-iq-server/config.yml"
+          echo "Generated config file contents:"
+          cat /etc/nexus-iq-server/config.yml
 
-          # Start the application using Java with wildcard JAR path (same approach as AWS)
-          exec java $JAVA_OPTS -jar /opt/sonatype/nexus-iq-server/nexus-iq-server-*.jar server /etc/nexus-iq-server/config.yml
+          # Start the application using official Docker image server command with proper config path
+          exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
         EOF
       ]
 
@@ -184,29 +202,11 @@ CONFIGEOF
         path = "/sonatype-work"
       }
 
-      startup_probe {
-        transport               = "HTTP"
-        port                    = 8070
-        path                    = "/"
-        interval_seconds        = 30
-        failure_count_threshold = 10
+      volume_mounts {
+        name = "config-volume"
+        path = "/etc/nexus-iq-server"
       }
 
-      liveness_probe {
-        transport               = "HTTP"
-        port                    = 8070
-        path                    = "/"
-        interval_seconds        = 30
-        failure_count_threshold = 3
-      }
-
-      readiness_probe {
-        transport               = "HTTP"
-        port                    = 8070
-        path                    = "/"
-        interval_seconds        = 15
-        failure_count_threshold = 3
-      }
     }
   }
 

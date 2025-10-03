@@ -31,6 +31,12 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     capacity = var.app_gateway_capacity
   }
 
+  # SSL Policy configuration to avoid deprecated TLS versions
+  ssl_policy {
+    policy_type = "Predefined"
+    policy_name = "AppGwSslPolicy20220101"
+  }
+
   gateway_ip_configuration {
     name      = "gateway-ip-configuration"
     subnet_id = azurerm_subnet.public_subnet.id
