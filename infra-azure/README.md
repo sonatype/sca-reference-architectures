@@ -113,7 +113,7 @@ db_subnet_cidr      = "10.0.30.0/24"
 # Container App Configuration
 container_cpu      = 2.0           # 2.0 vCPU
 container_memory   = "4Gi"         # 4GB RAM
-iq_docker_image    = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image    = "sonatype/nexus-iq-server:latest"  # Official Sonatype image
 
 # Database Configuration
 db_name                          = "nexusiq"
@@ -127,6 +127,8 @@ postgres_version                 = "15"
 
 - **Single Instance** - Container App configured for exactly 1 replica (hardcoded for Nexus IQ requirements)
 - **`db_password`** - Use a strong, unique password
+- **Docker Image** - Updated to use official `sonatype/nexus-iq-server:latest` with proper config.yml database configuration
+- **Configuration Method** - Uses EmptyDir volume mounting for `/etc/nexus-iq-server/config.yml` write permissions
 - **Resource Names** - All Azure resources follow naming conventions (e.g., "rg-ref-arch-iq")
 - **`environment`** - Used as suffix for all resource names
 

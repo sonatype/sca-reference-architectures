@@ -17,6 +17,8 @@
 ## Overview
 This reference architecture deploys Nexus IQ Server on AWS using cloud-native services (ECS Fargate, RDS, EFS) for operational excellence and security. This single-instance deployment provides a solid foundation for development, testing, and small to medium production workloads.
 
+**⚠️ Important**: The official `sonatype/nexus-iq-server` Docker image supports database configuration via JAVA_OPTS for single instances. HA deployments require complete config.yml due to clustering needs.
+
 ## Scaling Options
 - **Current Deployment**: Single Instance (up to 100 applications)
 - **Vertical Scaling**: Increase CPU/memory resources as needed
@@ -64,7 +66,7 @@ This reference architecture deploys Nexus IQ Server on AWS using cloud-native se
 │   │   │         EFS FILE SYSTEM             │   │   │   │   RDS POSTGRESQL  │  │           │
 │   │   │     /sonatype-work storage          │   │   │   │   Multi-AZ        │  │           │
 │   │   │     Encrypted at rest               │   │   │   │   Deployment      │  │           │
-│   │   │     Access Point: 997:997           │   │   │   │   Encrypted       │  │           │
+│   │   │     Access Point: 1000:1000         │   │   │   │   Encrypted       │  │           │
 │   │   └─────────────────────────────────────┘   │   │   │   Automated       │  │           │
 │   └─────────────────────────────────────────────┘   │   │   Backups         │  │           │
 │                                                     │   │   Secrets Mgr     │  │           │
@@ -154,18 +156,20 @@ Task Definition: ref-arch-nexus-iq-server
     ├── Memory: 4096 MB (4 GB)
     ├── Network Mode: awsvpc
     ├── Container: nexus-iq-server
-    │   ├── Image: sonatypecommunity/nexus-iq-server:latest
+    │   ├── Image: sonatype/nexus-iq-server:latest
+    │   ├── Configuration: JAVA_OPTS system properties for database connection + basic config.yml
     │   ├── Environment Variables:
-    │   │   ├── DB_TYPE: postgresql
+    │   │   ├── JAVA_OPTS: JVM options + database configuration via system properties
     │   │   ├── DB_HOST: <RDS_ENDPOINT>
     │   │   ├── DB_PORT: 5432
     │   │   └── DB_NAME: nexusiq
     │   ├── Secrets (from Secrets Manager):
-    │   │   ├── DB_USER
+    │   │   ├── DB_USERNAME
     │   │   └── DB_PASSWORD
     │   ├── Health Check: curl -f http://localhost:8070/
     │   └── Volume Mounts:
-    │       └── /sonatype-work ← EFS (Persistent Data)
+    │       ├── /sonatype-work ← EFS (Persistent Data)
+    │       └── /var/log/nexus-iq-server ← EFS (Application Logs)
     └── CloudWatch Logs: /ecs/ref-arch-nexus-iq-server
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -190,7 +194,7 @@ File Storage:
 │  ├── Performance Mode: General Purpose                                      │
 │  ├── Throughput: Provisioned (100 MiB/s)                                    │
 │  ├── Encryption: Transit + At Rest                                          │
-│  ├── Access Point: /nexus-iq-data (UID/GID: 997)                            │
+│  ├── Access Point: /nexus-iq-data (UID/GID: 1000)                           │
 │  └── Mount Targets: Private subnets in all AZs                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
