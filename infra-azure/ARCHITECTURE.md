@@ -171,7 +171,7 @@ Container App: ca-ref-arch-iq
     ├── Revision Mode: Single
     ├── Identity: System Assigned Managed Identity
     ├── Container Configuration:
-    │   ├── Image: sonatypecommunity/nexus-iq-server:latest
+    │   ├── Image: sonatype/nexus-iq-server:latest
     │   ├── CPU: 2.0 vCPU
     │   ├── Memory: 4Gi (4 GB)
     │   ├── Custom entrypoint with config.yml generation

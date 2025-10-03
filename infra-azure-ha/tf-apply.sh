@@ -5,6 +5,13 @@
 
 set -e
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
 echo "=========================================="
 echo "Nexus IQ Server Azure HA Infrastructure"
 echo "Terraform Apply Script"
@@ -67,8 +74,114 @@ echo ""
 
 # Proceeding with deployment
 
+# Function to import existing resources automatically
+import_existing_resource() {
+    local resource_address="$1"
+    local resource_id="$2"
+
+    echo -e "${YELLOW}📥 Auto-importing existing resource: $resource_address${NC}"
+    if terraform import "$resource_address" "$resource_id"; then
+        echo -e "${GREEN}✅ Successfully imported: $resource_address${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Failed to import: $resource_address${NC}"
+        return 1
+    fi
+}
+
+# Function to check if resource is already in terraform state
+is_in_state() {
+    local terraform_address="$1"
+    terraform state show "$terraform_address" >/dev/null 2>&1
+}
+
+# Function to import a single resource in background
+import_resource_async() {
+    local terraform_address="$1"
+    local azure_id="$2"
+    local temp_file="$3"
+
+    if is_in_state "$terraform_address"; then
+        echo "SKIP:$terraform_address:already in state" >> "$temp_file"
+    else
+        if terraform import "$terraform_address" "$azure_id" >/dev/null 2>&1; then
+            echo "SUCCESS:$terraform_address:imported" >> "$temp_file"
+        else
+            echo "SKIP:$terraform_address:doesn't exist" >> "$temp_file"
+        fi
+    fi
+}
+
+# Function to proactively import all possible resources (optimized for speed)
+import_all_resources() {
+    echo -e "${BLUE}📥 Fast parallel resource import for HA deployment...${NC}"
+    echo ""
+
+    # Critical resources that commonly cause import issues (HA-specific)
+    local critical_resources=(
+        "azurerm_resource_group.iq_rg:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha"
+        "azurerm_application_gateway.iq_app_gw_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/applicationGateways/agw-ref-arch-iq-ha"
+        "azurerm_container_app.iq_app_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.App/containerApps/ca-ref-arch-iq-ha"
+        "azurerm_container_app_environment.iq_env_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.App/managedEnvironments/cae-ref-arch-iq-ha"
+        "azurerm_virtual_network.iq_vnet:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq-ha"
+        "azurerm_public_ip.app_gw_pip_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/publicIPAddresses/pip-ref-arch-iq-ha"
+        "azurerm_storage_account.iq_storage_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Storage/storageAccounts/strefarchiqhal1ur9htd"
+        "azurerm_postgresql_flexible_server.iq_db_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-ref-arch-iq-ha"
+        "azurerm_log_analytics_workspace.iq_logs_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.OperationalInsights/workspaces/log-ref-arch-iq-ha"
+        "azurerm_monitor_diagnostic_setting.app_gw_diagnostics[0]:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/applicationGateways/agw-ref-arch-iq-ha|agw-ref-arch-iq-ha-diagnostics"
+    )
+
+    # Create temporary file for results
+    local temp_file=$(mktemp)
+    local pids=()
+
+    echo -e "${YELLOW}🚀 Launching parallel imports...${NC}"
+
+    # Launch all imports in parallel
+    for resource in "${critical_resources[@]}"; do
+        local terraform_address="${resource%%:*}"
+        local azure_id="${resource#*:}"
+
+        import_resource_async "$terraform_address" "$azure_id" "$temp_file" &
+        pids+=($!)
+    done
+
+    # Wait for all background processes to complete
+    echo -e "${BLUE}⏳ Waiting for imports to complete...${NC}"
+    for pid in "${pids[@]}"; do
+        wait "$pid"
+    done
+
+    # Process results
+    local imported_count=0
+    local skipped_count=0
+
+    while IFS=':' read -r status terraform_address reason; do
+        case "$status" in
+            "SUCCESS")
+                echo -e "${GREEN}✅ Imported: $terraform_address${NC}"
+                imported_count=$((imported_count + 1))
+                ;;
+            "SKIP")
+                echo -e "${BLUE}ℹ️  Skipped: $terraform_address ($reason)${NC}"
+                skipped_count=$((skipped_count + 1))
+                ;;
+        esac
+    done < "$temp_file"
+
+    # Cleanup
+    rm -f "$temp_file"
+
+    echo ""
+    echo -e "${GREEN}📊 Import Summary: $imported_count imported, $skipped_count skipped${NC}"
+    echo ""
+}
+
 echo "🚀 Applying Terraform configuration..."
 echo "⏱️  This may take 15-20 minutes for HA infrastructure..."
+
+# First, import everything that might exist
+import_all_resources
 
 # Apply with auto-approve
 terraform apply tfplan

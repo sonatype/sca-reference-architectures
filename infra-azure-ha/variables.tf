@@ -15,25 +15,25 @@ variable "cluster_name" {
 variable "vnet_cidr" {
   description = "CIDR block for VNet"
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "10.1.0.0/16"
 }
 
 variable "public_subnet_cidrs" {
   description = "CIDR blocks for public subnets (Application Gateway) - Multiple for HA"
   type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  default     = ["10.1.1.0/24", "10.1.2.0/24", "10.1.3.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   description = "CIDR blocks for private subnets (Container Apps) - Multiple for HA"
   type        = list(string)
-  default     = ["10.0.8.0/23", "10.0.16.0/23", "10.0.24.0/23"]
+  default     = ["10.1.8.0/23", "10.1.16.0/23", "10.1.24.0/23"]
 }
 
 variable "db_subnet_cidr" {
   description = "CIDR block for database subnet"
   type        = string
-  default     = "10.0.40.0/24"
+  default     = "10.1.40.0/24"
 }
 
 # Container App Variables (HA Configuration)
@@ -69,7 +69,7 @@ variable "iq_max_replicas" {
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatypecommunity/nexus-iq-server:latest"
+  default     = "sonatype/nexus-iq-server:latest"
 }
 
 variable "java_opts" {
