@@ -71,7 +71,7 @@ resource "google_compute_health_check" "iq_lb_health_check" {
   unhealthy_threshold = 3
 
   http_health_check {
-    request_path       = "/"
+    request_path       = "/assets/index.html"
     port               = 8070
     host               = ""
     proxy_header       = "NONE"

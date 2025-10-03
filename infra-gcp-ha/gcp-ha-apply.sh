@@ -366,25 +366,65 @@ terraform_apply() {
     start_time=$(date +%s)
     
     if [[ "$SHOW_PROGRESS" == "true" ]]; then
-        # Apply with progress monitoring
-        if ! terraform apply "${apply_args[@]}" "$PLAN_FILE" 2>&1 | tee -a "$LOG_FILE" | while IFS= read -r line; do
-            echo "$line"
-            # Show progress indicators for major resource types
-            if [[ "$line" =~ ^[[:space:]]*google_.*: ]]; then
-                resource_name=$(echo "$line" | sed 's/:.*//' | xargs | sed 's/^google_//')
-                print_debug "Processing HA resource: $resource_name"
-            fi
-        done; then
+        # Apply with progress monitoring - show real-time Terraform output
+        if ! terraform apply "${apply_args[@]+"${apply_args[@]}"}" "$PLAN_FILE" 2>&1 | tee -a "$LOG_FILE"; then
             print_error "Terraform apply failed. Check $LOG_FILE for details."
             print_error "Backup directory: $BACKUP_DIR"
             return 1
         fi
     else
         # Simple apply without progress monitoring
-        if ! terraform apply "${apply_args[@]}" "$PLAN_FILE" >> "$LOG_FILE" 2>&1; then
+        if ! terraform apply "${apply_args[@]+"${apply_args[@]}"}" "$PLAN_FILE" >> "$LOG_FILE" 2>&1; then
             print_error "Terraform apply failed. Check $LOG_FILE for details."
             print_error "Backup directory: $BACKUP_DIR"
             return 1
+        fi
+    fi
+    
+    # Validate deployment actually succeeded
+    print_status "Validating deployment success..."
+    local resource_count
+    resource_count=$(terraform state list | wc -l)
+    
+    if [ "$resource_count" -eq 0 ]; then
+        print_error "❌ Deployment failed: No resources found in Terraform state"
+        print_error "This indicates the deployment did not create any infrastructure"
+        return 1
+    fi
+    
+    # Check for critical HA resources
+    local critical_resources=(
+        "google_compute_global_address.iq_ha_lb_ip"
+        "google_compute_global_forwarding_rule.iq_ha_http_forwarding_rule"
+        "google_compute_region_instance_group_manager.iq_mig"
+        "google_sql_database_instance.iq_ha_db"
+    )
+    
+    local missing_critical=()
+    for resource in "${critical_resources[@]}"; do
+        if ! terraform state list | grep -q "$resource"; then
+            missing_critical+=("$resource")
+        fi
+    done
+    
+    if [ ${#missing_critical[@]} -gt 0 ]; then
+        print_error "❌ Critical HA resources missing:"
+        for resource in "${missing_critical[@]}"; do
+            print_error "   - $resource"
+        done
+        return 1
+    fi
+    
+    print_status "✅ Core HA deployment validation passed - $resource_count resources created"
+    
+    # Check if there were any errors but core infrastructure succeeded
+    if terraform state list | grep -q "google_compute_global_address.iq_ha_lb_ip"; then
+        local lb_ip
+        if lb_ip=$(terraform output -raw load_balancer_ip 2>/dev/null) && [ -n "$lb_ip" ]; then
+            print_status "✅ Load Balancer deployed successfully: $lb_ip"
+            print_status "🌐 Your HA infrastructure is running!"
+            # Don't fail on monitoring/SSL errors if core infrastructure is working
+            return 0
         fi
     fi
     
