@@ -45,6 +45,12 @@ resource "azurerm_virtual_network" "iq_vnet" {
   tags = merge(var.common_tags, {
     Name = "vnet-ref-arch-iq-ha"
   })
+
+  lifecycle {
+    replace_triggered_by = [
+      null_resource.vnet_recreate_trigger
+    ]
+  }
 }
 
 # Public Subnets (for Application Gateway) - Multiple zones for HA
@@ -56,6 +62,26 @@ resource "azurerm_subnet" "public_subnets" {
   address_prefixes     = [var.public_subnet_cidrs[count.index]]
 }
 
+# Force complete network recreation when CIDR blocks change
+resource "null_resource" "vnet_recreate_trigger" {
+  triggers = {
+    vnet_cidr     = var.vnet_cidr
+    public_cidrs  = join(",", var.public_subnet_cidrs)
+    private_cidrs = join(",", var.private_subnet_cidrs)
+    db_cidr       = var.db_subnet_cidr
+  }
+}
+
+# Force subnet recreation when CIDR blocks change
+resource "null_resource" "private_subnet_recreate_trigger" {
+  count = length(var.private_subnet_cidrs)
+
+  triggers = {
+    cidr_block = var.private_subnet_cidrs[count.index]
+    delegation = "Microsoft.App/environments"
+  }
+}
+
 # Private Subnets (for Container Apps) - Multiple zones for HA
 resource "azurerm_subnet" "private_subnets" {
   count                = length(var.private_subnet_cidrs)
@@ -65,6 +91,13 @@ resource "azurerm_subnet" "private_subnets" {
   address_prefixes     = [var.private_subnet_cidrs[count.index]]
 
   service_endpoints = ["Microsoft.KeyVault", "Microsoft.Storage"]
+
+  lifecycle {
+    create_before_destroy = true
+    replace_triggered_by = [
+      null_resource.private_subnet_recreate_trigger[count.index]
+    ]
+  }
 }
 
 # Database Subnet (for PostgreSQL Flexible Server with zone redundancy)

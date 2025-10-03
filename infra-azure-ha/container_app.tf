@@ -63,11 +63,18 @@ resource "azurerm_container_app" "iq_app_ha" {
       concurrent_requests = var.scale_rule_concurrent_requests
     }
 
+    # Alternative approach - create config in main container using shared volume
+
     # Volume for shared storage (equivalent to AWS EFS)
     volume {
       name         = "iq-data-ha"
       storage_type = "AzureFile"
       storage_name = azurerm_container_app_environment_storage.iq_storage_ha.name
+    }
+
+    volume {
+      name         = "config-volume-ha"
+      storage_type = "EmptyDir"
     }
 
     container {
@@ -76,14 +83,13 @@ resource "azurerm_container_app" "iq_app_ha" {
       cpu    = var.container_cpu
       memory = var.container_memory
 
-      # Custom startup script for HA clustering (similar to AWS ECS approach)
+      # HA deployment: Create complete config.yml with database and clustering in shared volume
       command = ["/bin/sh"]
       args = [
         "-c",
         <<-EOF
           set -e
           echo "Starting Nexus IQ Server HA instance - Replica: $HOSTNAME"
-          echo "Container Apps HA Clustering Configuration"
 
           # Create unique work directory per replica (like AWS ECS tasks)
           UNIQUE_WORK="/sonatype-work/clm-server-$HOSTNAME"
@@ -95,7 +101,8 @@ resource "azurerm_container_app" "iq_app_ha" {
           echo "Creating shared cluster directory: $CLUSTER_DIR"
           mkdir -p "$CLUSTER_DIR"
 
-          # Generate custom config.yml with HA clustering support
+          # Create HA config.yml in proper documented location (writable via EmptyDir mount)
+          # Create HA config.yml with complete database and clustering configuration
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: $UNIQUE_WORK
 clusterDirectory: $CLUSTER_DIR
@@ -113,42 +120,46 @@ server:
   applicationConnectors:
   - type: http
     port: 8070
-    bindHost: 0.0.0.0  # Allow connections from load balancer
+    bindHost: 0.0.0.0
   adminConnectors:
   - type: http
     port: 8071
-    bindHost: 0.0.0.0  # Allow connections for admin operations
+    bindHost: 0.0.0.0
   requestLog:
     appenders:
     - type: file
       currentLogFilename: "/var/log/nexus-iq-server/request.log"
       archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
-      archivedFileCount: 50
+      archivedFileCount: 5
 
 logging:
-  level: INFO
+  level: DEBUG
   loggers:
     com.sonatype.insight.scan: INFO
     eu.medsea.mimeutil.MimeUtil2: INFO
     org.apache.http: INFO
-    org.apache.http.wire: INFO
+    org.apache.http.wire: ERROR
     org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
     org.eclipse.jetty: INFO
     org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
-    # HA clustering specific logging
-    com.sonatype.clm.server.cluster: DEBUG
+    com.networknt.schema: OFF
+    com.sonatype.insight.audit:
+      appenders:
+      - type: file
+        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        archivedFileCount: 50
   appenders:
-  - type: file
-    threshold: ALL
-    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
-    currentLogFilename: "/var/log/nexus-iq-server/nexus-iq-server.log"
-    archivedLogFilenamePattern: "/var/log/nexus-iq-server/nexus-iq-server-%d.log.gz"
-    archivedFileCount: 50
   - type: console
     threshold: INFO
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
+  - type: file
+    threshold: ALL
+    currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
+    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
+    archivedFileCount: 50
 
-# Enable sample data creation for first startup
 createSampleData: true
 CONFIGEOF
 
@@ -162,17 +173,16 @@ CONFIGEOF
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
 
-          echo "Generated HA config.yml for replica: $HOSTNAME"
-          echo "Unique work directory: $UNIQUE_WORK"
-          echo "Shared cluster directory: $CLUSTER_DIR"
-          echo "Database host: $DB_HOST"
+          echo "Successfully created HA config.yml for replica: $HOSTNAME at /etc/nexus-iq-server/config.yml"
+          echo "Generated config file contents:"
+          cat /etc/nexus-iq-server/config.yml
 
           # Verify directories exist and are writable
           ls -la /sonatype-work/
 
-          # Start IQ Server with HA configuration
+          # Start IQ Server with HA configuration using proper documented path
           echo "Starting Nexus IQ Server HA replica: $HOSTNAME"
-          exec java $JAVA_OPTS -jar /opt/sonatype/nexus-iq-server/nexus-iq-server-*.jar server /etc/nexus-iq-server/config.yml
+          exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
         EOF
       ]
 
@@ -235,30 +245,11 @@ CONFIGEOF
         path = "/sonatype-work"
       }
 
-      # Health probes for HA deployment
-      startup_probe {
-        transport               = "HTTP"
-        port                    = 8070
-        path                    = "/"
-        interval_seconds        = 30
-        failure_count_threshold = 10 # Allow more time for HA startup (max allowed)
+      volume_mounts {
+        name = "config-volume-ha"
+        path = "/etc/nexus-iq-server"
       }
 
-      liveness_probe {
-        transport               = "HTTP"
-        port                    = 8070
-        path                    = "/"
-        interval_seconds        = 30
-        failure_count_threshold = 3
-      }
-
-      readiness_probe {
-        transport               = "HTTP"
-        port                    = 8070
-        path                    = "/"
-        interval_seconds        = 15
-        failure_count_threshold = 3
-      }
     }
   }
 

@@ -92,6 +92,7 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
    ```bash
    ./tf-apply.sh
    ```
+   *Note: The apply script includes automated parallel import of existing Azure resources for seamless state management.*
 
 6. **Access your Nexus IQ Server HA cluster**:
    - Get URLs: `terraform output`
@@ -99,6 +100,14 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
    - Default credentials: `admin` / `admin123`
 
 ## Configuration
+
+### Docker Image and Configuration Updates
+
+**Updated Docker Image**: This deployment now uses the official `sonatype/nexus-iq-server:latest` Docker image (migrated from `sonatypecommunity/nexus-iq-server:latest`).
+
+**Configuration Method**: The HA deployment uses proper `config.yml` database configuration with EmptyDir volume mounting to `/etc/nexus-iq-server/config.yml` for write permissions. This ensures compatibility with the official Docker image while maintaining the documented configuration path.
+
+**Application Gateway TLS**: Updated to use `AppGwSslPolicy20220101` TLS policy to address deprecated policy warnings.
 
 ### 1. Essential HA Settings in terraform.tfvars
 
@@ -133,10 +142,10 @@ scale_rule_concurrent_requests  = 100         # Requests threshold
 
 ```hcl
 # Network Configuration for HA
-vnet_cidr               = "10.0.0.0/16"
-public_subnet_cidrs     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]    # Multi-zone
-private_subnet_cidrs    = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"] # Multi-zone
-db_subnet_cidr          = "10.0.40.0/24"
+vnet_cidr               = "10.1.0.0/16"
+public_subnet_cidrs     = ["10.1.1.0/24", "10.1.2.0/24", "10.1.3.0/24"]    # Multi-zone
+private_subnet_cidrs    = ["10.1.8.0/23", "10.1.16.0/23", "10.1.24.0/23"]  # /23 required for Container Apps
+db_subnet_cidr          = "10.1.40.0/24"
 ```
 
 ### 3. Security Configuration
@@ -339,7 +348,7 @@ az backup policy list \
 
 2. **Memory/CPU Issues**
    - Increase container resource allocations
-   - Adjust Java heap settings in java_opts
+   - Adjust Java heap settings in JAVA_OPTS variable or config.yml
    - Review auto-scaling policies
 
 ## File Structure

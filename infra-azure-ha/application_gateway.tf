@@ -37,6 +37,12 @@ resource "azurerm_application_gateway" "iq_app_gw_ha" {
     # capacity removed - using autoscale_configuration instead for v2 SKU
   }
 
+  # SSL Policy configuration to avoid deprecated TLS versions
+  ssl_policy {
+    policy_type = "Predefined"
+    policy_name = "AppGwSslPolicy20220101"
+  }
+
   gateway_ip_configuration {
     name      = "gateway-ip-config"
     subnet_id = azurerm_subnet.public_subnets[0].id # Use first public subnet

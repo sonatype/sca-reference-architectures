@@ -13,7 +13,7 @@ db_subnet_cidr      = "10.0.30.0/24"
 # Container App Configuration
 container_cpu    = 2.0
 container_memory = "4Gi"
-iq_docker_image  = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image  = "sonatype/nexus-iq-server:latest"
 java_opts        = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
