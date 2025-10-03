@@ -108,20 +108,45 @@ server:
   applicationConnectors:
   - type: http
     port: 8070
+    bindHost: 0.0.0.0
   adminConnectors:
   - type: http
     port: 8071
+    bindHost: 0.0.0.0
+  requestLog:
+    appenders:
+    - type: file
+      currentLogFilename: "/var/log/nexus-iq-server/request.log"
+      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+      archivedFileCount: 5
 
 logging:
-  level: INFO
+  level: DEBUG
+  loggers:
+    com.sonatype.insight.scan: INFO
+    eu.medsea.mimeutil.MimeUtil2: INFO
+    org.apache.http: INFO
+    org.apache.http.wire: ERROR
+    org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
+    org.eclipse.jetty: INFO
+    org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
+    com.networknt.schema: OFF
+    com.sonatype.insight.audit:
+      appenders:
+      - type: file
+        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        archivedFileCount: 50
   appenders:
   - type: console
     threshold: INFO
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
   - type: file
     threshold: ALL
     currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
     archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
-    archivedFileCount: 5
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
+    archivedFileCount: 50
 
 createSampleData: true
 CONFIGEOF
