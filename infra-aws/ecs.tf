@@ -27,6 +27,7 @@ resource "aws_ecs_task_definition" "iq_task" {
       name         = "nexus-iq-server"
       image        = var.iq_docker_image
       essential    = true
+      user         = "0:0"
       portMappings = [
         {
           containerPort = 8070
@@ -61,43 +62,89 @@ resource "aws_ecs_task_definition" "iq_task" {
         }
       ]
 
-      # Create a basic config file and use JAVA_OPTS to override database settings
+      # Create complete config.yml with database configuration (matching Azure approach)
       entryPoint = ["/bin/sh", "-c"]
       command = [
         <<-EOF
           set -e
+          echo "Starting Nexus IQ Server Single Instance with official Docker image"
 
-          # Create basic config.yml if it doesn't exist
-          if [ ! -f /etc/nexus-iq-server/config.yml ]; then
-            mkdir -p /etc/nexus-iq-server
-            cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
+          # Create comprehensive config.yml with database and logging configuration
+          mkdir -p /etc/nexus-iq-server
+          cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: /sonatype-work
+
+# Database configuration for PostgreSQL
+database:
+  type: postgresql
+  hostname: $DB_HOST
+  port: $DB_PORT
+  name: $DB_NAME
+  username: $DB_USERNAME
+  password: $DB_PASSWORD
 
 server:
   applicationConnectors:
   - type: http
     port: 8070
+    bindHost: 0.0.0.0
   adminConnectors:
   - type: http
     port: 8071
+    bindHost: 0.0.0.0
+  requestLog:
+    appenders:
+    - type: file
+      currentLogFilename: "/var/log/nexus-iq-server/request.log"
+      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+      archivedFileCount: 5
 
 logging:
-  level: INFO
+  level: DEBUG
+  loggers:
+    com.sonatype.insight.scan: INFO
+    eu.medsea.mimeutil.MimeUtil2: INFO
+    org.apache.http: INFO
+    org.apache.http.wire: ERROR
+    org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
+    org.eclipse.jetty: INFO
+    org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
+    com.networknt.schema: OFF
+    com.sonatype.insight.audit:
+      appenders:
+      - type: file
+        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        archivedFileCount: 50
   appenders:
   - type: console
     threshold: INFO
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
   - type: file
     threshold: ALL
     currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
     archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
-    archivedFileCount: 5
-CONFIGEOF
-          fi
+    logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+    archivedFileCount: 50
 
-          # Start with database configuration via JAVA_OPTS
-          JAVA_OPTS="$JAVA_OPTS -Ddw.database.type=postgresql -Ddw.database.hostname=$DB_HOST -Ddw.database.port=$DB_PORT -Ddw.database.name=$DB_NAME -Ddw.database.username=$DB_USERNAME -Ddw.database.password=$DB_PASSWORD"
+createSampleData: true
+CONFIGEOF
+
+          # Replace placeholders with actual environment values
+          sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+
+          echo "Successfully created config.yml with database configuration"
+          echo "Generated config file contents:"
+          cat /etc/nexus-iq-server/config.yml
+
+          # Keep original JAVA_OPTS (no database configuration needed)
           export JAVA_OPTS
 
+          echo "Starting Nexus IQ Server Single Instance"
           exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
         EOF
       ]
