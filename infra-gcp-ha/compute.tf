@@ -7,7 +7,7 @@ resource "google_compute_instance_template" "iq_template" {
   machine_type = var.instance_machine_type
   region       = var.gcp_region
 
-  tags = ["nexus-iq-ha", "allow-health-check", "v13"]
+  tags = ["nexus-iq-ha", "allow-health-check", "v21"]
 
   disk {
     source_image = "debian-cloud/debian-11"
@@ -29,7 +29,7 @@ resource "google_compute_instance_template" "iq_template" {
     scopes = ["cloud-platform"]
   }
 
-  # Startup script to configure Docker container with IQ Server (v13)
+  # Startup script to configure Docker container with IQ Server (v21)
   metadata_startup_script = templatefile("${path.module}/scripts/startup.sh", {
     docker_image       = var.iq_docker_image
     db_host            = google_sql_database_instance.iq_ha_db.private_ip_address
@@ -86,7 +86,7 @@ resource "google_compute_region_instance_group_manager" "iq_mig" {
   # Auto healing policy
   auto_healing_policies {
     health_check      = google_compute_health_check.iq_health_check.id
-    initial_delay_sec = 300
+    initial_delay_sec = 600  # Increased to 10 minutes to allow for container startup and database connection
   }
 
   # Update policy for rolling deployments
@@ -113,7 +113,7 @@ resource "google_compute_health_check" "iq_health_check" {
   unhealthy_threshold = 3
 
   http_health_check {
-    request_path = "/"
+    request_path = "/assets/index.html"
     port         = "8070"
   }
 
