@@ -1,0 +1,150 @@
+# Fixed Nexus IQ Server HA Helm Chart Values
+# Addresses the hardcoded service account and PV issues
+
+# Nexus IQ Server HA configuration
+iq_server:
+  image: "sonatype/nexus-iq-server"
+  tag: "latest"
+  imagePullPolicy: "Always"
+
+  # Resources - optimized for m5.large nodes (single replica)
+  resources:
+    requests:
+      cpu: "1"
+      memory: "3Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+
+  # Java options - matching ECS version
+  javaOpts: "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+  # Environment variables - matching ECS approach plus database config
+  env:
+    - name: NXIQ_DATABASE_MIGRATION
+      value: "true"
+    - name: CLUSTER_DIRECTORY
+      value: "/sonatype-work/clm-cluster"
+    - name: NEXUS_SECURITY_RANDOMPASSWORD
+      value: "false"
+    # Database environment variables for config.yml template
+    - name: DB_HOSTNAME
+      value: ""  # Will be set by script
+    - name: DB_PORT
+      value: "5432"
+    - name: DB_NAME
+      value: "nexusiq"
+    - name: DB_USERNAME
+      value: "nexusiq"
+    - name: DB_PASSWORD
+      value: ""  # Will be set by script
+
+  # License
+  licenseSecret: "nexus-iq-license"
+
+  # Database configuration - matching official chart structure
+  database:
+    hostname: ""  # Will be set by script
+    port: 5432
+    name: "nexusiq"
+    username: "nexusiq"  # Keep our RDS username
+    password: ""  # Will be set by script
+    type: "postgresql"
+    migration: true  # Enable database migration
+
+  # Persistence - use existing PVC to skip PV creation entirely
+  persistence:
+    existingPersistentVolumeClaimName: "nexus-iq-pvc"
+
+  # Let Helm create ServiceAccount with proper name
+  serviceAccountName: "nexus-iq-sa"
+
+  # Service configuration
+  serviceType: "ClusterIP"
+
+  # Replica count - matching ECS HA setup (minimum 2 for HA)
+  replicaCount: 2
+
+  # HA Configuration matching ECS version - using Helm chart's config mechanism
+  config:
+    sonatypeWork: "/sonatype-work"
+    clusterDirectory: "/sonatype-work/clm-cluster"
+    createSampleData: true
+
+    server:
+      applicationConnectors:
+        - type: http
+          port: 8070
+      adminConnectors:
+        - type: http
+          port: 8071
+      # Enhanced request logging - matching Azure version
+      requestLog:
+        appenders:
+          - type: file
+            currentLogFilename: "/var/log/nexus-iq-server/request.log"
+            archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+            archivedFileCount: 50
+
+    # Enhanced logging configuration - matching Azure version
+    logging:
+      level: DEBUG
+      loggers:
+        com.sonatype.insight.scan: INFO
+        eu.medsea.mimeutil.MimeUtil2: INFO
+        org.apache.http: INFO
+        org.apache.http.wire: ERROR
+        org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
+        org.eclipse.jetty: INFO
+        org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
+        com.networknt.schema: false
+        com.sonatype.insight.audit:
+          appenders:
+            - type: file
+              currentLogFilename: "/var/log/nexus-iq-server/audit.log"
+              archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+              archivedFileCount: 50
+        com.sonatype.insight.policy.violation:
+          appenders:
+            - type: file
+              currentLogFilename: "/var/log/nexus-iq-server/policy-violation.log"
+              archivedLogFilenamePattern: "/var/log/nexus-iq-server/policy-violation-%d.log.gz"
+              archivedFileCount: 50
+      appenders:
+        - type: console
+          threshold: DEBUG
+          logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+        - type: file
+          threshold: ALL
+          currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
+          archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+          logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+          archivedFileCount: 50
+
+# Service Account - let Helm manage it properly
+serviceAccount:
+  create: true
+  name: "nexus-iq-sa"
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: true
+  ingressClassName: "alb"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: "/ping"
+
+# Disable fluentd to avoid complexity
+fluentd:
+  enabled: false
+
+# Disable external-dns
+external-dns:
+  enabled: false
+
+# Disable separate migration job (main pods handle migration)
+migrationJob:
+  enabled: false
