@@ -79,7 +79,8 @@ chown -R 997:997 "$UNIQUE_WORK_DIR" "$CLUSTER_DIR"
 
 # Get database password from Secret Manager
 log "Retrieving database password from Secret Manager..."
-DB_PASSWORD=$(gcloud secrets versions access latest --secret="$DB_PASSWORD_SECRET" --project="$PROJECT_ID")
+DB_SECRET_JSON=$(gcloud secrets versions access latest --secret="$DB_PASSWORD_SECRET" --project="$PROJECT_ID")
+DB_PASSWORD=$(echo "$DB_SECRET_JSON" | jq -r '.password')
 
 # Generate custom config.yml for this instance
 log "Generating Nexus IQ Server configuration..."
@@ -94,7 +95,7 @@ database:
   port: $DB_PORT
   name: $DB_NAME
   username: $DB_USER
-  password: $DB_PASSWORD
+  password: "$DB_PASSWORD"
 
 server:
   applicationConnectors:
@@ -154,29 +155,42 @@ docker pull "$DOCKER_IMAGE"
 docker stop nexus-iq-server 2>/dev/null || true
 docker rm nexus-iq-server 2>/dev/null || true
 
-# Start Nexus IQ Server container
-log "Starting Nexus IQ Server container..."
+# Create log directory for container
+mkdir -p "$UNIQUE_WORK_DIR/logs"
+chown -R 997:997 "$UNIQUE_WORK_DIR/logs"
+
+# Start Nexus IQ Server container using config.yml file
+log "Starting Nexus IQ Server container with config file..."
 docker run -d \
   --name nexus-iq-server \
   --restart unless-stopped \
   -p 8070:8070 \
   -p 8071:8071 \
   -v "$MOUNT_POINT:$MOUNT_POINT" \
+  -v "$UNIQUE_WORK_DIR/config/config.yml:/etc/nexus-iq-server/config.yml" \
+  -v "$UNIQUE_WORK_DIR/logs:/var/log/nexus-iq-server" \
   -e JAVA_OPTS="$JAVA_OPTS" \
   -e NEXUS_SECURITY_RANDOMPASSWORD=false \
   --user 997:997 \
-  "$DOCKER_IMAGE" \
-  "$UNIQUE_WORK_DIR/config/config.yml"
+  "$DOCKER_IMAGE"
+
+# Add random startup delay to stagger container starts and reduce resource contention
+STARTUP_DELAY=$((RANDOM % 60 + 30))  # Random delay between 30-90 seconds
+log "Adding startup delay of $STARTUP_DELAY seconds to stagger container starts..."
+sleep $STARTUP_DELAY
 
 # Wait for container to start
 log "Waiting for Nexus IQ Server to start..."
 sleep 30
 
-# Health check
-for i in {1..30}; do
-    if curl -f http://localhost:8070/ >/dev/null 2>&1; then
+# Health check - wait longer for database initialization
+log "Waiting for Nexus IQ Server to start (this may take up to 10 minutes for database initialization)..."
+for i in {1..60}; do
+    if curl -f http://localhost:8070/assets/index.html >/dev/null 2>&1; then
         log "Nexus IQ Server is healthy and ready"
         break
+    elif curl -f http://localhost:8070/ >/dev/null 2>&1; then
+        log "Nexus IQ Server is responding but not fully ready"
     fi
     log "Attempt $i: Waiting for Nexus IQ Server to be ready..."
     sleep 10

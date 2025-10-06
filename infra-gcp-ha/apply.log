@@ -2,32 +2,26 @@
 [0m[1mInitializing the backend...[0m
 
 [0m[1mInitializing provider plugins...[0m
-- Reusing previous version of hashicorp/google from the dependency lock file
-- Reusing previous version of hashicorp/google-beta from the dependency lock file
 - Reusing previous version of hashicorp/random from the dependency lock file
-- Using previously-installed hashicorp/google v5.45.2
-- Using previously-installed hashicorp/google-beta v5.45.2
-- Using previously-installed hashicorp/random v3.7.2
-
-[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
-[0m[32m
-You may now begin working with Terraform. Try running "terraform plan" to see
-any changes that are required for your infrastructure. All Terraform commands
-should now work.
-
-If you ever set or change modules or backend configuration for Terraform,
-rerun this command to reinitialize your working directory. If you forget, other
-commands will detect it and remind you to do so if necessary.[0m
-[32m[1mSuccess![0m The configuration is valid.
-[0m
-[0;32m[INFO][0m Configuration validation passed
-[0;32m[INFO][0m Using plan file: tfplan-ha-20251002-135129.backup.20251002-135213
-[0;32m[INFO][0m Validating plan file...
-[0;32m[INFO][0m Plan file validation completed
-[0;32m[INFO][0m Deployment Summary:
-[1;33m[WARNING][0m This deployment will:
-[0;32m[INFO][0m 📋 Plan Summary Before Apply
-[0;32m[INFO][0m ============================
-[1;33m[WARNING][0m Could not display plan summary
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mFailed to query available provider packages[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mCould not retrieve the list of available versions for provider
+[31m│[0m [0mhashicorp/random: could not query provider registry for
+[31m│[0m [0mregistry.terraform.io/hashicorp/random: the request failed, please try
+[31m│[0m [0magain later: context canceled
+[31m╵[0m[0m
+[0m[0m
+[31mProvider installation was canceled by an interrupt signal.[0m[0m
+[31m[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mFailed to query available provider packages[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mCould not retrieve the list of available versions for provider
+[31m│[0m [0mhashicorp/random: could not query provider registry for
+[31m│[0m [0mregistry.terraform.io/hashicorp/random: the request failed, please try
+[31m│[0m [0magain later: context canceled
+[31m╵[0m[0m
+[0m[0m
+[0;31m[ERROR][0m Terraform initialization failed. Check /Users/josemiguelromeroespitia/Documents/sonatype/sca-example-terraform/infra-gcp-ha/apply.log for details.
 [0;31m[ERROR][0m Deployment failed with exit code 1
-[0;32m[INFO][0m Backup directory preserved: backup-20251002-141132
+[0;32m[INFO][0m Backup directory preserved: backup-20251003-182940
