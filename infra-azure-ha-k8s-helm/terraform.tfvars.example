@@ -1,0 +1,74 @@
+# Azure Configuration
+azure_region = "eastus"
+environment  = "prod"
+cluster_name = "nexus-iq-ha"
+
+# Network Configuration
+vnet_cidr          = "10.1.0.0/16"
+public_subnet_cidr = "10.1.1.0/24"
+aks_subnet_cidr    = "10.1.10.0/23"  # /23 provides more IPs for AKS
+db_subnet_cidr     = "10.1.20.0/24"
+
+# AKS Configuration
+kubernetes_version      = "1.33.3"
+node_instance_type      = "Standard_D4s_v3" # 4 vCPU, 16GB RAM
+node_group_min_size     = 2
+node_group_max_size     = 6
+node_group_desired_size = 3
+node_disk_size          = 50
+
+# PostgreSQL Configuration (Zone-Redundant HA)
+postgres_version                 = "15"
+db_sku_name                      = "GP_Standard_D4s_v3" # 4 vCores, 16GB RAM
+db_high_availability_mode        = "ZoneRedundant"
+db_storage_mb                    = 65536 # 64GB
+db_storage_tier                  = "P6"
+database_name                    = "nexusiq"
+database_username                = "nexusiq"
+database_password                = "SecurePassword123!"
+backup_retention_period          = 7
+db_geo_redundant_backup_enabled  = true
+
+# Azure Files Premium Storage (Zone-Redundant)
+storage_account_tier             = "Premium"
+storage_account_replication_type = "ZRS"
+storage_share_quota_gb           = 512
+
+# Application Gateway Configuration (Zone-Redundant)
+app_gateway_sku_name     = "Standard_v2"
+app_gateway_sku_tier     = "Standard_v2"
+app_gateway_capacity     = 2
+app_gateway_min_capacity = 2
+app_gateway_max_capacity = 10
+
+# Nexus IQ Server HA Configuration
+nexus_iq_version         = "1.195.0"
+nexus_iq_license         = ""
+nexus_iq_admin_password  = "admin123"
+nexus_iq_replica_count   = 2  # Minimum 2 for HA
+nexus_iq_memory_request  = "4Gi"
+nexus_iq_memory_limit    = "6Gi"
+nexus_iq_cpu_request     = "2"
+nexus_iq_cpu_limit       = "4"
+
+# Helm Configuration
+helm_chart_version      = "195.0.0"
+helm_namespace          = "nexus-iq"
+agic_helm_version       = "1.7.2"
+aad_pod_identity_version = "4.1.18"
+
+# Monitoring Configuration
+log_retention_days = 30
+enable_fluentd     = true
+enable_monitoring  = true
+
+# HPA Configuration
+enable_hpa                   = true
+hpa_min_replicas             = 2
+hpa_max_replicas             = 10
+hpa_target_cpu_utilization   = 70
+hpa_target_memory_utilization = 80
+
+# Ingress Configuration
+ingress_hostname    = "" # Optional: custom hostname
+ingress_tls_enabled = false
