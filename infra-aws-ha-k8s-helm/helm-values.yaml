@@ -17,7 +17,7 @@ iq_server:
       memory: "24Gi"
 
   # Java options
-  javaOpts: "-Xmx16g -Xms16g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   # Environment variables - matching ECS approach plus database config
   env:
