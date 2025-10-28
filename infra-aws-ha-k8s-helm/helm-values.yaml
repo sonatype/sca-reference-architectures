@@ -7,17 +7,17 @@ iq_server:
   tag: "latest"
   imagePullPolicy: "Always"
 
-  # Resources - optimized for m5.large nodes (single replica)
+  # Resources
   resources:
     requests:
-      cpu: "1"
-      memory: "3Gi"
+      cpu: "8"
+      memory: "16Gi"
     limits:
-      cpu: "2"
-      memory: "4Gi"
+      cpu: "12"
+      memory: "24Gi"
 
-  # Java options - matching ECS version
-  javaOpts: "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  # Java options
+  javaOpts: "-Xmx16g -Xms16g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   # Environment variables - matching ECS approach plus database config
   env:

@@ -126,13 +126,13 @@ cluster_name = "nexus-iq-ha"
 
 # EKS Configuration
 kubernetes_version = "1.27"
-node_instance_type = "m5.large"
+node_instance_type = "m5.2xlarge"
 node_group_min_size = 2
 node_group_max_size = 6
 node_group_desired_size = 3
 
 # Aurora Configuration
-aurora_instance_class = "db.r6g.large"
+aurora_instance_class = "db.r6g.2xlarge"
 aurora_instance_count = 2  # 1 writer + 1 reader
 database_password = "YourSecurePassword123!"  # Change this!
 

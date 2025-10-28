@@ -124,8 +124,8 @@ private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 
 # ECS Configuration
-ecs_cpu               = 2048        # 2 vCPU per task
-ecs_memory           = 4096        # 4GB RAM per task
+ecs_cpu               = 8192        # 8 vCPU per task
+ecs_memory           = 16384       # 16 GB RAM per task
 iq_desired_count     = 2           # Initial number of tasks (2-6)
 iq_max_capacity      = 6           # Maximum auto scaling capacity
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
@@ -138,7 +138,7 @@ memory_target_percent = 80         # Memory utilization target for scaling
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class          = "db.r6g.large"
+db_instance_class          = "db.r6g.2xlarge"
 postgres_version           = "15.4"
 aurora_backup_retention    = 7     # Days
 ```
@@ -421,7 +421,7 @@ infra-aws-ha/
 ### Resource Limits
 
 - **ECS Service**: Scales from 2-6 tasks based on demand
-- **Aurora Cluster**: Uses db.r6g.large instances for performance
+- **Aurora Cluster**: Uses db.r6g.2xlarge instances
 - **Storage**: EFS provides unlimited scalable storage with clustering support
 
 ## Cleanup

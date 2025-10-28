@@ -32,7 +32,7 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "EC2 instance type for EKS worker nodes"
   type        = string
-  default     = "m5.large"
+  default     = "m5.2xlarge"
 }
 
 variable "node_group_min_size" {
@@ -69,7 +69,7 @@ variable "aurora_engine_version" {
 variable "aurora_instance_class" {
   description = "Instance class for Aurora PostgreSQL"
   type        = string
-  default     = "db.r6g.large"
+  default     = "db.m5.4xlarge"
 }
 
 variable "aurora_instance_count" {
@@ -150,25 +150,25 @@ variable "nexus_iq_replica_count" {
 variable "nexus_iq_memory_request" {
   description = "Memory request for Nexus IQ Server pods"
   type        = string
-  default     = "4Gi"
+  default     = "16Gi"
 }
 
 variable "nexus_iq_memory_limit" {
   description = "Memory limit for Nexus IQ Server pods"
   type        = string
-  default     = "6Gi"
+  default     = "24Gi"
 }
 
 variable "nexus_iq_cpu_request" {
   description = "CPU request for Nexus IQ Server pods"
   type        = string
-  default     = "2"
+  default     = "8"
 }
 
 variable "nexus_iq_cpu_limit" {
   description = "CPU limit for Nexus IQ Server pods"
   type        = string
-  default     = "4"
+  default     = "12"
 }
 
 # Helm Configuration

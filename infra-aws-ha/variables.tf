@@ -46,19 +46,19 @@ variable "enable_nat_gateway" {
 variable "ecs_cpu" {
   description = "CPU units for ECS task (1024 = 1 vCPU)"
   type        = number
-  default     = 2048
+  default     = 8192
 }
 
 variable "ecs_memory" {
   description = "Memory for ECS task in MiB"
   type        = number
-  default     = 4096
+  default     = 16384
 }
 
 variable "ecs_memory_reservation" {
   description = "Soft memory limit for ECS task in MiB"
   type        = number
-  default     = 3072
+  default     = 12288
 }
 
 variable "enable_container_insights" {
@@ -117,7 +117,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xmx8g -Xms8g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Database Variables (Aurora PostgreSQL for HA)
@@ -148,7 +148,7 @@ variable "aurora_engine_version" {
 variable "aurora_instance_class" {
   description = "Aurora instance class"
   type        = string
-  default     = "db.r6g.large"
+  default     = "db.m5.4xlarge"
 }
 
 variable "aurora_instances" {

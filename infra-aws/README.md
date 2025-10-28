@@ -121,8 +121,8 @@ private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 
 # ECS Configuration
-ecs_cpu           = 2048        # 2 vCPU
-ecs_memory        = 4096        # 4GB RAM
+ecs_cpu           = 8192        # 8 vCPU
+ecs_memory        = 16384       # 16 GB RAM
 iq_desired_count  = 1           # Single instance (recommended)
 iq_docker_image   = "sonatype/nexus-iq-server:latest"
 
@@ -130,7 +130,7 @@ iq_docker_image   = "sonatype/nexus-iq-server:latest"
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class           = "db.t3.medium"
+db_instance_class           = "db.m5.4xlarge"
 postgres_version            = "15"
 ```
 
@@ -342,7 +342,7 @@ infra-aws/
 ### Resource Limits
 
 - **ECS Service**: Limited to 1 task (Nexus IQ requirement)
-- **Database**: Uses db.t3.medium for performance
+- **Database**: Uses db.m5.4xlarge
 - **Storage**: EFS provides unlimited scalable storage
 
 ## Cleanup

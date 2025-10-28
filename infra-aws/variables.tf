@@ -35,13 +35,13 @@ variable "db_subnet_cidrs" {
 variable "ecs_cpu" {
   description = "CPU units for ECS task (1024 = 1 vCPU)"
   type        = number
-  default     = 2048
+  default     = 8192
 }
 
 variable "ecs_memory" {
   description = "Memory for ECS task in MiB"
   type        = number
-  default     = 4096
+  default     = 16384
 }
 
 variable "iq_desired_count" {
@@ -59,7 +59,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xmx8g -Xms8g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Database Variables
@@ -84,13 +84,13 @@ variable "db_password" {
 variable "db_instance_class" {
   description = "RDS instance class"
   type        = string
-  default     = "db.t3.medium"
+  default     = "db.m5.4xlarge"
 }
 
 variable "db_allocated_storage" {
   description = "Initial allocated storage for RDS in GB"
   type        = number
-  default     = 100
+  default     = 500
 }
 
 variable "db_max_allocated_storage" {
