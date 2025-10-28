@@ -41,7 +41,7 @@ variable "ecs_cpu" {
 variable "ecs_memory" {
   description = "Memory for ECS task in MiB"
   type        = number
-  default     = 16384
+  default     = 32768
 }
 
 variable "iq_desired_count" {
