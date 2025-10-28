@@ -52,13 +52,13 @@ variable "ecs_cpu" {
 variable "ecs_memory" {
   description = "Memory for ECS task in MiB"
   type        = number
-  default     = 16384
+  default     = 32768
 }
 
 variable "ecs_memory_reservation" {
   description = "Soft memory limit for ECS task in MiB"
   type        = number
-  default     = 12288
+  default     = 24576
 }
 
 variable "enable_container_insights" {
@@ -71,7 +71,7 @@ variable "enable_container_insights" {
 variable "iq_desired_count" {
   description = "Desired number of IQ Server tasks (HA requires minimum 2)"
   type        = number
-  default     = 2
+  default     = 3
 
   validation {
     condition     = var.iq_desired_count >= 2
@@ -93,7 +93,7 @@ variable "iq_min_count" {
 variable "iq_max_count" {
   description = "Maximum number of IQ Server tasks for auto scaling"
   type        = number
-  default     = 6
+  default     = 5
 }
 
 variable "iq_cpu_target_value" {

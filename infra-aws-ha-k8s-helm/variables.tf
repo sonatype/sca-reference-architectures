@@ -32,7 +32,7 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "EC2 instance type for EKS worker nodes"
   type        = string
-  default     = "m5.2xlarge"
+  default     = "m5d.2xlarge"
 }
 
 variable "node_group_min_size" {
@@ -144,7 +144,7 @@ variable "nexus_iq_admin_password" {
 variable "nexus_iq_replica_count" {
   description = "Number of Nexus IQ Server replicas for high availability"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "nexus_iq_memory_request" {
@@ -238,7 +238,7 @@ variable "hpa_min_replicas" {
 variable "hpa_max_replicas" {
   description = "Maximum replicas for HPA"
   type        = number
-  default     = 10
+  default     = 5
 }
 
 variable "hpa_target_cpu_utilization" {
