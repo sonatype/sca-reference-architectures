@@ -178,6 +178,132 @@ if command -v kubectl &> /dev/null && [[ -n "$CLUSTER_NAME" ]]; then
     sleep 30
 fi
 
+# Additional cleanup for VPC resources that block deletion
+if [[ -n "$VPC_ID" && "$VPC_ID" != "N/A" ]]; then
+    echo "🧹  Cleaning up VPC dependencies..."
+    AWS_REGION=$(grep '^aws_region' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "us-east-1")
+
+    # Clean up any remaining Load Balancers in the VPC
+    echo "   Removing Load Balancers..."
+
+    # Get list of ALB/NLB ARNs in this VPC using json output for reliability
+    LB_ARNS=$(aws-vault exec "$AWS_PROFILE" -- aws elbv2 describe-load-balancers \
+      --region "$AWS_REGION" 2>/dev/null | \
+      jq -r ".LoadBalancers[] | select(.VpcId==\"$VPC_ID\") | .LoadBalancerArn" 2>/dev/null || echo "")
+
+    if [[ -n "$LB_ARNS" ]]; then
+        while IFS= read -r LB_ARN; do
+            if [[ -n "$LB_ARN" ]]; then
+                LB_NAME=$(echo "$LB_ARN" | awk -F'/' '{print $2"/"$3}')
+                echo "   Deleting ALB/NLB: $LB_NAME"
+                aws-vault exec "$AWS_PROFILE" -- aws elbv2 delete-load-balancer \
+                  --load-balancer-arn "$LB_ARN" \
+                  --region "$AWS_REGION" 2>&1 || echo "   Failed to delete, will retry"
+            fi
+        done <<< "$LB_ARNS"
+    else
+        echo "   No ALB/NLB found (or jq not installed, trying alternative method)"
+
+        # Fallback if jq is not available
+        ALL_LB_ARNS=$(aws-vault exec "$AWS_PROFILE" -- aws elbv2 describe-load-balancers \
+          --region "$AWS_REGION" \
+          --query "LoadBalancers[?VpcId=='$VPC_ID'].LoadBalancerArn" \
+          --output text 2>/dev/null || echo "")
+
+        for LB_ARN in $ALL_LB_ARNS; do
+            if [[ -n "$LB_ARN" && "$LB_ARN" != "None" ]]; then
+                echo "   Deleting ALB/NLB: $LB_ARN"
+                aws-vault exec "$AWS_PROFILE" -- aws elbv2 delete-load-balancer \
+                  --load-balancer-arn "$LB_ARN" \
+                  --region "$AWS_REGION" 2>&1 || echo "   Failed to delete"
+            fi
+        done
+    fi
+
+    # Classic Load Balancers
+    CLB_NAMES=$(aws-vault exec "$AWS_PROFILE" -- aws elb describe-load-balancers \
+      --region "$AWS_REGION" \
+      --query "LoadBalancerDescriptions[?VPCId=='$VPC_ID'].LoadBalancerName" \
+      --output text 2>/dev/null || echo "")
+
+    for CLB_NAME in $CLB_NAMES; do
+        echo "   Deleting Classic ELB: $CLB_NAME"
+        aws-vault exec "$AWS_PROFILE" -- aws elb delete-load-balancer \
+          --load-balancer-name "$CLB_NAME" \
+          --region "$AWS_REGION" 2>/dev/null || true
+    done
+
+    # Wait for load balancers to be deleted and ENIs to be released
+    if [[ -n "$LB_ARNS" || -n "$ALL_LB_ARNS" || -n "$CLB_NAMES" ]]; then
+        echo "   Waiting for load balancers to finish deleting (90 seconds)..."
+        sleep 90
+    fi
+
+    # Clean up Network Interfaces (ENIs) that might be blocking subnet deletion
+    echo "   Removing orphaned Network Interfaces..."
+
+    # Wait for ENIs to become available after LB deletion
+    echo "   Waiting for ENIs to be released (30 seconds)..."
+    sleep 30
+
+    # Get all ENIs in the VPC that are available or requester-managed
+    ENI_IDS=$(aws-vault exec "$AWS_PROFILE" -- aws ec2 describe-network-interfaces \
+      --region "$AWS_REGION" \
+      --filters "Name=vpc-id,Values=$VPC_ID" \
+      --query 'NetworkInterfaces[?Status==`available`].NetworkInterfaceId' \
+      --output text 2>/dev/null || echo "")
+
+    for ENI_ID in $ENI_IDS; do
+        echo "   Deleting ENI: $ENI_ID"
+        aws-vault exec "$AWS_PROFILE" -- aws ec2 delete-network-interface \
+          --network-interface-id "$ENI_ID" \
+          --region "$AWS_REGION" 2>/dev/null || true
+    done
+
+    # Additional wait for AWS to process ENI deletions
+    if [[ -n "$ENI_IDS" ]]; then
+        echo "   Waiting for ENI cleanup to complete (30 seconds)..."
+        sleep 30
+    fi
+
+    # Clean up NAT Gateways (they can block public IP releases)
+    echo "   Removing NAT Gateways..."
+    NAT_IDS=$(aws-vault exec "$AWS_PROFILE" -- aws ec2 describe-nat-gateways \
+      --region "$AWS_REGION" \
+      --filter "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available" \
+      --query 'NatGateways[].NatGatewayId' \
+      --output text 2>/dev/null || echo "")
+
+    for NAT_ID in $NAT_IDS; do
+        echo "   Deleting NAT Gateway: $NAT_ID"
+        aws-vault exec "$AWS_PROFILE" -- aws ec2 delete-nat-gateway \
+          --nat-gateway-id "$NAT_ID" \
+          --region "$AWS_REGION" 2>/dev/null || true
+    done
+
+    if [[ -n "$NAT_IDS" ]]; then
+        echo "   Waiting for NAT Gateways to finish deleting (90 seconds)..."
+        sleep 90
+    fi
+
+    # Release Elastic IPs that might be blocking Internet Gateway detachment
+    echo "   Releasing Elastic IPs..."
+    EIP_ALLOCS=$(aws-vault exec "$AWS_PROFILE" -- aws ec2 describe-addresses \
+      --region "$AWS_REGION" \
+      --filters "Name=domain,Values=vpc" \
+      --query "Addresses[?AssociationId==null].AllocationId" \
+      --output text 2>/dev/null || echo "")
+
+    for ALLOC_ID in $EIP_ALLOCS; do
+        echo "   Releasing EIP: $ALLOC_ID"
+        aws-vault exec "$AWS_PROFILE" -- aws ec2 release-address \
+          --allocation-id "$ALLOC_ID" \
+          --region "$AWS_REGION" 2>/dev/null || true
+    done
+
+    echo "   VPC cleanup completed"
+fi
+
 # Run terraform destroy
 echo -e "${RED}💥 Running terraform destroy...${NC}"
 echo ""
