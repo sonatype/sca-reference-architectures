@@ -154,3 +154,22 @@ variable "log_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "fluent_bit_image" {
+  description = "Fluent Bit Docker image (use custom image with IQ Server parsers)"
+  type        = string
+  default     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
+  # After building custom image: "YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/nexus-iq-fluent-bit:latest"
+}
+
+variable "enable_log_archive" {
+  description = "Enable S3 archival of logs for compliance"
+  type        = bool
+  default     = false
+}
+
+variable "log_archive_retention_days" {
+  description = "Days to retain archived logs in S3 before deletion"
+  type        = number
+  default     = 2555  # 7 years for compliance
+}

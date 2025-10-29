@@ -22,7 +22,7 @@ resource "aws_ecs_task_definition" "iq_task" {
   task_role_arn           = aws_iam_role.ecs_task_role.arn
   requires_compatibilities = ["FARGATE"]
 
-  container_definitions = jsonencode([
+  container_definitions = jsonencode(concat([
     {
       name         = "nexus-iq-server"
       image        = var.iq_docker_image
@@ -116,6 +116,12 @@ logging:
         currentLogFilename: "/var/log/nexus-iq-server/audit.log"
         archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
         archivedFileCount: 50
+    com.sonatype.insight.policy.violation:
+      appenders:
+      - type: file
+        currentLogFilename: "/var/log/nexus-iq-server/policy-violation.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/policy-violation-%d.log.gz"
+        archivedFileCount: 50
   appenders:
   - type: console
     threshold: INFO
@@ -160,12 +166,14 @@ CONFIGEOF
         }
       ]
 
+      # Container stdout/stderr goes to application log group
+      # Fluent Bit will tail file-based logs and route them to appropriate groups
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
+          "awslogs-group"         = aws_cloudwatch_log_group.iq_logs_application.name
           "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "ecs"
+          "awslogs-stream-prefix" = "stdout"
         }
       }
 
@@ -190,7 +198,99 @@ CONFIGEOF
         }
       ]
     }
-  ])
+  ],
+  # Fluent Bit sidecar for structured logging
+  [{
+    name      = "log_router"
+    image     = var.fluent_bit_image
+    essential = false  # Non-essential: task continues if Fluent Bit fails
+
+    # Fetch config from SSM and run Fluent Bit
+    entryPoint = ["/bin/sh", "-c"]
+    command = [
+      <<-EOF
+        set -e
+        echo "Fetching Fluent Bit configuration from SSM Parameter Store"
+
+        # Create config directory
+        mkdir -p /fluent-bit/etc /fluent-bit/parsers /var/fluent-bit/state
+
+        # Fetch config from SSM
+        aws ssm get-parameter \
+          --name "/ecs/ref-arch-nexus-iq-server/fluent-bit-config" \
+          --region ${var.aws_region} \
+          --query 'Parameter.Value' \
+          --output text > /fluent-bit/etc/fluent-bit.conf
+
+        # Fetch parsers from SSM
+        aws ssm get-parameter \
+          --name "/ecs/ref-arch-nexus-iq-server/fluent-bit-parsers" \
+          --region ${var.aws_region} \
+          --query 'Parameter.Value' \
+          --output text > /fluent-bit/parsers/parsers.conf
+
+        echo "Configuration loaded successfully"
+
+        # Run Fluent Bit with fetched configuration
+        exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
+      EOF
+    ]
+
+    environment = [
+      {
+        name  = "AWS_REGION"
+        value = var.aws_region
+      },
+      {
+        name  = "FLB_LOG_LEVEL"
+        value = "info"
+      },
+      {
+        name  = "CLUSTER_NAME"
+        value = "ref-arch-iq-cluster"
+      }
+    ]
+
+    # Mount shared log volume (read-only for Fluent Bit)
+    mountPoints = [
+      {
+        sourceVolume  = "iq-logs"
+        containerPath = "/var/log/nexus-iq-server"
+        readOnly      = true  # Fluent Bit only reads logs
+      }
+    ]
+
+    # Resource limits for Fluent Bit sidecar
+    cpu            = 256   # 0.25 vCPU
+    memory         = 512   # 512 MB
+    memoryReservation = 256
+
+    # Health check for Fluent Bit
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60
+    }
+
+    # Fluent Bit's own logs go to CloudWatch
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.iq_logs_fluent_bit.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "fluent-bit"
+      }
+    }
+
+    # Start Fluent Bit after IQ Server is running
+    dependsOn = [{
+      containerName = "nexus-iq-server"
+      condition     = "START"
+    }]
+  }]
+  ))
 
   volume {
     name = "iq-data"
@@ -252,16 +352,6 @@ resource "aws_ecs_service" "iq_service" {
 
   tags = {
     Name        = "ref-arch-iq-service"
-  }
-}
-
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "iq_logs" {
-  name              = "/ecs/ref-arch-nexus-iq-server"
-  retention_in_days = var.log_retention_days
-
-  tags = {
-    Name        = "ref-arch-iq-logs"
   }
 }
 

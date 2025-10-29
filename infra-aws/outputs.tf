@@ -107,9 +107,29 @@ output "ecs_task_role_arn" {
 }
 
 # CloudWatch Outputs
-output "cloudwatch_log_group_name" {
-  description = "Name of the CloudWatch log group"
-  value       = aws_cloudwatch_log_group.iq_logs.name
+output "cloudwatch_log_group_application" {
+  description = "Name of the CloudWatch application log group"
+  value       = aws_cloudwatch_log_group.iq_logs_application.name
+}
+
+output "cloudwatch_log_group_request" {
+  description = "Name of the CloudWatch request log group"
+  value       = aws_cloudwatch_log_group.iq_logs_request.name
+}
+
+output "cloudwatch_log_group_audit" {
+  description = "Name of the CloudWatch audit log group"
+  value       = aws_cloudwatch_log_group.iq_logs_audit.name
+}
+
+output "cloudwatch_log_group_policy_violation" {
+  description = "Name of the CloudWatch policy violation log group"
+  value       = aws_cloudwatch_log_group.iq_logs_policy_violation.name
+}
+
+output "cloudwatch_log_group_stderr" {
+  description = "Name of the CloudWatch stderr log group"
+  value       = aws_cloudwatch_log_group.iq_logs_stderr.name
 }
 
 # EFS Outputs
