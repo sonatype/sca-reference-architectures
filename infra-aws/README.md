@@ -13,7 +13,7 @@ This infrastructure deploys a complete, production-ready Nexus IQ Server environ
 - **VPC & Networking** - Complete network infrastructure with public/private subnets
 - **Security Groups** - Least-privilege network access controls
 - **IAM Roles** - Service-specific permissions following AWS best practices
-- **CloudWatch Logs** - Centralized logging for monitoring and troubleshooting
+- **Advanced Logging** - Fluent Bit sidecar with structured logging to CloudWatch and EFS (matches Helm chart)
 - **Secrets Manager** - Secure database credential storage
 
 ```
@@ -161,7 +161,27 @@ postgres_version            = "15"
 
 ## Monitoring and Logging
 
-- **CloudWatch Logs**: Application logs centralized in CloudWatch
+This deployment includes **production-grade logging** matching the Helm chart's Fluentd approach:
+
+### Structured Logging with Fluent Bit
+- **Fluent Bit Sidecar**: Lightweight log processor running alongside IQ Server
+- **5 Separate Log Files**: Application, request, audit, policy-violation, stderr
+- **Dual Output**: Logs written to both CloudWatch AND EFS aggregated files
+
+### CloudWatch Log Groups (6 total)
+- `/ecs/ref-arch-nexus-iq-server/application` - Main IQ Server logs with multiline parsing
+- `/ecs/ref-arch-nexus-iq-server/request` - HTTP request logs with field extraction
+- `/ecs/ref-arch-nexus-iq-server/audit` - Audit events (JSON format)
+- `/ecs/ref-arch-nexus-iq-server/policy-violation` - Policy violations (JSON format)
+- `/ecs/ref-arch-nexus-iq-server/stderr` - System.err output for debugging
+- `/ecs/ref-arch-nexus-iq-server/fluent-bit` - Fluent Bit internal logs
+
+### EFS Aggregated Logs
+- **Location**: `/var/log/nexus-iq-server/aggregated/`
+- **Format**: JSON with ECS metadata enrichment
+- **Purpose**: Local backup, compliance, grep-friendly analysis
+
+### Additional Monitoring
 - **Container Insights**: ECS cluster monitoring enabled
 - **RDS Enhanced Monitoring**: Database performance metrics
 - **ALB Access Logs**: Load balancer access logs stored in S3
@@ -263,11 +283,29 @@ aws-vault exec admin@iq-sandbox -- aws ecs describe-services \
   --region us-east-1
 ```
 
-View application logs:
+View application logs (multiple options):
 ```bash
+# Application logs (main server logs)
 aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server \
+  /ecs/ref-arch-nexus-iq-server/application \
   --follow \
+  --region us-east-1
+
+# Request logs (HTTP requests)
+aws-vault exec admin@iq-sandbox -- aws logs tail \
+  /ecs/ref-arch-nexus-iq-server/request \
+  --follow \
+  --region us-east-1
+
+# Stderr logs (System.err for debugging)
+aws-vault exec admin@iq-sandbox -- aws logs tail \
+  /ecs/ref-arch-nexus-iq-server/stderr \
+  --follow \
+  --region us-east-1
+
+# All log groups
+aws-vault exec admin@iq-sandbox -- aws logs describe-log-groups \
+  --log-group-name-prefix /ecs/ref-arch-nexus-iq-server \
   --region us-east-1
 ```
 
@@ -278,7 +316,7 @@ Monitor your infrastructure in the AWS Console:
 - **ECS Service**: ECS → Clusters → `ref-arch-iq-cluster`
 - **Database**: RDS → Databases → `ref-arch-iq-database`
 - **Load Balancer**: EC2 → Load Balancers → `ref-arch-iq-alb`
-- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-nexus-iq-server`
+- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-nexus-iq-server/*` (6 log groups)
 - **VPC**: VPC → Your VPCs → `ref-arch-iq-vpc`
 - **Storage**: EFS → File Systems → `ref-arch-iq-efs`
 
@@ -287,11 +325,12 @@ Monitor your infrastructure in the AWS Console:
 ```
 infra-aws/
 ├── main.tf              # VPC, networking, and core infrastructure
-├── ecs.tf               # ECS cluster, service, and task definitions
+├── ecs.tf               # ECS cluster, service, and task definitions (with Fluent Bit sidecar)
 ├── rds.tf               # PostgreSQL database and secrets
 ├── load_balancer.tf     # Application Load Balancer and S3 logging
+├── logging.tf           # Fluent Bit configuration, CloudWatch log groups, S3 archival
 ├── security_groups.tf   # Network security rules
-├── iam.tf               # IAM roles and policies
+├── iam.tf               # IAM roles and policies (includes logging permissions)
 ├── variables.tf         # Input variable definitions
 ├── outputs.tf           # Output value definitions
 ├── terraform.tfvars     # Infrastructure configuration
@@ -313,12 +352,17 @@ infra-aws/
 
 2. **ECS Tasks Keep Restarting**
    ```bash
-   # Check container logs
+   # Check application container logs
    aws-vault exec admin@iq-sandbox -- aws logs tail \
-     /ecs/ref-arch-nexus-iq-server --follow --region us-east-1
+     /ecs/ref-arch-nexus-iq-server/application --follow --region us-east-1
+
+   # Check Fluent Bit sidecar logs
+   aws-vault exec admin@iq-sandbox -- aws logs tail \
+     /ecs/ref-arch-nexus-iq-server/fluent-bit --follow --region us-east-1
    ```
    - **Lock file errors**: Ensure `iq_desired_count = 1` (single instance)
    - **EFS permission errors**: Check EFS access point configuration
+   - **Fluent Bit issues**: Check fluent-bit log group for errors
 
 3. **Application Not Accessible**
    - Wait 5-10 minutes for ECS service to fully start
