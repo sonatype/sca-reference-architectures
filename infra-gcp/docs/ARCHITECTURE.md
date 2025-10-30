@@ -1,53 +1,114 @@
-# Nexus IQ Server - GCP Architecture Guide
+# Nexus IQ Server - GCP Single Instance Architecture Guide
 
-This document provides a detailed technical architecture overview of the Nexus IQ Server deployment on Google Cloud Platform.
+This document provides a detailed technical architecture overview of the single-instance Nexus IQ Server deployment on Google Cloud Platform.
 
 ## 📐 Architecture Overview
 
 ### High-Level Architecture Diagram
 
+```mermaid
+graph TB
+    subgraph Internet
+        Users[End Users]
+    end
+    
+    subgraph "Global Load Balancing"
+        GLB[Global Load Balancer<br/>External IP<br/>HTTP: 80, HTTPS: 443]
+        SSL[Managed SSL Certificate]
+        FWD_HTTP[HTTP Forwarding Rule]
+        FWD_HTTPS[HTTPS Forwarding Rule]
+    end
+    
+    subgraph "Health Monitoring"
+        HC[Health Check<br/>TCP Port 8070<br/>Interval: 10s]
+    end
+    
+    subgraph "Backend Service"
+        BE[Backend Service<br/>nexus-iq-backend]
+        IG[Unmanaged Instance Group<br/>nexus-iq-instance-group]
+    end
+    
+    subgraph "GCP Region: us-central1"
+        subgraph "VPC: 10.100.0.0/16"
+            subgraph "Zone: us-central1-a"
+                subgraph "Private Subnet: 10.100.10.0/24"
+                    GCE[GCE Instance<br/>nexus-iq-server<br/>n1-standard-2<br/>Private IP Only<br/>Ports: 8070, 8071]
+                end
+            end
+            
+            subgraph "Database Subnet: 10.100.20.0/24"
+                SQL[(Cloud SQL PostgreSQL<br/>db-custom-2-7680<br/>Private IP<br/>Port: 5432)]
+            end
+            
+            subgraph "File Storage"
+                FS[Cloud Filestore<br/>BASIC_SSD 1TB<br/>NFS Mount<br/>/nexus_iq_data]
+            end
+        end
+    end
+    
+    subgraph "Security & Firewall"
+        FW_HC[Firewall Rule<br/>Allow Health Checks<br/>Sources: 130.211.0.0/22<br/>35.191.0.0/16]
+        FW_INT[Firewall Rule<br/>Allow Internal VPC]
+    end
+    
+    Users -->|HTTPS/HTTP| GLB
+    GLB --> SSL
+    GLB --> FWD_HTTP
+    GLB --> FWD_HTTPS
+    FWD_HTTP --> BE
+    FWD_HTTPS --> BE
+    BE --> IG
+    HC -.->|Health Check| GCE
+    IG --> GCE
+    GCE -->|PostgreSQL Connection| SQL
+    GCE -->|NFS Mount| FS
+    FW_HC -.->|Allows| GCE
+    FW_INT -.->|Allows| SQL
+    FW_INT -.->|Allows| FS
+    
+    style GLB fill:#4285f4,color:#fff
+    style GCE fill:#34a853,color:#fff
+    style SQL fill:#fbbc04,color:#000
+    style FS fill:#ea4335,color:#fff
+    style HC fill:#9aa0a6,color:#fff
+    style BE fill:#5f6368,color:#fff
 ```
-Internet
-    │
-    ▼
-┌─────────────────────────────────────────────────────┐
-│                Cloud Armor WAF                      │
-│          (DDoS Protection, Rate Limiting)           │
-└─────────────────┬───────────────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────────────┐
-│               Global Load Balancer                  │
-│        (SSL Termination, Health Checks)             │
-└─────────────────┬───────────────────────────────────┘
-                  │
-    ┌─────────────┼─────────────┐
-    │             │             │
-    ▼             ▼             ▼
-┌─────────┐   ┌─────────┐   ┌─────────┐
-│Region A │   │Region B │   │Region C │
-│Cloud Run│   │Cloud Run│   │Cloud Run│
-└─────────┘   └─────────┘   └─────────┘
-    │             │             │
-    └─────────────┼─────────────┘
-                  │
-    ┌─────────────┼─────────────┐
-    │             │             │
-    ▼             ▼             ▼
-┌─────────────────────────────────────────────────────┐
-│                 Private VPC                         │
-│  ┌───────────────┐  ┌─────────────┐  ┌─────────────┐│
-│  │   Cloud SQL   │  │ Filestore   │  │   Secrets   ││
-│  │  PostgreSQL   │  │    (NFS)    │  │  Manager    ││
-│  │   Regional    │  │             │  │             ││
-│  └───────────────┘  └─────────────┘  └─────────────┘│
-└─────────────────────────────────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────────────┐
-│               Cloud Storage                         │
-│     (Backups, Logs, Configurations)                │
-└─────────────────────────────────────────────────────┘
+
+### Network Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User as End User
+    participant GLB as Global Load Balancer
+    participant HC as Health Check
+    participant GCE as GCE Instance<br/>(Nexus IQ Server)
+    participant SQL as Cloud SQL<br/>(PostgreSQL)
+    participant FS as Filestore<br/>(NFS)
+    
+    Note over HC,GCE: Continuous Health Monitoring
+    HC->>GCE: TCP Health Check on Port 8070
+    GCE-->>HC: Connection Successful (HEALTHY)
+    
+    Note over User,GLB: User Request Flow
+    User->>GLB: HTTPS Request (Port 443)
+    GLB->>GLB: SSL Termination
+    GLB->>GCE: HTTP Request (Port 8070)
+    
+    Note over GCE,SQL: Backend Operations
+    GCE->>SQL: Query Database (Port 5432)
+    SQL-->>GCE: Return Data
+    
+    GCE->>FS: Read/Write Files (NFS)
+    FS-->>GCE: File Operations
+    
+    GCE-->>GLB: HTTP Response
+    GLB-->>User: HTTPS Response
+    
+    Note over HC,GCE: Health Check Failure Scenario
+    HC->>GCE: TCP Health Check Timeout
+    HC->>HC: Retry (Unhealthy Threshold: 3)
+    HC->>GLB: Mark Backend UNHEALTHY
+    GLB->>User: 502 Bad Gateway
 ```
 
 ## 🏗️ Component Architecture
@@ -55,59 +116,96 @@ Internet
 ### 1. Frontend Layer
 
 #### Global Load Balancer
-- **Type**: HTTP(S) Load Balancer with global anycast IPs
+- **Type**: HTTP(S) Load Balancer with global anycast IP
+- **Components**:
+  - Global forwarding rules (HTTP: 80, HTTPS: 443)
+  - Target HTTP/HTTPS proxies
+  - URL map for routing
+  - Backend service with instance group
 - **Features**:
-  - SSL/TLS termination with managed certificates
+  - SSL/TLS termination with managed certificates (optional)
+  - HTTP to HTTPS redirect (when SSL enabled)
   - Global traffic distribution
-  - Health check integration
-  - CDN integration (optional)
-- **Backend**: Serverless NEGs pointing to Cloud Run services
+  - Connection draining (60s timeout)
+- **Backend**: Unmanaged instance group with single GCE instance
 
-#### Cloud Armor WAF
-- **Protection Level**: OWASP Top 10 + custom rules
-- **Features**:
-  - DDoS protection with adaptive thresholds
-  - Geographic blocking capabilities
-  - Rate limiting per IP/session
-  - SQL injection and XSS protection
-- **Integration**: Applied at load balancer level
+#### Health Check Configuration
+- **Type**: TCP health check (port 8070)
+- **Why TCP**: 
+  - Root path "/" returns 303 redirect, not 200 OK
+  - GCP doesn't support custom HTTP response code matching
+  - TCP check validates port is listening and responsive
+- **Settings**:
+  - Check Interval: 10 seconds
+  - Timeout: 5 seconds
+  - Healthy Threshold: 2 consecutive successes
+  - Unhealthy Threshold: 3 consecutive failures
 
-### 2. Application Layer
+### 2. Compute Layer
 
-#### Cloud Run Service
+#### GCE Instance Configuration
 
 ##### Production Configuration
 ```yaml
-Service: nexus-iq-server
-Resources:
-  CPU: 2000m (2 vCPU)
-  Memory: 4Gi
-  Scaling: 1-10 instances
-  Concurrency: 80 requests/instance
-  Timeout: 300 seconds
+Instance Name: nexus-iq-server
+Machine Type: n1-standard-2 (2 vCPU, 7.5GB RAM)
+Zone: us-central1-a
+Boot Disk:
+  Image: ubuntu-2204-lts
+  Type: pd-ssd
+  Size: 50GB
 
 Networking:
-  VPC Connector: nexus-iq-connector
-  Egress: Private ranges only
-  Ports: 8070 (HTTP), 8071 (Admin)
+  Network: nexus-iq-vpc
+  Subnet: nexus-iq-private-subnet (10.100.10.0/24)
+  External IP: None (private only)
+  Internal IP: Dynamic (private)
+  Tags: [nexus-iq-server, allow-health-check]
+
+Ports:
+  - 8070 (Application HTTP)
+  - 8071 (Admin/Health Check)
 ```
 
-#### Container Specifications
-```dockerfile
-Base Image: sonatypecommunity/nexus-iq-server:latest
-Environment Variables:
-  - JAVA_OPTS: JVM configuration
-  - DB_TYPE: postgresql
-  - DB_HOST: Cloud SQL private IP
-  - DB_PORT: 5432
-  - DB_NAME: nexusiq
+#### Application Installation (Startup Script)
+```bash
+Nexus IQ Server Installation:
+  Version: 1.196.0-01
+  Install Path: /opt/nexus-iq-server-{version}
+  JAR File: nexus-iq-server-{version}.jar
+  Config: /etc/nexus-iq-server/config.yml
   
-Volume Mounts:
-  - /sonatype-work: Filestore NFS mount
+Java Configuration:
+  JAVA_OPTS: -Xms2g -Xmx4g
+  JVM Args: --add-opens flags for Java 17+ compatibility
   
-Health Checks:
-  - Startup: HTTP GET / (60s delay, 10s timeout)
-  - Liveness: HTTP GET / (30s interval, 10s timeout)
+Systemd Service:
+  Service Name: nexus-iq
+  User: nexus-iq
+  Auto-start: enabled
+  
+Database Connection:
+  Type: PostgreSQL
+  Host: Cloud SQL private IP
+  Port: 5432
+  Database: nexusiq
+  
+File Storage:
+  Filestore Mount: /mnt/filestore
+  Work Directory: /opt/sonatype-work
+```
+
+#### Unmanaged Instance Group
+```yaml
+Group Name: nexus-iq-instance-group
+Zone: us-central1-a
+Instances: [nexus-iq-server]
+Named Ports:
+  - Name: http
+    Port: 8070
+    
+Purpose: Backend for Global Load Balancer
+Type: Unmanaged (manual instance management)
 ```
 
 ### 3. Data Layer
@@ -175,42 +273,37 @@ Lifecycle:
 ```yaml
 VPC: nexus-iq-vpc
 CIDR: 10.100.0.0/16
+Routing Mode: Regional
 MTU: 1460
 
 Subnets:
-  Public (Load Balancer):
-    CIDR: 10.100.1.0/24
-    Region: us-central1
-    
-  Private (Cloud Run):
+  Private (Compute):
+    Name: nexus-iq-private-subnet
     CIDR: 10.100.10.0/24
+    Region: us-central1
     Private Google Access: Enabled
+    Purpose: GCE instance hosting
     
   Database:
+    Name: nexus-iq-database-subnet  
     CIDR: 10.100.20.0/24
+    Region: us-central1
     Private Service Connect: Enabled
-    
-Secondary Ranges:
-  Services: 10.100.30.0/24
-  Pods: 10.100.40.0/24
-```
-
-#### VPC Connector
-```yaml
-Connector: nexus-iq-connector
-CIDR: 10.100.50.0/28
-Throughput: 200-1000 Mbps
-Instances: 2-10 (auto-scaled)
-Purpose: Cloud Run to VPC communication
+    Purpose: Cloud SQL private access
 ```
 
 #### Cloud NAT
 ```yaml
 NAT Gateway: nexus-iq-nat
 Router: nexus-iq-router
+Region: us-central1
 IP Allocation: Auto-assigned
 Logging: Errors only
-Purpose: Egress for private resources
+Purpose: Outbound internet access for private GCE instance
+Use Cases:
+  - Download Nexus IQ Server binary
+  - Install system packages
+  - Docker image pulls (if containerized)
 ```
 
 ### 6. Security Architecture
@@ -266,8 +359,8 @@ KMS Configuration:
 ##### Data in Transit
 ```yaml
 Client to LB: TLS 1.2+ (managed certificates)
-LB to Cloud Run: HTTP/2 over Google backbone
-Cloud Run to SQL: TLS with Cloud SQL Proxy
+LB to GCE: HTTP over Google backbone
+GCE to SQL: TLS with SSL mode
 All internal: Google's encrypted backbone
 ```
 
@@ -275,19 +368,29 @@ All internal: Google's encrypted backbone
 
 ##### Firewall Rules
 ```yaml
-Allow Load Balancer Health Checks:
-  Source: 130.211.0.0/22, 35.191.0.0/16
-  Target: Cloud Run services
-  Ports: 8070, 8071
+Allow Health Checks:
+  Name: nexus-iq-allow-health-check
+  Source Ranges: 130.211.0.0/22, 35.191.0.0/16
+  Target Tags: [nexus-iq-server, allow-health-check]
+  Protocols/Ports: TCP 8070, 8071
+  Purpose: Allow GCP load balancer health probes
+  Priority: 1000
   
-Allow Internal Communication:
-  Source: VPC CIDR blocks
-  Target: Internal resources
-  Ports: 5432 (PostgreSQL), 2049 (NFS)
+Allow SSH (Optional):
+  Name: nexus-iq-allow-ssh
+  Source Ranges: [Authorized IPs]
+  Target Tags: [nexus-iq-server]
+  Protocols/Ports: TCP 22
+  Purpose: Administrative access
+  Priority: 1000
   
-Deny All Default:
+Allow Internal VPC:
+  Name: nexus-iq-allow-internal
+  Source Ranges: 10.100.0.0/16
+  Target: All VPC resources
+  Protocols/Ports: All
+  Purpose: Internal VPC communication
   Priority: 65534
-  Action: Deny all other traffic
 ```
 
 ### 7. Monitoring Architecture
@@ -297,7 +400,7 @@ Deny All Default:
 ##### Metrics Collection
 ```yaml
 Sources:
-  - Cloud Run: Request metrics, resource utilization
+  - GCE Instance: CPU, memory, disk, network metrics
   - Cloud SQL: Query performance, connections
   - Load Balancer: Request rates, latencies
   - Custom: Application-specific metrics
@@ -310,7 +413,7 @@ Storage:
 ##### Logging Pipeline
 ```yaml
 Sources:
-  - Cloud Run: Application logs
+  - GCE Instance: Application logs, system logs
   - Cloud SQL: Query logs, error logs
   - VPC: Flow logs (optional)
   - Security: Audit logs, firewall logs
@@ -338,55 +441,96 @@ Notification Channels:
 ## 🔄 Data Flow Diagrams
 
 ### Request Flow
-```
-1. Client Request → Cloud Armor (WAF filtering)
-2. Cloud Armor → Global Load Balancer (SSL termination)
-3. Load Balancer → Cloud Run (via Serverless NEG)
-4. Cloud Run → Cloud SQL (via VPC connector)
-5. Cloud Run → Filestore (NFS mount)
-6. Response path reverses the flow
+```mermaid
+flowchart LR
+    A[Client Request] --> B[Global Load Balancer]
+    B --> C{SSL Enabled?}
+    C -->|Yes| D[SSL Termination]
+    C -->|No| E[HTTP]
+    D --> F[Backend Service]
+    E --> F
+    F --> G[Instance Group]
+    G --> H[GCE Instance:8070]
+    H --> I[Nexus IQ Application]
+    I --> J[Cloud SQL]
+    I --> K[Filestore]
+    
+    style B fill:#4285f4,color:#fff
+    style H fill:#34a853,color:#fff
+    style J fill:#fbbc04,color:#000
+    style K fill:#ea4335,color:#fff
 ```
 
 ### Data Persistence Flow
-```
-1. Application Data → Filestore (/sonatype-work)
-2. Database Data → Cloud SQL (user data, configs)
-3. Logs → Cloud Logging → Cloud Storage
-4. Backups → Cloud Storage (encrypted)
-5. Metrics → Cloud Monitoring
+```mermaid
+flowchart TB
+    App[Nexus IQ Application<br/>on GCE Instance]
+    
+    App -->|Persistent Data| FS[Filestore NFS<br/>/opt/sonatype-work]
+    App -->|Metadata, Config, Users| SQL[Cloud SQL PostgreSQL<br/>nexusiq database]
+    App -->|Application Logs| LOG[Systemd Journal<br/>Cloud Logging]
+    SQL -->|Automated Backups| BACKUP[Cloud SQL Backups<br/>7-day retention]
+    FS -->|Manual Snapshots| SNAP[Filestore Snapshots<br/>On-demand]
+    App -->|Metrics| MON[Cloud Monitoring<br/>System & Custom Metrics]
+    
+    style App fill:#34a853,color:#fff
+    style FS fill:#ea4335,color:#fff  
+    style SQL fill:#fbbc04,color:#000
+    style LOG fill:#5f6368,color:#fff
 ```
 
 ## 🔧 Scaling Patterns
 
-### Horizontal Scaling
-```yaml
-Cloud Run Autoscaling:
-  Trigger: CPU utilization > 70%
-  Min Instances: 1
-  Max Instances: 10
-  Scale-up: 30 seconds
-  Scale-down: 15 minutes (gradual)
-```
+### Single Instance Architecture
+This deployment uses a **single GCE instance** architecture optimized for:
+- Cost efficiency
+- Simplicity of management
+- Small to medium workloads
+- Development and testing environments
 
-### Vertical Scaling
+### Vertical Scaling (Primary Method)
 ```yaml
-Resource Limits:
-  CPU: 1000m - 4000m (configurable)
-  Memory: 2Gi - 8Gi (configurable)
+Machine Type Options:
+  Small: n1-standard-2 (2 vCPU, 7.5GB RAM)
+  Medium: n1-standard-4 (4 vCPU, 15GB RAM)
+  Large: n1-standard-8 (8 vCPU, 30GB RAM)
+  X-Large: n1-standard-16 (16 vCPU, 60GB RAM)
   
-Database Scaling:
-  CPU: 2-64 vCPUs
-  Memory: 7.5GB - 416GB
-  Storage: Auto-expand enabled
+Java Heap Sizing:
+  Small: -Xms2g -Xmx4g
+  Medium: -Xms4g -Xmx8g
+  Large: -Xms8g -Xmx16g
+  X-Large: -Xms16g -Xmx32g
+
+Scaling Procedure:
+  1. Update gce_machine_type in terraform.tfvars
+  2. Update java_opts with new heap sizes
+  3. Run terraform apply
+  4. Instance will be recreated with new size
+  5. Downtime: ~3-5 minutes during recreation
 ```
 
-### Multi-Region Support
+### Database Scaling
 ```yaml
-Primary Region: us-central1
-Secondary Regions: us-east1, europe-west1
-Load Distribution: Latency-based routing
-Failover: Manual promotion if needed
+Cloud SQL Tiers:
+  Small: db-custom-1-3840 (1 vCPU, 3.75GB RAM)
+  Medium: db-custom-2-7680 (2 vCPU, 7.5GB RAM)
+  Large: db-custom-4-15360 (4 vCPU, 15GB RAM)
+  X-Large: db-custom-8-30720 (8 vCPU, 30GB RAM)
+  
+Storage: Auto-expand enabled (100GB to 1TB+)
+Connections: Scales with vCPUs
 ```
+
+### Horizontal Scaling (HA Architecture)
+For horizontal scaling and high availability:
+- See `../infra-gcp-ha/` for managed instance group architecture
+- Features:
+  - Multiple instances with auto-healing
+  - Regional distribution
+  - Automatic failover
+  - Session persistence
+  - Zero-downtime updates
 
 ## 🏛️ Compliance & Governance
 
@@ -418,35 +562,44 @@ Response Times:
   - File Operations: <1 second (p95)
 
 Throughput:
-  - Concurrent Users: 100-500
-  - Scans per Hour: 1000-10000
-  - Database QPS: 1000-5000
+  - Concurrent Users: 10-100
+  - Scans per Hour: 100-1000
+  - Database QPS: 100-500
 
 Availability:
-  - Single Instance: 99.5%
-  - RTO: <5 minutes
-  - RPO: <1 minute
+  - Single Instance: 99.0-99.5%
+  - RTO: 3-5 minutes (instance recreation)
+  - RPO: <1 minute (database backups)
 ```
 
 ### Capacity Planning
 ```yaml
 Small Deployment (1-10 users):
-  - Cloud Run: 1-3 instances
-  - CPU: 1000m per instance
-  - Memory: 2Gi per instance
+  - Instance: n1-standard-2 (2 vCPU, 7.5GB RAM)
+  - Java Heap: -Xms2g -Xmx4g
   - Database: db-custom-1-3840
+  - Filestore: BASIC_SSD 1TB
+  - Expected Load: 100-500 scans/day
 
 Medium Deployment (10-50 users):
-  - Cloud Run: 2-8 instances
-  - CPU: 2000m per instance
-  - Memory: 4Gi per instance
+  - Instance: n1-standard-4 (4 vCPU, 15GB RAM)
+  - Java Heap: -Xms4g -Xmx8g
   - Database: db-custom-2-7680
+  - Filestore: BASIC_SSD 2TB
+  - Expected Load: 500-2000 scans/day
 
-Large Deployment (50+ users):
-  - Cloud Run: 5-20 instances
-  - CPU: 4000m per instance
-  - Memory: 8Gi per instance
+Large Deployment (50-100 users):
+  - Instance: n1-standard-8 (8 vCPU, 30GB RAM)
+  - Java Heap: -Xms8g -Xmx16g
   - Database: db-custom-4-15360
+  - Filestore: BASIC_SSD 5TB
+  - Expected Load: 2000-5000 scans/day
+
+Enterprise Deployment (100+ users):
+  - Recommendation: Use HA architecture (infra-gcp-ha/)
+  - Multiple instances with load balancing
+  - Database read replicas
+  - Regional redundancy
 ```
 
-This architecture provides a robust, scalable, and secure foundation for running Nexus IQ Server on Google Cloud Platform, leveraging cloud-native services for optimal performance and operational efficiency.
+This architecture provides a cost-effective, scalable foundation for running Nexus IQ Server on Google Cloud Platform, leveraging managed services for optimal performance and operational efficiency while maintaining simplicity for single-instance deployments.

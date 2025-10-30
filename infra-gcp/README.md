@@ -4,14 +4,46 @@ This repository contains Terraform infrastructure code to deploy Sonatype Nexus 
 
 ## 🏗️ Architecture Overview
 
-This infrastructure translates the AWS ECS-based reference architecture to GCP native services:
+This infrastructure deploys Nexus IQ Server on GCP using a single-instance architecture with cloud-native managed services:
 
-- **Cloud Run** (replaces ECS Fargate) - Serverless container platform
+- **Compute Engine (GCE)** - Single VM instance running Nexus IQ Server
 - **Cloud SQL PostgreSQL** (replaces RDS) - Managed database with backup and recovery
 - **Cloud Filestore** (replaces EFS) - Managed NFS for persistent storage
 - **Global Load Balancer** (replaces ALB) - Global load balancing with SSL
-- **Cloud Armor** - WAF protection and DDoS mitigation
 - **Cloud Monitoring & Logging** - Comprehensive observability
+
+### Architecture Diagram
+
+```mermaid
+graph TB
+    Internet[Internet Users]
+    GLB[Global Load Balancer<br/>External IP: HTTP/HTTPS]
+    HC[Health Check<br/>TCP Port 8070]
+    IG[Unmanaged Instance Group]
+    GCE[GCE Instance<br/>nexus-iq-server<br/>Private IP Only]
+    SQL[Cloud SQL PostgreSQL<br/>Private IP]
+    FS[Cloud Filestore<br/>NFS Mount]
+    VPC[VPC Network<br/>10.100.0.0/16]
+    
+    Internet --> GLB
+    GLB --> IG
+    HC -.-> GCE
+    IG --> GCE
+    GCE --> SQL
+    GCE --> FS
+    
+    subgraph "Private Network"
+        VPC
+        GCE
+        SQL
+        FS
+    end
+    
+    style GLB fill:#4285f4
+    style GCE fill:#34a853
+    style SQL fill:#fbbc04
+    style FS fill:#ea4335
+```
 
 ## 📋 Prerequisites
 
@@ -79,7 +111,7 @@ After deployment completes (15-20 minutes), access Nexus IQ Server via the provi
 ```
 infra-gcp/
 ├── main.tf              # Core VPC and networking
-├── compute.tf           # Cloud Run services
+├── compute.tf           # GCE instance and instance group
 ├── database.tf          # Cloud SQL PostgreSQL
 ├── storage.tf           # Cloud Filestore and Storage
 ├── load_balancer.tf     # Global Load Balancer
@@ -92,6 +124,8 @@ infra-gcp/
 ├── destroy.sh          # Infrastructure cleanup script
 ├── gcp-plan.sh         # Terraform plan helper
 ├── gcp-apply.sh        # Terraform apply helper
+├── scripts/
+│   └── startup.sh      # GCE instance startup script
 └── docs/               # Documentation
     ├── ARCHITECTURE.md
     ├── SECURITY.md
@@ -112,10 +146,10 @@ environment    = "dev"        # dev, staging, prod
 enable_ssl     = true         # Enable HTTPS
 domain_name    = ""           # Custom domain for SSL
 
-# Scaling Configuration
-iq_desired_count = "1"  # Single instance (recommended)
-iq_cpu_limit     = "2000m"
-iq_memory_limit  = "4Gi"
+# Instance Configuration
+gce_machine_type = "n1-standard-2"  # 2 vCPU, 7.5GB RAM
+iq_version       = "1.196.0-01"     # Nexus IQ Server version
+java_opts        = "-Xms2g -Xmx4g" # JVM memory settings
 
 # Security Configuration
 enable_cloud_armor = true
@@ -178,24 +212,23 @@ Examples:
 
 ### VPC Configuration
 - **VPC CIDR**: 10.100.0.0/16
-- **Public Subnet**: 10.100.1.0/24 (Load Balancer)
-- **Private Subnet**: 10.100.10.0/24 (Cloud Run)
+- **Private Subnet**: 10.100.10.0/24 (GCE Instance)
 - **Database Subnet**: 10.100.20.0/24 (Cloud SQL)
-- **VPC Connector**: 10.100.50.0/28 (Cloud Run to VPC)
 
-### Security Groups (Firewall Rules)
-- **Load Balancer**: Allows HTTP/HTTPS from internet
-- **Cloud Run**: Allows health checks from Load Balancer
-- **Database**: Allows connections from private subnet only
+### Firewall Rules
+- **Load Balancer Health Checks**: Allows TCP 8070, 8071 from GCP health check ranges (130.211.0.0/22, 35.191.0.0/16)
+- **SSH Access**: Allows SSH from authorized IPs (optional)
+- **Database**: Allows PostgreSQL from private subnet only
 - **Internal**: Allows communication within VPC
 
 ## 🗄️ Data Storage
 
 ### Database (Cloud SQL PostgreSQL)
-- **Single Instance**: db-custom-2-7680 (2 vCPU, 7.5GB RAM)
+- **Instance**: db-custom-2-7680 (2 vCPU, 7.5GB RAM)
 - **Storage**: 100GB SSD (auto-expand to 1TB)
 - **Backups**: Daily automated backups, 7-day retention
-- **Security**: Private IP, SSL required, encryption at rest
+- **Security**: Private IP only, SSL required, encryption at rest
+- **Network**: Connected via VPC peering for private access
 
 ### File Storage (Cloud Filestore)
 - **Single Instance**: BASIC_SSD, 1TB capacity
@@ -249,17 +282,23 @@ Examples:
 - Security event logging
 - Audit trail for all changes
 
-## 🔄 Scaling & Performance
+## 🔄 Performance & Scaling
 
-### Auto Scaling
-- **Cloud Run**: 1-10 instances with automatic scaling
-- **CPU-based**: Scales on CPU utilization
-- **Concurrency**: Up to 80 requests per instance
-- **Cold starts**: ~2-3 seconds
+### Single Instance Architecture
+- **Instance Type**: n1-standard-2 (2 vCPU, 7.5GB RAM)
+- **Scaling**: Vertical scaling by changing machine type
+- **High Availability**: Manual failover with instance snapshots
+- **Backup Strategy**: Automated snapshots and SQL backups
+
+### Load Balancer Health Checks
+- **Protocol**: TCP health check on port 8070
+- **Interval**: 10 seconds
+- **Timeout**: 5 seconds
+- **Healthy Threshold**: 2 consecutive successes
+- **Unhealthy Threshold**: 3 consecutive failures
 
 ### Database Performance
 - **Connection pooling**: Built-in PostgreSQL pooling
-- **Read replicas**: Optional for read-heavy workloads
 - **Performance Insights**: Query performance monitoring
 - **Automatic storage scaling**: 100GB to 1TB+
 
@@ -269,11 +308,20 @@ Examples:
 
 #### Service Not Responding
 ```bash
-# Check service status
-gcloud run services describe nexus-iq-server --region=us-central1
+# Check instance status
+gcloud compute instances describe nexus-iq-server --zone=us-central1-a
 
-# Check logs
-gcloud logs read "resource.type=cloud_run_revision" --limit=50
+# Check backend health
+gcloud compute backend-services get-health nexus-iq-backend --global
+
+# Check instance logs
+gcloud compute instances get-serial-port-output nexus-iq-server --zone=us-central1-a
+
+# SSH to instance (if configured)
+gcloud compute ssh nexus-iq-server --zone=us-central1-a
+
+# Check service status on instance
+sudo systemctl status nexus-iq
 
 # Check database connectivity
 gcloud sql instances describe $(terraform output -raw database_instance_name)
@@ -328,14 +376,16 @@ vi terraform.tfvars
 
 ### Scaling Operations
 ```bash
-# Scale up for high load (multiple instances)
-echo 'iq_desired_count = "2"' >> terraform.tfvars
-echo 'iq_cpu_limit = "4000m"' >> terraform.tfvars
+# Vertical scaling - increase machine type
+# Edit terraform.tfvars:
+echo 'gce_machine_type = "n1-standard-4"' >> terraform.tfvars
 ./gcp-apply.sh
 
-# Scale back to single instance
-echo 'iq_desired_count = "1"' >> terraform.tfvars
+# Vertical scaling - increase JVM memory
+echo 'java_opts = "-Xms4g -Xmx8g"' >> terraform.tfvars
 ./gcp-apply.sh
+
+# For horizontal scaling, consider the HA architecture in infra-gcp-ha/
 ```
 
 ## 📚 Additional Resources
