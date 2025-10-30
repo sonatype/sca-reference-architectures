@@ -26,7 +26,6 @@ provider "google-beta" {
 resource "google_project_service" "required_apis" {
   for_each = toset([
     "compute.googleapis.com",
-    "run.googleapis.com",
     "sqladmin.googleapis.com",
     "file.googleapis.com",
     "secretmanager.googleapis.com",
@@ -34,7 +33,6 @@ resource "google_project_service" "required_apis" {
     "monitoring.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
-    "vpcaccess.googleapis.com",
     "servicenetworking.googleapis.com"
   ])
 
@@ -62,8 +60,8 @@ resource "google_compute_subnetwork" "public_subnet" {
 
 }
 
-# Private subnet for Cloud Run and internal services
-resource "google_compute_subnetwork" "private_subnet" {
+# Private subnet for GCE instances
+resource "google_compute_subnetwork" "iq_private_subnet" {
   name                     = "ref-arch-iq-private-subnet"
   ip_cidr_range            = var.private_subnet_cidr
   network                  = google_compute_network.iq_vpc.id
@@ -115,16 +113,6 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
   deletion_policy         = "ABANDON"
-
-  depends_on = [google_project_service.required_apis]
-}
-
-# VPC Connector for Cloud Run to VPC communication
-resource "google_vpc_access_connector" "iq_connector" {
-  name          = "ref-arch-iq-connector"
-  ip_cidr_range = var.vpc_connector_cidr
-  network       = google_compute_network.iq_vpc.name
-  region        = var.gcp_region
 
   depends_on = [google_project_service.required_apis]
 }
