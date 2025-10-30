@@ -95,12 +95,7 @@ resource "aws_iam_role_policy" "ecs_task_policy" {
           "logs:CreateLogGroup"
         ]
         Resource = [
-          "${aws_cloudwatch_log_group.iq_logs_application.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_request.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_audit.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_policy_violation.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_stderr.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_fluent_bit.arn}:*"
+          "${aws_cloudwatch_log_group.iq_logs.arn}:*"
         ]
       },
       {

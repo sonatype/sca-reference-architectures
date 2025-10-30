@@ -1,64 +1,15 @@
 # Advanced Logging Infrastructure for Nexus IQ Server
 # Implements structured logging with Fluent Bit
+# Uses single unified CloudWatch log group (matching Helm Chart pattern)
 
-# CloudWatch Log Groups for structured logging
-resource "aws_cloudwatch_log_group" "iq_logs_application" {
-  name              = "/ecs/${var.cluster_name}/nexus-iq-server/application"
+# Single unified CloudWatch Log Group for all IQ Server logs
+resource "aws_cloudwatch_log_group" "iq_logs" {
+  name              = "/ecs/${var.cluster_name}/nexus-iq-server"
   retention_in_days = var.log_retention_days
 
   tags = merge(var.common_tags, {
-    Name        = "${var.cluster_name}-iq-logs-application"
-    Description = "Main application logs from Nexus IQ Server"
-  })
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_request" {
-  name              = "/ecs/${var.cluster_name}/nexus-iq-server/request"
-  retention_in_days = var.log_retention_days
-
-  tags = merge(var.common_tags, {
-    Name        = "${var.cluster_name}-iq-logs-request"
-    Description = "HTTP request logs with parsed fields"
-  })
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_audit" {
-  name              = "/ecs/${var.cluster_name}/nexus-iq-server/audit"
-  retention_in_days = var.log_retention_days
-
-  tags = merge(var.common_tags, {
-    Name        = "${var.cluster_name}-iq-logs-audit"
-    Description = "Audit logs in JSON format"
-  })
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_policy_violation" {
-  name              = "/ecs/${var.cluster_name}/nexus-iq-server/policy-violation"
-  retention_in_days = var.log_retention_days
-
-  tags = merge(var.common_tags, {
-    Name        = "${var.cluster_name}-iq-logs-policy-violation"
-    Description = "Policy violation logs in JSON format"
-  })
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_stderr" {
-  name              = "/ecs/${var.cluster_name}/nexus-iq-server/stderr"
-  retention_in_days = var.log_retention_days
-
-  tags = merge(var.common_tags, {
-    Name        = "${var.cluster_name}-iq-logs-stderr"
-    Description = "Standard error output from Nexus IQ Server System.err"
-  })
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_fluent_bit" {
-  name              = "/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit"
-  retention_in_days = 7 # Shorter retention for Fluent Bit internal logs
-
-  tags = merge(var.common_tags, {
-    Name        = "${var.cluster_name}-iq-logs-fluent-bit"
-    Description = "Fluent Bit sidecar container logs"
+    Name        = "${var.cluster_name}-iq-logs"
+    Description = "Unified log group for all Nexus IQ Server logs"
   })
 }
 
@@ -124,6 +75,9 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Grace         30
     Log_Level     info
     Parsers_File  /fluent-bit/parsers/parsers.conf
+    HTTP_Server   On
+    HTTP_Listen   0.0.0.0
+    HTTP_Port     2020
 
 # Input: Read IQ Server application logs
 [INPUT]
@@ -190,49 +144,45 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Match               iq.*
     Add                 hostname $${HOSTNAME}
 
-# Output: Application logs to CloudWatch
+# Output: All logs to unified CloudWatch log group with distinct stream prefixes
 [OUTPUT]
     Name                cloudwatch_logs
     Match               iq.application
     region              ${var.aws_region}
-    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/application
-    log_stream_prefix   from-fluent-bit/
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server
+    log_stream_prefix   application/
     auto_create_group   false
 
-# Output: Request logs to CloudWatch
 [OUTPUT]
     Name                cloudwatch_logs
     Match               iq.request
     region              ${var.aws_region}
-    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/request
-    log_stream_prefix   from-fluent-bit/
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server
+    log_stream_prefix   request/
     auto_create_group   false
 
-# Output: Audit logs to CloudWatch
 [OUTPUT]
     Name                cloudwatch_logs
     Match               iq.audit
     region              ${var.aws_region}
-    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/audit
-    log_stream_prefix   from-fluent-bit/
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server
+    log_stream_prefix   audit/
     auto_create_group   false
 
-# Output: Policy violation logs to CloudWatch
 [OUTPUT]
     Name                cloudwatch_logs
     Match               iq.policy_violation
     region              ${var.aws_region}
-    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/policy-violation
-    log_stream_prefix   from-fluent-bit/
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server
+    log_stream_prefix   policy-violation/
     auto_create_group   false
 
-# Output: stderr logs to CloudWatch
 [OUTPUT]
     Name                cloudwatch_logs
     Match               iq.stderr
     region              ${var.aws_region}
-    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/stderr
-    log_stream_prefix   from-fluent-bit/
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server
+    log_stream_prefix   stderr/
     auto_create_group   false
     retry_limit         2
 
@@ -241,7 +191,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                file
     Match               iq.application
     Path                /var/log/nexus-iq-server/aggregated/application
-    Format              json
+    Format              plain
     mkdir               true
 
 # Output: Request logs to file
@@ -249,7 +199,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                file
     Match               iq.request
     Path                /var/log/nexus-iq-server/aggregated/request
-    Format              json
+    Format              plain
     mkdir               true
 
 # Output: Audit logs to file
@@ -257,7 +207,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                file
     Match               iq.audit
     Path                /var/log/nexus-iq-server/aggregated/audit
-    Format              json
+    Format              plain
     mkdir               true
 
 # Output: Policy violation logs to file
@@ -265,7 +215,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                file
     Match               iq.policy_violation
     Path                /var/log/nexus-iq-server/aggregated/policy-violation
-    Format              json
+    Format              plain
     mkdir               true
 
 # Output: stderr logs to file
@@ -273,7 +223,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                file
     Match               iq.stderr
     Path                /var/log/nexus-iq-server/aggregated/stderr
-    Format              json
+    Format              plain
     mkdir               true
 
 ${var.enable_log_archive ? <<-S3_OUTPUT

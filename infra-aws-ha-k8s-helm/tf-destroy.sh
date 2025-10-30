@@ -12,6 +12,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Disable AWS CLI pager to prevent interactive prompts
+export AWS_PAGER=""
+
 # Configuration
 AWS_PROFILE="admin@iq-sandbox"
 TERRAFORM_DIR="$(dirname "$0")"
@@ -137,33 +140,40 @@ if aws-vault exec "$AWS_PROFILE" -- aws rds modify-db-cluster \
   --apply-immediately \
   --region us-east-1 2>/dev/null; then
 
+  echo "   Waiting for RDS cluster modification to complete..."
   # Wait for modification to complete (silently)
   timeout=600  # 10 minutes timeout
   elapsed=0
-  while true; do
-    STATUS=$(aws-vault exec "$AWS_PROFILE" -- aws rds describe-db-clusters \
-      --db-cluster-identifier "nexus-iq-ha-aurora-cluster" \
-      --region us-east-1 \
-      --query 'DBClusters[0].Status' \
-      --output text 2>/dev/null || echo "deleted")
 
-    DELETION_PROTECTION=$(aws-vault exec "$AWS_PROFILE" -- aws rds describe-db-clusters \
+  # Use a single aws-vault session to avoid re-authentication in the loop
+  while true; do
+    # Get both status and deletion protection in a single call to minimize aws-vault overhead
+    CLUSTER_INFO=$(aws-vault exec "$AWS_PROFILE" -- aws rds describe-db-clusters \
       --db-cluster-identifier "nexus-iq-ha-aurora-cluster" \
       --region us-east-1 \
-      --query 'DBClusters[0].DeletionProtection' \
-      --output text 2>/dev/null || echo "false")
+      --query 'DBClusters[0].[Status,DeletionProtection]' \
+      --output text 2>/dev/null || echo "deleted false")
+
+    STATUS=$(echo "$CLUSTER_INFO" | awk '{print $1}')
+    DELETION_PROTECTION=$(echo "$CLUSTER_INFO" | awk '{print $2}')
 
     if [[ "$STATUS" == "available" && "$DELETION_PROTECTION" == "False" ]]; then
+      echo "   ✅ Deletion protection disabled"
       break
     elif [[ "$STATUS" == "deleted" ]]; then
+      echo "   ✅ Cluster already deleted"
       break
     elif [ $elapsed -ge $timeout ]; then
+      echo "   ⚠️  Timeout waiting for cluster modification, continuing anyway..."
       break
     fi
 
     sleep 15
     elapsed=$((elapsed + 15))
+    echo "   Still waiting... (${elapsed}s elapsed)"
   done
+else
+  echo "   ✅ RDS cluster not found or already deleted"
 fi
 
 # Check for Load Balancers that might block destruction

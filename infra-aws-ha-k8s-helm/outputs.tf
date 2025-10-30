@@ -137,7 +137,19 @@ output "alb_security_group_id" {
   value       = aws_security_group.alb.id
 }
 
-# Parameter Store Keys
+# Secrets Manager Outputs
+output "secrets_manager_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing database credentials"
+  value       = aws_secretsmanager_secret.db_credentials.arn
+  sensitive   = true
+}
+
+output "secrets_manager_secret_name" {
+  description = "Name of the Secrets Manager secret containing database credentials"
+  value       = aws_secretsmanager_secret.db_credentials.name
+}
+
+# Parameter Store Keys (kept for backward compatibility)
 output "ssm_parameter_db_host_key" {
   description = "SSM parameter key for database host"
   value       = aws_ssm_parameter.db_host.name
@@ -168,4 +180,41 @@ output "kubectl_config_command" {
 output "helm_installation_command" {
   description = "Command to install Nexus IQ Server using Helm"
   value       = "./helm-install.sh"
+}
+
+# CloudWatch Logging Outputs
+output "cloudwatch_log_group_application" {
+  description = "CloudWatch log group for application logs"
+  value       = aws_cloudwatch_log_group.iq_logs_application.name
+}
+
+output "cloudwatch_log_group_request" {
+  description = "CloudWatch log group for request logs"
+  value       = aws_cloudwatch_log_group.iq_logs_request.name
+}
+
+output "cloudwatch_log_group_audit" {
+  description = "CloudWatch log group for audit logs"
+  value       = aws_cloudwatch_log_group.iq_logs_audit.name
+}
+
+output "cloudwatch_log_group_policy_violation" {
+  description = "CloudWatch log group for policy violation logs"
+  value       = aws_cloudwatch_log_group.iq_logs_policy_violation.name
+}
+
+output "cloudwatch_log_group_stderr" {
+  description = "CloudWatch log group for stderr logs"
+  value       = aws_cloudwatch_log_group.iq_logs_stderr.name
+}
+
+output "cloudwatch_log_group_fluentd" {
+  description = "CloudWatch log group for Fluentd logs"
+  value       = aws_cloudwatch_log_group.iq_logs_fluentd.name
+}
+
+# IRSA Role ARN for Fluentd
+output "fluentd_irsa_role_arn" {
+  description = "IAM Role ARN for Fluentd IRSA (to be annotated on ServiceAccount)"
+  value       = aws_iam_role.fluentd_irsa.arn
 }

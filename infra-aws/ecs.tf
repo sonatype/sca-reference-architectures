@@ -167,11 +167,11 @@ CONFIGEOF
       ]
 
       # Container stdout/stderr goes to application log group
-      # Fluent Bit will tail file-based logs and route them to appropriate groups
+      # Fluent Bit will tail file-based logs and route them to unified log group
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.iq_logs_application.name
+          "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "stdout"
         }
@@ -205,35 +205,38 @@ CONFIGEOF
     image     = var.fluent_bit_image
     essential = false  # Non-essential: task continues if Fluent Bit fails
 
-    # Fetch config from SSM and run Fluent Bit
+    # Write config from environment and run Fluent Bit
     entryPoint = ["/bin/sh", "-c"]
     command = [
       <<-EOF
         set -e
-        echo "Fetching Fluent Bit configuration from SSM Parameter Store"
+        echo "Loading Fluent Bit configuration from environment"
 
-        # Create config directory
-        mkdir -p /fluent-bit/etc /fluent-bit/parsers /var/fluent-bit/state
+        # Create config directories
+        mkdir -p /fluent-bit/etc /fluent-bit/parsers /fluent-bit/state /var/log/nexus-iq-server/aggregated
 
-        # Fetch config from SSM
-        aws ssm get-parameter \
-          --name "/ecs/ref-arch-nexus-iq-server/fluent-bit-config" \
-          --region ${var.aws_region} \
-          --query 'Parameter.Value' \
-          --output text > /fluent-bit/etc/fluent-bit.conf
-
-        # Fetch parsers from SSM
-        aws ssm get-parameter \
-          --name "/ecs/ref-arch-nexus-iq-server/fluent-bit-parsers" \
-          --region ${var.aws_region} \
-          --query 'Parameter.Value' \
-          --output text > /fluent-bit/parsers/parsers.conf
+        # Write config from environment variable (loaded from SSM via ECS secrets)
+        echo "$FLUENT_BIT_CONFIG" > /fluent-bit/etc/fluent-bit.conf
+        echo "$FLUENT_BIT_PARSERS" > /fluent-bit/parsers/parsers.conf
 
         echo "Configuration loaded successfully"
+        echo "Starting Fluent Bit..."
 
         # Run Fluent Bit with fetched configuration
         exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
       EOF
+    ]
+
+    # Load configuration from SSM Parameter Store via ECS secrets
+    secrets = [
+      {
+        name      = "FLUENT_BIT_CONFIG"
+        valueFrom = aws_ssm_parameter.fluent_bit_config.arn
+      },
+      {
+        name      = "FLUENT_BIT_PARSERS"
+        valueFrom = aws_ssm_parameter.fluent_bit_parsers.arn
+      }
     ]
 
     environment = [
@@ -251,12 +254,12 @@ CONFIGEOF
       }
     ]
 
-    # Mount shared log volume (read-only for Fluent Bit)
+    # Mount shared log volume (read-write for Fluent Bit to write aggregated logs)
     mountPoints = [
       {
         sourceVolume  = "iq-logs"
         containerPath = "/var/log/nexus-iq-server"
-        readOnly      = true  # Fluent Bit only reads logs
+        readOnly      = false  # Fluent Bit needs to write aggregated logs
       }
     ]
 
@@ -278,7 +281,7 @@ CONFIGEOF
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.iq_logs_fluent_bit.name
+        "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "fluent-bit"
       }

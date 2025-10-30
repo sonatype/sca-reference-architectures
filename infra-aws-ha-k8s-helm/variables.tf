@@ -252,3 +252,9 @@ variable "hpa_target_memory_utilization" {
   type        = number
   default     = 80
 }
+# Logging Configuration
+variable "log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 7
+}

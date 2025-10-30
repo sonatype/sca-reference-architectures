@@ -175,11 +175,11 @@ CONFIGEOF
       ]
 
       # Container stdout/stderr goes to application log group
-      # Fluent Bit will tail file-based logs and route them to appropriate groups
+      # Fluent Bit will tail file-based logs and route them to unified log group
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.iq_logs_application.name
+          "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "stdout"
         }
@@ -292,7 +292,7 @@ CONFIGEOF
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.iq_logs_fluent_bit.name
+        "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "fluent-bit"
       }

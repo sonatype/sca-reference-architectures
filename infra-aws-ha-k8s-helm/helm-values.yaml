@@ -7,13 +7,13 @@ iq_server:
   tag: "latest"
   imagePullPolicy: "Always"
 
-  # Resources
+  # Resources (adjusted for m5d.2xlarge nodes - 8 vCPU per node)
   resources:
     requests:
-      cpu: "8"
+      cpu: "4"      # Allows 1 pod per node with room for system pods
       memory: "16Gi"
     limits:
-      cpu: "12"
+      cpu: "6"      # Can burst up to 6 vCPU
       memory: "24Gi"
 
   # Java options
@@ -121,11 +121,19 @@ iq_server:
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
           archivedFileCount: 50
 
-# Service Account - let Helm manage it properly
+# Service Account - let Helm manage it properly with IRSA for CloudWatch access
 serviceAccount:
   create: true
   name: "nexus-iq-sa"
-  annotations: {}
+  annotations:
+    eks.amazonaws.com/role-arn: ""  # Will be set by script from Terraform output
+
+# CloudWatch Logging Configuration (top-level)
+cloudwatch:
+  enabled: true
+  region: "us-east-1"  # Will be updated by script from Terraform
+  logGroupName: "/eks/nexus-iq-ha/nexus-iq-server"
+  logStreamName: "aggregator"
 
 # Ingress configuration
 ingress:
@@ -137,9 +145,59 @@ ingress:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
     alb.ingress.kubernetes.io/healthcheck-path: "/ping"
 
-# Disable fluentd to avoid complexity
+# Enable fluentd for CloudWatch logging (using chart's built-in configuration)
 fluentd:
-  enabled: false
+  enabled: true
+
+  # Fluentd image - using bitnamilegacy
+  image:
+    repository: bitnamilegacy/fluentd
+    tag: "1.17.1-debian-12-r4"
+    pullPolicy: IfNotPresent
+
+  # CloudWatch configuration (chart's built-in support)
+  cloudwatch:
+    enabled: true
+    region: "us-east-1"  # Will be updated by script from Terraform
+    logGroupName: "/eks/nexus-iq-ha/nexus-iq-server"
+    logStreamPrefix: "pod/"
+
+  # Resources for Fluentd sidecar
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+  # Fluentd aggregator configuration for EFS compatibility
+  # EFS Access Points enforce UID/GID 1000, so run Fluentd as same user as IQ Server
+  aggregator:
+    enabled: true
+    # Service account with IRSA for CloudWatch access
+    serviceAccount:
+      create: true
+      annotations:
+        eks.amazonaws.com/role-arn: ""  # Will be set by script from Terraform output
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+    # Override init container to create directory instead of chown (EFS doesn't support chown)
+    initContainers:
+      - name: "{{ .Release.Name }}-set-fluentd-persistence-ownership"
+        image: busybox:latest
+        command: ["/bin/sh", "-c"]
+        args: ["mkdir -p /opt/bitnami/fluentd/logs/nexus-iq-server && chmod 755 /opt/bitnami/fluentd/logs/nexus-iq-server"]
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        volumeMounts:
+          - mountPath: "/opt/bitnami/fluentd/logs/nexus-iq-server"
+            name: "iq-server-pod-volume"
+            subPath: log
 
 # Disable external-dns
 external-dns:
