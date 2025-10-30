@@ -1,74 +1,15 @@
 # CloudWatch Logging Infrastructure for Nexus IQ Server on EKS
-# Implements structured logging with Fluentd sidecar (similar to infra-aws-ha Fluent Bit setup)
+# Implements structured logging with Fluentd aggregator (matching Helm Chart pattern)
+# Uses single unified CloudWatch log group
 
-# CloudWatch Log Groups for structured logging
-resource "aws_cloudwatch_log_group" "iq_logs_application" {
-  name              = "/eks/${var.cluster_name}/nexus-iq-server/application"
+# Single unified CloudWatch Log Group for all IQ Server logs
+resource "aws_cloudwatch_log_group" "iq_logs" {
+  name              = "/eks/${var.cluster_name}/nexus-iq-server"
   retention_in_days = var.log_retention_days
 
   tags = {
-    Name        = "${var.cluster_name}-iq-logs-application"
-    Description = "Main application logs from Nexus IQ Server"
-    Environment = var.environment
-    Project     = "nexus-iq-server-ha"
-  }
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_request" {
-  name              = "/eks/${var.cluster_name}/nexus-iq-server/request"
-  retention_in_days = var.log_retention_days
-
-  tags = {
-    Name        = "${var.cluster_name}-iq-logs-request"
-    Description = "HTTP request logs with parsed fields"
-    Environment = var.environment
-    Project     = "nexus-iq-server-ha"
-  }
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_audit" {
-  name              = "/eks/${var.cluster_name}/nexus-iq-server/audit"
-  retention_in_days = var.log_retention_days
-
-  tags = {
-    Name        = "${var.cluster_name}-iq-logs-audit"
-    Description = "Audit logs in JSON format"
-    Environment = var.environment
-    Project     = "nexus-iq-server-ha"
-  }
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_policy_violation" {
-  name              = "/eks/${var.cluster_name}/nexus-iq-server/policy-violation"
-  retention_in_days = var.log_retention_days
-
-  tags = {
-    Name        = "${var.cluster_name}-iq-logs-policy-violation"
-    Description = "Policy violation logs in JSON format"
-    Environment = var.environment
-    Project     = "nexus-iq-server-ha"
-  }
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_stderr" {
-  name              = "/eks/${var.cluster_name}/nexus-iq-server/stderr"
-  retention_in_days = var.log_retention_days
-
-  tags = {
-    Name        = "${var.cluster_name}-iq-logs-stderr"
-    Description = "Standard error output from Nexus IQ Server System.err"
-    Environment = var.environment
-    Project     = "nexus-iq-server-ha"
-  }
-}
-
-resource "aws_cloudwatch_log_group" "iq_logs_fluentd" {
-  name              = "/eks/${var.cluster_name}/nexus-iq-server/fluentd"
-  retention_in_days = 7 # Shorter retention for Fluentd internal logs
-
-  tags = {
-    Name        = "${var.cluster_name}-iq-logs-fluentd"
-    Description = "Fluentd sidecar container logs"
+    Name        = "${var.cluster_name}-iq-logs"
+    Description = "Unified log group for all Nexus IQ Server logs"
     Environment = var.environment
     Project     = "nexus-iq-server-ha"
   }
@@ -90,12 +31,7 @@ resource "aws_iam_policy" "fluentd_cloudwatch" {
           "logs:DescribeLogStreams"
         ]
         Resource = [
-          "${aws_cloudwatch_log_group.iq_logs_application.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_request.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_audit.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_policy_violation.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_stderr.arn}:*",
-          "${aws_cloudwatch_log_group.iq_logs_fluentd.arn}:*",
+          "${aws_cloudwatch_log_group.iq_logs.arn}:*",
           "arn:aws:logs:*:*:log-group:/eks/${var.cluster_name}/*:*"
         ]
       },
