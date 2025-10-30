@@ -84,7 +84,7 @@ variable "db_password" {
 variable "db_instance_class" {
   description = "RDS instance class"
   type        = string
-  default     = "db.m5.4xlarge"
+  default     = "db.r6g.4xlarge"
 }
 
 variable "db_allocated_storage" {

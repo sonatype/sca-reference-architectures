@@ -166,8 +166,13 @@ output "service_discovery_service" {
 output "cloudwatch_log_groups" {
   description = "CloudWatch log groups"
   value = {
-    ecs_tasks = aws_cloudwatch_log_group.iq_logs.name
-    aurora    = "/aws/rds/cluster/${aws_rds_cluster.iq_aurora_cluster.cluster_identifier}/postgresql"
+    application      = aws_cloudwatch_log_group.iq_logs_application.name
+    request          = aws_cloudwatch_log_group.iq_logs_request.name
+    audit            = aws_cloudwatch_log_group.iq_logs_audit.name
+    policy_violation = aws_cloudwatch_log_group.iq_logs_policy_violation.name
+    stderr           = aws_cloudwatch_log_group.iq_logs_stderr.name
+    fluent_bit       = aws_cloudwatch_log_group.iq_logs_fluent_bit.name
+    aurora           = "/aws/rds/cluster/${aws_rds_cluster.iq_aurora_cluster.cluster_identifier}/postgresql"
   }
 }
 
@@ -190,7 +195,7 @@ output "ecs_cluster_info" {
     cluster_name    = aws_ecs_cluster.iq_cluster.name
     service_name    = aws_ecs_service.iq_service.name
     task_definition = aws_ecs_task_definition.iq_task.family
-    log_group       = aws_cloudwatch_log_group.iq_logs.name
+    log_group_application = aws_cloudwatch_log_group.iq_logs_application.name
   }
 }
 

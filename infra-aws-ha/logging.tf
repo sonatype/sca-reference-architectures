@@ -3,74 +3,74 @@
 
 # CloudWatch Log Groups for structured logging
 resource "aws_cloudwatch_log_group" "iq_logs_application" {
-  name              = "/ecs/ref-arch-nexus-iq-server/application"
+  name              = "/ecs/${var.cluster_name}/nexus-iq-server/application"
   retention_in_days = var.log_retention_days
 
-  tags = {
-    Name        = "ref-arch-iq-logs-application"
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-iq-logs-application"
     Description = "Main application logs from Nexus IQ Server"
-  }
+  })
 }
 
 resource "aws_cloudwatch_log_group" "iq_logs_request" {
-  name              = "/ecs/ref-arch-nexus-iq-server/request"
+  name              = "/ecs/${var.cluster_name}/nexus-iq-server/request"
   retention_in_days = var.log_retention_days
 
-  tags = {
-    Name        = "ref-arch-iq-logs-request"
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-iq-logs-request"
     Description = "HTTP request logs with parsed fields"
-  }
+  })
 }
 
 resource "aws_cloudwatch_log_group" "iq_logs_audit" {
-  name              = "/ecs/ref-arch-nexus-iq-server/audit"
+  name              = "/ecs/${var.cluster_name}/nexus-iq-server/audit"
   retention_in_days = var.log_retention_days
 
-  tags = {
-    Name        = "ref-arch-iq-logs-audit"
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-iq-logs-audit"
     Description = "Audit logs in JSON format"
-  }
+  })
 }
 
 resource "aws_cloudwatch_log_group" "iq_logs_policy_violation" {
-  name              = "/ecs/ref-arch-nexus-iq-server/policy-violation"
+  name              = "/ecs/${var.cluster_name}/nexus-iq-server/policy-violation"
   retention_in_days = var.log_retention_days
 
-  tags = {
-    Name        = "ref-arch-iq-logs-policy-violation"
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-iq-logs-policy-violation"
     Description = "Policy violation logs in JSON format"
-  }
+  })
 }
 
 resource "aws_cloudwatch_log_group" "iq_logs_stderr" {
-  name              = "/ecs/ref-arch-nexus-iq-server/stderr"
+  name              = "/ecs/${var.cluster_name}/nexus-iq-server/stderr"
   retention_in_days = var.log_retention_days
 
-  tags = {
-    Name        = "ref-arch-iq-logs-stderr"
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-iq-logs-stderr"
     Description = "Standard error output from Nexus IQ Server System.err"
-  }
+  })
 }
 
 resource "aws_cloudwatch_log_group" "iq_logs_fluent_bit" {
-  name              = "/ecs/ref-arch-nexus-iq-server/fluent-bit"
+  name              = "/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit"
   retention_in_days = 7 # Shorter retention for Fluent Bit internal logs
 
-  tags = {
-    Name        = "ref-arch-iq-logs-fluent-bit"
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-iq-logs-fluent-bit"
     Description = "Fluent Bit sidecar container logs"
-  }
+  })
 }
 
 # S3 bucket for log archival (optional, for compliance)
 resource "aws_s3_bucket" "log_archive" {
   count  = var.enable_log_archive ? 1 : 0
-  bucket = "ref-arch-iq-logs-archive-${data.aws_caller_identity.current.account_id}"
+  bucket = "${var.cluster_name}-iq-logs-archive-${data.aws_caller_identity.current.account_id}"
 
-  tags = {
-    Name        = "ref-arch-iq-logs-archive"
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-iq-logs-archive"
     Description = "Long-term archive for IQ Server logs"
-  }
+  })
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "log_archive" {
@@ -114,7 +114,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "log_archive" {
 
 # Fluent Bit configuration stored in SSM Parameter Store
 resource "aws_ssm_parameter" "fluent_bit_config" {
-  name        = "/ecs/ref-arch-nexus-iq-server/fluent-bit-config"
+  name        = "/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-config"
   description = "Fluent Bit configuration for Nexus IQ Server log parsing"
   type        = "String"
   tier        = "Advanced"  # Required for configs > 4KB (supports up to 8KB)
@@ -180,8 +180,8 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
 [FILTER]
     Name                record_modifier
     Match               iq.*
-    Record              ecs_cluster ref-arch-iq-cluster
-    Record              ecs_task_family ref-arch-nexus-iq-server
+    Record              ecs_cluster ${var.cluster_name}
+    Record              ecs_task_family ${var.cluster_name}-nexus-iq-server
     Record              aws_region ${var.aws_region}
 
 # Filter: Add hostname from environment
@@ -195,7 +195,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                cloudwatch_logs
     Match               iq.application
     region              ${var.aws_region}
-    log_group_name      /ecs/ref-arch-nexus-iq-server/application
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/application
     log_stream_prefix   from-fluent-bit/
     auto_create_group   false
 
@@ -204,7 +204,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                cloudwatch_logs
     Match               iq.request
     region              ${var.aws_region}
-    log_group_name      /ecs/ref-arch-nexus-iq-server/request
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/request
     log_stream_prefix   from-fluent-bit/
     auto_create_group   false
 
@@ -213,7 +213,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                cloudwatch_logs
     Match               iq.audit
     region              ${var.aws_region}
-    log_group_name      /ecs/ref-arch-nexus-iq-server/audit
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/audit
     log_stream_prefix   from-fluent-bit/
     auto_create_group   false
 
@@ -222,7 +222,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                cloudwatch_logs
     Match               iq.policy_violation
     region              ${var.aws_region}
-    log_group_name      /ecs/ref-arch-nexus-iq-server/policy-violation
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/policy-violation
     log_stream_prefix   from-fluent-bit/
     auto_create_group   false
 
@@ -231,7 +231,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Name                cloudwatch_logs
     Match               iq.stderr
     region              ${var.aws_region}
-    log_group_name      /ecs/ref-arch-nexus-iq-server/stderr
+    log_group_name      /ecs/${var.cluster_name}/nexus-iq-server/stderr
     log_stream_prefix   from-fluent-bit/
     auto_create_group   false
     retry_limit         2
@@ -282,7 +282,7 @@ ${var.enable_log_archive ? <<-S3_OUTPUT
     Name                s3
     Match               iq.*
     region              ${var.aws_region}
-    bucket              ref-arch-iq-logs-archive-${data.aws_caller_identity.current.account_id}
+    bucket              ${var.cluster_name}-iq-logs-archive-${data.aws_caller_identity.current.account_id}
     total_file_size     100M
     s3_key_format       /nexus-iq-logs/year=%Y/month=%m/day=%d/hour=%H/$${TAG}-%H%M%S
     s3_key_format_tag_delimiters .-
@@ -291,14 +291,14 @@ S3_OUTPUT
 : ""}
 EOF
 
-  tags = {
-    Name = "ref-arch-fluent-bit-config"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-fluent-bit-config"
+  })
 }
 
 # Fluent Bit custom parsers configuration
 resource "aws_ssm_parameter" "fluent_bit_parsers" {
-  name        = "/ecs/ref-arch-nexus-iq-server/fluent-bit-parsers"
+  name        = "/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-parsers"
   description = "Custom parsers for Nexus IQ Server logs"
   type        = "String"
   tier        = "Advanced"  # Use Advanced tier for consistency
@@ -325,7 +325,7 @@ resource "aws_ssm_parameter" "fluent_bit_parsers" {
     Time_Format %Y-%m-%dT%H:%M:%S.%L%z
 EOF
 
-  tags = {
-    Name = "ref-arch-fluent-bit-parsers"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-fluent-bit-parsers"
+  })
 }

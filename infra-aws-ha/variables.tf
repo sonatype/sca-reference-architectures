@@ -142,13 +142,13 @@ variable "db_password" {
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version"
   type        = string
-  default     = "15.4"
+  default     = "15.8"
 }
 
 variable "aurora_instance_class" {
   description = "Aurora instance class"
   type        = string
-  default     = "db.m5.4xlarge"
+  default     = "db.r6g.4xlarge"
 }
 
 variable "aurora_instances" {
@@ -228,6 +228,24 @@ variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
   default     = 30
+}
+
+variable "fluent_bit_image" {
+  description = "Fluent Bit Docker image (use custom image with IQ Server parsers)"
+  type        = string
+  default     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
+}
+
+variable "enable_log_archive" {
+  description = "Enable S3 archival of logs for compliance"
+  type        = bool
+  default     = false
+}
+
+variable "log_archive_retention_days" {
+  description = "Days to retain archived logs in S3 before deletion"
+  type        = number
+  default     = 2555  # 7 years for compliance
 }
 
 # Monitoring Variables

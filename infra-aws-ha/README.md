@@ -6,14 +6,14 @@ This directory contains Terraform configuration for deploying Nexus IQ Server on
 
 This infrastructure deploys a complete, production-ready Nexus IQ Server High Availability environment including:
 
-- **ECS Fargate Cluster** - Multiple containerized Nexus IQ Server instances (2-6 tasks)
+- **ECS Fargate Cluster** - Multiple containerized Nexus IQ Server instances (2-5 tasks)
 - **Application Load Balancer (ALB)** - HTTP load balancer with health checks and auto scaling
 - **Aurora PostgreSQL Cluster** - Managed database cluster with Multi-AZ failover
 - **EFS File System** - Shared persistent storage with clustering support and unique work directories
 - **VPC & Networking** - Complete network infrastructure with public/private/database subnets
 - **Security Groups** - Least-privilege network access controls
 - **IAM Roles** - Service-specific permissions following AWS best practices
-- **CloudWatch Logs** - Centralized logging for monitoring and troubleshooting
+- **Advanced Logging Infrastructure** - Fluent Bit sidecar with structured logging to CloudWatch and EFS
 - **Secrets Manager** - Secure database credential storage
 - **Application Auto Scaling** - Dynamic scaling based on CPU and memory utilization
 - **Service Discovery** - Internal DNS for inter-service communication
@@ -24,7 +24,7 @@ Internet
     ↓
 Application Load Balancer (Public Subnets)
     ↓
-ECS Fargate Tasks (2-6 instances, Multi-AZ) ←→ EFS (Shared Clustering Storage)
+ECS Fargate Tasks (2-5 instances, Multi-AZ) ←→ EFS (Shared Clustering Storage)
     ↓
 Aurora PostgreSQL Cluster (Database Subnets, Multi-AZ)
 ```
@@ -125,9 +125,9 @@ db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 
 # ECS Configuration
 ecs_cpu               = 8192        # 8 vCPU per task
-ecs_memory           = 16384       # 16 GB RAM per task
-iq_desired_count     = 2           # Initial number of tasks (2-6)
-iq_max_capacity      = 6           # Maximum auto scaling capacity
+ecs_memory           = 32768       # 32 GB RAM per task
+iq_desired_count     = 3           # Initial number of tasks (2-5)
+iq_max_capacity      = 5           # Maximum auto scaling capacity
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 
 # Auto Scaling Configuration
@@ -138,15 +138,15 @@ memory_target_percent = 80         # Memory utilization target for scaling
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class          = "db.r6g.2xlarge"
-postgres_version           = "15.4"
+db_instance_class          = "db.r6g.4xlarge"
+postgres_version           = "15.8"
 aurora_backup_retention    = 7     # Days
 ```
 
 ### 2. Important HA Settings
 
-- **`iq_desired_count = 2`** - Minimum number of instances for HA (2-6 supported)
-- **`iq_max_capacity = 6`** - Maximum auto scaling capacity
+- **`iq_desired_count = 3`** - Initial number of instances for HA (2-5 supported)
+- **`iq_max_capacity = 5`** - Maximum auto scaling capacity
 - **`cpu_target_percent = 70`** - CPU threshold for auto scaling
 - **`memory_target_percent = 80`** - Memory threshold for auto scaling
 - **`db_password`** - Use a strong, unique password
@@ -168,7 +168,7 @@ aurora_backup_retention    = 7     # Days
 ## High Availability Features
 
 - **Multi-AZ Deployment**: Tasks distributed across multiple availability zones
-- **Auto Scaling**: ECS service scales from 2-6 tasks based on CPU/memory utilization
+- **Auto Scaling**: ECS service scales from 2-5 tasks based on CPU/memory utilization
 - **Aurora Cluster**: Multi-AZ database deployment with automatic failover (~30 seconds)
 - **Load Balancing**: ALB distributes traffic across healthy containers (session stickiness disabled)
 - **Rolling Deployments**: Zero-downtime updates with 50% minimum healthy capacity
@@ -186,7 +186,81 @@ This deployment solves critical IQ Server clustering challenges:
 
 ## Monitoring and Logging
 
-- **CloudWatch Logs**: Application logs centralized in CloudWatch
+This deployment includes **production-grade logging** Fluentd approach:
+
+### Structured Logging with Fluent Bit
+- **Fluent Bit Sidecar**: Lightweight log processor running alongside each IQ Server task
+- **5 Separate Log Files**: Application, request, audit, policy-violation, stderr
+- **Dual Output**: Logs written to both CloudWatch AND EFS aggregated files
+- **Log Parsing**: Custom parsers extract structured data from request and application logs
+- **ECS Metadata**: All logs tagged with cluster name, task family, and region
+
+### CloudWatch Log Groups (6 total)
+- **`/ecs/${cluster_name}/nexus-iq-server/application`** - Main IQ Server logs with multiline parsing
+- **`/ecs/${cluster_name}/nexus-iq-server/request`** - HTTP request logs with field extraction (client, status, elapsed time)
+- **`/ecs/${cluster_name}/nexus-iq-server/audit`** - Audit events in JSON format
+- **`/ecs/${cluster_name}/nexus-iq-server/policy-violation`** - Policy violations in JSON format
+- **`/ecs/${cluster_name}/nexus-iq-server/stderr`** - System.err output for debugging (no parsing)
+- **`/ecs/${cluster_name}/nexus-iq-server/fluent-bit`** - Fluent Bit internal logs
+
+### EFS Aggregated Logs
+In addition to CloudWatch, all logs are written to EFS in JSON format at:
+```
+/var/log/nexus-iq-server/aggregated/
+├── application/
+├── request/
+├── audit/
+├── policy-violation/
+└── stderr/
+```
+
+This provids a local archive for compliance and offline analysis.
+
+### Log Configuration Storage
+Fluent Bit configuration is stored in AWS SSM Parameter Store (Advanced tier):
+- **`/ecs/${cluster_name}/nexus-iq-server/fluent-bit-config`** - Main Fluent Bit configuration
+- **`/ecs/${cluster_name}/nexus-iq-server/fluent-bit-parsers`** - Custom log parsers
+
+### Optional S3 Log Archival
+For compliance requirements, enable long-term S3 archival:
+```hcl
+enable_log_archive = true
+log_archive_retention_days = 2555  # 7 years
+```
+
+Logs are automatically:
+- Stored in S3 with date-based partitioning
+- Transitioned to Glacier after 90 days
+- Transitioned to Deep Archive after 365 days
+- Deleted after retention period
+
+### Viewing Logs
+
+**CloudWatch Logs**:
+```bash
+# Application logs
+aws logs tail /ecs/${cluster_name}/nexus-iq-server/application --follow
+
+# Error logs
+aws logs tail /ecs/${cluster_name}/nexus-iq-server/stderr --follow
+
+# Request logs
+aws logs tail /ecs/${cluster_name}/nexus-iq-server/request --follow
+
+# Audit logs
+aws logs tail /ecs/${cluster_name}/nexus-iq-server/audit --follow
+```
+
+**EFS Aggregated Logs** (connect to ECS task):
+```bash
+# List aggregated logs
+ls -lh /var/log/nexus-iq-server/aggregated/
+
+# View recent application logs
+tail -f /var/log/nexus-iq-server/aggregated/application/*.log
+```
+
+### Additional Monitoring
 - **Container Insights**: ECS cluster monitoring enabled
 - **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
 - **Auto Scaling Metrics**: CPU and memory utilization tracking
@@ -294,8 +368,15 @@ aws-vault exec admin@iq-sandbox -- aws ecs describe-services \
 
 View application logs from all instances:
 ```bash
+# Application logs
 aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
+  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
+  --follow \
+  --region us-east-1
+
+# Error logs
+aws-vault exec admin@iq-sandbox -- aws logs tail \
+  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/stderr \
   --follow \
   --region us-east-1
 ```
@@ -316,7 +397,7 @@ Monitor your HA infrastructure in the AWS Console:
 - **Database**: RDS → Databases → `ref-arch-iq-ha-cluster-aurora-cluster`
 - **Load Balancer**: EC2 → Load Balancers → `ref-arch-iq-ha-cluster-alb`
 - **Target Groups**: EC2 → Target Groups → `ref-arch-iq-ha-cluster-iq-tg`
-- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-iq-ha-cluster/nexus-iq-server`
+- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-iq-ha-cluster/nexus-iq-server/*` (6 log groups)
 - **VPC**: VPC → Your VPCs → `ref-arch-iq-ha-vpc`
 - **Storage**: EFS → File Systems → `ref-arch-iq-ha-cluster-efs`
 - **Service Discovery**: Cloud Map → Namespaces → `ref-arch-iq-ha-cluster.local`
@@ -326,11 +407,12 @@ Monitor your HA infrastructure in the AWS Console:
 ```
 infra-aws-ha/
 ├── main.tf              # VPC, networking, and core infrastructure
-├── ecs.tf               # ECS cluster, service, auto scaling, and task definitions
+├── ecs.tf               # ECS cluster, service, auto scaling, and task definitions with Fluent Bit
 ├── rds-aurora.tf        # Aurora PostgreSQL cluster and secrets
 ├── load_balancer.tf     # Application Load Balancer and S3 logging
 ├── security_groups.tf   # Network security rules
-├── iam.tf               # IAM roles and policies
+├── iam.tf               # IAM roles and policies (includes Fluent Bit permissions)
+├── logging.tf           # Advanced logging with Fluent Bit, CloudWatch, and S3 archival
 ├── service_discovery.tf # Cloud Map service discovery
 ├── autoscaling.tf       # Application Auto Scaling policies
 ├── backup.tf            # AWS Backup configuration for EFS
@@ -396,21 +478,43 @@ infra-aws-ha/
    ```bash
    # Verify unique work directories are created
    aws-vault exec admin@iq-sandbox -- aws logs filter-log-events \
-     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
      --filter-pattern "Creating unique sonatypeWork directory"
 
    # Check for work directory conflicts (should be empty)
    aws-vault exec admin@iq-sandbox -- aws logs filter-log-events \
-     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
      --filter-pattern "Work directory.*already in use"
 
    # Verify PostgreSQL connections (should see postgresql, not H2)
    aws-vault exec admin@iq-sandbox -- aws logs filter-log-events \
-     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
      --filter-pattern "postgresql"
    ```
 
-7. **Backup Vault Deletion Issues**
+7. **Fluent Bit / Logging Issues**
+   ```bash
+   # Check Fluent Bit sidecar is running
+   aws-vault exec admin@iq-sandbox -- aws logs tail \
+     /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/fluent-bit --follow
+
+   # Verify logs are being written to CloudWatch
+   aws-vault exec admin@iq-sandbox -- aws logs describe-log-streams \
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application
+
+   # Check if Fluent Bit configuration is accessible
+   aws-vault exec admin@iq-sandbox -- aws ssm get-parameter \
+     --name "/ecs/ref-arch-iq-ha-cluster/nexus-iq-server/fluent-bit-config"
+
+   # Verify EFS aggregated logs are being written (exec into task)
+   aws-vault exec admin@iq-sandbox -- aws ecs execute-command \
+     --cluster ref-arch-iq-ha-cluster \
+     --task <task-id> \
+     --container nexus-iq-server \
+     --command "ls -lh /var/log/nexus-iq-server/aggregated/"
+   ```
+
+8. **Backup Vault Deletion Issues**
    ```bash
    # If destroy fails due to recovery points
    aws-vault exec admin@iq-sandbox -- aws backup list-recovery-points-by-backup-vault \
@@ -420,8 +524,8 @@ infra-aws-ha/
 
 ### Resource Limits
 
-- **ECS Service**: Scales from 2-6 tasks based on demand
-- **Aurora Cluster**: Uses db.r6g.2xlarge instances
+- **ECS Service**: Scales from 2-5 tasks based on demand
+- **Aurora Cluster**: Uses db.r6g.4xlarge instances
 - **Storage**: EFS provides unlimited scalable storage with clustering support
 
 ## Cleanup

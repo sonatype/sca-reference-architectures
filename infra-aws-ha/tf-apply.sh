@@ -86,9 +86,15 @@ if [[ $? -eq 0 ]]; then
 
     # Extract key outputs
     CLUSTER_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw cluster_name 2>/dev/null || echo "N/A")
+    CLUSTER_ARN=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw cluster_arn 2>/dev/null || echo "N/A")
     ALB_DNS=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw alb_dns_name 2>/dev/null || echo "N/A")
     APP_URL=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw application_url 2>/dev/null || echo "N/A")
     SERVICE_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw ecs_service_name 2>/dev/null || echo "N/A")
+    LOG_GROUP_APP=$(aws-vault exec "$AWS_PROFILE" -- terraform output -json cloudwatch_log_groups 2>/dev/null | jq -r '.application' || echo "N/A")
+    LOG_GROUP_STDERR=$(aws-vault exec "$AWS_PROFILE" -- terraform output -json cloudwatch_log_groups 2>/dev/null | jq -r '.stderr' || echo "N/A")
+    LOG_GROUP_REQUEST=$(aws-vault exec "$AWS_PROFILE" -- terraform output -json cloudwatch_log_groups 2>/dev/null | jq -r '.request' || echo "N/A")
+    LOG_GROUP_AUDIT=$(aws-vault exec "$AWS_PROFILE" -- terraform output -json cloudwatch_log_groups 2>/dev/null | jq -r '.audit' || echo "N/A")
+    EFS_ID=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw efs_id 2>/dev/null || echo "N/A")
 
     echo "• ECS Cluster: $CLUSTER_NAME"
     echo "• ECS Service: $SERVICE_NAME"
@@ -112,19 +118,46 @@ if [[ $? -eq 0 ]]; then
     echo "   Default credentials: admin / admin123"
     echo ""
 
+    echo -e "${BLUE}🔍 Monitoring Commands${NC}"
+    echo "===================="
+    echo ""
+    echo "View cluster info:"
+    echo "  aws ecs describe-clusters --clusters $CLUSTER_NAME"
+    echo ""
+    echo "Check service status:"
+    echo "  aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME"
+    echo ""
+    echo "Monitor running tasks:"
+    echo "  aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME"
+    echo ""
+    echo "Tail application logs:"
+    echo "  aws logs tail $LOG_GROUP_APP --follow"
+    echo ""
+    echo "Tail stderr logs:"
+    echo "  aws logs tail $LOG_GROUP_STDERR --follow"
+    echo ""
+    echo "Tail request logs:"
+    echo "  aws logs tail $LOG_GROUP_REQUEST --follow"
+    echo ""
+    echo "Tail audit logs:"
+    echo "  aws logs tail $LOG_GROUP_AUDIT --follow"
+    echo ""
+    echo "View aggregated logs on EFS:"
+    echo "  # Connect to ECS task and check /var/log/nexus-iq-server/aggregated/"
+    echo ""
+    echo "Check auto scaling status:"
+    echo "  aws application-autoscaling describe-scalable-targets --service-namespace ecs \\
+    --resource-ids service/$CLUSTER_NAME/$SERVICE_NAME"
+    echo ""
+    echo "View EFS file system:"
+    echo "  aws efs describe-file-systems --file-system-id $EFS_ID"
+    echo ""
+
     echo -e "${YELLOW}⚠️  Important Security Notes${NC}"
     echo "• Change default IQ Server admin password immediately"
     echo "• Consider enabling HTTPS with SSL certificate"
     echo "• Review security group rules for production use"
     echo "• Set up monitoring and alerting"
-    echo ""
-
-    echo -e "${BLUE}🔍 Monitoring Commands${NC}"
-    echo "• View cluster info: aws ecs describe-clusters --clusters $CLUSTER_NAME"
-    echo "• Check service status: aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME"
-    echo "• Monitor tasks: aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME"
-    echo "• View logs: aws logs tail /ecs/$CLUSTER_NAME/nexus-iq-server --follow"
-    echo "• Check auto scaling: aws application-autoscaling describe-scalable-targets --service-namespace ecs"
     echo ""
 
     # Clean up plan file

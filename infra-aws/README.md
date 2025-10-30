@@ -13,7 +13,7 @@ This infrastructure deploys a complete, production-ready Nexus IQ Server environ
 - **VPC & Networking** - Complete network infrastructure with public/private subnets
 - **Security Groups** - Least-privilege network access controls
 - **IAM Roles** - Service-specific permissions following AWS best practices
-- **Advanced Logging** - Fluent Bit sidecar with structured logging to CloudWatch and EFS (matches Helm chart)
+- **Advanced Logging** - Fluent Bit sidecar with structured logging to CloudWatch and EFS
 - **Secrets Manager** - Secure database credential storage
 
 ```
@@ -161,7 +161,7 @@ postgres_version            = "15"
 
 ## Monitoring and Logging
 
-This deployment includes **production-grade logging** matching the Helm chart's Fluentd approach:
+This deployment includes **production-grade logging** Fluentd approach:
 
 ### Structured Logging with Fluent Bit
 - **Fluent Bit Sidecar**: Lightweight log processor running alongside IQ Server

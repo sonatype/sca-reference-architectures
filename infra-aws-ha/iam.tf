@@ -48,7 +48,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Custom policy for ECS Execution Role to access Secrets Manager
+# Custom policy for ECS Execution Role to access Secrets Manager and SSM
 resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
   name = "${var.cluster_name}-ecs-execution-secrets-policy"
   role = aws_iam_role.ecs_execution_role.id
@@ -64,19 +64,29 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
         Resource = [
           aws_secretsmanager_secret.db_credentials.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-*"
+        ]
       }
     ]
   })
 }
 
-# ECS Task Role Policy for EFS access
+# ECS Task Role Policy for EFS access, logging, and secrets
 resource "aws_iam_role_policy" "ecs_task_role_policy" {
   name = "${var.cluster_name}-ecs-task-role-policy"
   role = aws_iam_role.ecs_task_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Effect = "Allow"
         Action = [
@@ -97,8 +107,43 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
         Resource = [
           aws_secretsmanager_secret.db_credentials.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:CreateLogGroup"
+        ]
+        Resource = [
+          "${aws_cloudwatch_log_group.iq_logs_application.arn}:*",
+          "${aws_cloudwatch_log_group.iq_logs_request.arn}:*",
+          "${aws_cloudwatch_log_group.iq_logs_audit.arn}:*",
+          "${aws_cloudwatch_log_group.iq_logs_policy_violation.arn}:*",
+          "${aws_cloudwatch_log_group.iq_logs_stderr.arn}:*",
+          "${aws_cloudwatch_log_group.iq_logs_fluent_bit.arn}:*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-*"
+        ]
       }
-    ]
+    ],
+    var.enable_log_archive ? [{
+      Effect = "Allow"
+      Action = [
+        "s3:PutObject",
+        "s3:PutObjectAcl"
+      ]
+      Resource = [
+        "${aws_s3_bucket.log_archive[0].arn}/*"
+      ]
+    }] : [])
   })
 }
 
