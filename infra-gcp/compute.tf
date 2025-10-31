@@ -25,13 +25,14 @@ resource "google_compute_instance" "iq_server" {
   }
 
   metadata_startup_script = templatefile("${path.module}/scripts/startup.sh", {
-    db_host     = google_sql_database_instance.iq_db.private_ip_address
-    db_port     = "5432"
-    db_name     = google_sql_database.iq_database.name
-    db_username = var.db_username
-    db_password = var.db_password
-    iq_version  = var.iq_version
-    java_opts   = var.java_opts
+    db_host      = google_sql_database_instance.iq_db.private_ip_address
+    db_port      = "5432"
+    db_name      = google_sql_database.iq_database.name
+    db_username  = var.db_username
+    db_password  = var.db_password
+    docker_image = var.iq_docker_image
+    java_opts    = var.java_opts
+    filestore_ip = google_filestore_instance.iq_filestore.networks[0].ip_addresses[0]
   })
 
   service_account {
@@ -45,7 +46,8 @@ resource "google_compute_instance" "iq_server" {
 
   depends_on = [
     google_project_service.required_apis,
-    google_sql_database_instance.iq_db
+    google_sql_database_instance.iq_db,
+    google_filestore_instance.iq_filestore
   ]
 }
 

@@ -83,10 +83,10 @@ variable "iq_desired_count" {
   default     = 1
 }
 
-variable "iq_version" {
-  description = "Nexus IQ Server version to install"
+variable "iq_docker_image" {
+  description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "1.196.0-01"
+  default     = "sonatype/nexus-iq-server:latest"
 }
 
 # Database Variables
