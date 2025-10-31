@@ -300,6 +300,10 @@ else
 fi
 echo ""
 
+# Get replica count from terraform.tfvars
+REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
+echo "• Replica count: $REPLICA_COUNT"
+
 # Substitute runtime values from Terraform outputs
 sed -i.bak \
     -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
@@ -310,6 +314,7 @@ sed -i.bak \
     -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
     -e "s|eks.amazonaws.com/role-arn: \"\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
     -e "s/value: \"\"  # Will be set by script/value: \"$DB_ENDPOINT\"/g" \
+    -e "s/replicaCount: [0-9]*/replicaCount: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
 # Update environment variables for DB_HOSTNAME and DB_PASSWORD

@@ -63,6 +63,7 @@ iq_server:
   serviceType: "ClusterIP"
 
   # Replica count - matching ECS HA setup (minimum 2 for HA)
+  # This value is overridden at runtime from terraform.tfvars (nexus_iq_replica_count)
   replicaCount: 3
 
   # HA Configuration matching ECS version - using Helm chart's config mechanism
