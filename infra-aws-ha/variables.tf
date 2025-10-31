@@ -189,7 +189,7 @@ variable "db_skip_final_snapshot" {
 variable "db_deletion_protection" {
   description = "Enable deletion protection for database"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Load Balancer Variables
@@ -252,7 +252,7 @@ variable "log_archive_retention_days" {
 variable "enable_prometheus" {
   description = "Enable Prometheus monitoring"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Tagging Variables

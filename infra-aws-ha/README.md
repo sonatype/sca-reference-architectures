@@ -138,8 +138,8 @@ memory_target_percent = 80         # Memory utilization target for scaling
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class          = "db.r6g.4xlarge"
-postgres_version           = "15.8"
+aurora_engine_version      = "15.8"
+aurora_instance_class      = "db.r6g.4xlarge"
 aurora_backup_retention    = 7     # Days
 ```
 
@@ -186,7 +186,7 @@ This deployment solves critical IQ Server clustering challenges:
 
 ## Monitoring and Logging
 
-This deployment includes **production-grade logging** Fluentd approach:
+This deployment includes **production-grade logging** with a unified CloudWatch approach:
 
 ### Structured Logging with Fluent Bit
 - **Fluent Bit Sidecar**: Lightweight log processor running alongside each IQ Server task
@@ -194,14 +194,17 @@ This deployment includes **production-grade logging** Fluentd approach:
 - **Dual Output**: Logs written to both CloudWatch AND EFS aggregated files
 - **Log Parsing**: Custom parsers extract structured data from request and application logs
 - **ECS Metadata**: All logs tagged with cluster name, task family, and region
+- **Unified Log Group**: All logs sent to a single CloudWatch log group with distinct stream prefixes
 
-### CloudWatch Log Groups (6 total)
-- **`/ecs/${cluster_name}/nexus-iq-server/application`** - Main IQ Server logs with multiline parsing
-- **`/ecs/${cluster_name}/nexus-iq-server/request`** - HTTP request logs with field extraction (client, status, elapsed time)
-- **`/ecs/${cluster_name}/nexus-iq-server/audit`** - Audit events in JSON format
-- **`/ecs/${cluster_name}/nexus-iq-server/policy-violation`** - Policy violations in JSON format
-- **`/ecs/${cluster_name}/nexus-iq-server/stderr`** - System.err output for debugging (no parsing)
-- **`/ecs/${cluster_name}/nexus-iq-server/fluent-bit`** - Fluent Bit internal logs
+### CloudWatch Unified Log Group
+- **Log Group**: `/ecs/${cluster_name}/nexus-iq-server`
+- **Log Streams** (organized by prefix):
+  - `application/` - Main IQ Server logs with multiline parsing
+  - `request/` - HTTP request logs with field extraction (client, status, elapsed time)
+  - `audit/` - Audit events in JSON format
+  - `policy-violation/` - Policy violations in JSON format
+  - `stderr/` - System.err output for debugging (no parsing)
+  - `fluent-bit/` - Fluent Bit internal logs
 
 ### EFS Aggregated Logs
 In addition to CloudWatch, all logs are written to EFS in JSON format at:
@@ -214,7 +217,7 @@ In addition to CloudWatch, all logs are written to EFS in JSON format at:
 └── stderr/
 ```
 
-This provids a local archive for compliance and offline analysis.
+This provides a local archive for compliance and offline analysis.
 
 ### Log Configuration Storage
 Fluent Bit configuration is stored in AWS SSM Parameter Store (Advanced tier):
@@ -238,17 +241,21 @@ Logs are automatically:
 
 **CloudWatch Logs**:
 ```bash
+# All logs (unified log group)
+aws logs tail /ecs/${cluster_name}/nexus-iq-server --follow
+
+# Filter by log type using stream prefix
 # Application logs
-aws logs tail /ecs/${cluster_name}/nexus-iq-server/application --follow
+aws logs tail /ecs/${cluster_name}/nexus-iq-server --follow --filter-pattern "application/"
 
 # Error logs
-aws logs tail /ecs/${cluster_name}/nexus-iq-server/stderr --follow
+aws logs tail /ecs/${cluster_name}/nexus-iq-server --follow --filter-pattern "stderr/"
 
 # Request logs
-aws logs tail /ecs/${cluster_name}/nexus-iq-server/request --follow
+aws logs tail /ecs/${cluster_name}/nexus-iq-server --follow --filter-pattern "request/"
 
 # Audit logs
-aws logs tail /ecs/${cluster_name}/nexus-iq-server/audit --follow
+aws logs tail /ecs/${cluster_name}/nexus-iq-server --follow --filter-pattern "audit/"
 ```
 
 **EFS Aggregated Logs** (connect to ECS task):
@@ -368,16 +375,25 @@ aws-vault exec admin@iq-sandbox -- aws ecs describe-services \
 
 View application logs from all instances:
 ```bash
+# All logs (unified log group)
+aws-vault exec admin@iq-sandbox -- aws logs tail \
+  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
+  --follow \
+  --region us-east-1
+
+# Filter by log type
 # Application logs
 aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
+  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
   --follow \
+  --filter-pattern "application/" \
   --region us-east-1
 
 # Error logs
 aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/stderr \
+  /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
   --follow \
+  --filter-pattern "stderr/" \
   --region us-east-1
 ```
 
@@ -397,7 +413,7 @@ Monitor your HA infrastructure in the AWS Console:
 - **Database**: RDS → Databases → `ref-arch-iq-ha-cluster-aurora-cluster`
 - **Load Balancer**: EC2 → Load Balancers → `ref-arch-iq-ha-cluster-alb`
 - **Target Groups**: EC2 → Target Groups → `ref-arch-iq-ha-cluster-iq-tg`
-- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-iq-ha-cluster/nexus-iq-server/*` (6 log groups)
+- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-iq-ha-cluster/nexus-iq-server` (unified log group with stream prefixes)
 - **VPC**: VPC → Your VPCs → `ref-arch-iq-ha-vpc`
 - **Storage**: EFS → File Systems → `ref-arch-iq-ha-cluster-efs`
 - **Service Discovery**: Cloud Map → Namespaces → `ref-arch-iq-ha-cluster.local`
@@ -440,6 +456,14 @@ infra-aws-ha/
    # Check container logs from all tasks
    aws-vault exec admin@iq-sandbox -- aws logs tail \
      /ecs/ref-arch-iq-ha-cluster/nexus-iq-server --follow --region us-east-1
+
+   # Check application logs specifically
+   aws-vault exec admin@iq-sandbox -- aws logs tail \
+     /ecs/ref-arch-iq-ha-cluster/nexus-iq-server --filter-pattern "application/" --follow --region us-east-1
+
+   # Check Fluent Bit logs
+   aws-vault exec admin@iq-sandbox -- aws logs tail \
+     /ecs/ref-arch-iq-ha-cluster/nexus-iq-server --filter-pattern "fluent-bit/" --follow --region us-east-1
    ```
    - **Work directory conflicts**: Verify unique work directory creation
    - **Database connection errors**: Check Aurora cluster status and credentials
@@ -478,17 +502,17 @@ infra-aws-ha/
    ```bash
    # Verify unique work directories are created
    aws-vault exec admin@iq-sandbox -- aws logs filter-log-events \
-     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
      --filter-pattern "Creating unique sonatypeWork directory"
 
    # Check for work directory conflicts (should be empty)
    aws-vault exec admin@iq-sandbox -- aws logs filter-log-events \
-     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
      --filter-pattern "Work directory.*already in use"
 
    # Verify PostgreSQL connections (should see postgresql, not H2)
    aws-vault exec admin@iq-sandbox -- aws logs filter-log-events \
-     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application \
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server \
      --filter-pattern "postgresql"
    ```
 
@@ -496,11 +520,11 @@ infra-aws-ha/
    ```bash
    # Check Fluent Bit sidecar is running
    aws-vault exec admin@iq-sandbox -- aws logs tail \
-     /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/fluent-bit --follow
+     /ecs/ref-arch-iq-ha-cluster/nexus-iq-server --filter-pattern "fluent-bit/" --follow
 
    # Verify logs are being written to CloudWatch
    aws-vault exec admin@iq-sandbox -- aws logs describe-log-streams \
-     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server/application
+     --log-group-name /ecs/ref-arch-iq-ha-cluster/nexus-iq-server
 
    # Check if Fluent Bit configuration is accessible
    aws-vault exec admin@iq-sandbox -- aws ssm get-parameter \

@@ -47,7 +47,7 @@ variable "ecs_memory" {
 variable "iq_desired_count" {
   description = "Desired number of ECS tasks"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "iq_docker_image" {
@@ -102,7 +102,7 @@ variable "db_max_allocated_storage" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "15.4"
+  default     = "15.8"
 }
 
 variable "db_backup_retention_period" {
@@ -126,13 +126,13 @@ variable "db_maintenance_window" {
 variable "db_skip_final_snapshot" {
   description = "Skip final snapshot when deleting database"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "db_deletion_protection" {
   description = "Enable deletion protection for database"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Load Balancer Variables

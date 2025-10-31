@@ -26,7 +26,7 @@ variable "vpc_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.27"
+  default     = "1.30"
 }
 
 variable "node_instance_type" {
@@ -63,13 +63,13 @@ variable "node_disk_size" {
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version"
   type        = string
-  default     = "15.4"
+  default     = "15.8"
 }
 
 variable "aurora_instance_class" {
   description = "Instance class for Aurora PostgreSQL"
   type        = string
-  default     = "db.m5.4xlarge"
+  default     = "db.r6g.4xlarge"
 }
 
 variable "aurora_instance_count" {
@@ -111,7 +111,7 @@ variable "skip_final_snapshot" {
 variable "deletion_protection" {
   description = "Enable deletion protection for RDS cluster"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # EFS Configuration
@@ -150,25 +150,25 @@ variable "nexus_iq_replica_count" {
 variable "nexus_iq_memory_request" {
   description = "Memory request for Nexus IQ Server pods"
   type        = string
-  default     = "16Gi"
+  default     = "4Gi"
 }
 
 variable "nexus_iq_memory_limit" {
   description = "Memory limit for Nexus IQ Server pods"
   type        = string
-  default     = "24Gi"
+  default     = "6Gi"
 }
 
 variable "nexus_iq_cpu_request" {
   description = "CPU request for Nexus IQ Server pods"
   type        = string
-  default     = "8"
+  default     = "2"
 }
 
 variable "nexus_iq_cpu_limit" {
   description = "CPU limit for Nexus IQ Server pods"
   type        = string
-  default     = "12"
+  default     = "4"
 }
 
 # Helm Configuration

@@ -132,19 +132,19 @@ node_group_max_size = 6
 node_group_desired_size = 3
 
 # Aurora Configuration
-aurora_instance_class = "db.r6g.2xlarge"
+aurora_instance_class = "db.r6g.4xlarge"
 aurora_instance_count = 2  # 1 writer + 1 reader
 database_password = "YourSecurePassword123!"  # Change this!
 
 # Nexus IQ HA Configuration
-nexus_iq_replica_count = 2
+nexus_iq_replica_count = 3
 nexus_iq_license = "base64-encoded-license"
 nexus_iq_admin_password = "admin123"
 ```
 
 ### 2. Important Settings
 
-- **`nexus_iq_replica_count = 2`** - Minimum for HA (requires HA license)
+- **`nexus_iq_replica_count = 3`** - Recommended for HA (requires HA license, minimum 2)
 - **`database_password`** - Use a strong, unique password
 - **`nexus_iq_license`** - Base64 encoded HA-capable license
 - **Resource Names** - All AWS resources are prefixed with cluster name
@@ -173,6 +173,40 @@ nexus_iq_admin_password = "admin123"
 
 ## Monitoring and Operations
 
+### CloudWatch Logging
+
+This deployment uses **production-grade logging** with a unified CloudWatch approach via Fluentd:
+
+#### Fluentd Aggregator Pattern
+- **Fluentd Sidecars**: Lightweight log forwarders in each IQ Server pod
+- **Fluentd Aggregator**: Central aggregator pod (daemonset) receives logs from sidecars
+- **Unified Log Group**: All logs sent to `/eks/nexus-iq-ha/nexus-iq-server`
+- **Log Streams** organized by prefix:
+  - `application/` - Main IQ Server logs
+  - `request/` - HTTP request logs
+  - `audit/` - Audit events
+  - `policy-violation/` - Policy violations
+  - `stderr/` - Standard error output
+  - `fluentd/` - Fluentd internal logs
+- **IRSA Authentication**: Fluentd uses IAM Roles for Service Accounts to write to CloudWatch
+
+#### Viewing CloudWatch Logs
+
+```bash
+# All logs (unified log group)
+aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --region us-east-1
+
+# Filter by log type
+# Application logs
+aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --filter-pattern "application/" --region us-east-1
+
+# Request logs
+aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --filter-pattern "request/" --region us-east-1
+
+# Error logs
+aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --filter-pattern "stderr/" --region us-east-1
+```
+
 ### Check Deployment Status
 
 ```bash
@@ -185,8 +219,15 @@ kubectl get svc -n nexus-iq
 # Check ingress status
 kubectl get ingress -n nexus-iq
 
-# View logs
+# View pod logs (stdout/stderr)
 kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n nexus-iq
+
+# View Fluentd sidecar logs
+kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -c fluentd -n nexus-iq
+
+# Check Fluentd aggregator
+kubectl get pods -l app=fluentd-aggregator -n nexus-iq
+kubectl logs -f -l app=fluentd-aggregator -n nexus-iq
 ```
 
 ### Scaling Operations
@@ -219,6 +260,7 @@ Monitor your infrastructure in the AWS Console:
 - **EKS Cluster**: EKS → Clusters → `nexus-iq-ha`
 - **Database**: RDS → Databases → `nexus-iq-ha-aurora-cluster`
 - **Load Balancer**: EC2 → Load Balancers → ALB created by ingress
+- **Logs**: CloudWatch → Log Groups → `/eks/nexus-iq-ha/nexus-iq-server` (unified log group with stream prefixes)
 - **VPC**: VPC → Your VPCs → `nexus-iq-ha-vpc`
 - **Storage**: EFS → File Systems → `nexus-iq-ha-efs`
 
@@ -231,13 +273,14 @@ infra-aws-ha-k8s-helm/
 ├── rds.tf                     # Aurora PostgreSQL cluster
 ├── efs.tf                     # EFS file system
 ├── alb.tf                     # Application Load Balancer controller
+├── logging.tf                 # CloudWatch logging with Fluentd IRSA
 ├── variables.tf               # Input variable definitions
 ├── outputs.tf                 # Output value definitions
 ├── terraform.tfvars           # Infrastructure configuration
-├── helm-values.yaml           # Helm chart values
+├── helm-values.yaml           # Helm chart values (includes Fluentd configuration)
 ├── efs-storageclass.yaml      # EFS StorageClass
 ├── nexus-iq-namespace.yaml    # Kubernetes namespace
-├── nexus-iq-pvc.yaml          # PersistentVolumeClaim
+├── iq-server-pvc.yaml         # PersistentVolumeClaim for Fluentd buffer
 ├── tf-*.sh                    # Terraform deployment scripts
 ├── helm-*.sh                  # Helm deployment scripts
 └── README.md                  # This file

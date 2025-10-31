@@ -130,8 +130,8 @@ iq_docker_image   = "sonatype/nexus-iq-server:latest"
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class           = "db.m5.4xlarge"
-postgres_version            = "15"
+db_instance_class           = "db.r6g.4xlarge"
+postgres_version            = "15.8"
 ```
 
 ### 2. Important Settings
@@ -161,20 +161,23 @@ postgres_version            = "15"
 
 ## Monitoring and Logging
 
-This deployment includes **production-grade logging** Fluentd approach:
+This deployment includes **production-grade logging** with a unified CloudWatch approach:
 
 ### Structured Logging with Fluent Bit
 - **Fluent Bit Sidecar**: Lightweight log processor running alongside IQ Server
 - **5 Separate Log Files**: Application, request, audit, policy-violation, stderr
 - **Dual Output**: Logs written to both CloudWatch AND EFS aggregated files
+- **Unified Log Group**: All logs sent to a single CloudWatch log group with distinct stream prefixes
 
-### CloudWatch Log Groups (6 total)
-- `/ecs/ref-arch-nexus-iq-server/application` - Main IQ Server logs with multiline parsing
-- `/ecs/ref-arch-nexus-iq-server/request` - HTTP request logs with field extraction
-- `/ecs/ref-arch-nexus-iq-server/audit` - Audit events (JSON format)
-- `/ecs/ref-arch-nexus-iq-server/policy-violation` - Policy violations (JSON format)
-- `/ecs/ref-arch-nexus-iq-server/stderr` - System.err output for debugging
-- `/ecs/ref-arch-nexus-iq-server/fluent-bit` - Fluent Bit internal logs
+### CloudWatch Unified Log Group
+- **Log Group**: `/ecs/ref-arch-nexus-iq-server`
+- **Log Streams** (organized by prefix):
+  - `application/` - Main IQ Server logs with multiline parsing
+  - `request/` - HTTP request logs with field extraction
+  - `audit/` - Audit events (JSON format)
+  - `policy-violation/` - Policy violations (JSON format)
+  - `stderr/` - System.err output for debugging
+  - `fluent-bit/` - Fluent Bit internal logs
 
 ### EFS Aggregated Logs
 - **Location**: `/var/log/nexus-iq-server/aggregated/`
@@ -283,29 +286,34 @@ aws-vault exec admin@iq-sandbox -- aws ecs describe-services \
   --region us-east-1
 ```
 
-View application logs (multiple options):
+View application logs:
 ```bash
-# Application logs (main server logs)
+# All logs (unified log group)
 aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server/application \
+  /ecs/ref-arch-nexus-iq-server \
   --follow \
   --region us-east-1
 
-# Request logs (HTTP requests)
+# Filter by log type using stream prefix
+# Application logs
 aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server/request \
+  /ecs/ref-arch-nexus-iq-server \
   --follow \
+  --filter-pattern "application/" \
   --region us-east-1
 
-# Stderr logs (System.err for debugging)
+# Request logs
 aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server/stderr \
+  /ecs/ref-arch-nexus-iq-server \
   --follow \
+  --filter-pattern "request/" \
   --region us-east-1
 
-# All log groups
-aws-vault exec admin@iq-sandbox -- aws logs describe-log-groups \
-  --log-group-name-prefix /ecs/ref-arch-nexus-iq-server \
+# Error logs
+aws-vault exec admin@iq-sandbox -- aws logs tail \
+  /ecs/ref-arch-nexus-iq-server \
+  --follow \
+  --filter-pattern "stderr/" \
   --region us-east-1
 ```
 
@@ -316,7 +324,7 @@ Monitor your infrastructure in the AWS Console:
 - **ECS Service**: ECS → Clusters → `ref-arch-iq-cluster`
 - **Database**: RDS → Databases → `ref-arch-iq-database`
 - **Load Balancer**: EC2 → Load Balancers → `ref-arch-iq-alb`
-- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-nexus-iq-server/*` (6 log groups)
+- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-nexus-iq-server` (unified log group with stream prefixes)
 - **VPC**: VPC → Your VPCs → `ref-arch-iq-vpc`
 - **Storage**: EFS → File Systems → `ref-arch-iq-efs`
 
@@ -354,15 +362,15 @@ infra-aws/
    ```bash
    # Check application container logs
    aws-vault exec admin@iq-sandbox -- aws logs tail \
-     /ecs/ref-arch-nexus-iq-server/application --follow --region us-east-1
+     /ecs/ref-arch-nexus-iq-server --filter-pattern "application/" --follow --region us-east-1
 
    # Check Fluent Bit sidecar logs
    aws-vault exec admin@iq-sandbox -- aws logs tail \
-     /ecs/ref-arch-nexus-iq-server/fluent-bit --follow --region us-east-1
+     /ecs/ref-arch-nexus-iq-server --filter-pattern "fluent-bit/" --follow --region us-east-1
    ```
    - **Lock file errors**: Ensure `iq_desired_count = 1` (single instance)
    - **EFS permission errors**: Check EFS access point configuration
-   - **Fluent Bit issues**: Check fluent-bit log group for errors
+   - **Fluent Bit issues**: Check fluent-bit logs in unified log group
 
 3. **Application Not Accessible**
    - Wait 5-10 minutes for ECS service to fully start

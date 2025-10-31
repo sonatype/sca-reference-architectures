@@ -15,8 +15,8 @@ node_group_desired_size = 3
 node_disk_size          = 50
 
 # RDS Aurora Configuration
-aurora_engine_version   = "15.4"
-aurora_instance_class   = "db.r6g.large"
+aurora_engine_version   = "15.8"
+aurora_instance_class   = "db.r6g.4xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"
@@ -32,7 +32,7 @@ efs_provisioned_throughput = 100
 nexus_iq_version       = "1.195.0"
 nexus_iq_license       = "BASE64_ENCODED_LICENSE_STRING"
 nexus_iq_admin_password = "CHANGE_ME_ADMIN_PASSWORD"
-nexus_iq_replica_count = 2
+nexus_iq_replica_count = 3
 
 # Resource Limits
 nexus_iq_memory_request = "4Gi"
@@ -57,6 +57,6 @@ acm_certificate_arn  = ""
 # Monitoring Configuration
 enable_hpa                      = true
 hpa_min_replicas               = 2
-hpa_max_replicas               = 10
+hpa_max_replicas               = 5
 hpa_target_cpu_utilization     = 70
 hpa_target_memory_utilization  = 80
