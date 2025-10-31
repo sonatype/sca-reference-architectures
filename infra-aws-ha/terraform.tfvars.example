@@ -19,20 +19,20 @@ enable_nat_gateway     = true
 # ================================
 # ECS CONFIGURATION
 # ================================
-ecs_cpu                 = 2048  # 2 vCPU
-ecs_memory              = 4096  # 4 GB
-ecs_memory_reservation  = 3072  # 3 GB soft limit
+ecs_cpu                 = 8192   # 8 vCPU
+ecs_memory              = 32768  # 32 GB
+ecs_memory_reservation  = 24576  # 24 GB soft limit
  
 # ================================
 # IQ SERVER CONFIGURATION
 # ================================
-iq_desired_count        = 2  # Minimum 2 for HA
+iq_desired_count        = 3  # 3 instances for better HA
 iq_min_count           = 2  # Minimum for auto scaling
-iq_max_count           = 6  # Maximum for auto scaling
+iq_max_count           = 5  # Maximum for auto scaling
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%) 
 iq_memory_target_value = 80  # Memory target for auto scaling (%) 
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # ================================
 # DATABASE CONFIGURATION (Aurora PostgreSQL)
@@ -40,8 +40,8 @@ java_opts              = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javap
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # CHANGE THIS!
-aurora_engine_version       = "15.4"
-aurora_instance_class       = "db.r6g.large"
+aurora_engine_version       = "15.8"
+aurora_instance_class       = "db.r6g.4xlarge"
 aurora_instances            = 2  # Minimum 2 for HA
 db_backup_retention_period  = 7 
 db_backup_window           = "03:00-04:00"

@@ -163,12 +163,14 @@ output "service_discovery_service" {
 }
 
 # Monitoring Outputs
-output "cloudwatch_log_groups" {
-  description = "CloudWatch log groups"
-  value = {
-    ecs_tasks = aws_cloudwatch_log_group.iq_logs.name
-    aurora    = "/aws/rds/cluster/${aws_rds_cluster.iq_aurora_cluster.cluster_identifier}/postgresql"
-  }
+output "cloudwatch_log_group" {
+  description = "Unified CloudWatch log group for all IQ Server logs"
+  value       = aws_cloudwatch_log_group.iq_logs.name
+}
+
+output "aurora_log_group" {
+  description = "Aurora cluster log group"
+  value       = "/aws/rds/cluster/${aws_rds_cluster.iq_aurora_cluster.cluster_identifier}/postgresql"
 }
 
 # WAF Outputs (DISABLED)

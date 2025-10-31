@@ -46,19 +46,19 @@ variable "enable_nat_gateway" {
 variable "ecs_cpu" {
   description = "CPU units for ECS task (1024 = 1 vCPU)"
   type        = number
-  default     = 2048
+  default     = 8192
 }
 
 variable "ecs_memory" {
   description = "Memory for ECS task in MiB"
   type        = number
-  default     = 4096
+  default     = 32768
 }
 
 variable "ecs_memory_reservation" {
   description = "Soft memory limit for ECS task in MiB"
   type        = number
-  default     = 3072
+  default     = 24576
 }
 
 variable "enable_container_insights" {
@@ -71,7 +71,7 @@ variable "enable_container_insights" {
 variable "iq_desired_count" {
   description = "Desired number of IQ Server tasks (HA requires minimum 2)"
   type        = number
-  default     = 2
+  default     = 3
 
   validation {
     condition     = var.iq_desired_count >= 2
@@ -93,7 +93,7 @@ variable "iq_min_count" {
 variable "iq_max_count" {
   description = "Maximum number of IQ Server tasks for auto scaling"
   type        = number
-  default     = 6
+  default     = 5
 }
 
 variable "iq_cpu_target_value" {
@@ -117,7 +117,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Database Variables (Aurora PostgreSQL for HA)
@@ -142,13 +142,13 @@ variable "db_password" {
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version"
   type        = string
-  default     = "15.4"
+  default     = "15.8"
 }
 
 variable "aurora_instance_class" {
   description = "Aurora instance class"
   type        = string
-  default     = "db.r6g.large"
+  default     = "db.r6g.4xlarge"
 }
 
 variable "aurora_instances" {
@@ -189,7 +189,7 @@ variable "db_skip_final_snapshot" {
 variable "db_deletion_protection" {
   description = "Enable deletion protection for database"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Load Balancer Variables
@@ -230,11 +230,29 @@ variable "log_retention_days" {
   default     = 30
 }
 
+variable "fluent_bit_image" {
+  description = "Fluent Bit Docker image (use custom image with IQ Server parsers)"
+  type        = string
+  default     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
+}
+
+variable "enable_log_archive" {
+  description = "Enable S3 archival of logs for compliance"
+  type        = bool
+  default     = false
+}
+
+variable "log_archive_retention_days" {
+  description = "Days to retain archived logs in S3 before deletion"
+  type        = number
+  default     = 2555  # 7 years for compliance
+}
+
 # Monitoring Variables
 variable "enable_prometheus" {
   description = "Enable Prometheus monitoring"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Tagging Variables

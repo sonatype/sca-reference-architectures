@@ -12,6 +12,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Disable AWS CLI pager to prevent interactive prompts
+export AWS_PAGER=""
+
 # Configuration
 AWS_PROFILE="admin@iq-sandbox"
 AWS_REGION="us-east-1"

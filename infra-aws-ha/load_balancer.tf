@@ -27,16 +27,17 @@ resource "aws_lb_target_group" "iq_tg" {
   vpc_id      = aws_vpc.iq_vpc.id
   target_type = "ip"
 
+  # ALB health check matching Kubernetes Ingress pattern
   health_check {
     enabled             = true
     healthy_threshold   = 2
     interval            = 30
-    matcher             = "200,302,303,404"
-    path                = "/"
+    matcher             = "200"
+    path                = "/ping"
     port                = "traffic-port"
     protocol            = "HTTP"
-    timeout             = 15
-    unhealthy_threshold = 5
+    timeout             = 5
+    unhealthy_threshold = 3
   }
 
   # Stickiness disabled - can interfere with file uploads

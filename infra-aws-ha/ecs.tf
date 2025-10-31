@@ -12,16 +12,6 @@ resource "aws_ecs_cluster" "iq_cluster" {
   })
 }
 
-# CloudWatch Log Group for ECS tasks
-resource "aws_cloudwatch_log_group" "iq_logs" {
-  name              = "/ecs/${var.cluster_name}/nexus-iq-server"
-  retention_in_days = var.log_retention_days
-
-  tags = merge(var.common_tags, {
-    Name = "${var.cluster_name}-iq-logs"
-  })
-}
-
 # ECS Task Definition for Nexus IQ Server HA
 resource "aws_ecs_task_definition" "iq_task" {
   family                   = "${var.cluster_name}-nexus-iq-server"
@@ -32,7 +22,7 @@ resource "aws_ecs_task_definition" "iq_task" {
   task_role_arn           = aws_iam_role.ecs_task_role.arn
   requires_compatibilities = ["FARGATE"]
 
-  container_definitions = jsonencode([
+  container_definitions = jsonencode(concat([
     {
       name         = "nexus-iq-server"
       image        = var.iq_docker_image
@@ -184,19 +174,26 @@ CONFIGEOF
         }
       ]
 
+      # Container stdout/stderr goes to application log group
+      # Fluent Bit will tail file-based logs and route them to unified log group
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
           "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "ecs"
+          "awslogs-stream-prefix" = "stdout"
         }
       }
 
+      # Enhanced health check matching Kubernetes approach
+      # Checks database, cluster directory, and work directory connectivity
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:8070/ || exit 1"]
+        command = [
+          "CMD-SHELL",
+          "curl -f http://localhost:8071/healthcheck/database && curl -f http://localhost:8071/healthcheck/clusterDirectory && curl -f http://localhost:8071/healthcheck/workDirectory || exit 1"
+        ]
         interval    = 30
-        timeout     = 5
+        timeout     = 10
         retries     = 3
         startPeriod = 120
       }
@@ -217,7 +214,102 @@ CONFIGEOF
       # Resource limits for HA deployment
       memoryReservation = var.ecs_memory_reservation
     }
-  ])
+  ],
+  # Fluent Bit sidecar for structured logging
+  [{
+    name      = "log_router"
+    image     = var.fluent_bit_image
+    essential = false  # Non-essential: task continues if Fluent Bit fails
+
+    # Write config from environment and run Fluent Bit
+    entryPoint = ["/bin/sh", "-c"]
+    command = [
+      <<-EOF
+        set -e
+        echo "Loading Fluent Bit configuration from environment"
+
+        # Create config directories
+        mkdir -p /fluent-bit/etc /fluent-bit/parsers /fluent-bit/state /var/log/nexus-iq-server/aggregated
+
+        # Write config from environment variable (loaded from SSM via ECS secrets)
+        echo "$FLUENT_BIT_CONFIG" > /fluent-bit/etc/fluent-bit.conf
+        echo "$FLUENT_BIT_PARSERS" > /fluent-bit/parsers/parsers.conf
+
+        echo "Configuration loaded successfully"
+        echo "Starting Fluent Bit..."
+
+        # Run Fluent Bit with fetched configuration
+        exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
+      EOF
+    ]
+
+    # Load configuration from SSM Parameter Store via ECS secrets
+    secrets = [
+      {
+        name      = "FLUENT_BIT_CONFIG"
+        valueFrom = aws_ssm_parameter.fluent_bit_config.arn
+      },
+      {
+        name      = "FLUENT_BIT_PARSERS"
+        valueFrom = aws_ssm_parameter.fluent_bit_parsers.arn
+      }
+    ]
+
+    environment = [
+      {
+        name  = "AWS_REGION"
+        value = var.aws_region
+      },
+      {
+        name  = "FLB_LOG_LEVEL"
+        value = "info"
+      },
+      {
+        name  = "CLUSTER_NAME"
+        value = var.cluster_name
+      }
+    ]
+
+    # Mount shared log volume (read-write for Fluent Bit to write aggregated logs)
+    mountPoints = [
+      {
+        sourceVolume  = "iq-logs"
+        containerPath = "/var/log/nexus-iq-server"
+        readOnly      = false  # Fluent Bit needs to write aggregated logs
+      }
+    ]
+
+    # Resource limits for Fluent Bit sidecar
+    cpu            = 256   # 0.25 vCPU
+    memory         = 512   # 512 MB
+    memoryReservation = 256
+
+    # Health check for Fluent Bit
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60
+    }
+
+    # Fluent Bit's own logs go to CloudWatch
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "fluent-bit"
+      }
+    }
+
+    # Start Fluent Bit after IQ Server is running
+    dependsOn = [{
+      containerName = "nexus-iq-server"
+      condition     = "START"
+    }]
+  }]
+  ))
 
   volume {
     name = "iq-data"
