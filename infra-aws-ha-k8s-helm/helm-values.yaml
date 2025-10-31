@@ -63,7 +63,7 @@ iq_server:
   serviceType: "ClusterIP"
 
   # Replica count - matching ECS HA setup (minimum 2 for HA)
-  replicaCount: 2
+  replicaCount: 3
 
   # HA Configuration matching ECS version - using Helm chart's config mechanism
   config:
