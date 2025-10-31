@@ -177,10 +177,15 @@ CONFIGEOF
         }
       }
 
+      # Enhanced health check matching Kubernetes approach
+      # Checks database, cluster directory, and work directory connectivity
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:8070/ || exit 1"]
+        command = [
+          "CMD-SHELL",
+          "curl -f http://localhost:8071/healthcheck/database && curl -f http://localhost:8071/healthcheck/workDirectory || exit 1"
+        ]
         interval    = 30
-        timeout     = 5
+        timeout     = 10
         retries     = 3
         startPeriod = 120
       }

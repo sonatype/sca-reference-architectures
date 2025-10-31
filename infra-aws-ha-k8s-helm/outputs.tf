@@ -183,34 +183,9 @@ output "helm_installation_command" {
 }
 
 # CloudWatch Logging Outputs
-output "cloudwatch_log_group_application" {
-  description = "CloudWatch log group for application logs"
-  value       = aws_cloudwatch_log_group.iq_logs_application.name
-}
-
-output "cloudwatch_log_group_request" {
-  description = "CloudWatch log group for request logs"
-  value       = aws_cloudwatch_log_group.iq_logs_request.name
-}
-
-output "cloudwatch_log_group_audit" {
-  description = "CloudWatch log group for audit logs"
-  value       = aws_cloudwatch_log_group.iq_logs_audit.name
-}
-
-output "cloudwatch_log_group_policy_violation" {
-  description = "CloudWatch log group for policy violation logs"
-  value       = aws_cloudwatch_log_group.iq_logs_policy_violation.name
-}
-
-output "cloudwatch_log_group_stderr" {
-  description = "CloudWatch log group for stderr logs"
-  value       = aws_cloudwatch_log_group.iq_logs_stderr.name
-}
-
-output "cloudwatch_log_group_fluentd" {
-  description = "CloudWatch log group for Fluentd logs"
-  value       = aws_cloudwatch_log_group.iq_logs_fluentd.name
+output "cloudwatch_log_group" {
+  description = "Name of the unified CloudWatch log group for all IQ Server logs"
+  value       = aws_cloudwatch_log_group.iq_logs.name
 }
 
 # IRSA Role ARN for Fluentd
