@@ -68,6 +68,35 @@ echo ""
 
 echo "🚀 Proceeding with deployment..."
 echo ""
+
+# Pre-deployment cleanup
+echo -e "${BLUE}🧹 Pre-deployment checks...${NC}"
+
+# Import existing CloudWatch log group if it exists
+echo "📋 Checking for existing CloudWatch log group..."
+CLUSTER_NAME=$(grep '^cluster_name' terraform.tfvars | cut -d'"' -f2 || echo "ref-arch-iq-ha-cluster")
+LOG_GROUP_NAME="/ecs/${CLUSTER_NAME}/nexus-iq-server"
+
+LOG_GROUP_EXISTS=$(aws-vault exec "$AWS_PROFILE" -- aws logs describe-log-groups \
+  --log-group-name-prefix "$LOG_GROUP_NAME" \
+  --region us-east-1 \
+  --query "logGroups[?logGroupName==\`$LOG_GROUP_NAME\`].logGroupName" \
+  --output text 2>/dev/null || echo "")
+
+if [[ -n "$LOG_GROUP_EXISTS" ]]; then
+  echo "• CloudWatch log group exists, checking if it's in Terraform state..."
+  if ! terraform state show aws_cloudwatch_log_group.iq_logs >/dev/null 2>&1; then
+    echo "• Importing existing log group into Terraform state..."
+    aws-vault exec "$AWS_PROFILE" -- terraform import aws_cloudwatch_log_group.iq_logs "$LOG_GROUP_NAME"
+    echo -e "${GREEN}✅ Log group imported successfully${NC}"
+  else
+    echo "• Log group already in Terraform state"
+  fi
+else
+  echo "• No existing log group found"
+fi
+
+echo ""
 echo -e "${BLUE}🏗️  Applying Terraform configuration...${NC}"
 echo "This may take 20-30 minutes to complete."
 echo ""

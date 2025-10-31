@@ -127,6 +127,27 @@ aws-vault exec "$AWS_PROFILE" -- aws secretsmanager delete-secret \
   --force-delete-without-recovery \
   --region us-east-1 >/dev/null 2>&1 || echo "• No existing secrets to clean up"
 
+# Import existing CloudWatch log group if it exists
+echo "📋 Checking for existing CloudWatch log group..."
+LOG_GROUP_EXISTS=$(aws-vault exec "$AWS_PROFILE" -- aws logs describe-log-groups \
+  --log-group-name-prefix "/eks/nexus-iq-ha/nexus-iq-server" \
+  --region us-east-1 \
+  --query 'logGroups[?logGroupName==`/eks/nexus-iq-ha/nexus-iq-server`].logGroupName' \
+  --output text 2>/dev/null || echo "")
+
+if [[ -n "$LOG_GROUP_EXISTS" ]]; then
+  echo "• CloudWatch log group exists, checking if it's in Terraform state..."
+  if ! terraform state show aws_cloudwatch_log_group.iq_logs >/dev/null 2>&1; then
+    echo "• Importing existing log group into Terraform state..."
+    aws-vault exec "$AWS_PROFILE" -- terraform import aws_cloudwatch_log_group.iq_logs /eks/nexus-iq-ha/nexus-iq-server
+    echo -e "${GREEN}✅ Log group imported successfully${NC}"
+  else
+    echo "• Log group already in Terraform state"
+  fi
+else
+  echo "• No existing log group found"
+fi
+
 # Wait a moment for changes to propagate
 echo "• Waiting for changes to propagate..."
 sleep 10
