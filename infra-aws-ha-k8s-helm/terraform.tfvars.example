@@ -10,7 +10,7 @@ vpc_cidr     = "10.0.0.0/16"
 kubernetes_version       = "1.27"
 node_instance_type      = "m5.large"
 node_group_min_size     = 2
-node_group_max_size     = 6
+node_group_max_size     = 5
 node_group_desired_size = 3
 node_disk_size          = 50
 
