@@ -11,20 +11,20 @@ private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
  
 # ECS Configuration
-ecs_cpu           = 2048
-ecs_memory        = 4096
+ecs_cpu           = 8192  # 8 vCPU
+ecs_memory        = 32768 # 32 GB
 iq_desired_count  = 1 # Single instance (recommended)
 iq_docker_image   = "sonatype/nexus-iq-server:latest"
-java_opts         = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # Database Configuration
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class           = "db.t3.medium"
-db_allocated_storage        = 100 
+db_instance_class           = "db.r6g.4xlarge"
+db_allocated_storage        = 500
 db_max_allocated_storage    = 1000
-postgres_version            = "15"
+postgres_version            = "15.8"
 db_backup_retention_period  = 7 
 db_backup_window           = "03:00-04:00"
 db_maintenance_window      = "sun:04:00-sun:05:00"

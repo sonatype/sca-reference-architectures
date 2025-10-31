@@ -26,13 +26,13 @@ variable "vpc_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.27"
+  default     = "1.30"
 }
 
 variable "node_instance_type" {
   description = "EC2 instance type for EKS worker nodes"
   type        = string
-  default     = "m5.large"
+  default     = "m5d.2xlarge"
 }
 
 variable "node_group_min_size" {
@@ -44,7 +44,7 @@ variable "node_group_min_size" {
 variable "node_group_max_size" {
   description = "Maximum number of nodes in EKS node group"
   type        = number
-  default     = 6
+  default     = 5
 }
 
 variable "node_group_desired_size" {
@@ -63,13 +63,13 @@ variable "node_disk_size" {
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version"
   type        = string
-  default     = "15.4"
+  default     = "15.8"
 }
 
 variable "aurora_instance_class" {
   description = "Instance class for Aurora PostgreSQL"
   type        = string
-  default     = "db.r6g.large"
+  default     = "db.r6g.4xlarge"
 }
 
 variable "aurora_instance_count" {
@@ -111,7 +111,7 @@ variable "skip_final_snapshot" {
 variable "deletion_protection" {
   description = "Enable deletion protection for RDS cluster"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # EFS Configuration
@@ -144,7 +144,7 @@ variable "nexus_iq_admin_password" {
 variable "nexus_iq_replica_count" {
   description = "Number of Nexus IQ Server replicas for high availability"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "nexus_iq_memory_request" {
@@ -238,7 +238,7 @@ variable "hpa_min_replicas" {
 variable "hpa_max_replicas" {
   description = "Maximum replicas for HPA"
   type        = number
-  default     = 10
+  default     = 5
 }
 
 variable "hpa_target_cpu_utilization" {
@@ -251,4 +251,10 @@ variable "hpa_target_memory_utilization" {
   description = "Target memory utilization percentage for HPA"
   type        = number
   default     = 80
+}
+# Logging Configuration
+variable "log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 7
 }

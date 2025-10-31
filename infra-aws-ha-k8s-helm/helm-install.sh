@@ -257,28 +257,76 @@ echo -e "${GREEN}✅ Helm repository ready${NC}"
 echo ""
 
 # Create temporary values file with substituted variables
-echo -e "${BLUE}⚙️  Preparing Helm values...${NC}"
+echo -e "${BLUE}⚙️  Preparing Helm values from Terraform outputs...${NC}"
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-# Get database password from terraform
-DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+# Get infrastructure details from Terraform outputs
+DB_NAME=$($TERRAFORM_PREFIX terraform output -raw rds_cluster_database_name 2>/dev/null)
+DB_PORT=$($TERRAFORM_PREFIX terraform output -raw rds_cluster_port 2>/dev/null)
 
-# Substitute runtime values - both database config and environment variables
+# Get database credentials from AWS Secrets Manager (consistent with other deployments)
+SECRET_NAME=$($TERRAFORM_PREFIX terraform output -raw secrets_manager_secret_name 2>/dev/null)
+if [[ -n "$SECRET_NAME" ]]; then
+    echo "• Retrieving database credentials from AWS Secrets Manager..."
+    SECRET_JSON=$(aws-vault exec "$AWS_PROFILE" -- aws secretsmanager get-secret-value \
+        --secret-id "$SECRET_NAME" \
+        --query 'SecretString' \
+        --output text \
+        --region "$AWS_REGION" 2>/dev/null)
+
+    # Parse JSON to get username and password
+    DB_USERNAME=$(echo "$SECRET_JSON" | jq -r '.username')
+    DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.password')
+else
+    echo -e "${YELLOW}⚠️  Secrets Manager secret not found, falling back to terraform.tfvars${NC}"
+    DB_USERNAME=$(grep '^database_username' terraform.tfvars | cut -d'"' -f2)
+    DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+fi
+
+echo "• Database endpoint: $DB_ENDPOINT"
+echo "• Database name: $DB_NAME"
+echo "• Database username: $DB_USERNAME"
+echo "• Database port: $DB_PORT"
+echo "• AWS region: $AWS_REGION"
+
+# Get IRSA role ARN for Fluentd CloudWatch logging
+FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_role_arn 2>/dev/null)
+if [[ -n "$FLUENTD_IRSA_ROLE_ARN" ]]; then
+    echo "• Fluentd IRSA Role: $FLUENTD_IRSA_ROLE_ARN"
+else
+    echo -e "${YELLOW}⚠️  Warning: Fluentd IRSA role not found, CloudWatch logging may not work${NC}"
+fi
+echo ""
+
+# Get replica count from terraform.tfvars
+REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
+echo "• Replica count: $REPLICA_COUNT"
+
+# Substitute runtime values from Terraform outputs
 sed -i.bak \
     -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
     -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+    -e "s/username: \"nexusiq\"/username: \"$DB_USERNAME\"/" \
+    -e "s/name: \"nexusiq\"/name: \"$DB_NAME\"/" \
+    -e "s/port: 5432/port: $DB_PORT/" \
     -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
+    -e "s|eks.amazonaws.com/role-arn: \"\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
     -e "s/value: \"\"  # Will be set by script/value: \"$DB_ENDPOINT\"/g" \
+    -e "s/replicaCount: [0-9]*/replicaCount: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
-# Second pass for DB_PASSWORD (more complex pattern)
-sed -i \
+# Update environment variables for DB_HOSTNAME and DB_PASSWORD
+sed -i '' \
+    -e "/name: DB_HOSTNAME/{n;s/value: \"\"/value: \"$DB_ENDPOINT\"/;}" \
     -e "/name: DB_PASSWORD/{n;s/value: \"\"/value: \"$DB_PASSWORD\"/;}" \
+    -e "/name: DB_USERNAME/{n;s/value: \"nexusiq\"/value: \"$DB_USERNAME\"/;}" \
+    -e "/name: DB_NAME/{n;s/value: \"nexusiq\"/value: \"$DB_NAME\"/;}" \
+    -e "/name: DB_PORT/{n;s/value: \"5432\"/value: \"$DB_PORT\"/;}" \
     "$TEMP_VALUES_FILE"
 
-echo -e "${GREEN}✅ Helm values prepared${NC}"
+echo -e "${GREEN}✅ Helm values prepared from Terraform infrastructure${NC}"
 echo ""
 
 # Check if release already exists
@@ -317,10 +365,10 @@ echo "• ServiceAccount will be created by Helm..."
 echo -e "${GREEN}✅ Pre-installation checks passed${NC}"
 echo ""
 
-# Get chart version
+# Get chart version from terraform.tfvars
 CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2)
 
-echo -e "${BLUE}🚀 Installing Helm chart (version: $CHART_VERSION)...${NC}"
+echo -e "${BLUE}🚀 Installing Helm chart from remote repository (version: $CHART_VERSION)...${NC}"
 $HELM_PREFIX helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --create-namespace \

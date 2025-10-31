@@ -35,19 +35,19 @@ variable "db_subnet_cidrs" {
 variable "ecs_cpu" {
   description = "CPU units for ECS task (1024 = 1 vCPU)"
   type        = number
-  default     = 2048
+  default     = 8192
 }
 
 variable "ecs_memory" {
   description = "Memory for ECS task in MiB"
   type        = number
-  default     = 4096
+  default     = 32768
 }
 
 variable "iq_desired_count" {
   description = "Desired number of ECS tasks"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "iq_docker_image" {
@@ -59,7 +59,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Database Variables
@@ -84,13 +84,13 @@ variable "db_password" {
 variable "db_instance_class" {
   description = "RDS instance class"
   type        = string
-  default     = "db.t3.medium"
+  default     = "db.r6g.4xlarge"
 }
 
 variable "db_allocated_storage" {
   description = "Initial allocated storage for RDS in GB"
   type        = number
-  default     = 100
+  default     = 500
 }
 
 variable "db_max_allocated_storage" {
@@ -102,7 +102,7 @@ variable "db_max_allocated_storage" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "15.4"
+  default     = "15.8"
 }
 
 variable "db_backup_retention_period" {
@@ -126,13 +126,13 @@ variable "db_maintenance_window" {
 variable "db_skip_final_snapshot" {
   description = "Skip final snapshot when deleting database"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "db_deletion_protection" {
   description = "Enable deletion protection for database"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Load Balancer Variables
@@ -153,4 +153,23 @@ variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
   default     = 30
+}
+
+variable "fluent_bit_image" {
+  description = "Fluent Bit Docker image (use custom image with IQ Server parsers)"
+  type        = string
+  default     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
+  # After building custom image: "YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/nexus-iq-fluent-bit:latest"
+}
+
+variable "enable_log_archive" {
+  description = "Enable S3 archival of logs for compliance"
+  type        = bool
+  default     = false
+}
+
+variable "log_archive_retention_days" {
+  description = "Days to retain archived logs in S3 before deletion"
+  type        = number
+  default     = 2555  # 7 years for compliance
 }
