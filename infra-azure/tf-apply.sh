@@ -105,19 +105,22 @@ is_in_state() {
     terraform state show "$terraform_address" >/dev/null 2>&1
 }
 
-# Function to import a single resource in background
-import_resource_async() {
+# Function to import a single resource synchronously (with visible output)
+import_resource_sync() {
     local terraform_address="$1"
     local azure_id="$2"
-    local temp_file="$3"
 
     if is_in_state "$terraform_address"; then
-        echo "SKIP:$terraform_address:already in state" >> "$temp_file"
+        echo -e "${BLUE}ℹ️  Skipped: $terraform_address (already in state)${NC}"
+        return 0
     else
-        if terraform import "$terraform_address" "$azure_id" >/dev/null 2>&1; then
-            echo "SUCCESS:$terraform_address:imported" >> "$temp_file"
+        echo -e "${YELLOW}📥 Importing: $terraform_address${NC}"
+        if terraform import "$terraform_address" "$azure_id" 2>&1 | grep -q "Import successful\|Resource already managed"; then
+            echo -e "${GREEN}✅ Imported: $terraform_address${NC}"
+            return 0
         else
-            echo "SKIP:$terraform_address:doesn't exist" >> "$temp_file"
+            echo -e "${BLUE}ℹ️  Skipped: $terraform_address (doesn't exist in Azure)${NC}"
+            return 1
         fi
     fi
 }
@@ -127,60 +130,93 @@ import_all_resources() {
     echo -e "${BLUE}📥 Fast parallel resource import...${NC}"
     echo ""
 
-    # Critical resources that commonly cause import issues (prioritized list)
+    # Get current subscription ID dynamically
+    local SUBSCRIPTION_ID=$(az account show --query id -o tsv 2>/dev/null)
+
+    # Dynamically discover resource names from Azure if the resource group exists
+    local STORAGE_ACCOUNT=""
+    local KEY_VAULT=""
+
+    if az group show --name rg-ref-arch-iq &>/dev/null; then
+        STORAGE_ACCOUNT=$(az storage account list --resource-group rg-ref-arch-iq --query "[?starts_with(name, 'strefarchiq')].name" -o tsv 2>/dev/null | head -1)
+        KEY_VAULT=$(az keyvault list --resource-group rg-ref-arch-iq --query "[?starts_with(name, 'kv-ref-arch-iq')].name" -o tsv 2>/dev/null | head -1)
+    fi
+
+    # Comprehensive resource list - ALL resources that may exist
     local critical_resources=(
-        "azurerm_resource_group.iq_rg:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq"
-        "azurerm_application_gateway.iq_app_gateway:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/applicationGateways/appgw-ref-arch-iq"
-        "azurerm_container_app.iq_app:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/containerApps/ca-ref-arch-iq"
-        "azurerm_container_app_environment.iq_env:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/managedEnvironments/cae-ref-arch-iq"
-        "azurerm_virtual_network.iq_vnet:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq"
-        "azurerm_public_ip.app_gateway_pip:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/publicIPAddresses/pip-ref-arch-iq-appgw"
-        "azurerm_storage_account.iq_storage:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Storage/storageAccounts/strefarchiqmg73kk"
-        "azurerm_postgresql_flexible_server.iq_db:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-ref-arch-iq"
-        "azurerm_log_analytics_workspace.iq_logs:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.OperationalInsights/workspaces/log-ref-arch-iq"
-        "azurerm_key_vault.iq_kv:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq/providers/Microsoft.KeyVault/vaults/kv-ref-arch-iq-768w0o"
+        # Core infrastructure
+        "azurerm_resource_group.iq_rg:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq"
+
+        # Logging & Monitoring
+        "azurerm_log_analytics_workspace.iq_logs:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.OperationalInsights/workspaces/log-ref-arch-iq"
+        "azurerm_application_insights.iq_insights[0]:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Insights/components/appi-ref-arch-iq"
+
+        # Networking - VNet and Subnets
+        "azurerm_virtual_network.iq_vnet:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq"
+        "azurerm_subnet.public_subnet:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq/subnets/snet-public"
+        "azurerm_subnet.private_subnet:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq/subnets/snet-private"
+        "azurerm_subnet.db_subnet:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq/subnets/snet-database"
+
+        # Network Security Groups
+        "azurerm_network_security_group.public_nsg:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/networkSecurityGroups/nsg-public"
+        "azurerm_network_security_group.private_nsg:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/networkSecurityGroups/nsg-private"
+        "azurerm_network_security_group.db_nsg:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/networkSecurityGroups/nsg-database"
+
+        # NSG Associations (use subnet ID as the import ID)
+        "azurerm_subnet_network_security_group_association.public_nsg_association:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq/subnets/snet-public"
+        "azurerm_subnet_network_security_group_association.private_nsg_association:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq/subnets/snet-private"
+        "azurerm_subnet_network_security_group_association.db_nsg_association:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq/subnets/snet-database"
+
+        # Public IP
+        "azurerm_public_ip.app_gateway_pip:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/publicIPAddresses/pip-ref-arch-iq-appgw"
+
+        # Private DNS
+        "azurerm_private_dns_zone.iq_db_dns:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/privateDnsZones/privatelink.postgres.database.azure.com"
+        "azurerm_private_dns_zone_virtual_network_link.iq_db_dns_link:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/privateDnsZones/privatelink.postgres.database.azure.com/virtualNetworkLinks/vnetlink-ref-arch-iq-db"
+
+        # Application Gateway
+        "azurerm_application_gateway.iq_app_gateway:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Network/applicationGateways/appgw-ref-arch-iq"
+
+        # Container Apps
+        "azurerm_container_app_environment.iq_env:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/managedEnvironments/cae-ref-arch-iq"
+        "azurerm_container_app.iq_app:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.App/containerApps/ca-ref-arch-iq"
+
+        # Database
+        "azurerm_postgresql_flexible_server.iq_db:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-ref-arch-iq"
+        "azurerm_postgresql_flexible_server_database.iq_database:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-ref-arch-iq/databases/nexusiq"
     )
 
-    # Create temporary file for results
-    local temp_file=$(mktemp)
-    local pids=()
+    # Add storage account if found
+    if [[ -n "$STORAGE_ACCOUNT" ]]; then
+        critical_resources+=("azurerm_storage_account.iq_storage:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.Storage/storageAccounts/${STORAGE_ACCOUNT}")
+    fi
 
-    echo -e "${YELLOW}🚀 Launching parallel imports...${NC}"
+    # Add key vault if found
+    if [[ -n "$KEY_VAULT" ]]; then
+        critical_resources+=("azurerm_key_vault.iq_kv:/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/rg-ref-arch-iq/providers/Microsoft.KeyVault/vaults/${KEY_VAULT}")
+    fi
 
-    # Launch all imports in parallel
+    echo -e "${YELLOW}🚀 Starting sequential imports...${NC}"
+    echo ""
+
+    local imported_count=0
+    local skipped_count=0
+
+    # Import resources sequentially with visible output
     for resource in "${critical_resources[@]}"; do
         local terraform_address="${resource%%:*}"
         local azure_id="${resource#*:}"
 
-        import_resource_async "$terraform_address" "$azure_id" "$temp_file" &
-        pids+=($!)
-    done
-
-    # Wait for all background processes to complete
-    echo -e "${BLUE}⏳ Waiting for imports to complete...${NC}"
-    for pid in "${pids[@]}"; do
-        wait "$pid"
-    done
-
-    # Process results
-    local imported_count=0
-    local skipped_count=0
-
-    while IFS=':' read -r status terraform_address reason; do
-        case "$status" in
-            "SUCCESS")
-                echo -e "${GREEN}✅ Imported: $terraform_address${NC}"
+        if import_resource_sync "$terraform_address" "$azure_id"; then
+            if is_in_state "$terraform_address"; then
                 imported_count=$((imported_count + 1))
-                ;;
-            "SKIP")
-                echo -e "${BLUE}ℹ️  Skipped: $terraform_address ($reason)${NC}"
+            else
                 skipped_count=$((skipped_count + 1))
-                ;;
-        esac
-    done < "$temp_file"
-
-    # Cleanup
-    rm -f "$temp_file"
+            fi
+        else
+            skipped_count=$((skipped_count + 1))
+        fi
+    done
 
     echo ""
     echo -e "${GREEN}📊 Import Summary: $imported_count imported, $skipped_count skipped${NC}"
@@ -193,6 +229,16 @@ echo ""
 
 # First, import everything that might exist
 import_all_resources
+
+# After imports, regenerate the plan since state may have changed
+echo -e "${BLUE}📋 Regenerating plan after imports...${NC}"
+if terraform plan -out=tfplan; then
+    echo -e "${GREEN}✅ Plan regenerated${NC}"
+    echo ""
+else
+    echo -e "${RED}❌ Failed to regenerate plan${NC}"
+    exit 1
+fi
 
 # Then run terraform apply (simplified, no import error handling needed)
 if terraform apply -auto-approve tfplan; then

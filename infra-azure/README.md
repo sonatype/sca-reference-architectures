@@ -6,7 +6,7 @@ This directory contains Terraform configuration for deploying Nexus IQ Server on
 
 This infrastructure deploys a complete, production-ready Nexus IQ Server environment including:
 
-- **Azure Container Apps** - Serverless containerized Nexus IQ Server deployment
+- **Azure Container Apps (Workload Profiles)** - Containerized Nexus IQ Server with dedicated capacity
 - **Application Gateway** - HTTP load balancer with health checks and SSL termination
 - **PostgreSQL Flexible Server** - Managed database with encryption and automated backups
 - **Azure File Share** - Shared persistent storage for Nexus IQ data with proper access controls
@@ -15,6 +15,18 @@ This infrastructure deploys a complete, production-ready Nexus IQ Server environ
 - **Managed Identity** - Service-specific permissions following Azure best practices
 - **Log Analytics** - Centralized logging for monitoring and troubleshooting
 - **Key Vault** - Secure database credential storage
+
+### Why Workload Profiles?
+
+This deployment uses **Azure Container Apps with Workload Profiles**:
+
+**Benefits:**
+- ✅ **Higher Resource Limits**: Up to 4.0 vCPU / 8.0 Gi per container
+- ✅ **Better Performance**: Dedicated capacity ensures consistent performance
+- ✅ **Cost-Effective for 24/7 Workloads**: More economical for always-on services like IQ Server
+- ✅ **Production-Ready**: Designed for production workloads with predictable capacity
+
+Workload profiles provide the dedicated resources and performance characteristics required for production Nexus IQ Server deployments.
 
 ```
 Internet
@@ -111,15 +123,17 @@ private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
-container_cpu      = 2.0           # 2.0 vCPU
-container_memory   = "4Gi"         # 4GB RAM
-iq_docker_image    = "sonatype/nexus-iq-server:latest"  # Official Sonatype image
+container_cpu      = 4.0           # 4.0 vCPU
+container_memory   = "8Gi"         # 8GB RAM
+iq_docker_image    = "sonatype/nexus-iq-server:latest"
+java_opts          = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "YourSecurePassword123!"  # Change this!
-db_sku_name                      = "B_Standard_B2s"
+db_sku_name                      = "GP_Standard_D4s_v3"  # Production-grade SKU
+db_storage_mb                    = 131072                # 128GB storage
 postgres_version                 = "15"
 ```
 
@@ -334,9 +348,17 @@ infra-azure/
 
 ### Resource Limits
 
-- **Container App**: Limited to 1 replica (Nexus IQ requirement)
-- **Database**: Uses B_Standard_B2s SKU for cost efficiency
-- **Storage**: Azure File Share provides scalable storage
+#### Azure Container Apps Platform Limits
+
+- **Maximum per container**: 4.0 vCPUs / 8.0 Gi memory
+- **Reference**: [Azure Container Apps Containers Documentation](https://learn.microsoft.com/en-us/azure/container-apps/containers)
+
+#### Deployment Limits
+
+- **Container App**: Limited to 1 replica (Nexus IQ single instance requirement)
+- **Container Resources**: 4.0 vCPU / 8.0 Gi RAM (workload profiles maximum)
+- **Database**: Uses GP_Standard_D4s_v3 SKU for production workloads (4 vCores, 16GB RAM)
+- **Storage**: Azure File Share provides 500GB scalable storage
 
 ## Cleanup
 

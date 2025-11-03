@@ -2,7 +2,7 @@
 # cp terraform.tfvars.example terraform.tfvars
 
 # General Configuration
-azure_region = "East US"
+azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
 
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
@@ -11,22 +11,22 @@ private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
-container_cpu    = 2.0
-container_memory = "4Gi"
+container_cpu    = 4.0
+container_memory = "8Gi"
 iq_docker_image  = "sonatype/nexus-iq-server:latest"
-java_opts        = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts        = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
-db_name                             = "nexusiq"
-db_username                         = "nexusiq"
-db_password                         = "YourSecurePassword123!"  # Change this!
-postgres_version                    = "15"
-db_sku_name                        = "B_Standard_B2s"
-db_storage_mb                   = 32768
-db_auto_grow_enabled               = true
-db_backup_retention_days           = 7
-db_geo_redundant_backup_enabled    = false
-db_high_availability_enabled       = false
+db_name                          = "nexusiq"
+db_username                      = "nexusiq"
+db_password                      = "YourSecurePassword123!"  # Change this!
+postgres_version                 = "15"
+db_sku_name                      = "GP_Standard_D4s_v3"
+db_storage_mb                    = 131072
+db_auto_grow_enabled             = true
+db_backup_retention_days         = 7
+db_geo_redundant_backup_enabled  = false
+db_high_availability_enabled     = false
 
 # Application Gateway Configuration
 app_gateway_sku_name    = "Standard_v2"
@@ -40,7 +40,7 @@ app_gateway_capacity    = 2
 # Storage Configuration
 storage_account_tier             = "Standard"
 storage_account_replication_type = "LRS"
-file_share_quota                 = 100
+file_share_quota                 = 500
 
 # Monitoring Configuration
 log_retention_days = 30

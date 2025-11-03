@@ -58,7 +58,10 @@ resource "azurerm_postgresql_flexible_server" "iq_db" {
     Name = "psql-ref-arch-iq"
   }
 
-  depends_on = [azurerm_private_dns_zone_virtual_network_link.iq_db_dns_link]
+  depends_on = [
+    azurerm_subnet_network_security_group_association.db_nsg_association,
+    azurerm_private_dns_zone_virtual_network_link.iq_db_dns_link
+  ]
 }
 
 # PostgreSQL Database

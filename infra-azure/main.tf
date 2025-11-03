@@ -57,6 +57,14 @@ resource "azurerm_subnet" "private_subnet" {
   address_prefixes     = [var.private_subnet_cidr]
 
   service_endpoints = ["Microsoft.KeyVault", "Microsoft.Storage"]
+
+  delegation {
+    name = "containerapp-delegation"
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+    }
+  }
 }
 
 # Database Subnet (for PostgreSQL Flexible Server)
