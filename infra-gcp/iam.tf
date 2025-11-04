@@ -1,16 +1,8 @@
-# Service Account for Cloud Run Nexus IQ Service (equivalent to AWS ECS task role)
+# Service Account for GCE Nexus IQ Service (equivalent to AWS EC2 instance role)
 resource "google_service_account" "iq_service" {
   account_id   = "nexus-iq-service"
   display_name = "Nexus IQ Server Service Account"
-  description  = "Service account for Nexus IQ Server Cloud Run service"
-  project      = var.gcp_project_id
-}
-
-# Service Account for Load Balancer (equivalent to AWS ALB service role)
-resource "google_service_account" "iq_load_balancer" {
-  account_id   = "nexus-iq-lb"
-  display_name = "Nexus IQ Load Balancer Service Account"
-  description  = "Service account for Nexus IQ Load Balancer"
+  description  = "Service account for Nexus IQ Server GCE instances"
   project      = var.gcp_project_id
 }
 
@@ -24,48 +16,39 @@ resource "google_service_account" "iq_database" {
 
 # IAM Policy Bindings for IQ Service Account
 
-# Allow Cloud Run service to access Cloud SQL
+# Allow GCE instances to access Cloud SQL
 resource "google_project_iam_member" "iq_service_sql_client" {
   project = var.gcp_project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.iq_service.email}"
 }
 
-# Allow Cloud Run service to access Secret Manager
+# Allow GCE instances to access Secret Manager
 resource "google_project_iam_member" "iq_service_secret_accessor" {
   project = var.gcp_project_id
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_service_account.iq_service.email}"
 }
 
-# Allow Cloud Run service to write logs
+# Allow GCE instances to write logs
 resource "google_project_iam_member" "iq_service_log_writer" {
   project = var.gcp_project_id
   role    = "roles/logging.logWriter"
   member  = "serviceAccount:${google_service_account.iq_service.email}"
 }
 
-# Allow Cloud Run service to access Filestore
+# Allow GCE instances to access Filestore
 resource "google_project_iam_member" "iq_service_filestore_editor" {
   project = var.gcp_project_id
   role    = "roles/file.editor"
   member  = "serviceAccount:${google_service_account.iq_service.email}"
 }
 
-# IAM Policy Bindings for Load Balancer Service Account
-
-# Allow Load Balancer to access Cloud Run services  
-resource "google_project_iam_member" "lb_service_invoker" {
+# Allow GCE instances to write metrics
+resource "google_project_iam_member" "iq_service_metric_writer" {
   project = var.gcp_project_id
-  role    = "roles/run.invoker"
-  member  = "serviceAccount:${google_service_account.iq_load_balancer.email}"
-}
-
-# Allow Load Balancer to write logs
-resource "google_project_iam_member" "lb_log_writer" {
-  project = var.gcp_project_id
-  role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.iq_load_balancer.email}"
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.iq_service.email}"
 }
 
 # IAM Policy Bindings for Database Service Account
@@ -83,4 +66,3 @@ resource "google_project_iam_member" "db_monitoring_writer" {
   role    = "roles/monitoring.metricWriter"
   member  = "serviceAccount:${google_service_account.iq_database.email}"
 }
-

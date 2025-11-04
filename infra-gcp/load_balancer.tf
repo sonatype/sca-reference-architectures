@@ -20,7 +20,7 @@ resource "google_compute_managed_ssl_certificate" "iq_ssl_cert" {
 }
 
 
-# Backend service for Cloud Run (Single instance)
+# Backend service for GCE instance group
 resource "google_compute_backend_service" "iq_backend" {
   name                            = "nexus-iq-backend"
   project                         = var.gcp_project_id
@@ -29,12 +29,13 @@ resource "google_compute_backend_service" "iq_backend" {
   timeout_sec                     = 30
   enable_cdn                      = false
   connection_draining_timeout_sec = 60
+  health_checks                   = [google_compute_health_check.iq_lb_health_check.id]
 
   backend {
-    group = google_compute_region_network_endpoint_group.iq_neg.id
+    group           = google_compute_instance_group.iq_group.self_link
+    balancing_mode  = "UTILIZATION"
+    capacity_scaler = 1.0
   }
-
-  # Health checks not supported for serverless backends
 
   log_config {
     enable      = true
@@ -44,22 +45,19 @@ resource "google_compute_backend_service" "iq_backend" {
   depends_on = [google_project_service.required_apis]
 }
 
+# Health Check for Load Balancer
+resource "google_compute_health_check" "iq_lb_health_check" {
+  name                = "nexus-iq-lb-health-check"
+  project             = var.gcp_project_id
+  check_interval_sec  = 10
+  timeout_sec         = 5
+  healthy_threshold   = 2
+  unhealthy_threshold = 3
 
-# Network Endpoint Group for Cloud Run (Single instance)
-resource "google_compute_region_network_endpoint_group" "iq_neg" {
-  name                  = "nexus-iq-neg"
-  network_endpoint_type = "SERVERLESS"
-  region                = var.gcp_region
-  project               = var.gcp_project_id
-
-  cloud_run {
-    service = google_cloud_run_service.iq_service.name
+  tcp_health_check {
+    port = 8070
   }
 }
-
-
-# Health check not needed for serverless backends (Cloud Run)
-# Cloud Run manages its own health checking internally
 
 
 # URL Map for routing

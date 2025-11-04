@@ -1,370 +1,461 @@
-# Nexus IQ Server - GCP Cloud Native Infrastructure
+# Nexus IQ Server - GCP Single Instance (Docker)
 
-This repository contains Terraform infrastructure code to deploy Sonatype Nexus IQ Server on Google Cloud Platform using cloud-native services. The infrastructure provides a robust single-instance deployment optimized for performance and cost-effectiveness.
+This Terraform configuration deploys Nexus IQ Server on Google Cloud Platform (GCP) using **GCE with Docker containers** in a single-instance architecture.
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
-This infrastructure translates the AWS ECS-based reference architecture to GCP native services:
+This implementation deploys Nexus IQ Server using **Docker containers on GCE**, providing easier version management and consistent deployments:
 
-- **Cloud Run** (replaces ECS Fargate) - Serverless container platform
-- **Cloud SQL PostgreSQL** (replaces RDS) - Managed database with backup and recovery
-- **Cloud Filestore** (replaces EFS) - Managed NFS for persistent storage
-- **Global Load Balancer** (replaces ALB) - Global load balancing with SSL
-- **Cloud Armor** - WAF protection and DDoS mitigation
-- **Cloud Monitoring & Logging** - Comprehensive observability
-
-## 📋 Prerequisites
-
-### Required Tools
-- **Terraform** >= 1.0
-- **gcloud CLI** - Google Cloud SDK
-- **jq** - JSON processor
-- **curl** - HTTP client
-
-### GCP Requirements
-- GCP Project with billing enabled
-- Required APIs will be enabled automatically
-- Appropriate IAM permissions for resource creation
-
-### Installation Commands
-```bash
-# Install Terraform (macOS)
-brew install terraform
-
-# Install gcloud CLI
-curl https://sdk.cloud.google.com | bash
-
-# Install jq
-brew install jq  # macOS
-sudo apt-get install jq  # Ubuntu
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Global Load Balancer                      │
+│                  (HTTP/HTTPS - Port 80/443)                  │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                   ┌─────────▼──────────┐
+                   │   Instance Group   │
+                   └─────────┬──────────┘
+                             │
+        ┌────────────────────▼────────────────────┐
+        │   GCE Instance (e2-standard-8)         │
+        │   ┌──────────────────────────────┐     │
+        │   │  Docker Container            │     │
+        │   │  sonatype/nexus-iq-server    │     │
+        │   │  Ports: 8070, 8071           │     │
+        │   └──────────────────────────────┘     │
+        │   Debian 12 + Docker Engine            │
+        └──┬────────────────────────────────┬────┘
+           │                                │
+  ┌────────▼─────────┐          ┌──────────▼────────┐
+  │  Cloud Filestore │          │  Cloud SQL        │
+  │  (NFS - 2.5TB)   │          │  PostgreSQL 17    │
+  │  /sonatype-work  │          │  ENTERPRISE_PLUS  │
+  │  /logs           │          │  8 vCPU           │
+  └──────────────────┘          └───────────────────┘
 ```
 
-## 🚀 Quick Start
+### Components:
 
-### 1. Authentication Setup
+- **Compute**: GCE e2-standard-8 (8 vCPU, 32 GB RAM) running Docker
+- **Container**: Official `sonatype/nexus-iq-server:latest` from Docker Hub
+- **Database**: Cloud SQL PostgreSQL 17 (db-perf-optimized-N-8)
+- **Storage**: Cloud Filestore BASIC_SSD (2.5 TB) mounted via NFS
+- **Load Balancer**: Global HTTP(S) Load Balancer with health checks
+- **Network**: Custom VPC with private subnets and Cloud NAT
+
+## Key Differences from Native Installation
+
+| Feature | Native (infra-gcp) | Docker (infra-gcp-docker) |
+|---------|-------------------|---------------------------|
+| Runtime | Binary installation | Docker container |
+| Version management | Download specific version | Docker image tag |
+| Updates | Manual re-download | Pull new image |
+| Startup | systemd service | Docker container |
+| Dependencies | Requires OpenJDK 17 | Bundled in image |
+
+## Prerequisites
+
+1. **GCP Account** with appropriate permissions
+2. **Terraform** >= 1.0 installed
+3. **gcloud CLI** configured
+4. **GCP Project** with billing enabled
+5. **APIs Enabled**:
+   - Compute Engine API
+   - Cloud SQL Admin API
+   - Cloud Filestore API
+   - Secret Manager API
+   - Service Networking API
+
+## Quick Start
+
+### 1. Clone and Configure
+
 ```bash
-# Authenticate with GCP
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
-
-# Enable Application Default Credentials
-gcloud auth application-default login
+cd infra-gcp-docker
+cp terraform.tfvars.example terraform.tfvars
 ```
 
-### 2. Configuration
-```bash
-cd infra-gcp
+### 2. Edit `terraform.tfvars`
 
-# Generate terraform.tfvars template
-./deploy.sh
+```hcl
+# Required variables
+gcp_project_id = "your-gcp-project-id"
+gcp_region     = "us-central1"
+db_password    = "YourSecurePassword123!"
 
-# Edit terraform.tfvars with your configuration
-# At minimum, set:
-# - gcp_project_id = "your-project-id"
-# - db_password = "secure-password-12-chars-minimum"
+# Docker configuration
+iq_docker_image = "sonatype/nexus-iq-server:latest"  # or specific version tag
+java_opts       = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 
-### 3. Deploy Infrastructure
-```bash
-# Deploy single-instance configuration
-./deploy.sh --project your-project-id
+### 3. Deploy
 
+```bash
+# Initialize Terraform
+terraform init
+
+# Plan deployment
+./gcp-plan.sh
+
+# Apply configuration
+./gcp-apply.sh
 ```
 
 ### 4. Access Nexus IQ Server
-After deployment completes (15-20 minutes), access Nexus IQ Server via the provided URL.
 
-## 📁 File Structure
+After deployment completes:
 
-```
-infra-gcp/
-├── main.tf              # Core VPC and networking
-├── compute.tf           # Cloud Run services
-├── database.tf          # Cloud SQL PostgreSQL
-├── storage.tf           # Cloud Filestore and Storage
-├── load_balancer.tf     # Global Load Balancer
-├── iam.tf              # Service accounts and IAM
-├── security.tf         # Firewall and security policies
-├── monitoring.tf       # Logging and monitoring
-├── variables.tf        # Input variables
-├── outputs.tf          # Output values
-├── deploy.sh           # Main deployment script
-├── destroy.sh          # Infrastructure cleanup script
-├── gcp-plan.sh         # Terraform plan helper
-├── gcp-apply.sh        # Terraform apply helper
-└── docs/               # Documentation
-    ├── ARCHITECTURE.md
-    ├── SECURITY.md
-    └── MONITORING.md
+```bash
+# Get the load balancer IP
+terraform output load_balancer_ip
+
+# Access IQ Server
+# http://<load-balancer-ip>
+# Default credentials: admin/admin123
 ```
 
-## ⚙️ Configuration Options
+## Docker Container Details
 
-### Basic Configuration (terraform.tfvars)
+### Image Information
+
+- **Official Image**: `sonatype/nexus-iq-server:latest`
+- **Docker Hub**: https://hub.docker.com/r/sonatype/nexus-iq-server
+- **User**: root (0:0)
+- **Ports**: 
+  - 8070 (application)
+  - 8071 (admin)
+
+### Container Configuration
+
+The Docker container is configured via:
+
+1. **Environment Variables**:
+   - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`
+   - `JAVA_OPTS`
+   - `NEXUS_SECURITY_RANDOMPASSWORD=false`
+
+2. **Volume Mounts**:
+   - `/sonatype-work` → Filestore NFS mount
+   - `/var/log/nexus-iq-server` → Filestore NFS mount
+
+3. **Entrypoint Script**:
+   - Creates `config.yml` with database configuration
+   - Substitutes environment variables
+   - Starts IQ Server
+
+### Startup Process
+
+The startup process is automated via `scripts/startup.sh`:
+
+1. **System Setup**:
+   - GCE instance boots with Debian 12
+   - Update packages and install Docker Engine (`docker.io`)
+   - Install NFS client utilities
+   - Enable and start Docker service
+
+2. **Storage Mount**:
+   - Create mount points: `/mnt/sonatype-work`
+   - Mount Cloud Filestore via NFS (vers=3)
+   - Create subdirectories: `sonatype-work/`, `logs/`
+   - Add to `/etc/fstab` for persistence
+
+3. **Docker Configuration**:
+   - Create custom entrypoint script at `/opt/docker-entrypoint.sh`
+   - Entrypoint generates `config.yml` with database credentials
+   - Environment variable substitution for secure config
+
+4. **Container Launch**:
+   ```bash
+   docker run -d \
+     --name nexus-iq-server \
+     --restart always \
+     --user 0:0 \
+     -p 8070:8070 -p 8071:8071 \
+     -e DB_HOST=<cloud-sql-ip> \
+     -e JAVA_OPTS="-Xmx24g -Xms24g" \
+     -v /mnt/sonatype-work/sonatype-work:/sonatype-work \
+     -v /mnt/sonatype-work/logs:/var/log/nexus-iq-server \
+     sonatype/nexus-iq-server:latest
+   ```
+
+5. **Health Verification**:
+   - Wait 10 seconds for container startup
+   - Check container status with `docker ps`
+   - View initial logs with `docker logs`
+
+## Resource Configuration
+
+### Compute Resources
+
 ```hcl
-# Required Settings
-gcp_project_id = "your-gcp-project-id"
-gcp_region     = "us-central1"
-db_password    = "secure-password-12-chars-minimum"
-
-# Optional Settings
-environment    = "dev"        # dev, staging, prod
-enable_ssl     = true         # Enable HTTPS
-domain_name    = ""           # Custom domain for SSL
-
-# Scaling Configuration
-iq_desired_count = "1"  # Single instance (recommended)
-iq_cpu_limit     = "2000m"
-iq_memory_limit  = "4Gi"
-
-# Security Configuration
-enable_cloud_armor = true
-blocked_countries  = ["CN", "RU"]  # Optional country blocking
-admin_users       = ["user:admin@example.com"]
-
-# Monitoring Configuration
-enable_monitoring_alerts = true
-alert_email_addresses   = ["admin@example.com"]
+# Default configuration
+gce_machine_type   = "e2-standard-8"  # 8 vCPU, 32 GB RAM
+gce_boot_disk_size = 100              # GB
+iq_docker_image    = "sonatype/nexus-iq-server:latest"
 ```
 
+### Database Resources
 
-## 🔧 Deployment Scripts
-
-### Main Deployment Script
-```bash
-./deploy.sh [OPTIONS]
-
-Options:
-  -h, --help              Show help message
-  -p, --project PROJECT   GCP Project ID
-  -s, --state-bucket BUCKET  Remote state bucket
-  -d, --dry-run              Plan only (no deployment)
-  -f, --force-destroy        Auto-destroy on failure
-  -v, --verbose              Enable verbose logging
-
-Examples:
-  ./deploy.sh --project my-project
-  ./deploy.sh --project my-project --dry-run
+```hcl
+postgres_version   = "POSTGRES_17"
+db_instance_tier   = "db-perf-optimized-N-8"  # 8 vCPU, optimized
+db_edition         = "ENTERPRISE_PLUS"
+db_disk_size       = 100                       # GB
 ```
 
-### Infrastructure Cleanup
-```bash
-./destroy.sh [OPTIONS]
+### Storage Resources
 
-Options:
-  -h, --help              Show help message
-  -f, --force             Force destroy protected resources
-  -d, --dry-run           Show destroy plan only
-  -y, --yes               Skip confirmation prompts
-  --no-backup             Skip data backup
-  --preserve-state        Keep Terraform files
-
-Examples:
-  ./destroy.sh                    # Safe destruction
-  ./destroy.sh --dry-run          # Show what would be destroyed
-  ./destroy.sh --force --yes      # Force destroy (dangerous!)
+```hcl
+filestore_tier        = "BASIC_SSD"
+filestore_capacity_gb = 1024  # 1 TB minimum
 ```
 
-### Helper Scripts
-```bash
-# Plan changes
-./gcp-plan.sh [--detailed] [--validate-only]
+## Version Management
 
-# Apply saved plan
-./gcp-apply.sh [--auto-approve] [--quiet]
+### Available Docker Image Tags
+
+Check available versions at: https://hub.docker.com/r/sonatype/nexus-iq-server/tags
+
+Common tags:
+- `latest` - Most recent release
+- `1.196.0` - Specific version
+- `1.196` - Latest patch of minor version
+
+### Updating to a New Version
+
+**Method 1: Terraform (Recommended)**
+
+1. Update `terraform.tfvars`:
+   ```hcl
+   iq_docker_image = "sonatype/nexus-iq-server:1.197.0"
+   ```
+
+2. Apply changes:
+   ```bash
+   terraform apply
+   ```
+   This will recreate the GCE instance with the new image.
+
+**Method 2: Rolling Update (Zero Downtime)**
+
+```bash
+# SSH to instance
+gcloud compute ssh nexus-iq-server --zone us-central1-a
+
+# Pull new image
+docker pull sonatype/nexus-iq-server:1.197.0
+
+# Stop and remove old container
+docker stop nexus-iq-server
+docker rm nexus-iq-server
+
+# Start with new image
+docker run -d \
+  --name nexus-iq-server \
+  --restart always \
+  --user 0:0 \
+  -p 8070:8070 -p 8071:8071 \
+  -e DB_HOST="<db-ip>" -e DB_PORT="5432" \
+  -e DB_NAME="nexusiq" -e DB_USERNAME="nexusiq" \
+  -e DB_PASSWORD="<password>" \
+  -e JAVA_OPTS="-Xmx24g -Xms24g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs" \
+  -e NEXUS_SECURITY_RANDOMPASSWORD="false" \
+  -v /mnt/sonatype-work/sonatype-work:/sonatype-work \
+  -v /mnt/sonatype-work/logs:/var/log/nexus-iq-server \
+  -v /opt/docker-entrypoint.sh:/docker-entrypoint.sh \
+  --entrypoint /docker-entrypoint.sh \
+  sonatype/nexus-iq-server:1.197.0
 ```
 
-## 🌐 Network Architecture
+**Method 3: Quick Restart**
 
-### VPC Configuration
-- **VPC CIDR**: 10.100.0.0/16
-- **Public Subnet**: 10.100.1.0/24 (Load Balancer)
-- **Private Subnet**: 10.100.10.0/24 (Cloud Run)
-- **Database Subnet**: 10.100.20.0/24 (Cloud SQL)
-- **VPC Connector**: 10.100.50.0/28 (Cloud Run to VPC)
-
-### Security Groups (Firewall Rules)
-- **Load Balancer**: Allows HTTP/HTTPS from internet
-- **Cloud Run**: Allows health checks from Load Balancer
-- **Database**: Allows connections from private subnet only
-- **Internal**: Allows communication within VPC
-
-## 🗄️ Data Storage
-
-### Database (Cloud SQL PostgreSQL)
-- **Single Instance**: db-custom-2-7680 (2 vCPU, 7.5GB RAM)
-- **Storage**: 100GB SSD (auto-expand to 1TB)
-- **Backups**: Daily automated backups, 7-day retention
-- **Security**: Private IP, SSL required, encryption at rest
-
-### File Storage (Cloud Filestore)
-- **Single Instance**: BASIC_SSD, 1TB capacity
-- **Mount Path**: /nexus_iq_data
-- **Access**: NFS v3, private network only
-
-### Object Storage (Cloud Storage)
-- **Backup Bucket**: Application data backups
-- **Logs Bucket**: Application and system logs
-- **Config Bucket**: Configuration backups
-- **Security**: Encryption with KMS keys, lifecycle policies
-
-## 🔒 Security Features
-
-### Network Security
-- Private VPC with controlled access
-- VPC firewall rules (stateful)
-- Cloud Armor WAF with OWASP rules
-- DDoS protection and rate limiting
-
-### Data Security
-- Encryption at rest with KMS keys
-- Encryption in transit (TLS 1.2+)
-- Secret Manager for credentials
-- IAM service accounts with minimal permissions
-
-### Access Control
-- Identity-Aware Proxy (optional)
-- Binary Authorization for containers
-- Regular security scanning
-- Audit logging enabled
-
-## 📊 Monitoring & Alerting
-
-### Built-in Dashboards
-- Cloud Run performance metrics
-- Database performance and connections
-- Load balancer request metrics
-- Error rates and latencies
-
-### Alert Policies
-- High CPU utilization (>80%)
-- High memory usage (>80%)
-- Error rate threshold breaches
-- Database connection limits
-- Service availability (uptime checks)
-
-### Logging
-- Centralized logging with Cloud Logging
-- Log retention policies
-- Security event logging
-- Audit trail for all changes
-
-## 🔄 Scaling & Performance
-
-### Auto Scaling
-- **Cloud Run**: 1-10 instances with automatic scaling
-- **CPU-based**: Scales on CPU utilization
-- **Concurrency**: Up to 80 requests per instance
-- **Cold starts**: ~2-3 seconds
-
-### Database Performance
-- **Connection pooling**: Built-in PostgreSQL pooling
-- **Read replicas**: Optional for read-heavy workloads
-- **Performance Insights**: Query performance monitoring
-- **Automatic storage scaling**: 100GB to 1TB+
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-#### Service Not Responding
 ```bash
-# Check service status
-gcloud run services describe nexus-iq-server --region=us-central1
+gcloud compute ssh nexus-iq-server --zone us-central1-a
+sudo reboot
+```
+The startup script will automatically pull and run the configured image.
 
-# Check logs
-gcloud logs read "resource.type=cloud_run_revision" --limit=50
+## Monitoring and Logs
 
-# Check database connectivity
+### View Docker Container Logs
+
+```bash
+# SSH to instance (use --tunnel-through-iap if no external IP)
+gcloud compute ssh nexus-iq-server --zone us-central1-a --tunnel-through-iap
+
+# View recent logs
+docker logs nexus-iq-server
+
+# Follow logs in real-time
+docker logs -f nexus-iq-server
+
+# View last 100 lines
+docker logs --tail 100 nexus-iq-server
+
+# Container status and health
+docker ps
+docker inspect nexus-iq-server | grep -A 5 Health
+```
+
+### View Startup Logs
+
+```bash
+# View serial console output (startup script logs)
+gcloud compute instances get-serial-port-output nexus-iq-server \
+  --zone us-central1-a | grep -E "(Docker|nexus-iq)"
+
+# View systemd startup logs
+sudo journalctl -u google-startup-scripts
+```
+
+### Cloud Logging
+
+```bash
+# View logs in GCP Console
+gcloud logging read "resource.type=gce_instance AND \
+  resource.labels.instance_id=nexus-iq-server" \
+  --limit 50 --format json
+```
+
+### View Persistent Logs
+
+Logs are stored on Filestore:
+
+```bash
+# On GCE instance
+ls -la /mnt/sonatype-work/logs/
+```
+
+## Troubleshooting
+
+### Container Not Starting
+
+```bash
+# SSH to instance
+gcloud compute ssh nexus-iq-server --zone us-central1-a --tunnel-through-iap
+
+# Check container status (look for exit codes)
+docker ps -a
+
+# View container logs for errors
+docker logs nexus-iq-server 2>&1 | tail -50
+
+# Inspect container configuration
+docker inspect nexus-iq-server
+
+# Check if Docker service is running
+sudo systemctl status docker
+
+# Check startup script execution
+sudo journalctl -u google-startup-scripts -n 100
+
+# Verify Docker image was pulled
+docker images | grep nexus-iq-server
+
+# Manual container restart
+docker restart nexus-iq-server
+```
+
+### Database Connection Issues
+
+```bash
+# Check if IQ Server can reach the database
+docker exec nexus-iq-server cat /etc/nexus-iq-server/config.yml | grep -A 5 database
+
+# Test database connectivity from container
+docker exec -it nexus-iq-server /bin/bash
+# Inside container:
+apt-get update && apt-get install -y postgresql-client telnet
+psql -h <db-private-ip> -U nexusiq -d nexusiq
+
+# Test from host
+telnet <db-private-ip> 5432
+
+# Check database instance status
 gcloud sql instances describe $(terraform output -raw database_instance_name)
+
+# View database logs
+gcloud sql operations list --instance=$(terraform output -raw database_instance_name)
+
+# Check database credentials in Secret Manager
+gcloud secrets versions access latest --secret=nexus-iq-db-credentials
 ```
 
-#### SSL Certificate Issues
+### Filestore Mount Issues
+
 ```bash
-# Check certificate status
-gcloud compute ssl-certificates describe nexus-iq-ssl-cert
+# Check NFS mount
+mount | grep filestore
 
-# Domain verification
-dig $(terraform output -raw domain_name)
+# Test NFS connectivity
+showmount -e <filestore-ip>
+
+# Remount if needed
+sudo mount -t nfs -o vers=3 <filestore-ip>:/nexus_iq_data /mnt/sonatype-work
 ```
 
-#### High Costs
+## Cleanup
+
+To destroy all resources:
+
 ```bash
-# Check resource usage
-gcloud billing budgets list
-gcloud monitoring dashboards list
-
-# Optimize resources
-# - Reduce instance sizes
-# - Adjust storage tiers
+./destroy.sh
 ```
 
-### Log Locations
-- **Deployment logs**: `deploy.log`, `destroy.log`
-- **Terraform logs**: `plan.log`, `apply.log`
-- **Application logs**: Cloud Logging console
-- **System logs**: Cloud Monitoring console
+**Warning**: This will delete all resources including the database. Ensure you have backups if needed.
 
-## 🔧 Maintenance
+## Cost Considerations
 
-### Regular Tasks
-1. **Monitor costs** - Review billing dashboard monthly
-2. **Update images** - Update Nexus IQ Server container image
-3. **Review logs** - Check for errors and performance issues
-4. **Security updates** - Keep Terraform and providers updated
-5. **Backup verification** - Test restore procedures quarterly
+Estimated monthly costs (us-central1) based on current configuration:
 
-### Updating Infrastructure
+| Resource | Configuration | Estimated Cost |
+|----------|--------------|----------------|
+| GCE Instance | e2-standard-8 (8 vCPU, 32GB) | ~$240/month |
+| Cloud SQL | db-perf-optimized-N-8, 100GB | ~$350/month |
+| Cloud Filestore | BASIC_SSD 2.5TB | ~$500/month |
+| Load Balancer | Global HTTP(S) LB | ~$20/month |
+| Network Egress | Estimated traffic | ~$50/month |
+| **Total** | | **~$1,160/month** |
+
+**Cost Optimization Tips:**
+- Use smaller Filestore (minimum 1TB): ~$200/month
+- Reduce GCE to e2-standard-4: ~$120/month
+- Use ZONAL availability instead of REGIONAL for DB: ~$175/month
+- Schedule instance stop during non-business hours: 50% savings on compute
+
+**Note**: Actual costs may vary based on usage, region, and commitment discounts.
+
+## Security Best Practices
+
+1. **Change default passwords** in `terraform.tfvars`
+2. **Restrict SSH access** via `allowed_ssh_cidrs`
+3. **Enable SSL** with `enable_ssl = true` and configure `domain_name`
+4. **Use Secret Manager** for sensitive data (already configured)
+5. **Enable database encryption** (configured by default)
+6. **Regular backups** (automated daily backups enabled)
+
+## Outputs
+
+After deployment:
+
 ```bash
-# Update Terraform configuration
-vi terraform.tfvars
-
-# Plan changes
-./gcp-plan.sh --detailed
-
-# Apply changes
-./gcp-apply.sh
+terraform output
 ```
 
-### Scaling Operations
-```bash
-# Scale up for high load (multiple instances)
-echo 'iq_desired_count = "2"' >> terraform.tfvars
-echo 'iq_cpu_limit = "4000m"' >> terraform.tfvars
-./gcp-apply.sh
+Key outputs:
+- `load_balancer_ip` - Public IP for accessing IQ Server
+- `nexus_iq_url` - Full URL to access IQ Server
+- `database_instance_name` - Cloud SQL instance name
+- `filestore_ip_address` - NFS mount IP
 
-# Scale back to single instance
-echo 'iq_desired_count = "1"' >> terraform.tfvars
-./gcp-apply.sh
-```
+## Support
 
-## 📚 Additional Resources
+For issues with:
+- **Terraform configuration**: Check this README and Terraform docs
+- **GCP resources**: Consult GCP documentation
+- **Nexus IQ Server**: Visit https://help.sonatype.com/
+- **Docker image**: Check https://hub.docker.com/r/sonatype/nexus-iq-server
 
-- [Architecture Documentation](docs/ARCHITECTURE.md)
-- [Security Guide](docs/SECURITY.md)
-- [Monitoring Guide](docs/MONITORING.md)
-- [Nexus IQ Server Documentation](https://help.sonatype.com/iqserver)
-- [Google Cloud Documentation](https://cloud.google.com/docs)
+## License
 
-## 🤝 Support
-
-### Getting Help
-1. Check this documentation and troubleshooting guide
-2. Review logs in Cloud Logging console
-3. Check GCP status page for service issues
-4. Contact your DevOps team or GCP support
-
-### Reporting Issues
-When reporting issues, include:
-- Terraform version and configuration
-- Error messages from logs
-- GCP project ID and region
-- Steps to reproduce the issue
-
-## 📄 License
-
-This infrastructure code is provided as-is for reference architecture purposes. Ensure compliance with your organization's policies and Sonatype's licensing terms.
-
----
-
-**⚠️ Important**: Always test in a non-production environment first. Review costs and security implications before deploying to production.
+This Terraform configuration is provided as-is for deploying Nexus IQ Server. Nexus IQ Server requires a valid license from Sonatype.
