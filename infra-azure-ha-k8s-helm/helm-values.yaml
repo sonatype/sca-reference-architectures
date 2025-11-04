@@ -7,17 +7,17 @@ iq_server:
   tag: "latest"
   imagePullPolicy: "Always"
 
-  # Resources - optimized for Standard_D2s_v3 nodes (2 vCPU, 8GB RAM)
+  # Resources - reduced for node size limits (temporary - increase after quota approval)
   resources:
     requests:
-      cpu: "500m"
-      memory: "2Gi"
+      cpu: "2"
+      memory: "12Gi"  # Reduced from 16Gi to fit on Standard_D4s_v3 nodes (16GB total)
     limits:
-      cpu: "1500m"
-      memory: "4Gi"
+      cpu: "4"
+      memory: "14Gi"  # Reduced from 24Gi to fit on nodes
 
-  # Java options for HA deployment (reduced for smaller nodes)
-  javaOpts: "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  # Java options for HA deployment - reduced for node size limits
+  javaOpts: "-Xms10g -Xmx10g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   # HA Configuration using Helm chart's config mechanism (shared storage pattern like AWS EKS)
   config:
@@ -81,8 +81,8 @@ iq_server:
     service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/ping"
     service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
 
-  # HA Replica count (minimum 2 for HA)
-  replicaCount: 2
+  # HA Replica count - matching AWS (minimum 2 for HA, 3 for better distribution)
+  replicaCount: 3
 
   # HA Configuration - now handled by custom command above
   # config.yml is created dynamically per-replica with unique sonatypeWork directories
@@ -139,14 +139,35 @@ ingress:
 # Horizontal Pod Autoscaler
 autoscaling:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 3
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
-# Disable components not needed for Azure
+# Enable Fluentd for Azure Monitor integration - matching AWS CloudWatch setup
 fluentd:
-  enabled: false
+  enabled: true
+
+  # Fluentd image - using bitnamilegacy (same as AWS)
+  image:
+    repository: bitnamilegacy/fluentd
+    tag: "1.17.1-debian-12-r4"
+    pullPolicy: IfNotPresent
+
+  # Azure Monitor configuration (similar to AWS CloudWatch)
+  azureMonitor:
+    enabled: true
+    workspaceId: ""  # Will be set by script from Terraform
+    logType: "nexus-iq-server"
+
+  # Resources for Fluentd sidecar
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
 
 external-dns:
   enabled: false

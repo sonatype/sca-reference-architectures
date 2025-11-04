@@ -1,7 +1,7 @@
 variable "azure_region" {
   description = "Azure region for infrastructure deployment"
   type        = string
-  default     = "eastus"
+  default     = "eastus2"
 }
 
 variable "environment" {
@@ -51,7 +51,7 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "VM size for AKS worker nodes"
   type        = string
-  default     = "Standard_D4s_v3" # 4 vCPU, 16GB RAM (equivalent to AWS m5.large)
+  default     = "Standard_D4s_v3" # 4 vCPU, 16GB RAM (within vCPU quota limits, upgrade to D8s_v3 after quota increase)
 }
 
 variable "node_group_min_size" {
