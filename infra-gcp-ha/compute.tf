@@ -1,20 +1,20 @@
 # Cloud Filestore provides shared NFS storage for multi-instance HA clustering
 # No disk attachment needed - NFS is mounted via startup script
 
-# Instance template for Nexus IQ Server with Container-Optimized OS
+# Instance template for Nexus IQ Server with native installation
 resource "google_compute_instance_template" "iq_template" {
   name_prefix  = "ref-arch-iq-ha-template-"
   machine_type = var.instance_machine_type
   region       = var.gcp_region
 
-  tags = ["nexus-iq-ha", "allow-health-check", "v21"]
+  tags = ["nexus-iq-ha", "allow-health-check"]
 
   disk {
-    source_image = "debian-cloud/debian-11"
+    source_image = "debian-cloud/debian-12"
     auto_delete  = true
     boot         = true
-    disk_type    = "pd-balanced"
-    disk_size_gb = 20
+    disk_type    = "pd-ssd"
+    disk_size_gb = 100
   }
 
   # No additional disk attachment needed - using NFS via Cloud Filestore
@@ -29,14 +29,13 @@ resource "google_compute_instance_template" "iq_template" {
     scopes = ["cloud-platform"]
   }
 
-  # Startup script to configure Docker container with IQ Server (v21)
+  # Startup script for Docker-based IQ Server installation with HA clustering
   metadata_startup_script = templatefile("${path.module}/scripts/startup.sh", {
-    docker_image       = var.iq_docker_image
     db_host            = google_sql_database_instance.iq_ha_db.private_ip_address
     db_port            = "5432"
     db_name            = var.db_name
     db_user            = var.db_username
-    db_password_secret = google_secret_manager_secret.db_credentials.secret_id
+    db_password_secret = google_secret_manager_secret.db_password.secret_id
     java_opts          = var.java_opts
     gcp_project_id     = var.gcp_project_id
     filestore_ip       = google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]
@@ -86,7 +85,7 @@ resource "google_compute_region_instance_group_manager" "iq_mig" {
   # Auto healing policy
   auto_healing_policies {
     health_check      = google_compute_health_check.iq_health_check.id
-    initial_delay_sec = 600  # Increased to 10 minutes to allow for container startup and database connection
+    initial_delay_sec = 900 # 15 minutes for native installation, NFS mount, database init
   }
 
   # Update policy for rolling deployments
@@ -104,7 +103,7 @@ resource "google_compute_region_instance_group_manager" "iq_mig" {
   ]
 }
 
-# Health check for auto healing and load balancer
+# Health check for auto healing (TCP-based)
 resource "google_compute_health_check" "iq_health_check" {
   name                = "ref-arch-iq-ha-health-check"
   check_interval_sec  = 30
@@ -112,9 +111,8 @@ resource "google_compute_health_check" "iq_health_check" {
   healthy_threshold   = 2
   unhealthy_threshold = 3
 
-  http_health_check {
-    request_path = "/assets/index.html"
-    port         = "8070"
+  tcp_health_check {
+    port = 8070
   }
 
   log_config {

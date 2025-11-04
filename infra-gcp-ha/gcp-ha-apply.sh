@@ -392,7 +392,7 @@ terraform_apply() {
         return 1
     fi
     
-    # Check for critical HA resources
+    # Check for critical HA resources (using patterns to match indexed resources)
     local critical_resources=(
         "google_compute_global_address.iq_ha_lb_ip"
         "google_compute_global_forwarding_rule.iq_ha_http_forwarding_rule"
@@ -402,10 +402,11 @@ terraform_apply() {
     
     local missing_critical=()
     for resource in "${critical_resources[@]}"; do
-        if ! terraform state list | grep -q "$resource"; then
+        # Use grep without -q to see if resource exists (handles resources with [0] indices)
+        if ! terraform state list | grep "^${resource}"; then
             missing_critical+=("$resource")
         fi
-    done
+    done 2>/dev/null
     
     if [ ${#missing_critical[@]} -gt 0 ]; then
         print_error "❌ Critical HA resources missing:"

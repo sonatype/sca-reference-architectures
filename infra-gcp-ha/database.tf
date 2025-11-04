@@ -101,6 +101,11 @@ resource "google_sql_database_instance" "iq_ha_db_replica" {
       component = "nexus-iq-ha-database-replica"
     })
 
+    database_flags {
+      name  = "max_connections"
+      value = var.db_max_connections
+    }
+
     ip_configuration {
       ipv4_enabled    = false
       private_network = google_compute_network.iq_ha_vpc.id
