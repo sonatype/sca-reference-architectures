@@ -27,13 +27,14 @@ variable "environment" {
   }
 }
 
-# Network Variables
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
+# Docker Configuration
+variable "iq_docker_image" {
+  description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "10.200.0.0/16"
+  default     = "sonatype/nexus-iq-server:latest"
 }
 
+# Network Variables
 variable "public_subnet_cidr" {
   description = "CIDR block for public subnet"
   type        = string
@@ -59,12 +60,6 @@ variable "allowed_ssh_cidrs" {
 }
 
 # Compute Engine Variables
-variable "iq_version" {
-  description = "Nexus IQ Server version"
-  type        = string
-  default     = "1.196.0-01"
-}
-
 variable "instance_machine_type" {
   description = "Machine type for Compute Engine instances (n2-standard-8 = 8 vCPU, 32GB RAM)"
   type        = string
@@ -199,24 +194,6 @@ variable "enable_read_replica" {
   description = "Enable read replica for database"
   type        = bool
   default     = true
-}
-
-# Storage Variables
-variable "shared_disk_size_gb" {
-  description = "Size of the shared persistent disk in GB"
-  type        = number
-  default     = 100
-}
-
-variable "shared_disk_type" {
-  description = "Type of the shared persistent disk"
-  type        = string
-  default     = "pd-ssd"
-
-  validation {
-    condition     = contains(["pd-standard", "pd-balanced", "pd-ssd"], var.shared_disk_type)
-    error_message = "Disk type must be one of: pd-standard, pd-balanced, pd-ssd."
-  }
 }
 
 # Load Balancer Variables
