@@ -113,3 +113,24 @@ resource "google_compute_firewall" "allow_outbound" {
 
   description = "Allow outbound internet access for Nexus IQ instances"
 }
+
+# Firewall rule to allow NFS traffic to Cloud Filestore
+resource "google_compute_firewall" "allow_nfs" {
+  name    = "ref-arch-iq-ha-allow-nfs"
+  network = google_compute_network.iq_ha_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["111", "2049"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["111", "2049"]
+  }
+
+  source_ranges = var.private_subnet_cidrs
+  target_tags   = ["nexus-iq-ha"]
+
+  description = "Allow NFS traffic to Cloud Filestore for shared storage"
+}

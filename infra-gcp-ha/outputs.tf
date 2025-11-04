@@ -156,16 +156,7 @@ output "ssl_certificate_status" {
   value       = var.enable_ssl && var.domain_name != "" ? google_compute_managed_ssl_certificate.iq_ha_ssl_cert[0].certificate_id : null
 }
 
-# Monitoring outputs
-output "monitoring_dashboard_id" {
-  description = "ID of the monitoring dashboard"
-  value       = google_monitoring_dashboard.iq_ha_dashboard.id
-}
-
-output "uptime_check_id" {
-  description = "ID of the uptime check"
-  value       = google_monitoring_uptime_check_config.iq_ha_uptime_check.name
-}
+# Monitoring outputs (commented out - monitoring.tf is disabled)
 
 # Region and Zone information
 output "deployment_region" {

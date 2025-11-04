@@ -59,16 +59,16 @@ variable "allowed_ssh_cidrs" {
 }
 
 # Compute Engine Variables
-variable "iq_docker_image" {
-  description = "Docker image for Nexus IQ Server"
+variable "iq_version" {
+  description = "Nexus IQ Server version"
   type        = string
-  default     = "sonatypecommunity/nexus-iq-server:latest"
+  default     = "1.196.0-01"
 }
 
 variable "instance_machine_type" {
-  description = "Machine type for Compute Engine instances"
+  description = "Machine type for Compute Engine instances (n2-standard-8 = 8 vCPU, 32GB RAM)"
   type        = string
-  default     = "e2-standard-2"
+  default     = "n2-standard-8"
 }
 
 variable "iq_min_instances" {
@@ -125,9 +125,9 @@ variable "postgres_version" {
 }
 
 variable "db_instance_tier" {
-  description = "Database instance tier"
+  description = "Database instance tier (Sonatype HA benchmark: 8 vCPU, 30GB RAM)"
   type        = string
-  default     = "db-custom-2-7680"
+  default     = "db-custom-8-30720"
 }
 
 variable "db_availability_type" {
@@ -265,9 +265,9 @@ variable "log_retention_days" {
 
 # Java Options
 variable "java_opts" {
-  description = "Java options for Nexus IQ Server"
+  description = "Java options for Nexus IQ Server (Sonatype HA benchmark: -Xms24g -Xmx24g)"
   type        = string
-  default     = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms24g -Xmx24g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Storage Variables
@@ -289,13 +289,13 @@ variable "filestore_tier" {
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB (minimum 1024 for BASIC tiers)"
+  description = "Filestore capacity in GB (minimum 2560 for HA deployments with BASIC_SSD)"
   type        = number
-  default     = 1024
+  default     = 2560
 
   validation {
     condition     = var.filestore_capacity_gb >= 2560
-    error_message = "Filestore capacity must be at least 2560 GB for BASIC_SSD tier."
+    error_message = "Filestore capacity must be at least 2560 GB for HA deployments with BASIC_SSD tier."
   }
 }
 
