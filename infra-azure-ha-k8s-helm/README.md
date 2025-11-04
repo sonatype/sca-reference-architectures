@@ -68,8 +68,8 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 
 ### Azure Account Requirements
 - Azure subscription with administrative access
-- Sufficient vCPU quota (minimum 10 vCPUs for Standard_D2s_v3 nodes)
-- Resource creation rights in target region
+- Sufficient vCPU quota (minimum 8 vCPUs for Standard_D4s_v3 nodes, 48+ vCPUs recommended for production)
+- Resource creation rights in target region (East US 2)
 
 ## Quick Start
 
@@ -105,8 +105,10 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
    ```
 
 7. **Access your Nexus IQ Server HA cluster**:
-   - The script will output the URL (e.g., `http://nexus-iq-ha-wirnub.eastus.cloudapp.azure.com`)
+   - Get the URL: `terraform output application_gateway_fqdn`
+   - URL format: `http://nexus-iq-ha-<random>.eastus2.cloudapp.azure.com`
    - Wait 5-10 minutes for all HA services to be ready
+   - **Note**: Current configuration uses reduced resources (2 CPU/12Gi per pod) due to vCPU quota limits. Request quota increase to 48+ vCPUs for production deployment with full resources (4 CPU/16Gi per pod)
    - Default credentials: `admin` / (password from terraform.tfvars)
 
 ## Configuration
@@ -122,19 +124,20 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 ### 1. Essential HA Settings in terraform.tfvars
 
 ```hcl
-# High Availability Configuration
+# High Availability Configuration (Temporary reduced resources for vCPU quota limits)
+azure_region = "eastus2"  # East US 2
 kubernetes_version = "1.33.3"
-node_instance_type = "Standard_D2s_v3"  # 2 vCPU, 8GB RAM
-node_group_min_size = 1
-node_group_max_size = 4
-node_group_desired_size = 2
+node_instance_type = "Standard_D4s_v3"  # 4 vCPU, 16GB RAM (within vCPU quota limits)
+node_group_min_size = 2
+node_group_max_size = 5
+node_group_desired_size = 3
 
-# Zone-Redundant Database
+# Zone-Redundant Database (matching AWS Aurora specs)
 postgres_version = "15"
-postgres_sku_name = "GP_Standard_D2s_v3"  # 2 vCores, 8GB
-postgres_storage_mb = 32768
+db_sku_name = "MO_Standard_E16s_v3"  # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode = "ZoneRedundant"
-database_password = "YourSecurePassword123!"  # Change this!
+db_geo_redundant_backup_enabled = false  # Not supported in all regions
+database_password = "SecurePassword123!"  # Change this!
 
 # Zone-Redundant Storage
 storage_account_tier = "Premium"
@@ -147,9 +150,13 @@ app_gateway_sku_tier = "Standard_v2"
 app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
-# Helm Configuration
+# Helm Configuration (Temporary reduced for quota - restore after quota increase)
 helm_chart_version = "195.0.0"
-nexus_iq_replica_count = 2  # Minimum for HA
+nexus_iq_replica_count = 3  # Temporary config for vCPU quota limits
+nexus_iq_cpu_request = "2"  # Reduced from 4 (restore after quota increase)
+nexus_iq_cpu_limit = "4"  # Reduced from 6 (restore after quota increase)
+nexus_iq_memory_request = "12Gi"  # Reduced from 16Gi (fits Standard_D4s_v3 nodes)
+nexus_iq_memory_limit = "14Gi"  # Reduced from 24Gi
 nexus_iq_admin_password = "admin123"
 ```
 
