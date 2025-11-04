@@ -21,8 +21,8 @@ db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "YourSecurePassword123!"  # Change this!
 postgres_version                 = "15"
-db_sku_name                      = "GP_Standard_D4s_v3"
-db_storage_mb                    = 131072
+db_sku_name                      = "MO_Standard_E16s_v3"
+db_storage_mb                    = 524288
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
 db_geo_redundant_backup_enabled  = false
@@ -38,7 +38,7 @@ app_gateway_capacity    = 2
 # ssl_certificate_password = "certificate_password"
 
 # Storage Configuration
-storage_account_tier             = "Standard"
+storage_account_tier             = "Premium"  # Required for NFS
 storage_account_replication_type = "LRS"
 file_share_quota                 = 500
 

@@ -81,15 +81,15 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "Database SKU name (B_Standard_B1ms, GP_Standard_D4s_v3, GP_Standard_D8s_v3, MO_Standard_E4s_v3)"
+  description = "Database SKU name (B_Standard_B1ms, GP_Standard_D4s_v3, MO_Standard_E16s_v3)"
   type        = string
-  default     = "GP_Standard_D4s_v3"
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_storage_mb" {
   description = "Database storage in MB"
   type        = number
-  default     = 131072 # 128 GB
+  default     = 524288 # 512 GB
 }
 
 variable "db_auto_grow_enabled" {
@@ -150,13 +150,13 @@ variable "ssl_certificate_password" {
 
 # Storage Variables
 variable "storage_account_tier" {
-  description = "Storage account tier (Standard, Premium)"
+  description = "Storage account tier (Premium required for NFS)"
   type        = string
-  default     = "Standard"
+  default     = "Premium"
 }
 
 variable "storage_account_replication_type" {
-  description = "Storage account replication type (LRS, ZRS, GRS, RAGRS)"
+  description = "Storage account replication type (LRS or ZRS for Premium)"
   type        = string
   default     = "LRS"
 }

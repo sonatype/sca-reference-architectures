@@ -132,8 +132,8 @@ java_opts          = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/ja
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "YourSecurePassword123!"  # Change this!
-db_sku_name                      = "GP_Standard_D4s_v3"  # Production-grade SKU
-db_storage_mb                    = 131072                # 128GB storage
+db_sku_name                      = "MO_Standard_E16s_v3"  # Memory Optimized (16 vCores, 128GB RAM)
+db_storage_mb                    = 524288                 # 512GB storage
 postgres_version                 = "15"
 ```
 
@@ -174,7 +174,8 @@ postgres_version                 = "15"
 
 ## Persistent Storage
 
-- **Azure File Share**: Shared storage for `/sonatype-work` directory
+- **Azure File Share**: Shared storage for `/sonatype-work` directory using NFSv4.1 protocol (recommended for PostgreSQL deployments)
+- **Premium Storage**: Required for NFS support on Azure Files
 - **Database**: PostgreSQL Flexible Server for application data
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
@@ -182,7 +183,7 @@ postgres_version                 = "15"
 
 - **Container Apps**: Pay-per-use serverless container compute
 - **PostgreSQL**: Right-sized instance with storage auto-scaling
-- **Storage Account**: LRS replication for cost efficiency
+- **Premium Storage**: Required for NFS protocol support (NFSv4.1 recommended for PostgreSQL deployments)
 - **Resource Tagging**: All resources tagged for cost allocation
 
 ## Networking
@@ -357,7 +358,7 @@ infra-azure/
 
 - **Container App**: Limited to 1 replica (Nexus IQ single instance requirement)
 - **Container Resources**: 4.0 vCPU / 8.0 Gi RAM (workload profiles maximum)
-- **Database**: Uses GP_Standard_D4s_v3 SKU for production workloads (4 vCores, 16GB RAM)
+- **Database**: Uses MO_Standard_E16s_v3 SKU (Memory Optimized: 16 vCores, 128GB RAM)
 - **Storage**: Azure File Share provides 500GB scalable storage
 
 ## Cleanup
