@@ -31,6 +31,7 @@ resource "google_compute_instance_template" "iq_template" {
 
   # Startup script for Docker-based IQ Server installation with HA clustering
   metadata_startup_script = templatefile("${path.module}/scripts/startup.sh", {
+    iq_docker_image    = var.iq_docker_image
     db_host            = google_sql_database_instance.iq_ha_db.private_ip_address
     db_port            = "5432"
     db_name            = var.db_name

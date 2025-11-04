@@ -4,7 +4,7 @@ set -euo pipefail
 echo "=== Starting Nexus IQ Server HA Docker Installation ==="
 
 # Configuration from Terraform template (using lowercase to match templatefile vars)
-IQ_VERSION="latest"
+IQ_DOCKER_IMAGE="${iq_docker_image}"
 DB_HOST="${db_host}"
 DB_PORT="${db_port}"
 DB_NAME="${db_name}"
@@ -124,9 +124,9 @@ fi
 log "Docker daemon is ready"
 
 # Pull Docker image with retries
-log "Pulling Nexus IQ Server Docker image (sonatype/nexus-iq-server:$${IQ_VERSION})..."
+log "Pulling Nexus IQ Server Docker image ($${IQ_DOCKER_IMAGE})..."
 for attempt in {1..3}; do
-  if docker pull sonatype/nexus-iq-server:$${IQ_VERSION}; then
+  if docker pull $${IQ_DOCKER_IMAGE}; then
     log "Docker image pulled successfully"
     break
   fi
@@ -286,7 +286,7 @@ docker run -d \
   -v /etc/nexus-iq-server/config.yml:/etc/nexus-iq-server/config.yml:ro \
   -e JAVA_OPTS="$${JAVA_OPTS}" \
   --entrypoint /bin/sh \
-  sonatype/nexus-iq-server:$${IQ_VERSION} \
+  $${IQ_DOCKER_IMAGE} \
   -c "exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml"
 
 if [ $? -ne 0 ]; then

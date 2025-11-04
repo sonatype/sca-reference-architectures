@@ -180,6 +180,7 @@ output "deployment_summary" {
   description = "Summary of the HA deployment"
   value = {
     load_balancer_url    = var.enable_ssl ? "https://${var.domain_name != "" ? var.domain_name : google_compute_global_address.iq_ha_lb_ip.address}" : "http://${google_compute_global_address.iq_ha_lb_ip.address}"
+    docker_image         = var.iq_docker_image
     min_instances        = var.iq_min_instances
     max_instances        = var.iq_max_instances
     database_type        = "PostgreSQL ${var.postgres_version}"
