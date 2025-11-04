@@ -33,7 +33,7 @@ resource "azurerm_storage_share" "iq_data_ha" {
   name                 = "iq-data-ha"
   storage_account_name = azurerm_storage_account.iq_storage_ha.name
   quota                = var.file_share_quota_gb
-  # Premium tier achieved through Premium storage account type
+  enabled_protocol     = "SMB"
 
   metadata = {
     purpose = "nexus-iq-ha-clustering"

@@ -42,14 +42,14 @@ resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
     standby_availability_zone = "2"
   }
 
-  # Storage configuration for HA
+  # Storage configuration
   storage_mb   = 65536 # 64GB initial
   storage_tier = "P6"  # Premium tier for better performance (P6 is minimum for 64GB)
 
-  # SKU for HA workload (equivalent to AWS db.r6g.large)
-  sku_name = var.db_sku_name # GP_Standard_D4s_v3 = 4 vCores, 16GB RAM
+  # SKU (Memory Optimized - matches AWS db.r6g.4xlarge)
+  sku_name = var.db_sku_name # MO_Standard_E16s_v3 = 16 vCores, 128GB RAM
 
-  # Backup configuration for HA
+  # Backup configuration
   backup_retention_days        = var.db_backup_retention_days
   geo_redundant_backup_enabled = var.db_geo_redundant_backup_enabled
 

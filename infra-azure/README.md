@@ -174,8 +174,7 @@ postgres_version                 = "15"
 
 ## Persistent Storage
 
-- **Azure File Share**: Shared storage for `/sonatype-work` directory using NFSv4.1 protocol (recommended for PostgreSQL deployments)
-- **Premium Storage**: Required for NFS support on Azure Files
+- **Azure File Share**: Shared storage for `/sonatype-work` directory using SMB protocol
 - **Database**: PostgreSQL Flexible Server for application data
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
@@ -183,7 +182,7 @@ postgres_version                 = "15"
 
 - **Container Apps**: Pay-per-use serverless container compute
 - **PostgreSQL**: Right-sized instance with storage auto-scaling
-- **Premium Storage**: Required for NFS protocol support (NFSv4.1 recommended for PostgreSQL deployments)
+- **Storage Account**: LRS replication for cost efficiency
 - **Resource Tagging**: All resources tagged for cost allocation
 
 ## Networking

@@ -150,13 +150,13 @@ variable "ssl_certificate_password" {
 
 # Storage Variables
 variable "storage_account_tier" {
-  description = "Storage account tier (Premium required for NFS)"
+  description = "Storage account tier (Standard, Premium)"
   type        = string
-  default     = "Premium"
+  default     = "Standard"
 }
 
 variable "storage_account_replication_type" {
-  description = "Storage account replication type (LRS or ZRS for Premium)"
+  description = "Storage account replication type (LRS, ZRS, GRS, RAGRS)"
   type        = string
   default     = "LRS"
 }
