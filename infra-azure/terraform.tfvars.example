@@ -38,7 +38,7 @@ app_gateway_capacity    = 2
 # ssl_certificate_password = "certificate_password"
 
 # Storage Configuration
-storage_account_tier             = "Premium"  # Required for NFS
+storage_account_tier             = "Standard"
 storage_account_replication_type = "LRS"
 file_share_quota                 = 500
 

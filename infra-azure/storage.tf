@@ -3,13 +3,12 @@ resource "azurerm_storage_account" "iq_storage" {
   name                     = "st${replace(lower("refarchiq"), "-", "")}${random_string.storage_suffix.result}"
   resource_group_name      = azurerm_resource_group.iq_rg.name
   location                 = azurerm_resource_group.iq_rg.location
-  account_tier             = "Premium"     # Required for NFS
-  account_replication_type = "LRS"         # Premium only supports LRS or ZRS
-  account_kind             = "FileStorage" # Required for NFS on Azure Files
+  account_tier             = var.storage_account_tier
+  account_replication_type = var.storage_account_replication_type
   min_tls_version          = "TLS1_2"
 
-  # NFS does not use HTTPS - disable for NFS compatibility
-  https_traffic_only_enabled = false
+  # Enable secure transfer
+  https_traffic_only_enabled = true
 
   # Network rules - Allow Azure services and trusted Microsoft services for management
   network_rules {
@@ -34,7 +33,7 @@ resource "azurerm_storage_share" "iq_file_share" {
   name                 = "nexus-iq-data"
   storage_account_name = azurerm_storage_account.iq_storage.name
   quota                = var.file_share_quota
-  enabled_protocol     = "NFS"
+  enabled_protocol     = "SMB"
 
   depends_on = [azurerm_storage_account.iq_storage]
 }
