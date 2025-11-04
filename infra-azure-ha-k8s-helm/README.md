@@ -150,7 +150,7 @@ app_gateway_sku_tier = "Standard_v2"
 app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
-# Helm Configuration
+# Helm Configuration (Temporary reduced for quota - restore after quota increase)
 helm_chart_version = "195.0.0"
 nexus_iq_replica_count = 3
 nexus_iq_cpu_request = "4"
