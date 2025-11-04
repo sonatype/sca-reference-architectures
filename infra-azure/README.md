@@ -182,7 +182,7 @@ postgres_version                 = "15"
 
 - **Container Apps**: Pay-per-use serverless container compute
 - **PostgreSQL**: Right-sized instance with storage auto-scaling
-- **Storage Account**: LRS replication for cost efficiency
+- **Premium Storage**: Required for NFS protocol support (NFSv4.1 recommended for PostgreSQL deployments)
 - **Resource Tagging**: All resources tagged for cost allocation
 
 ## Networking
