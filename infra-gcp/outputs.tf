@@ -16,7 +16,7 @@ output "public_subnet_id" {
 
 output "private_subnet_id" {
   description = "ID of the private subnet"
-  value       = google_compute_subnetwork.private_subnet.id
+  value       = google_compute_subnetwork.iq_private_subnet.id
 }
 
 output "db_subnet_id" {
@@ -24,15 +24,15 @@ output "db_subnet_id" {
   value       = google_compute_subnetwork.db_subnet.id
 }
 
-# Cloud Run Outputs
-output "iq_service_url" {
-  description = "URL of the Nexus IQ Cloud Run service"
-  value       = google_cloud_run_service.iq_service.status[0].url
+# GCE Outputs
+output "instance_name" {
+  description = "Name of the Nexus IQ Server instance"
+  value       = google_compute_instance.iq_server.name
 }
 
-output "iq_service_name" {
-  description = "Name of the Nexus IQ Cloud Run service"
-  value       = google_cloud_run_service.iq_service.name
+output "instance_group_name" {
+  description = "Name of the instance group"
+  value       = google_compute_instance_group.iq_group.name
 }
 
 # Load Balancer Outputs
@@ -118,8 +118,3 @@ output "ssl_certificate_name" {
   value       = var.enable_ssl && var.domain_name != "" ? google_compute_managed_ssl_certificate.iq_ssl_cert[0].name : null
 }
 
-# Domain Mapping Outputs
-output "cloud_run_domain_mapping" {
-  description = "Cloud Run domain mapping name"
-  value       = var.custom_domain != "" ? google_cloud_run_domain_mapping.iq_domain[0].name : null
-}
