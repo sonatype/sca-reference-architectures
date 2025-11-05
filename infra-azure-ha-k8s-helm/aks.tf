@@ -82,35 +82,33 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
 }
 
 # User node pool for application workloads
-# TEMPORARILY DISABLED: Uncomment after vCPU quota increase to 48+ vCPU
-# This allows deployment with current 10 vCPU quota (system pool only)
-# resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
-#   name                  = "user"
-#   kubernetes_cluster_id = azurerm_kubernetes_cluster.iq_aks.id
-#   vm_size               = var.node_instance_type
-#   vnet_subnet_id        = azurerm_subnet.aks_subnet.id
-#   zones                 = local.availability_zones
-#   enable_auto_scaling   = true
-#   min_count             = var.node_group_min_size
-#   max_count             = var.node_group_max_size
-#   os_disk_size_gb       = var.node_disk_size
-#   os_disk_type          = "Managed"
-#   mode                  = "User"
-#
-#   # Node labels for application workloads
-#   node_labels = {
-#     "nodepool-type" = "user"
-#     "environment"   = var.environment
-#     "workload"      = "application"
-#   }
-#
-#   # Node taints to ensure only application workloads run here
-#   node_taints = []
-#
-#   tags = merge(local.common_tags, {
-#     Name = "aks-${var.cluster_name}-user-nodepool"
-#   })
-# }
+resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
+  name                  = "user"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.iq_aks.id
+  vm_size               = var.node_instance_type
+  vnet_subnet_id        = azurerm_subnet.aks_subnet.id
+  zones                 = local.availability_zones
+  enable_auto_scaling   = true
+  min_count             = var.node_group_min_size
+  max_count             = var.node_group_max_size
+  os_disk_size_gb       = var.node_disk_size
+  os_disk_type          = "Managed"
+  mode                  = "User"
+
+  # Node labels for application workloads
+  node_labels = {
+    "nodepool-type" = "user"
+    "environment"   = var.environment
+    "workload"      = "application"
+  }
+
+  # Node taints to ensure only application workloads run here
+  node_taints = []
+
+  tags = merge(local.common_tags, {
+    Name = "aks-${var.cluster_name}-user-nodepool"
+  })
+}
 
 # Log Analytics Workspace for AKS monitoring
 resource "azurerm_log_analytics_workspace" "iq_logs" {
