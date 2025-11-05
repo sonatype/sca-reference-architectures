@@ -33,6 +33,14 @@ resource "azurerm_container_app_environment" "iq_env" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs.id
   infrastructure_subnet_id   = azurerm_subnet.private_subnet.id
 
+  # Use workload profiles to enable 4.0 vCPU / 8.0 Gi limits (vs 2.0/4.0 in consumption-only)
+  workload_profile {
+    name                  = "D4-Profile"
+    workload_profile_type = "D4" # 4 vCPU, 16 GB RAM capacity
+    minimum_count         = 1
+    maximum_count         = 1
+  }
+
   tags = {
     Name = "cae-ref-arch-iq"
   }
@@ -44,6 +52,7 @@ resource "azurerm_container_app" "iq_app" {
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
+  workload_profile_name        = "D4-Profile" # Use workload profile to access 4.0 vCPU / 8.0 Gi limits
 
   identity {
     type = "SystemAssigned"

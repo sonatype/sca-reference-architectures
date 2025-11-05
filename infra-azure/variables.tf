@@ -2,7 +2,7 @@
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
-  default     = "East US"
+  default     = "West US 2"
 }
 
 # Network Variables
@@ -38,7 +38,7 @@ variable "container_cpu" {
 }
 
 variable "container_memory" {
-  description = "Memory allocation for container in Gi (0.5, 1.0, 1.5, 2.0, 3.0, 3.5, 4.0)"
+  description = "Memory allocation for container in Gi (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)"
   type        = string
   default     = "4Gi"
 }
@@ -52,7 +52,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Database Variables
@@ -81,15 +81,15 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "Database SKU name (B_Standard_B1ms, GP_Standard_D2s_v3, MO_Standard_E4s_v3)"
+  description = "Database SKU name (B_Standard_B1ms, GP_Standard_D4s_v3, MO_Standard_E16s_v3)"
   type        = string
-  default     = "B_Standard_B2s"
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_storage_mb" {
   description = "Database storage in MB"
   type        = number
-  default     = 32768 # 32 GB
+  default     = 524288 # 512 GB
 }
 
 variable "db_auto_grow_enabled" {
@@ -164,7 +164,7 @@ variable "storage_account_replication_type" {
 variable "file_share_quota" {
   description = "File share quota in GB"
   type        = number
-  default     = 100
+  default     = 500
 }
 
 # Logging Variables

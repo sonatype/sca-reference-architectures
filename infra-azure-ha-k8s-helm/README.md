@@ -68,8 +68,8 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 
 ### Azure Account Requirements
 - Azure subscription with administrative access
-- Sufficient vCPU quota (minimum 10 vCPUs for Standard_D2s_v3 nodes)
-- Resource creation rights in target region
+- Sufficient vCPU quota (48+ vCPUs required for Standard_D8s_v3 nodes in production HA setup)
+- Resource creation rights in target region (East US 2)
 
 ## Quick Start
 
@@ -105,8 +105,10 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
    ```
 
 7. **Access your Nexus IQ Server HA cluster**:
-   - The script will output the URL (e.g., `http://nexus-iq-ha-wirnub.eastus.cloudapp.azure.com`)
+   - Get the URL: `terraform output application_gateway_fqdn`
+   - URL format: `http://nexus-iq-ha-<random>.eastus2.cloudapp.azure.com`
    - Wait 5-10 minutes for all HA services to be ready
+   - **Note**: Current configuration uses reduced resources (2 CPU/12Gi per pod) due to vCPU quota limits. Request quota increase to 48+ vCPUs for production deployment with full resources (4 CPU/16Gi per pod)
    - Default credentials: `admin` / (password from terraform.tfvars)
 
 ## Configuration
@@ -123,18 +125,19 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 
 ```hcl
 # High Availability Configuration
+azure_region = "eastus2"  # East US 2
 kubernetes_version = "1.33.3"
-node_instance_type = "Standard_D2s_v3"  # 2 vCPU, 8GB RAM
-node_group_min_size = 1
-node_group_max_size = 4
-node_group_desired_size = 2
+node_instance_type = "Standard_D8s_v3"  # 8 vCPU, 32GB RAM
+node_group_min_size = 2
+node_group_max_size = 5
+node_group_desired_size = 3
 
-# Zone-Redundant Database
+# Zone-Redundant Database (matching AWS Aurora specs)
 postgres_version = "15"
-postgres_sku_name = "GP_Standard_D2s_v3"  # 2 vCores, 8GB
-postgres_storage_mb = 32768
+db_sku_name = "MO_Standard_E16s_v3"  # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode = "ZoneRedundant"
-database_password = "YourSecurePassword123!"  # Change this!
+db_geo_redundant_backup_enabled = false  # Not supported in all regions
+database_password = "SecurePassword123!"  # Change this!
 
 # Zone-Redundant Storage
 storage_account_tier = "Premium"
@@ -149,7 +152,11 @@ app_gateway_max_capacity = 10
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
-nexus_iq_replica_count = 2  # Minimum for HA
+nexus_iq_replica_count = 3
+nexus_iq_cpu_request = "4"
+nexus_iq_cpu_limit = "6"
+nexus_iq_memory_request = "16Gi"
+nexus_iq_memory_limit = "24Gi"
 nexus_iq_admin_password = "admin123"
 ```
 
@@ -168,16 +175,19 @@ db_subnet_cidr = "10.1.20.0/24"       # PostgreSQL
 Key settings in `helm-values.yaml`:
 ```yaml
 # HA Replica count
-replicaCount: 2
+replicaCount: 3
 
 # Resources per pod
 resources:
   requests:
-    cpu: "500m"
-    memory: "2Gi"
+    cpu: "4"
+    memory: "16Gi"
   limits:
-    cpu: "1500m"
-    memory: "4Gi"
+    cpu: "6"
+    memory: "24Gi"
+
+# Java options for HA deployment
+javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Service Type with Azure LoadBalancer
 serviceType: "LoadBalancer"
@@ -185,9 +195,9 @@ serviceAnnotations:
   service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/ping"
   service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
 
-# Storage with Azure Files CSI
+# Storage with Azure Files Premium (SMB/CIFS)
 persistence:
-  storageClassName: "azurefile-csi"
+  storageClassName: "azurefile-nfs"  # Custom storage class using SMB protocol
   accessModes:
     - ReadWriteMany
   size: "100Gi"
@@ -195,8 +205,8 @@ persistence:
 # Horizontal Pod Autoscaler
 autoscaling:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 3
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 ```
@@ -221,8 +231,9 @@ autoscaling:
 ### **Storage High Availability**
 - **Zone-Redundant**: Data replicated across 3 zones in region
 - **Performance**: Premium tier for consistent IOPS
+- **Protocol**: SMB/CIFS (version 3.1.1) for reliable Azure Files integration
 - **Durability**: 99.9999999999% annual durability
-- **Access**: ReadWriteMany (RWX) for all pods via Azure Files CSI
+- **Access**: ReadWriteMany (RWX) for all pods via Azure Files CSI driver
 
 ### **Load Balancer High Availability**
 - **Zone Distribution**: Application Gateway instances across zones 1, 2, 3

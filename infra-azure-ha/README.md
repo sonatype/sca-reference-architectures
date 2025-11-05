@@ -6,7 +6,7 @@ This directory contains Terraform configuration for deploying Nexus IQ Server on
 
 This infrastructure deploys a complete, production-ready Nexus IQ Server High Availability environment including:
 
-- **Container Apps (2-10 replicas)** - Multi-instance containerized Nexus IQ Server with auto-scaling
+- **Container Apps (3-5 replicas)** - Multi-instance containerized Nexus IQ Server with auto-scaling (4.0 vCPU / 8Gi per replica)
 - **Zone-Redundant Application Gateway** - HTTP load balancer with health checks across availability zones
 - **Zone-Redundant PostgreSQL Flexible Server** - Managed database with automatic failover
 - **Premium Azure Files (ZRS)** - Zone-redundant shared storage for clustering coordination
@@ -22,7 +22,7 @@ Internet
     ↓
 Application Gateway (Zone-Redundant, Multiple AZs)
     ↓
-Container Apps (2-10 replicas, Auto-scaling, Multi-AZ) ←→ Azure Files Premium (ZRS)
+Container Apps (3-5 replicas, Auto-scaling, Multi-AZ) ←→ Azure Files Premium (ZRS)
     ↓
 PostgreSQL Flexible Server (Zone-Redundant with Standby)
 ```
@@ -31,12 +31,12 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 
 ### **Multi-Zone Redundancy**
 - **Application Gateway**: Zone-redundant deployment across 3 availability zones
-- **Container Apps**: Automatic distribution across zones with 2-10 replicas
+- **Container Apps**: Automatic distribution across zones with 3-5 replicas (4.0 vCPU / 8Gi each)
 - **PostgreSQL**: Zone-redundant with automatic standby in different zone
 - **Storage**: Zone-Redundant Storage (ZRS) for 99.9999999999% durability
 
 ### **Auto-Scaling & Load Balancing**
-- **KEDA-based Scaling**: CPU, memory, and HTTP request-based scaling (2-10 replicas)
+- **KEDA-based Scaling**: CPU, memory, and HTTP request-based scaling (3-5 replicas)
 - **Application Gateway**: Automatic load balancing with health probes
 - **Rolling Updates**: Zero-downtime deployments with traffic shifting
 - **Session Management**: Stateless design with shared storage for clustering
@@ -62,8 +62,8 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 
 ### Azure Account Requirements
 - Azure subscription with appropriate permissions
-- Resource creation rights in target region
-- Ability to create zone-redundant resources
+- Resource creation rights in target region (default: **East US 2**)
+- Ability to create zone-redundant resources (PostgreSQL HA, Zone-Redundant Storage)
 
 ## Quick Start
 
@@ -98,6 +98,7 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
    - Get URLs: `terraform output`
    - Wait 15-20 minutes for all HA services to be ready
    - Default credentials: `admin` / `admin123`
+   - **Security Note**: The deployment uses HTTP (port 80) by default. For production, configure HTTPS with SSL certificate (see Production Considerations below).
 
 ## Configuration
 
@@ -113,16 +114,16 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 
 ```hcl
 # High Availability Configuration
-iq_min_replicas                  = 2           # Minimum replicas (must be >= 2 for HA)
-iq_max_replicas                  = 10          # Maximum auto scaling capacity
-container_cpu                    = 2.0         # CPU per replica
-container_memory                 = "4Gi"       # Memory per replica
+iq_min_replicas                  = 3           # Minimum replicas (must be >= 2 for HA)
+iq_max_replicas                  = 5           # Maximum auto scaling capacity
+container_cpu                    = 4.0         # CPU per replica (max for workload profiles)
+container_memory                 = "8Gi"       # Memory per replica (max for workload profiles)
 
 # Zone-Redundant Database
 db_high_availability_mode        = "ZoneRedundant"  # Zone-redundant PostgreSQL
-db_sku_name                      = "GP_Standard_D4s_v3"  # 4 vCores, 16GB
+db_sku_name                      = "MO_Standard_E16s_v3"  # Memory Optimized: 16 vCores, 128GB RAM
 postgres_version                 = "15"
-db_geo_redundant_backup_enabled  = true
+db_geo_redundant_backup_enabled  = false       # Set to true if region supports it
 
 # Zone-Redundant Storage
 storage_account_tier             = "Premium"   # Premium performance
@@ -377,6 +378,10 @@ infra-azure-ha/
 For production HA deployments, consider:
 
 1. **SSL/TLS**: Configure Application Gateway with SSL certificate
+   - The infrastructure includes port 443 and SSL policy (`AppGwSslPolicy20220101`)
+   - Upload your SSL certificate to Azure Key Vault
+   - Update Application Gateway configuration to add HTTPS listener
+   - Currently deployed with HTTP (port 80) only - **not recommended for production**
 2. **Custom Domain**: Set up DNS with health checks
 3. **Monitoring**: Implement comprehensive alerting for HA components
 4. **Backup Testing**: Regular backup and restore testing
