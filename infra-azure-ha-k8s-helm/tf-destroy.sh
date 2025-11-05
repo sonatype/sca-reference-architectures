@@ -67,6 +67,26 @@ else
 fi
 
 echo ""
+echo -e "${BLUE}🔍 Checking for orphaned PostgreSQL server...${NC}"
+# Check if PostgreSQL exists but is not in Terraform state (corruption case)
+POSTGRES_NAME=$(terraform output -raw postgres_server_name 2>/dev/null || echo "psql-nexus-iq-ha")
+if az postgres flexible-server show --resource-group "$RESOURCE_GROUP" --name "$POSTGRES_NAME" &>/dev/null; then
+    # Check if it's in terraform state
+    if ! terraform state list 2>/dev/null | grep -q "azurerm_postgresql_flexible_server"; then
+        echo -e "${YELLOW}⚠️  Found orphaned PostgreSQL server not in Terraform state${NC}"
+        echo -e "${BLUE}🗑️  Deleting PostgreSQL server to prevent subnet deletion issues...${NC}"
+        az postgres flexible-server delete --resource-group "$RESOURCE_GROUP" --name "$POSTGRES_NAME" --yes 2>/dev/null || true
+        echo "⏱️  Waiting for PostgreSQL deletion and service association link cleanup..."
+        sleep 45
+        echo "✅ PostgreSQL server cleanup completed"
+    else
+        echo "✅ PostgreSQL server is properly tracked in Terraform state"
+    fi
+else
+    echo "✅ No orphaned PostgreSQL server found"
+fi
+
+echo ""
 echo -e "${BLUE}🚀 Starting Terraform destroy...${NC}"
 echo -e "${YELLOW}⏱️  This may take 10-15 minutes for HA infrastructure cleanup...${NC}"
 echo ""

@@ -2,7 +2,7 @@
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
-  default     = "East US"
+  default     = "East US 2"
 }
 
 variable "cluster_name" {
@@ -38,21 +38,21 @@ variable "db_subnet_cidr" {
 
 # Container App Variables (HA Configuration)
 variable "container_cpu" {
-  description = "CPU allocation per container replica"
+  description = "CPU allocation per container replica (max 4.0 for Azure Container Apps)"
   type        = number
-  default     = 2.0
+  default     = 4.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation per container replica"
+  description = "Memory allocation per container replica (max 8Gi for Azure Container Apps)"
   type        = string
-  default     = "4Gi"
+  default     = "8Gi"
 }
 
 variable "iq_min_replicas" {
   description = "Minimum number of IQ Server replicas (HA requires minimum 2)"
   type        = number
-  default     = 2
+  default     = 3
 
   validation {
     condition     = var.iq_min_replicas >= 2
@@ -63,7 +63,7 @@ variable "iq_min_replicas" {
 variable "iq_max_replicas" {
   description = "Maximum number of IQ Server replicas for auto scaling"
   type        = number
-  default     = 10
+  default     = 5
 }
 
 variable "iq_docker_image" {
@@ -75,7 +75,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Auto Scaling Variables
@@ -125,7 +125,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name for zone-redundant HA deployment"
   type        = string
-  default     = "GP_Standard_D4s_v3" # 4 vCores, 16GB RAM
+  default     = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM
 }
 
 variable "db_backup_retention_days" {
@@ -135,9 +135,9 @@ variable "db_backup_retention_days" {
 }
 
 variable "db_geo_redundant_backup_enabled" {
-  description = "Enable geo-redundant backup for additional HA"
+  description = "Enable geo-redundant backup for additional HA (not supported in all regions)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "db_high_availability_mode" {

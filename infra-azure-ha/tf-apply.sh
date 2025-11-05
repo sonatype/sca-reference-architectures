@@ -59,9 +59,8 @@ if [ ! -d ".terraform" ]; then
     terraform init
 fi
 
-# Generate and show plan
-echo "📋 Generating Terraform plan..."
-terraform plan -out=tfplan
+# Remove any old plan files
+rm -f tfplan
 
 echo ""
 echo "📊 HA Deployment Summary:"
@@ -112,65 +111,77 @@ import_resource_async() {
     fi
 }
 
-# Function to proactively import all possible resources (optimized for speed)
+# Function to proactively import all possible resources (dynamically discovered)
 import_all_resources() {
-    echo -e "${BLUE}📥 Fast parallel resource import for HA deployment...${NC}"
+    echo -e "${BLUE}📥 Dynamic resource discovery and import for HA deployment...${NC}"
     echo ""
 
-    # Critical resources that commonly cause import issues (HA-specific)
+    local SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+    local RESOURCE_GROUP="rg-ref-arch-iq-ha"
+
+    # Base resources with fixed names
     local critical_resources=(
-        "azurerm_resource_group.iq_rg:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha"
-        "azurerm_application_gateway.iq_app_gw_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/applicationGateways/agw-ref-arch-iq-ha"
-        "azurerm_container_app.iq_app_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.App/containerApps/ca-ref-arch-iq-ha"
-        "azurerm_container_app_environment.iq_env_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.App/managedEnvironments/cae-ref-arch-iq-ha"
-        "azurerm_virtual_network.iq_vnet:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq-ha"
-        "azurerm_public_ip.app_gw_pip_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/publicIPAddresses/pip-ref-arch-iq-ha"
-        "azurerm_storage_account.iq_storage_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Storage/storageAccounts/strefarchiqhal1ur9htd"
-        "azurerm_postgresql_flexible_server.iq_db_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.DBforPostgreSQL/flexibleServers/psql-ref-arch-iq-ha"
-        "azurerm_log_analytics_workspace.iq_logs_ha:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.OperationalInsights/workspaces/log-ref-arch-iq-ha"
-        "azurerm_monitor_diagnostic_setting.app_gw_diagnostics[0]:/subscriptions/48a33158-a8cc-4938-84fd-e661939ed499/resourceGroups/rg-ref-arch-iq-ha/providers/Microsoft.Network/applicationGateways/agw-ref-arch-iq-ha|agw-ref-arch-iq-ha-diagnostics"
+        "azurerm_resource_group.iq_rg:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP"
+        "azurerm_virtual_network.iq_vnet:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/vnet-ref-arch-iq-ha"
+        "azurerm_public_ip.app_gw_pip_ha:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/publicIPAddresses/pip-ref-arch-iq-ha"
+        "azurerm_network_security_group.public_nsg:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/networkSecurityGroups/nsg-public-ha"
+        "azurerm_network_security_group.private_nsg:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/networkSecurityGroups/nsg-private-ha"
+        "azurerm_network_security_group.db_nsg:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/networkSecurityGroups/nsg-database-ha"
+        "azurerm_application_gateway.iq_app_gw_ha:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/applicationGateways/agw-ref-arch-iq-ha"
+        "azurerm_container_app_environment.iq_env_ha:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/managedEnvironments/cae-ref-arch-iq-ha"
+        "azurerm_container_app.iq_app_ha:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/ca-ref-arch-iq-ha"
+        "azurerm_postgresql_flexible_server.iq_db_ha:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.DBforPostgreSQL/flexibleServers/psqlfs-ref-arch-iq-ha"
+        "azurerm_log_analytics_workspace.iq_logs_ha:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.OperationalInsights/workspaces/log-ref-arch-iq-ha"
+        "azurerm_private_dns_zone.postgres:/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Network/privateDnsZones/privatelink.postgres.database.azure.com"
     )
 
-    # Create temporary file for results
-    local temp_file=$(mktemp)
-    local pids=()
+    # Dynamically discover storage account (has random suffix)
+    local storage_account=$(az storage account list --resource-group "$RESOURCE_GROUP" --query "[?starts_with(name, 'strefarchiqha')].id" -o tsv 2>/dev/null || echo "")
+    if [ -n "$storage_account" ]; then
+        critical_resources+=("azurerm_storage_account.iq_storage_ha:$storage_account")
+    fi
 
-    echo -e "${YELLOW}🚀 Launching parallel imports...${NC}"
+    # Dynamically discover key vault (has random suffix)
+    local key_vault=$(az keyvault list --resource-group "$RESOURCE_GROUP" --query "[?starts_with(name, 'kv-iq-ha-')].id" -o tsv 2>/dev/null || echo "")
+    if [ -n "$key_vault" ]; then
+        critical_resources+=("azurerm_key_vault.iq_kv_ha:$key_vault")
+    fi
 
-    # Launch all imports in parallel
+    # Dynamically discover backup vault if backup is enabled
+    local backup_vault=$(az resource list --resource-group "$RESOURCE_GROUP" --resource-type "Microsoft.DataProtection/backupVaults" --query "[0].id" -o tsv 2>/dev/null || echo "")
+    if [ -n "$backup_vault" ]; then
+        critical_resources+=("azurerm_data_protection_backup_vault.iq_backup_vault[0]:$backup_vault")
+    fi
+
+    # Import resources synchronously for reliability
+    local imported_count=0
+    local skipped_count=0
+
+    echo -e "${YELLOW}🚀 Importing resources synchronously...${NC}"
+    echo ""
+
     for resource in "${critical_resources[@]}"; do
         local terraform_address="${resource%%:*}"
         local azure_id="${resource#*:}"
 
-        import_resource_async "$terraform_address" "$azure_id" "$temp_file" &
-        pids+=($!)
+        # Check if already in state
+        if terraform state show "$terraform_address" >/dev/null 2>&1; then
+            echo -e "${BLUE}ℹ️  Already in state: $terraform_address${NC}"
+            skipped_count=$((skipped_count + 1))
+            continue
+        fi
+
+        # Attempt import
+        echo -e "${YELLOW}📥 Importing: $terraform_address${NC}"
+        if terraform import "$terraform_address" "$azure_id" 2>&1 | grep -q "Import successful\|already managed"; then
+            echo -e "${GREEN}✅ Imported: $terraform_address${NC}"
+            imported_count=$((imported_count + 1))
+        else
+            echo -e "${BLUE}ℹ️  Skipped (doesn't exist): $terraform_address${NC}"
+            skipped_count=$((skipped_count + 1))
+        fi
+        echo ""
     done
-
-    # Wait for all background processes to complete
-    echo -e "${BLUE}⏳ Waiting for imports to complete...${NC}"
-    for pid in "${pids[@]}"; do
-        wait "$pid"
-    done
-
-    # Process results
-    local imported_count=0
-    local skipped_count=0
-
-    while IFS=':' read -r status terraform_address reason; do
-        case "$status" in
-            "SUCCESS")
-                echo -e "${GREEN}✅ Imported: $terraform_address${NC}"
-                imported_count=$((imported_count + 1))
-                ;;
-            "SKIP")
-                echo -e "${BLUE}ℹ️  Skipped: $terraform_address ($reason)${NC}"
-                skipped_count=$((skipped_count + 1))
-                ;;
-        esac
-    done < "$temp_file"
-
-    # Cleanup
-    rm -f "$temp_file"
 
     echo ""
     echo -e "${GREEN}📊 Import Summary: $imported_count imported, $skipped_count skipped${NC}"
@@ -182,6 +193,16 @@ echo "⏱️  This may take 15-20 minutes for HA infrastructure..."
 
 # First, import everything that might exist
 import_all_resources
+
+# Regenerate plan after imports (critical!)
+echo -e "${BLUE}📋 Regenerating plan after imports...${NC}"
+if terraform plan -out=tfplan; then
+    echo -e "${GREEN}✅ Plan regenerated${NC}"
+    echo ""
+else
+    echo -e "${RED}❌ Failed to regenerate plan${NC}"
+    exit 1
+fi
 
 # Apply with auto-approve
 terraform apply tfplan

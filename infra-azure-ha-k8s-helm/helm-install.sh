@@ -82,6 +82,51 @@ fi
 echo -e "${GREEN}✅ Infrastructure details retrieved successfully${NC}"
 echo ""
 
+# Apply NFS StorageClass
+echo -e "${BLUE}💾 Setting up NFS StorageClass...${NC}"
+
+STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null || echo "")
+RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null || echo "")
+
+if [[ -z "$STORAGE_ACCOUNT" || -z "$RESOURCE_GROUP" ]]; then
+    echo -e "${RED}❌ Error: Could not get storage account details from terraform outputs${NC}"
+    exit 1
+fi
+
+# Create temporary StorageClass with runtime values
+cat > k8s-storageclass-nfs-runtime.yaml << EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: azurefile-nfs
+provisioner: file.csi.azure.com
+allowVolumeExpansion: true
+parameters:
+  skuName: Premium_ZRS
+  storageAccount: ${STORAGE_ACCOUNT}
+  resourceGroup: ${RESOURCE_GROUP}
+mountOptions:
+  - dir_mode=0777
+  - file_mode=0777
+  - uid=1000
+  - gid=1000
+  - mfsymlinks
+  - cache=strict
+  - actimeo=30
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+EOF
+
+# Apply StorageClass
+if kubectl get storageclass azurefile-nfs >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  StorageClass 'azurefile-nfs' already exists, replacing...${NC}"
+    kubectl delete storageclass azurefile-nfs
+fi
+
+kubectl apply -f k8s-storageclass-nfs-runtime.yaml
+echo -e "${GREEN}✅ NFS StorageClass configured${NC}"
+echo ""
+
 # Create license secret if it doesn't exist
 echo -e "${BLUE}🔐 Setting up license secret...${NC}"
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -

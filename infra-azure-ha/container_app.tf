@@ -35,6 +35,14 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
   # Use the first private subnet for the environment (Container Apps will be distributed across zones)
   infrastructure_subnet_id = azurerm_subnet.private_subnets[0].id
 
+  # Workload profile to support higher resource limits (4.0 vCPU / 8.0 Gi)
+  workload_profile {
+    name                  = "D4-Profile-HA"
+    workload_profile_type = "D4" # 4 vCPU, 16 GB RAM capacity per node
+    minimum_count         = 1
+    maximum_count         = 3 # Support multiple replicas across zones
+  }
+
   tags = merge(var.common_tags, {
     Name = "cae-ref-arch-iq-ha"
   })
@@ -46,6 +54,7 @@ resource "azurerm_container_app" "iq_app_ha" {
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
+  workload_profile_name        = "D4-Profile-HA" # Use workload profile to access 4.0 vCPU / 8.0 Gi limits
 
   identity {
     type = "SystemAssigned"

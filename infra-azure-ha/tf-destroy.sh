@@ -68,11 +68,39 @@ fi
 echo "🚀 Starting Terraform destroy..."
 echo "⏱️  This may take 10-15 minutes for HA infrastructure cleanup..."
 
+# First, clean state to avoid import issues on next apply
+echo "🧹 Cleaning Terraform state files..."
+rm -f terraform.tfstate.backup
+rm -f tfplan
+
+# Remove NSG associations before destroy to avoid dependency issues
+echo "🔧 Removing NSG associations..."
+if az group show --name "$RESOURCE_GROUP" &>/dev/null; then
+    # Get all subnets and remove NSG associations
+    az network vnet subnet list --resource-group "$RESOURCE_GROUP" --vnet-name "vnet-ref-arch-iq-ha" --query "[].{Name:name,NSG:networkSecurityGroup.id}" -o tsv 2>/dev/null | while read -r subnet nsg; do
+        if [ -n "$nsg" ]; then
+            echo "   Removing NSG from subnet: $subnet"
+            az network vnet subnet update --resource-group "$RESOURCE_GROUP" --vnet-name "vnet-ref-arch-iq-ha" --name "$subnet" --network-security-group "" 2>/dev/null || true
+        fi
+    done
+fi
+
 # Destroy infrastructure
 terraform destroy -auto-approve
 
 echo ""
 echo "🧹 Performing additional cleanup..."
+
+# Force delete resource group if Terraform destroy fails to remove everything
+echo "🗑️  Ensuring resource group is completely removed..."
+if az group show --name "$RESOURCE_GROUP" &>/dev/null; then
+    echo "   Force deleting resource group: $RESOURCE_GROUP"
+    echo "   ⏱️  This will wait for deletion to complete (may take 5-10 minutes)..."
+    az group delete --name "$RESOURCE_GROUP" --yes
+    echo "   ✅ Resource group deletion completed"
+else
+    echo "   Resource group already removed"
+fi
 
 # Clean up any remaining soft-deleted resources
 echo "🔍 Checking for remaining soft-deleted resources..."
@@ -100,4 +128,14 @@ echo "   • Database backups may be retained based on backup policy"
 echo "   • File share snapshots may be available if configured"
 echo "   • Check geo-redundant backups if enabled"
 echo ""
+
+# Final cleanup - remove state files
+echo "🧹 Final cleanup - removing state files..."
+rm -f terraform.tfstate*
+rm -f .terraform.lock.hcl
+echo "   State files cleaned"
+echo ""
+
 echo "🎉 HA infrastructure destruction completed!"
+echo ""
+echo "✅ Ready for fresh deployment - all state cleaned"

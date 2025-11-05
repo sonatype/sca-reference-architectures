@@ -1,0 +1,16 @@
+# Generated files
+k8s-storageclass-nfs-runtime.yaml
+helm-values-runtime.yaml
+
+# Terraform files
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+tfplan
+
+# Helm generated files
+*.tgz
+
+# Kubernetes configs
+kubeconfig

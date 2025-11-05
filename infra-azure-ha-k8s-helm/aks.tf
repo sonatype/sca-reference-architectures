@@ -145,15 +145,61 @@ resource "azurerm_application_insights" "iq_insights" {
 #   skip_service_principal_aad_check = true
 # }
 
-# Role assignment for AKS to access storage account
+# Role assignment for AKS cluster identity to access storage account (required for Azure Files CSI driver)
 resource "azurerm_role_assignment" "aks_storage_contributor" {
-  principal_id         = azurerm_kubernetes_cluster.iq_aks.kubelet_identity[0].object_id
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
   role_definition_name = "Storage Account Contributor"
   scope                = azurerm_storage_account.iq_storage.id
 
   depends_on = [
     azurerm_kubernetes_cluster.iq_aks,
     azurerm_storage_account.iq_storage
+  ]
+}
+
+# Role assignment for AKS cluster identity to read VNet (required for NFS provisioning)
+resource "azurerm_role_assignment" "aks_network_contributor" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_virtual_network.iq_vnet.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_virtual_network.iq_vnet
+  ]
+}
+
+# Role assignment for AKS cluster identity to join NSGs (required for NFS service endpoints)
+resource "azurerm_role_assignment" "aks_nsg_contributor_public" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_network_security_group.public_nsg.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_network_security_group.public_nsg
+  ]
+}
+
+resource "azurerm_role_assignment" "aks_nsg_contributor_aks" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_network_security_group.aks_nsg.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_network_security_group.aks_nsg
+  ]
+}
+
+resource "azurerm_role_assignment" "aks_nsg_contributor_db" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_network_security_group.db_nsg.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_network_security_group.db_nsg
   ]
 }
 
@@ -164,7 +210,7 @@ resource "null_resource" "wait_for_cluster" {
   }
 
   depends_on = [
-    azurerm_kubernetes_cluster.iq_aks,
-    azurerm_kubernetes_cluster_node_pool.user_pool
+    azurerm_kubernetes_cluster.iq_aks
+    # azurerm_kubernetes_cluster_node_pool.user_pool  # Commented out with user pool
   ]
 }
