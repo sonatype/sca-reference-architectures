@@ -8,24 +8,24 @@ This infrastructure deploys a complete, production-ready Nexus IQ Server High Av
 
 - **Managed Instance Group (MIG)** - Multiple Docker containerized Nexus IQ Server instances (2-6 instances)
 - **Global HTTP(S) Load Balancer** - Load balancer with health checks and auto scaling
-- **Cloud SQL PostgreSQL Regional** - Managed database with Multi-AZ failover and optional read replica
-- **Cloud Filestore** - Shared NFS storage for clustering support and unique work directories
+- **Cloud SQL PostgreSQL Regional** - Managed database (db-custom-8-30720) with Multi-AZ failover and optional read replica
+- **Cloud Filestore** - Shared NFS storage (2.5TB BASIC_SSD) for clustering support and unique work directories
 - **VPC & Networking** - Complete network infrastructure with public/private/database subnets
-- **Cloud Armor** - DDoS protection and web application firewall
+- **Cloud Armor** - DDoS protection and web application firewall with rate limiting
 - **Service Accounts** - Least-privilege IAM roles following GCP best practices
-- **Cloud Logging & Monitoring** - Comprehensive logging with log-based metrics and alerts
+- **Cloud Logging & Monitoring** - Comprehensive logging with Cloud Ops Agent and log-based metrics
 - **Secret Manager** - Secure database credential storage
-- **Auto Scaling** - Dynamic scaling based on CPU utilization
-- **Cloud Ops Agent** - Monitoring and logging agent for application logs
+- **Auto Scaling** - Dynamic scaling based on CPU (70%) and load balancer utilization (80%)
+- **Cloud Ops Agent** - Structured log collection from NFS-backed log files
 
 ```
 Internet
     ↓
 Global HTTP(S) Load Balancer (Public)
     ↓
-Managed Instance Group (2-6 Docker instances, Multi-Zone) ←→ Cloud Filestore (Shared NFS Storage)
+Managed Instance Group (2-6 Docker instances, Multi-Zone) ←→ Cloud Filestore (2.5TB BASIC_SSD NFS)
     ↓
-Cloud SQL PostgreSQL Regional (Database Subnets, Multi-AZ + Read Replica)
+Cloud SQL PostgreSQL Regional (db-custom-8-30720, Multi-AZ + Optional Read Replica)
 ```
 
 ## Prerequisites
