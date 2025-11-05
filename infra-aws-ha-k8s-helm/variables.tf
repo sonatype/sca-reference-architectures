@@ -150,25 +150,25 @@ variable "nexus_iq_replica_count" {
 variable "nexus_iq_memory_request" {
   description = "Memory request for Nexus IQ Server pods"
   type        = string
-  default     = "4Gi"
+  default     = "16Gi"
 }
 
 variable "nexus_iq_memory_limit" {
   description = "Memory limit for Nexus IQ Server pods"
   type        = string
-  default     = "6Gi"
+  default     = "24Gi"
 }
 
 variable "nexus_iq_cpu_request" {
   description = "CPU request for Nexus IQ Server pods"
   type        = string
-  default     = "2"
+  default     = "4"
 }
 
 variable "nexus_iq_cpu_limit" {
   description = "CPU limit for Nexus IQ Server pods"
   type        = string
-  default     = "4"
+  default     = "6"
 }
 
 # Helm Configuration

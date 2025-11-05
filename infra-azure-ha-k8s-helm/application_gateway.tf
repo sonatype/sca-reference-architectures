@@ -42,7 +42,8 @@ resource "azurerm_application_gateway" "appgw" {
     protocol                            = "Http"
     request_timeout                     = 60
     probe_name                          = "health-probe"
-    pick_host_name_from_backend_address = true  # Pick hostname from backend LoadBalancer IP
+    pick_host_name_from_backend_address = false  # Use Application Gateway FQDN, not backend IP
+    host_name                           = azurerm_public_ip.appgw_pip.fqdn  # Send App Gateway FQDN to backend
   }
 
   http_listener {
@@ -69,7 +70,8 @@ resource "azurerm_application_gateway" "appgw" {
     interval                                  = 30
     timeout                                   = 30
     unhealthy_threshold                       = 3
-    pick_host_name_from_backend_http_settings = true  # Use backend hostname for health checks
+    pick_host_name_from_backend_http_settings = false  # Don't use backend IP
+    host                                      = azurerm_public_ip.appgw_pip.fqdn  # Use App Gateway FQDN
     match {
       status_code = ["200-399"]
     }

@@ -185,7 +185,7 @@ done
 
 echo -e "${GREEN}    ✅ Namespace verified and ready${NC}"
 
-echo "  Creating PVC with Helm labels..."
+echo "  Creating shared PVC (used by both IQ Server and Fluentd)..."
 if $KUBECTL_PREFIX kubectl apply -f nexus-iq-pvc.yaml; then
     echo -e "${GREEN}    ✅ PVC configuration applied${NC}"
 else
@@ -200,7 +200,7 @@ sleep 2
 timeout=60
 elapsed=0
 while true; do
-    PVC_STATUS=$($KUBECTL_PREFIX kubectl get pvc nexus-iq-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+    PVC_STATUS=$($KUBECTL_PREFIX kubectl get pvc iq-server-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
 
     if [[ "$PVC_STATUS" == "Bound" ]]; then
         echo -e "${GREEN}    ✅ PVC is bound and ready${NC}"
@@ -214,7 +214,7 @@ while true; do
     elif [ $elapsed -ge $timeout ]; then
         echo -e "${RED}❌ Error: PVC failed to bind within timeout${NC}"
         echo "    Current PVC status: $PVC_STATUS"
-        $KUBECTL_PREFIX kubectl describe pvc nexus-iq-pvc -n "$NAMESPACE" || true
+        $KUBECTL_PREFIX kubectl describe pvc iq-server-pvc -n "$NAMESPACE" || true
         exit 1
     fi
 
@@ -268,19 +268,61 @@ DB_PORT=$($TERRAFORM_PREFIX terraform output -raw rds_cluster_port 2>/dev/null)
 
 # Get database credentials from AWS Secrets Manager (consistent with other deployments)
 SECRET_NAME=$($TERRAFORM_PREFIX terraform output -raw secrets_manager_secret_name 2>/dev/null)
-if [[ -n "$SECRET_NAME" ]]; then
+if [[ -n "$SECRET_NAME" && "$SECRET_NAME" != "null" ]]; then
     echo "• Retrieving database credentials from AWS Secrets Manager..."
-    SECRET_JSON=$(aws-vault exec "$AWS_PROFILE" -- aws secretsmanager get-secret-value \
-        --secret-id "$SECRET_NAME" \
-        --query 'SecretString' \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null)
+    SECRET_JSON=""
+
+    # Try to retrieve with timeout to avoid hanging
+    if command -v timeout >/dev/null 2>&1; then
+        if command -v aws-vault >/dev/null 2>&1; then
+            SECRET_JSON=$(timeout 30s aws-vault exec "$AWS_PROFILE" -- aws secretsmanager get-secret-value \
+                --secret-id "$SECRET_NAME" \
+                --query 'SecretString' \
+                --output text \
+                --region "$AWS_REGION" 2>/dev/null || echo "")
+        else
+            SECRET_JSON=$(timeout 30s aws secretsmanager get-secret-value \
+                --secret-id "$SECRET_NAME" \
+                --query 'SecretString' \
+                --output text \
+                --region "$AWS_REGION" 2>/dev/null || echo "")
+        fi
+    else
+        # No timeout available, try anyway
+        if command -v aws-vault >/dev/null 2>&1; then
+            SECRET_JSON=$(aws-vault exec "$AWS_PROFILE" -- aws secretsmanager get-secret-value \
+                --secret-id "$SECRET_NAME" \
+                --query 'SecretString' \
+                --output text \
+                --region "$AWS_REGION" 2>/dev/null || echo "")
+        else
+            SECRET_JSON=$(aws secretsmanager get-secret-value \
+                --secret-id "$SECRET_NAME" \
+                --query 'SecretString' \
+                --output text \
+                --region "$AWS_REGION" 2>/dev/null || echo "")
+        fi
+    fi
 
     # Parse JSON to get username and password
-    DB_USERNAME=$(echo "$SECRET_JSON" | jq -r '.username')
-    DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.password')
+    if [[ -n "$SECRET_JSON" ]]; then
+        DB_USERNAME=$(echo "$SECRET_JSON" | jq -r '.username' 2>/dev/null || echo "")
+        DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.password' 2>/dev/null || echo "")
+
+        if [[ -n "$DB_USERNAME" && -n "$DB_PASSWORD" ]]; then
+            echo -e "${GREEN}  ✅ Retrieved credentials from Secrets Manager${NC}"
+        else
+            echo -e "${YELLOW}  ⚠️  Failed to parse secret, falling back to terraform.tfvars${NC}"
+            DB_USERNAME=$(grep '^database_username' terraform.tfvars | cut -d'"' -f2)
+            DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+        fi
+    else
+        echo -e "${YELLOW}  ⚠️  Failed to retrieve secret, falling back to terraform.tfvars${NC}"
+        DB_USERNAME=$(grep '^database_username' terraform.tfvars | cut -d'"' -f2)
+        DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+    fi
 else
-    echo -e "${YELLOW}⚠️  Secrets Manager secret not found, falling back to terraform.tfvars${NC}"
+    echo -e "${YELLOW}  ⚠️  Secrets Manager secret not found, using terraform.tfvars${NC}"
     DB_USERNAME=$(grep '^database_username' terraform.tfvars | cut -d'"' -f2)
     DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
 fi
@@ -452,10 +494,13 @@ if $KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE" >/dev/null 2>&1; then
     $KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE"
     echo ""
 
-    # Get ALB address if available
+    # Get ALB address if available (but don't wait here, will wait later)
     ALB_ADDRESS=$($KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE" -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
     if [[ -n "$ALB_ADDRESS" ]]; then
         echo -e "${GREEN}🎉 Application Load Balancer URL: http://$ALB_ADDRESS${NC}"
+        echo ""
+    else
+        echo -e "${YELLOW}⏳ ALB is being provisioned (will check again later)...${NC}"
         echo ""
     fi
 fi
@@ -521,9 +566,9 @@ else
 fi
 
 # Check PVC
-PVC_STATUS=$($KUBECTL_PREFIX kubectl get pvc nexus-iq-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+PVC_STATUS=$($KUBECTL_PREFIX kubectl get pvc iq-server-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
 if [[ "$PVC_STATUS" == "Bound" ]]; then
-    echo -e "${GREEN}  ✅ PVC is bound${NC}"
+    echo -e "${GREEN}  ✅ PVC is bound (iq-server-pvc)${NC}"
 else
     echo -e "${RED}  ❌ PVC status: $PVC_STATUS${NC}"
     CRITICAL_RESOURCES_OK=false
@@ -550,8 +595,25 @@ else
     CRITICAL_RESOURCES_OK=false
 fi
 
-# Check ALB ingress
-ALB_ADDRESS=$($KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE" -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+# Check ALB ingress with retries
+echo "• Checking for ALB address (may take up to 2 minutes)..."
+ALB_ADDRESS=""
+ALB_TIMEOUT=120
+ALB_ELAPSED=0
+while [[ -z "$ALB_ADDRESS" ]] && [ $ALB_ELAPSED -lt $ALB_TIMEOUT ]; do
+    ALB_ADDRESS=$($KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE" -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+    if [[ -z "$ALB_ADDRESS" ]]; then
+        if [ $ALB_ELAPSED -eq 0 ]; then
+            echo "  Waiting for AWS ALB Controller to provision load balancer..."
+        fi
+        sleep 5
+        ALB_ELAPSED=$((ALB_ELAPSED + 5))
+        if [ $((ALB_ELAPSED % 30)) -eq 0 ]; then
+            echo "  Still waiting... (${ALB_ELAPSED}s/${ALB_TIMEOUT}s)"
+        fi
+    fi
+done
+
 if [[ -n "$ALB_ADDRESS" ]]; then
     echo -e "${GREEN}  ✅ ALB provisioned: $ALB_ADDRESS${NC}"
 
@@ -563,7 +625,9 @@ if [[ -n "$ALB_ADDRESS" ]]; then
         echo -e "${YELLOW}  ⚠️  ALB not responding yet (pods may still be starting)${NC}"
     fi
 else
-    echo -e "${YELLOW}  ⚠️  ALB not ready yet${NC}"
+    echo -e "${YELLOW}  ⚠️  ALB not ready after ${ALB_TIMEOUT}s${NC}"
+    echo "  The ALB may take additional time to provision."
+    echo "  Check status with: $KUBECTL_PREFIX kubectl get ingress -n $NAMESPACE"
 fi
 
 if [[ "$CRITICAL_RESOURCES_OK" == "true" ]]; then

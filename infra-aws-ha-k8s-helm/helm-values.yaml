@@ -7,16 +7,16 @@ iq_server:
   tag: "latest"
   imagePullPolicy: "Always"
 
-  # Resources (adjusted for m5d.2xlarge nodes - 8 vCPU per node)
+  # Resources (matching official Helm chart production recommendations for m5d.2xlarge nodes - 8 vCPU per node)
   resources:
     requests:
-      cpu: "4"      # Allows 1 pod per node with room for system pods
+      cpu: "4"      # 4 vCPU request (adjusted for node capacity)
       memory: "16Gi"
     limits:
-      cpu: "6"      # Can burst up to 6 vCPU
+      cpu: "6"      # 6 vCPU limit
       memory: "24Gi"
 
-  # Java options
+  # Java options (heap sized for 24Gi memory limit)
   javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   # Environment variables - matching ECS approach plus database config
@@ -54,7 +54,7 @@ iq_server:
 
   # Persistence - use existing PVC to skip PV creation entirely
   persistence:
-    existingPersistentVolumeClaimName: "nexus-iq-pvc"
+    existingPersistentVolumeClaimName: "iq-server-pvc"
 
   # Let Helm create ServiceAccount with proper name
   serviceAccountName: "nexus-iq-sa"
@@ -176,6 +176,9 @@ fluentd:
   # EFS Access Points enforce UID/GID 1000, so run Fluentd as same user as IQ Server
   aggregator:
     enabled: true
+    # Use the existing PVC for log storage
+    persistence:
+      existingPersistentVolumeClaimName: "nexus-iq-pvc"
     # Service account with IRSA for CloudWatch access
     serviceAccount:
       create: true

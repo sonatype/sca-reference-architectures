@@ -7,8 +7,8 @@ cluster_name = "nexus-iq-ha"
 vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
-kubernetes_version       = "1.27"
-node_instance_type      = "m5.large"
+kubernetes_version       = "1.30"
+node_instance_type      = "m5d.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
@@ -20,7 +20,7 @@ aurora_instance_class   = "db.r6g.4xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"
-database_password       = "CHANGE_ME_STRONG_PASSWORD"
+database_password       = "SecurePassword123!"
 backup_retention_period = 7
 skip_final_snapshot     = false
 deletion_protection     = true
@@ -30,15 +30,15 @@ efs_provisioned_throughput = 100
 
 # Nexus IQ Server Configuration
 nexus_iq_version       = "1.195.0"
-nexus_iq_license       = "BASE64_ENCODED_LICENSE_STRING"
-nexus_iq_admin_password = "CHANGE_ME_ADMIN_PASSWORD"
+nexus_iq_license       = ""
+nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
 
-# Resource Limits
-nexus_iq_memory_request = "4Gi"
-nexus_iq_memory_limit   = "6Gi"
-nexus_iq_cpu_request    = "2"
-nexus_iq_cpu_limit      = "4"
+# Resource Limits (adjusted for node capacity)
+nexus_iq_memory_request = "16Gi"
+nexus_iq_memory_limit   = "24Gi"
+nexus_iq_cpu_request    = "4"
+nexus_iq_cpu_limit      = "6"
 
 # Helm Configuration
 helm_chart_version = "195.0.0"

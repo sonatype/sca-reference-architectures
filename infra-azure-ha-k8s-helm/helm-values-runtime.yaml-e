@@ -7,16 +7,16 @@ iq_server:
   tag: "latest"
   imagePullPolicy: "Always"
 
-  # Resources - matching AWS specs (optimized for Standard_D8s_v3 nodes - 8 vCPU, 32GB RAM)
+  # Resources (matching official Helm chart production recommendations for Standard_D8s_v3 nodes - 8 vCPU, 32GB RAM)
   resources:
     requests:
-      cpu: "4"
+      cpu: "4"      # 4 vCPU request (production HA)
       memory: "16Gi"
     limits:
-      cpu: "6"
+      cpu: "6"      # 6 vCPU limit
       memory: "24Gi"
 
-  # Java options for HA deployment - matching AWS
+  # Java options (heap sized for 24Gi memory limit)
   javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   # HA Configuration using Helm chart's config mechanism (shared storage pattern like AWS EKS)

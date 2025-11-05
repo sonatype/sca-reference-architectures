@@ -32,15 +32,15 @@ variable "db_subnet_cidr" {
 
 # Container App Variables
 variable "container_cpu" {
-  description = "CPU allocation for container (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)"
+  description = "CPU allocation for container (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0)"
   type        = number
-  default     = 2.0
+  default     = 4.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation for container in Gi (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)"
+  description = "Memory allocation for container in Gi (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 8Gi)"
   type        = string
-  default     = "4Gi"
+  default     = "8Gi"
 }
 
 variable "iq_docker_image" {
