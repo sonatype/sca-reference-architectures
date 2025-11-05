@@ -22,12 +22,6 @@ variable "environment" {
 }
 
 # Network Variables
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
-  type        = string
-  default     = "10.100.0.0/16"
-}
-
 variable "public_subnet_cidr" {
   description = "CIDR block for public subnet"
   type        = string
@@ -220,13 +214,6 @@ variable "custom_domain" {
   description = "Custom domain for Cloud Run service"
   type        = string
   default     = ""
-}
-
-# Logging Variables
-variable "log_retention_days" {
-  description = "Log retention in days"
-  type        = number
-  default     = 30
 }
 
 # Cloud Run Resource Variables
