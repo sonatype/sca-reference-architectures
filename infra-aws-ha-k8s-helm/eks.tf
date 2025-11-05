@@ -11,7 +11,6 @@ module "eks" {
   cluster_endpoint_private_access = true
   cluster_endpoint_public_access  = true
 
-  # EKS Managed Node Groups
   eks_managed_node_groups = {
     nexus_iq_nodes = {
       name = "nexus-iq-nodes"
@@ -26,9 +25,7 @@ module "eks" {
       capacity_type  = "ON_DEMAND"
       disk_size      = var.node_disk_size
 
-      # Let the EKS module manage security groups
 
-      # Required for EFS CSI driver
       iam_role_additional_policies = {
         AmazonEFSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"
       }
@@ -40,7 +37,6 @@ module "eks" {
     }
   }
 
-  # Cluster security group
   cluster_security_group_additional_rules = {
     ingress_nodes_ephemeral_ports_tcp = {
       description                = "Nodes on ephemeral ports"
@@ -52,7 +48,6 @@ module "eks" {
     }
   }
 
-  # Node security group - let the module handle webhook rules automatically
   node_security_group_additional_rules = {
     egress_all = {
       description      = "Node all egress"
@@ -65,7 +60,6 @@ module "eks" {
     }
   }
 
-  # EKS Add-ons
   cluster_addons = {
     coredns = {
       most_recent = true
@@ -90,7 +84,6 @@ module "eks" {
   }
 }
 
-# Additional security group for EKS nodes
 resource "aws_security_group" "eks_nodes" {
   name_prefix = "${var.cluster_name}-eks-nodes"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -134,7 +127,6 @@ resource "aws_security_group" "eks_nodes" {
   }
 }
 
-# IAM role for ALB controller
 resource "aws_iam_role" "aws_load_balancer_controller" {
   name = "${var.cluster_name}-aws-load-balancer-controller"
 
@@ -168,7 +160,6 @@ resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
   role       = aws_iam_role.aws_load_balancer_controller.name
 }
 
-# IAM role for EFS CSI driver
 resource "aws_iam_role" "efs_csi_driver" {
   name = "${var.cluster_name}-efs-csi-driver"
 

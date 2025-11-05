@@ -46,7 +46,7 @@ provider "helm" {
 
 data "azurerm_client_config" "current" {}
 
-# Local variables for common configuration
+
 locals {
   cluster_name        = var.cluster_name
   resource_group_name = "rg-${var.cluster_name}"
@@ -60,7 +60,7 @@ locals {
   }
 }
 
-# Resource Group
+
 resource "azurerm_resource_group" "iq_rg" {
   name     = local.resource_group_name
   location = var.azure_region
@@ -68,7 +68,7 @@ resource "azurerm_resource_group" "iq_rg" {
   tags = local.common_tags
 }
 
-# Virtual Network
+
 resource "azurerm_virtual_network" "iq_vnet" {
   name                = "vnet-${var.cluster_name}"
   address_space       = [var.vnet_cidr]
@@ -80,7 +80,7 @@ resource "azurerm_virtual_network" "iq_vnet" {
   })
 }
 
-# Public Subnet for Application Gateway
+
 resource "azurerm_subnet" "public_subnet" {
   name                 = "snet-public"
   resource_group_name  = azurerm_resource_group.iq_rg.name
@@ -88,7 +88,7 @@ resource "azurerm_subnet" "public_subnet" {
   address_prefixes     = [var.public_subnet_cidr]
 }
 
-# Private Subnet for AKS nodes
+
 resource "azurerm_subnet" "aks_subnet" {
   name                 = "snet-aks"
   resource_group_name  = azurerm_resource_group.iq_rg.name
@@ -98,7 +98,7 @@ resource "azurerm_subnet" "aks_subnet" {
   service_endpoints = ["Microsoft.Storage", "Microsoft.KeyVault"]
 }
 
-# Database Subnet for PostgreSQL Flexible Server
+
 resource "azurerm_subnet" "db_subnet" {
   name                 = "snet-database"
   resource_group_name  = azurerm_resource_group.iq_rg.name
@@ -114,7 +114,7 @@ resource "azurerm_subnet" "db_subnet" {
   }
 }
 
-# Network Security Group for Public Subnet (Application Gateway)
+
 resource "azurerm_network_security_group" "public_nsg" {
   name                = "nsg-public-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
@@ -161,7 +161,7 @@ resource "azurerm_network_security_group" "public_nsg" {
   })
 }
 
-# Network Security Group for AKS Subnet
+
 resource "azurerm_network_security_group" "aks_nsg" {
   name                = "nsg-aks-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
@@ -210,7 +210,7 @@ resource "azurerm_network_security_group" "aks_nsg" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_ranges    = ["8070", "30000-32767"]  # Nexus IQ and NodePort range
+    destination_port_ranges    = ["8070", "30000-32767"]
     source_address_prefix      = "Internet"
     destination_address_prefix = "*"
   }
@@ -232,7 +232,7 @@ resource "azurerm_network_security_group" "aks_nsg" {
   })
 }
 
-# Network Security Group for Database Subnet
+
 resource "azurerm_network_security_group" "db_nsg" {
   name                = "nsg-db-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
@@ -255,7 +255,7 @@ resource "azurerm_network_security_group" "db_nsg" {
   })
 }
 
-# Associate NSGs with Subnets
+
 resource "azurerm_subnet_network_security_group_association" "public_nsg_association" {
   subnet_id                 = azurerm_subnet.public_subnet.id
   network_security_group_id = azurerm_network_security_group.public_nsg.id
@@ -271,14 +271,14 @@ resource "azurerm_subnet_network_security_group_association" "db_nsg_association
   network_security_group_id = azurerm_network_security_group.db_nsg.id
 }
 
-# Random string for DNS uniqueness
+
 resource "random_string" "dns_suffix" {
   length  = 6
   special = false
   upper   = false
 }
 
-# Public IP for Application Gateway
+
 resource "azurerm_public_ip" "appgw_pip" {
   name                = "pip-appgw-${var.cluster_name}"
   resource_group_name = azurerm_resource_group.iq_rg.name

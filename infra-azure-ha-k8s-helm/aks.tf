@@ -1,4 +1,4 @@
-# Azure Kubernetes Service (AKS) Cluster
+
 resource "azurerm_kubernetes_cluster" "iq_aks" {
   name                = "aks-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
@@ -6,10 +6,10 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
   dns_prefix          = var.cluster_name
   kubernetes_version  = var.kubernetes_version
 
-  # Enable automatic upgrades
+
   automatic_channel_upgrade = "stable"
 
-  # Default node pool
+
   default_node_pool {
     name                = "system"
     vm_size             = var.node_instance_type
@@ -22,10 +22,10 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
     os_disk_type        = "Managed"
     type                = "VirtualMachineScaleSets"
 
-    # Enable node public IP for outbound connectivity
+
     enable_node_public_ip = false
 
-    # Node labels for system workloads
+
     node_labels = {
       "nodepool-type" = "system"
       "environment"   = var.environment
@@ -37,12 +37,12 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
     })
   }
 
-  # Identity configuration - use SystemAssigned managed identity
+
   identity {
     type = "SystemAssigned"
   }
 
-  # Network configuration
+
   network_profile {
     network_plugin     = "azure"
     network_policy     = "azure"
@@ -52,21 +52,21 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
     outbound_type      = "loadBalancer"
   }
 
-  # Enable RBAC (Kubernetes RBAC only, no Azure AD integration)
+
   role_based_access_control_enabled = true
 
-  # Add-ons
+
   oms_agent {
     log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs.id
   }
 
-  # Enable Azure Policy for Kubernetes
+
   azure_policy_enabled = true
 
-  # HTTP Application Routing (disabled, we use Application Gateway)
+
   http_application_routing_enabled = false
 
-  # Key Vault Secrets Provider
+
   key_vault_secrets_provider {
     secret_rotation_enabled  = true
     secret_rotation_interval = "2m"
@@ -81,7 +81,7 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
   ]
 }
 
-# User node pool for application workloads
+
 resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   name                  = "user"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.iq_aks.id
@@ -95,14 +95,14 @@ resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   os_disk_type          = "Managed"
   mode                  = "User"
 
-  # Node labels for application workloads
+
   node_labels = {
     "nodepool-type" = "user"
     "environment"   = var.environment
     "workload"      = "application"
   }
 
-  # Node taints to ensure only application workloads run here
+
   node_taints = []
 
   tags = merge(local.common_tags, {
@@ -110,7 +110,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   })
 }
 
-# Log Analytics Workspace for AKS monitoring
+
 resource "azurerm_log_analytics_workspace" "iq_logs" {
   name                = "log-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
@@ -123,7 +123,7 @@ resource "azurerm_log_analytics_workspace" "iq_logs" {
   })
 }
 
-# Application Insights for application monitoring
+
 resource "azurerm_application_insights" "iq_insights" {
   name                = "appi-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
@@ -136,16 +136,16 @@ resource "azurerm_application_insights" "iq_insights" {
   })
 }
 
-# Role assignment for AKS to pull images from ACR (if needed)
-# Uncomment if using Azure Container Registry
-# resource "azurerm_role_assignment" "aks_acr" {
-#   principal_id                     = azurerm_kubernetes_cluster.iq_aks.kubelet_identity[0].object_id
-#   role_definition_name             = "AcrPull"
-#   scope                            = azurerm_container_registry.acr.id
-#   skip_service_principal_aad_check = true
-# }
 
-# Role assignment for AKS cluster identity to access storage account (required for Azure Files CSI driver)
+
+
+
+
+
+
+
+
+
 resource "azurerm_role_assignment" "aks_storage_contributor" {
   principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
   role_definition_name = "Storage Account Contributor"
@@ -157,7 +157,7 @@ resource "azurerm_role_assignment" "aks_storage_contributor" {
   ]
 }
 
-# Role assignment for AKS cluster identity to read VNet (required for NFS provisioning)
+
 resource "azurerm_role_assignment" "aks_network_contributor" {
   principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
   role_definition_name = "Network Contributor"
@@ -169,7 +169,7 @@ resource "azurerm_role_assignment" "aks_network_contributor" {
   ]
 }
 
-# Role assignment for AKS cluster identity to join NSGs (required for NFS service endpoints)
+
 resource "azurerm_role_assignment" "aks_nsg_contributor_public" {
   principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
   role_definition_name = "Network Contributor"
@@ -203,7 +203,7 @@ resource "azurerm_role_assignment" "aks_nsg_contributor_db" {
   ]
 }
 
-# Wait for cluster to be ready before creating Kubernetes resources
+
 resource "null_resource" "wait_for_cluster" {
   provisioner "local-exec" {
     command = "sleep 60"
@@ -211,6 +211,6 @@ resource "null_resource" "wait_for_cluster" {
 
   depends_on = [
     azurerm_kubernetes_cluster.iq_aks
-    # azurerm_kubernetes_cluster_node_pool.user_pool  # Commented out with user pool
+
   ]
 }

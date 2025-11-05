@@ -1,4 +1,4 @@
-# ECS Cluster
+
 resource "aws_ecs_cluster" "iq_cluster" {
   name = "ref-arch-iq-cluster"
 
@@ -12,7 +12,7 @@ resource "aws_ecs_cluster" "iq_cluster" {
   }
 }
 
-# ECS Task Definition
+
 resource "aws_ecs_task_definition" "iq_task" {
   family                   = "ref-arch-nexus-iq-server"
   network_mode             = "awsvpc"
@@ -62,19 +62,19 @@ resource "aws_ecs_task_definition" "iq_task" {
         }
       ]
 
-      # Create complete config.yml with database configuration (matching Azure approach)
+
       entryPoint = ["/bin/sh", "-c"]
       command = [
         <<-EOF
           set -e
           echo "Starting Nexus IQ Server Single Instance with official Docker image"
 
-          # Create comprehensive config.yml with database and logging configuration
+
           mkdir -p /etc/nexus-iq-server
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: /sonatype-work
 
-# Database configuration for PostgreSQL
+
 database:
   type: postgresql
   hostname: $DB_HOST
@@ -136,7 +136,7 @@ logging:
 createSampleData: true
 CONFIGEOF
 
-          # Replace placeholders with actual environment values
+
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
@@ -147,7 +147,7 @@ CONFIGEOF
           echo "Generated config file contents:"
           cat /etc/nexus-iq-server/config.yml
 
-          # Keep original JAVA_OPTS (no database configuration needed)
+
           export JAVA_OPTS
 
           echo "Starting Nexus IQ Server Single Instance"
@@ -166,8 +166,8 @@ CONFIGEOF
         }
       ]
 
-      # Container stdout/stderr goes to application log group
-      # Fluent Bit will tail file-based logs and route them to unified log group
+
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -177,8 +177,8 @@ CONFIGEOF
         }
       }
 
-      # Enhanced health check matching Kubernetes approach
-      # Checks database, cluster directory, and work directory connectivity
+
+
       healthCheck = {
         command = [
           "CMD-SHELL",
@@ -204,35 +204,35 @@ CONFIGEOF
       ]
     }
   ],
-  # Fluent Bit sidecar for structured logging
+
   [{
     name      = "log_router"
     image     = var.fluent_bit_image
-    essential = false  # Non-essential: task continues if Fluent Bit fails
+    essential = false
 
-    # Write config from environment and run Fluent Bit
+
     entryPoint = ["/bin/sh", "-c"]
     command = [
       <<-EOF
         set -e
         echo "Loading Fluent Bit configuration from environment"
 
-        # Create config directories
+
         mkdir -p /fluent-bit/etc /fluent-bit/parsers /fluent-bit/state /var/log/nexus-iq-server/aggregated
 
-        # Write config from environment variable (loaded from SSM via ECS secrets)
+
         echo "$FLUENT_BIT_CONFIG" > /fluent-bit/etc/fluent-bit.conf
         echo "$FLUENT_BIT_PARSERS" > /fluent-bit/parsers/parsers.conf
 
         echo "Configuration loaded successfully"
         echo "Starting Fluent Bit..."
 
-        # Run Fluent Bit with fetched configuration
+
         exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
       EOF
     ]
 
-    # Load configuration from SSM Parameter Store via ECS secrets
+
     secrets = [
       {
         name      = "FLUENT_BIT_CONFIG"
@@ -259,21 +259,21 @@ CONFIGEOF
       }
     ]
 
-    # Mount shared log volume (read-write for Fluent Bit to write aggregated logs)
+
     mountPoints = [
       {
         sourceVolume  = "iq-logs"
         containerPath = "/var/log/nexus-iq-server"
-        readOnly      = false  # Fluent Bit needs to write aggregated logs
+        readOnly      = false
       }
     ]
 
-    # Resource limits for Fluent Bit sidecar
-    cpu            = 256   # 0.25 vCPU
-    memory         = 512   # 512 MB
+
+    cpu            = 256
+    memory         = 512
     memoryReservation = 256
 
-    # Health check for Fluent Bit
+
     healthCheck = {
       command     = ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
       interval    = 30
@@ -282,7 +282,7 @@ CONFIGEOF
       startPeriod = 60
     }
 
-    # Fluent Bit's own logs go to CloudWatch
+
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -292,7 +292,7 @@ CONFIGEOF
       }
     }
 
-    # Start Fluent Bit after IQ Server is running
+
     dependsOn = [{
       containerName = "nexus-iq-server"
       condition     = "START"
@@ -329,7 +329,7 @@ CONFIGEOF
   }
 }
 
-# ECS Service
+
 resource "aws_ecs_service" "iq_service" {
   name            = "ref-arch-nexus-iq-service"
   cluster         = aws_ecs_cluster.iq_cluster.id
@@ -337,9 +337,9 @@ resource "aws_ecs_service" "iq_service" {
   desired_count   = var.iq_desired_count
   launch_type     = "FARGATE"
 
-  # Deployment configuration for single-instance applications
-  deployment_maximum_percent         = 100  # Never run more than desired_count tasks
-  deployment_minimum_healthy_percent = 0    # Allow stopping old task before starting new one
+
+  deployment_maximum_percent         = 100
+  deployment_minimum_healthy_percent = 0
 
   network_configuration {
     subnets          = aws_subnet.private_subnets[*].id
@@ -363,7 +363,7 @@ resource "aws_ecs_service" "iq_service" {
   }
 }
 
-# EFS File System for persistent data
+
 resource "aws_efs_file_system" "iq_efs" {
   creation_token = "ref-arch-iq-efs"
   encrypted      = true
@@ -377,7 +377,7 @@ resource "aws_efs_file_system" "iq_efs" {
   }
 }
 
-# EFS Mount Targets
+
 resource "aws_efs_mount_target" "iq_efs_mt" {
   count           = length(aws_subnet.private_subnets)
   file_system_id  = aws_efs_file_system.iq_efs.id
@@ -385,7 +385,7 @@ resource "aws_efs_mount_target" "iq_efs_mt" {
   security_groups = [aws_security_group.efs.id]
 }
 
-# EFS Access Point for data (sonatype-work)
+
 resource "aws_efs_access_point" "iq_access_point" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
@@ -408,7 +408,7 @@ resource "aws_efs_access_point" "iq_access_point" {
   }
 }
 
-# EFS Access Point for logs
+
 resource "aws_efs_access_point" "iq_logs_access_point" {
   file_system_id = aws_efs_file_system.iq_efs.id
 

@@ -1,4 +1,4 @@
-# ECS Execution Role
+
 resource "aws_iam_role" "ecs_execution_role" {
   name = "${var.cluster_name}-ecs-execution-role"
 
@@ -20,7 +20,7 @@ resource "aws_iam_role" "ecs_execution_role" {
   })
 }
 
-# ECS Task Role
+
 resource "aws_iam_role" "ecs_task_role" {
   name = "${var.cluster_name}-ecs-task-role"
 
@@ -42,13 +42,13 @@ resource "aws_iam_role" "ecs_task_role" {
   })
 }
 
-# ECS Execution Role Policy Attachment
+
 resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   role       = aws_iam_role.ecs_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Custom policy for ECS Execution Role to access Secrets Manager and SSM
+
 resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
   name = "${var.cluster_name}-ecs-execution-secrets-policy"
   role = aws_iam_role.ecs_execution_role.id
@@ -79,7 +79,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
   })
 }
 
-# ECS Task Role Policy for EFS access, logging, and secrets
+
 resource "aws_iam_role_policy" "ecs_task_role_policy" {
   name = "${var.cluster_name}-ecs-task-role-policy"
   role = aws_iam_role.ecs_task_role.id

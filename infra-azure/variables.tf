@@ -1,11 +1,11 @@
-# General Variables
+
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
   default     = "West US 2"
 }
 
-# Network Variables
+
 variable "vnet_cidr" {
   description = "CIDR block for Virtual Network"
   type        = string
@@ -30,7 +30,7 @@ variable "db_subnet_cidr" {
   default     = "10.0.30.0/24"
 }
 
-# Container App Variables
+
 variable "container_cpu" {
   description = "CPU allocation for container (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0)"
   type        = number
@@ -55,7 +55,7 @@ variable "java_opts" {
   default     = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
-# Database Variables
+
 variable "db_name" {
   description = "Database name"
   type        = string
@@ -89,7 +89,7 @@ variable "db_sku_name" {
 variable "db_storage_mb" {
   description = "Database storage in MB"
   type        = number
-  default     = 524288 # 512 GB
+  default     = 524288
 }
 
 variable "db_auto_grow_enabled" {
@@ -116,7 +116,7 @@ variable "db_high_availability_enabled" {
   default     = false
 }
 
-# Application Gateway Variables
+
 variable "app_gateway_sku_name" {
   description = "Application Gateway SKU name"
   type        = string
@@ -148,7 +148,7 @@ variable "ssl_certificate_password" {
   default     = ""
 }
 
-# Storage Variables
+
 variable "storage_account_tier" {
   description = "Storage account tier (Standard, Premium)"
   type        = string
@@ -167,21 +167,21 @@ variable "file_share_quota" {
   default     = 500
 }
 
-# Logging Variables
+
 variable "log_retention_days" {
   description = "Log Analytics workspace retention in days"
   type        = number
   default     = 30
 }
 
-# Monitoring Variables
+
 variable "enable_monitoring" {
   description = "Enable Application Insights monitoring"
   type        = bool
   default     = true
 }
 
-# Security Variables
+
 variable "key_vault_sku_name" {
   description = "Key Vault SKU name"
   type        = string

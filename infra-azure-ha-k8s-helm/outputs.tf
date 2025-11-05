@@ -30,7 +30,7 @@ output "aks_node_resource_group" {
   value       = azurerm_kubernetes_cluster.iq_aks.node_resource_group
 }
 
-# Database Outputs
+
 output "postgres_server_name" {
   description = "Name of the PostgreSQL Flexible Server"
   value       = azurerm_postgresql_flexible_server.iq_db.name
@@ -52,7 +52,7 @@ output "postgres_connection_string" {
   sensitive   = true
 }
 
-# Storage Outputs
+
 output "storage_account_name" {
   description = "Name of the storage account"
   value       = azurerm_storage_account.iq_storage.name
@@ -73,7 +73,7 @@ output "storage_cluster_share_name" {
   value       = azurerm_storage_share.iq_cluster.name
 }
 
-# Application Gateway Outputs
+
 output "application_gateway_name" {
   description = "Name of the Application Gateway"
   value       = azurerm_application_gateway.appgw.name
@@ -94,7 +94,7 @@ output "application_gateway_fqdn" {
   value       = azurerm_public_ip.appgw_pip.fqdn
 }
 
-# Network Outputs
+
 output "vnet_id" {
   description = "ID of the Virtual Network"
   value       = azurerm_virtual_network.iq_vnet.id
@@ -120,7 +120,7 @@ output "db_subnet_id" {
   value       = azurerm_subnet.db_subnet.id
 }
 
-# Monitoring Outputs
+
 output "log_analytics_workspace_id" {
   description = "ID of the Log Analytics workspace"
   value       = azurerm_log_analytics_workspace.iq_logs.id
@@ -148,30 +148,30 @@ output "application_insights_connection_string" {
   sensitive   = true
 }
 
-# Deployment Information
-# output "nexus_iq_namespace" {
-#   description = "Kubernetes namespace for Nexus IQ Server"
-#   value       = kubernetes_namespace.nexus_iq.metadata[0].name
-# }
+
+
+
+
+
 
 output "nexus_iq_url" {
   description = "URL to access Nexus IQ Server (after Helm deployment)"
   value       = "http://${azurerm_public_ip.appgw_pip.fqdn != null && azurerm_public_ip.appgw_pip.fqdn != "" ? azurerm_public_ip.appgw_pip.fqdn : azurerm_public_ip.appgw_pip.ip_address}"
 }
 
-# kubectl command
+
 output "kubectl_config_command" {
   description = "Command to configure kubectl"
   value       = "az aks get-credentials --resource-group ${azurerm_resource_group.iq_rg.name} --name ${azurerm_kubernetes_cluster.iq_aks.name}"
 }
 
-# Helm deployment hints
+
 output "helm_install_command" {
   description = "Command to install Nexus IQ Server using Helm"
   value       = "./helm-install.sh"
 }
 
-# High Availability Status
+
 output "ha_configuration" {
   description = "High Availability configuration summary"
   value = {

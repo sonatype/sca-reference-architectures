@@ -51,7 +51,6 @@ data "aws_availability_zones" "available" {
 
 data "aws_caller_identity" "current" {}
 
-# VPC Configuration
 resource "aws_vpc" "iq_vpc" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -64,7 +63,6 @@ resource "aws_vpc" "iq_vpc" {
   }
 }
 
-# Internet Gateway
 resource "aws_internet_gateway" "iq_igw" {
   vpc_id = aws_vpc.iq_vpc.id
 
@@ -75,7 +73,6 @@ resource "aws_internet_gateway" "iq_igw" {
   }
 }
 
-# Public Subnets
 resource "aws_subnet" "public" {
   count = 2
 
@@ -92,7 +89,6 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Private Subnets for EKS worker nodes
 resource "aws_subnet" "private" {
   count = 2
 
@@ -108,7 +104,6 @@ resource "aws_subnet" "private" {
   }
 }
 
-# Database Subnets
 resource "aws_subnet" "database" {
   count = 2
 
@@ -123,7 +118,6 @@ resource "aws_subnet" "database" {
   }
 }
 
-# Route Table for Public Subnets
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.iq_vpc.id
 
@@ -139,7 +133,6 @@ resource "aws_route_table" "public" {
   }
 }
 
-# Route Table Association for Public Subnets
 resource "aws_route_table_association" "public" {
   count = 2
 
@@ -147,7 +140,6 @@ resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public[count.index].id
 }
 
-# NAT Gateways
 resource "aws_eip" "nat" {
   count = 2
 
@@ -176,7 +168,6 @@ resource "aws_nat_gateway" "nat" {
   depends_on = [aws_internet_gateway.iq_igw]
 }
 
-# Route Tables for Private Subnets
 resource "aws_route_table" "private" {
   count = 2
 
@@ -194,7 +185,6 @@ resource "aws_route_table" "private" {
   }
 }
 
-# Route Table Association for Private Subnets
 resource "aws_route_table_association" "private" {
   count = 2
 
@@ -202,7 +192,6 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
 }
 
-# Route Table Association for Database Subnets (use default VPC route table)
 resource "aws_route_table_association" "database" {
   count = 2
 

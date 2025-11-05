@@ -1,4 +1,4 @@
-# General Variables
+
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
@@ -11,7 +11,7 @@ variable "cluster_name" {
   default     = "ref-arch-iq-ha-cluster"
 }
 
-# Network Variables
+
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string
@@ -42,7 +42,7 @@ variable "enable_nat_gateway" {
   default     = true
 }
 
-# ECS Variables
+
 variable "ecs_cpu" {
   description = "CPU units for ECS task (1024 = 1 vCPU)"
   type        = number
@@ -67,7 +67,7 @@ variable "enable_container_insights" {
   default     = true
 }
 
-# IQ Server Variables
+
 variable "iq_desired_count" {
   description = "Desired number of IQ Server tasks (HA requires minimum 2)"
   type        = number
@@ -120,7 +120,7 @@ variable "java_opts" {
   default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
-# Database Variables (Aurora PostgreSQL for HA)
+
 variable "db_name" {
   description = "Database name"
   type        = string
@@ -192,7 +192,7 @@ variable "db_deletion_protection" {
   default     = false
 }
 
-# Load Balancer Variables
+
 variable "ssl_certificate_arn" {
   description = "ARN of SSL certificate for ALB HTTPS listener"
   type        = string
@@ -205,7 +205,7 @@ variable "alb_deletion_protection" {
   default     = false
 }
 
-# EFS Variables
+
 variable "efs_throughput_mode" {
   description = "EFS throughput mode"
   type        = string
@@ -223,7 +223,7 @@ variable "efs_provisioned_throughput_in_mibps" {
   default     = 100
 }
 
-# Logging Variables
+
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
@@ -245,17 +245,17 @@ variable "enable_log_archive" {
 variable "log_archive_retention_days" {
   description = "Days to retain archived logs in S3 before deletion"
   type        = number
-  default     = 2555  # 7 years for compliance
+  default     = 2555
 }
 
-# Monitoring Variables
+
 variable "enable_prometheus" {
   description = "Enable Prometheus monitoring"
   type        = bool
   default     = true
 }
 
-# Tagging Variables
+
 variable "common_tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)

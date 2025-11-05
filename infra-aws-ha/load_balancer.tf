@@ -1,4 +1,4 @@
-# Application Load Balancer for IQ Server HA
+
 resource "aws_lb" "iq_alb" {
   name               = "${var.cluster_name}-alb"
   internal           = false
@@ -19,7 +19,7 @@ resource "aws_lb" "iq_alb" {
   })
 }
 
-# Target Group for IQ Server (will be managed by AWS Load Balancer Controller)
+
 resource "aws_lb_target_group" "iq_tg" {
   name        = "${var.cluster_name}-iq-tg"
   port        = 8070
@@ -27,7 +27,7 @@ resource "aws_lb_target_group" "iq_tg" {
   vpc_id      = aws_vpc.iq_vpc.id
   target_type = "ip"
 
-  # ALB health check matching Kubernetes Ingress pattern
+
   health_check {
     enabled             = true
     healthy_threshold   = 2
@@ -40,25 +40,25 @@ resource "aws_lb_target_group" "iq_tg" {
     unhealthy_threshold = 3
   }
 
-  # Stickiness disabled - can interfere with file uploads
-  # stickiness {
-  #   enabled = true
-  #   type    = "lb_cookie"
-  #   cookie_duration = 86400  # 24 hours
-  # }
+
+
+
+
+
+
 
   tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-iq-target-group"
   })
 }
 
-# ALB Listener (HTTP)
+
 resource "aws_lb_listener" "iq_listener_http" {
   load_balancer_arn = aws_lb.iq_alb.arn
   port              = "80"
   protocol          = "HTTP"
 
-  # Redirect to HTTPS if certificate is available, otherwise forward to target group
+
   dynamic "default_action" {
     for_each = var.ssl_certificate_arn != "" ? [1] : []
     content {
@@ -84,7 +84,7 @@ resource "aws_lb_listener" "iq_listener_http" {
   })
 }
 
-# ALB Listener (HTTPS) - only if certificate is provided
+
 resource "aws_lb_listener" "iq_listener_https" {
   count             = var.ssl_certificate_arn != "" ? 1 : 0
   load_balancer_arn = aws_lb.iq_alb.arn
@@ -103,7 +103,7 @@ resource "aws_lb_listener" "iq_listener_https" {
   })
 }
 
-# S3 bucket for ALB access logs
+
 resource "aws_s3_bucket" "alb_logs" {
   bucket        = "${var.cluster_name}-alb-logs-${random_string.bucket_suffix.result}"
   force_destroy = true
@@ -207,101 +207,100 @@ resource "random_string" "bucket_suffix" {
   upper   = false
 }
 
-# WAF v2 for additional security (DISABLED)
-# ISSUE: AWS Managed Rules were blocking IQ Server file uploads (/rest/scan/ endpoints)
-# SOLUTION: Disabled WAF completely since single instance works fine without it
-# NOTE: If security is a concern, consider custom WAF rules that allow IQ Server API endpoints
-#
-# resource "aws_wafv2_web_acl" "iq_waf" {
-#   name  = "${var.cluster_name}-waf"
-#   scope = "REGIONAL"
-#
-#   default_action {
-#     allow {}
-#   }
-#
-#   # Rate limiting rule
-#   rule {
-#     name     = "RateLimitRule"
-#     priority = 1
-#
-#     action {
-#       block {}
-#     }
-#
-#     statement {
-#       rate_based_statement {
-#         limit              = 10000  # requests per 5-minute window
-#         aggregate_key_type = "IP"
-#       }
-#     }
-#
-#     visibility_config {
-#       cloudwatch_metrics_enabled = true
-#       metric_name                = "RateLimitRule"
-#       sampled_requests_enabled   = true
-#     }
-#   }
-#
-#   # AWS Managed Rules - Core Rule Set (BLOCKS FILE UPLOADS!)
-#   rule {
-#     name     = "AWSManagedRulesCommonRuleSet"
-#     priority = 10
-#
-#     override_action {
-#       none {}
-#     }
-#
-#     statement {
-#       managed_rule_group_statement {
-#         name        = "AWSManagedRulesCommonRuleSet"
-#         vendor_name = "AWS"
-#       }
-#     }
-#
-#     visibility_config {
-#       cloudwatch_metrics_enabled = true
-#       metric_name                = "AWSManagedRulesCommonRuleSetMetric"
-#       sampled_requests_enabled   = true
-#     }
-#   }
-#
-#   # AWS Managed Rules - Known Bad Inputs (BLOCKS FILE UPLOADS!)
-#   rule {
-#     name     = "AWSManagedRulesKnownBadInputsRuleSet"
-#     priority = 20
-#
-#     override_action {
-#       none {}
-#     }
-#
-#     statement {
-#       managed_rule_group_statement {
-#         name        = "AWSManagedRulesKnownBadInputsRuleSet"
-#         vendor_name = "AWS"
-#       }
-#     }
-#
-#     visibility_config {
-#       cloudwatch_metrics_enabled = true
-#       metric_name                = "AWSManagedRulesKnownBadInputsRuleSetMetric"
-#       sampled_requests_enabled   = true
-#     }
-#   }
-#
-#   visibility_config {
-#     cloudwatch_metrics_enabled = true
-#     metric_name                = "${var.cluster_name}-waf"
-#     sampled_requests_enabled   = true
-#   }
-#
-#   tags = merge(var.common_tags, {
-#     Name = "${var.cluster_name}-waf"
-#   })
-# }
 
-# Associate WAF with ALB (DISABLED)
-# resource "aws_wafv2_web_acl_association" "iq_waf_alb" {
-#   resource_arn = aws_lb.iq_alb.arn
-#   web_acl_arn  = aws_wafv2_web_acl.iq_waf.arn
-# }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
