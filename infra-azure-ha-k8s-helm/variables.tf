@@ -51,7 +51,7 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "VM size for AKS worker nodes"
   type        = string
-  default     = "Standard_D4s_v3" # 4 vCPU, 16GB RAM (within vCPU quota limits, upgrade to D8s_v3 after quota increase)
+  default     = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
 }
 
 variable "node_group_min_size" {
@@ -88,7 +88,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "SKU name for PostgreSQL Flexible Server"
   type        = string
-  default     = "GP_Standard_D4s_v3" # 4 vCores, 16GB RAM (equivalent to Aurora db.r6g.large)
+  default     = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS r6g.4xlarge)
 }
 
 variable "db_high_availability_mode" {
@@ -134,9 +134,9 @@ variable "backup_retention_period" {
 }
 
 variable "db_geo_redundant_backup_enabled" {
-  description = "Enable geo-redundant backups for PostgreSQL"
+  description = "Enable geo-redundant backups for PostgreSQL (not supported in all regions)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Storage Configuration
@@ -212,31 +212,31 @@ variable "nexus_iq_admin_password" {
 variable "nexus_iq_replica_count" {
   description = "Number of Nexus IQ Server replicas for high availability"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "nexus_iq_memory_request" {
   description = "Memory request for Nexus IQ Server pods"
   type        = string
-  default     = "4Gi"
+  default     = "16Gi"
 }
 
 variable "nexus_iq_memory_limit" {
   description = "Memory limit for Nexus IQ Server pods"
   type        = string
-  default     = "6Gi"
+  default     = "24Gi"
 }
 
 variable "nexus_iq_cpu_request" {
   description = "CPU request for Nexus IQ Server pods"
   type        = string
-  default     = "2"
+  default     = "4"
 }
 
 variable "nexus_iq_cpu_limit" {
   description = "CPU limit for Nexus IQ Server pods"
   type        = string
-  default     = "4"
+  default     = "6"
 }
 
 # Helm Configuration

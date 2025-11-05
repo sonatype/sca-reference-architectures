@@ -11,7 +11,7 @@ db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
 kubernetes_version      = "1.33.3"
-node_instance_type      = "Standard_D4s_v3" # 4 vCPU, 16GB RAM (within vCPU quota limits, upgrade to D8s_v3 after quota increase)
+node_instance_type      = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
@@ -45,7 +45,7 @@ app_gateway_max_capacity = 10
 nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
-nexus_iq_replica_count   = 3  # Matching AWS (minimum 2 for HA, 3 for better distribution)
+nexus_iq_replica_count   = 3
 nexus_iq_memory_request  = "16Gi"
 nexus_iq_memory_limit    = "24Gi"
 nexus_iq_cpu_request     = "4"

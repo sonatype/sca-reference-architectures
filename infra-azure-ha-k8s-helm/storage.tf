@@ -7,10 +7,10 @@ resource "azurerm_storage_account" "iq_storage" {
   account_replication_type = var.storage_account_replication_type # ZRS (Zone-Redundant Storage)
   account_kind             = "FileStorage"                        # Required for Premium Files
 
-  # Enable secure transfer (HTTPS only)
-  https_traffic_only_enabled = true
+  # Disable secure transfer for NFS (NFS doesn't use HTTPS)
+  https_traffic_only_enabled = false
 
-  # Minimum TLS version
+  # Minimum TLS version (not applicable for NFS)
   min_tls_version = "TLS1_2"
 
   # Network rules - allow access from AKS subnet
@@ -32,7 +32,7 @@ resource "azurerm_storage_share" "iq_data" {
   name                 = "iq-data-ha"
   storage_account_name = azurerm_storage_account.iq_storage.name
   quota                = var.storage_share_quota_gb
-  enabled_protocol     = "SMB"
+  enabled_protocol     = "NFS"  # NFSv4.1 for better Linux compatibility and performance
 
   metadata = {
     environment = var.environment
@@ -45,7 +45,7 @@ resource "azurerm_storage_share" "iq_cluster" {
   name                 = "iq-cluster-ha"
   storage_account_name = azurerm_storage_account.iq_storage.name
   quota                = 100 # 100GB for cluster coordination
-  enabled_protocol     = "SMB"
+  enabled_protocol     = "NFS"  # NFSv4.1 for better Linux compatibility and performance
 
   metadata = {
     environment = var.environment

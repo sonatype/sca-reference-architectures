@@ -68,6 +68,60 @@ fi
 echo -e "${BLUE}🚀 Proceeding with deployment...${NC}"
 echo ""
 
+# State validation check
+echo -e "${BLUE}🔍 Validating Terraform state...${NC}"
+if [[ -f "terraform.tfstate" ]]; then
+    # Check if critical resources exist in state
+    STATE_RESOURCES=$(terraform state list 2>/dev/null || echo "")
+
+    if [[ -n "$STATE_RESOURCES" ]]; then
+        # State has resources - check if major infrastructure exists
+        CRITICAL_RESOURCES=(
+            "azurerm_resource_group.iq_rg"
+            "azurerm_kubernetes_cluster.iq_aks"
+            "azurerm_postgresql_flexible_server.iq_db"
+            "azurerm_storage_account.iq_storage"
+            "azurerm_application_gateway.appgw"
+        )
+
+        MISSING_RESOURCES=()
+        for resource in "${CRITICAL_RESOURCES[@]}"; do
+            if ! echo "$STATE_RESOURCES" | grep -q "^${resource}$"; then
+                MISSING_RESOURCES+=("$resource")
+            fi
+        done
+
+        if [[ ${#MISSING_RESOURCES[@]} -gt 0 ]] && [[ ${#MISSING_RESOURCES[@]} -lt ${#CRITICAL_RESOURCES[@]} ]]; then
+            echo -e "${RED}❌ ERROR: Terraform state is incomplete!${NC}"
+            echo ""
+            echo "The following critical resources exist in Azure but are MISSING from state:"
+            for resource in "${MISSING_RESOURCES[@]}"; do
+                echo "  • $resource"
+            done
+            echo ""
+            echo -e "${YELLOW}This will cause Terraform to try recreating existing infrastructure!${NC}"
+            echo ""
+            echo "To fix this issue:"
+            echo "1. Cancel this apply (if not already done)"
+            echo "2. Import missing resources into state, OR"
+            echo "3. Restore terraform.tfstate from backup (terraform.tfstate.backup)"
+            echo ""
+            echo "Example import command:"
+            echo "  terraform import azurerm_postgresql_flexible_server.iq_db /subscriptions/SUBSCRIPTION_ID/resourceGroups/RESOURCE_GROUP/providers/Microsoft.DBforPostgreSQL/flexibleServers/SERVER_NAME"
+            echo ""
+            exit 1
+        fi
+
+        echo "• State validation passed ✓"
+    else
+        echo -e "${YELLOW}⚠️  Warning: Terraform state exists but appears empty${NC}"
+        echo "This is normal for first-time deployment"
+    fi
+else
+    echo "• No existing state file (first-time deployment)"
+fi
+echo ""
+
 echo -e "${BLUE}🏗️  Applying Terraform configuration...${NC}"
 echo "This may take 15-25 minutes to complete."
 echo ""

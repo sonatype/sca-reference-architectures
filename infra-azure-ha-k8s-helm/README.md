@@ -68,7 +68,7 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 
 ### Azure Account Requirements
 - Azure subscription with administrative access
-- Sufficient vCPU quota (minimum 8 vCPUs for Standard_D4s_v3 nodes, 48+ vCPUs recommended for production)
+- Sufficient vCPU quota (48+ vCPUs required for Standard_D8s_v3 nodes in production HA setup)
 - Resource creation rights in target region (East US 2)
 
 ## Quick Start
@@ -124,10 +124,10 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
 ### 1. Essential HA Settings in terraform.tfvars
 
 ```hcl
-# High Availability Configuration (Temporary reduced resources for vCPU quota limits)
+# High Availability Configuration
 azure_region = "eastus2"  # East US 2
 kubernetes_version = "1.33.3"
-node_instance_type = "Standard_D4s_v3"  # 4 vCPU, 16GB RAM (within vCPU quota limits)
+node_instance_type = "Standard_D8s_v3"  # 8 vCPU, 32GB RAM
 node_group_min_size = 2
 node_group_max_size = 5
 node_group_desired_size = 3
@@ -150,13 +150,13 @@ app_gateway_sku_tier = "Standard_v2"
 app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
-# Helm Configuration (Temporary reduced for quota - restore after quota increase)
+# Helm Configuration
 helm_chart_version = "195.0.0"
-nexus_iq_replica_count = 3  # Temporary config for vCPU quota limits
-nexus_iq_cpu_request = "2"  # Reduced from 4 (restore after quota increase)
-nexus_iq_cpu_limit = "4"  # Reduced from 6 (restore after quota increase)
-nexus_iq_memory_request = "12Gi"  # Reduced from 16Gi (fits Standard_D4s_v3 nodes)
-nexus_iq_memory_limit = "14Gi"  # Reduced from 24Gi
+nexus_iq_replica_count = 3
+nexus_iq_cpu_request = "4"
+nexus_iq_cpu_limit = "6"
+nexus_iq_memory_request = "16Gi"
+nexus_iq_memory_limit = "24Gi"
 nexus_iq_admin_password = "admin123"
 ```
 
@@ -175,16 +175,19 @@ db_subnet_cidr = "10.1.20.0/24"       # PostgreSQL
 Key settings in `helm-values.yaml`:
 ```yaml
 # HA Replica count
-replicaCount: 2
+replicaCount: 3
 
 # Resources per pod
 resources:
   requests:
-    cpu: "500m"
-    memory: "2Gi"
+    cpu: "4"
+    memory: "16Gi"
   limits:
-    cpu: "1500m"
-    memory: "4Gi"
+    cpu: "6"
+    memory: "24Gi"
+
+# Java options for HA deployment
+javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Service Type with Azure LoadBalancer
 serviceType: "LoadBalancer"
@@ -192,9 +195,9 @@ serviceAnnotations:
   service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/ping"
   service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
 
-# Storage with Azure Files CSI
+# Storage with Azure Files Premium (SMB/CIFS)
 persistence:
-  storageClassName: "azurefile-csi"
+  storageClassName: "azurefile-nfs"  # Custom storage class using SMB protocol
   accessModes:
     - ReadWriteMany
   size: "100Gi"
@@ -202,8 +205,8 @@ persistence:
 # Horizontal Pod Autoscaler
 autoscaling:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 3
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 ```
@@ -228,8 +231,9 @@ autoscaling:
 ### **Storage High Availability**
 - **Zone-Redundant**: Data replicated across 3 zones in region
 - **Performance**: Premium tier for consistent IOPS
+- **Protocol**: SMB/CIFS (version 3.1.1) for reliable Azure Files integration
 - **Durability**: 99.9999999999% annual durability
-- **Access**: ReadWriteMany (RWX) for all pods via Azure Files CSI
+- **Access**: ReadWriteMany (RWX) for all pods via Azure Files CSI driver
 
 ### **Load Balancer High Availability**
 - **Zone Distribution**: Application Gateway instances across zones 1, 2, 3

@@ -7,17 +7,17 @@ iq_server:
   tag: "latest"
   imagePullPolicy: "Always"
 
-  # Resources - reduced for node size limits (temporary - increase after quota approval)
+  # Resources - matching AWS specs (optimized for Standard_D8s_v3 nodes - 8 vCPU, 32GB RAM)
   resources:
     requests:
-      cpu: "2"
-      memory: "12Gi"  # Reduced from 16Gi to fit on Standard_D4s_v3 nodes (16GB total)
-    limits:
       cpu: "4"
-      memory: "14Gi"  # Reduced from 24Gi to fit on nodes
+      memory: "16Gi"
+    limits:
+      cpu: "6"
+      memory: "24Gi"
 
-  # Java options for HA deployment - reduced for node size limits
-  javaOpts: "-Xms10g -Xmx10g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  # Java options for HA deployment - matching AWS
+  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   # HA Configuration using Helm chart's config mechanism (shared storage pattern like AWS EKS)
   config:
@@ -57,14 +57,14 @@ iq_server:
     type: "postgresql"
     migration: true
 
-  # Persistence using Azure Files (dynamic provisioning)
+  # Persistence using Azure Files Premium with NFS
   persistence:
     # Skip PV creation - use dynamic provisioning from PVC
     # Setting this to a space character to skip PV creation entirely
     existingPersistentVolumeName: " "
     persistentVolumeClaimName: "iq-server-pvc"
     size: "100Gi"
-    storageClassName: "azurefile-csi"  # Azure Files CSI driver
+    storageClassName: "azurefile-nfs"  # Custom NFS storage class (created via k8s-storageclass-nfs.yaml)
     accessModes:
       - ReadWriteMany
 

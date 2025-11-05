@@ -82,35 +82,33 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
 }
 
 # User node pool for application workloads
-# TEMPORARILY DISABLED: Uncomment after vCPU quota increase to 48+ vCPU
-# This allows deployment with current 10 vCPU quota (system pool only)
-# resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
-#   name                  = "user"
-#   kubernetes_cluster_id = azurerm_kubernetes_cluster.iq_aks.id
-#   vm_size               = var.node_instance_type
-#   vnet_subnet_id        = azurerm_subnet.aks_subnet.id
-#   zones                 = local.availability_zones
-#   enable_auto_scaling   = true
-#   min_count             = var.node_group_min_size
-#   max_count             = var.node_group_max_size
-#   os_disk_size_gb       = var.node_disk_size
-#   os_disk_type          = "Managed"
-#   mode                  = "User"
-#
-#   # Node labels for application workloads
-#   node_labels = {
-#     "nodepool-type" = "user"
-#     "environment"   = var.environment
-#     "workload"      = "application"
-#   }
-#
-#   # Node taints to ensure only application workloads run here
-#   node_taints = []
-#
-#   tags = merge(local.common_tags, {
-#     Name = "aks-${var.cluster_name}-user-nodepool"
-#   })
-# }
+resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
+  name                  = "user"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.iq_aks.id
+  vm_size               = var.node_instance_type
+  vnet_subnet_id        = azurerm_subnet.aks_subnet.id
+  zones                 = local.availability_zones
+  enable_auto_scaling   = true
+  min_count             = var.node_group_min_size
+  max_count             = var.node_group_max_size
+  os_disk_size_gb       = var.node_disk_size
+  os_disk_type          = "Managed"
+  mode                  = "User"
+
+  # Node labels for application workloads
+  node_labels = {
+    "nodepool-type" = "user"
+    "environment"   = var.environment
+    "workload"      = "application"
+  }
+
+  # Node taints to ensure only application workloads run here
+  node_taints = []
+
+  tags = merge(local.common_tags, {
+    Name = "aks-${var.cluster_name}-user-nodepool"
+  })
+}
 
 # Log Analytics Workspace for AKS monitoring
 resource "azurerm_log_analytics_workspace" "iq_logs" {
@@ -147,15 +145,61 @@ resource "azurerm_application_insights" "iq_insights" {
 #   skip_service_principal_aad_check = true
 # }
 
-# Role assignment for AKS to access storage account
+# Role assignment for AKS cluster identity to access storage account (required for Azure Files CSI driver)
 resource "azurerm_role_assignment" "aks_storage_contributor" {
-  principal_id         = azurerm_kubernetes_cluster.iq_aks.kubelet_identity[0].object_id
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
   role_definition_name = "Storage Account Contributor"
   scope                = azurerm_storage_account.iq_storage.id
 
   depends_on = [
     azurerm_kubernetes_cluster.iq_aks,
     azurerm_storage_account.iq_storage
+  ]
+}
+
+# Role assignment for AKS cluster identity to read VNet (required for NFS provisioning)
+resource "azurerm_role_assignment" "aks_network_contributor" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_virtual_network.iq_vnet.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_virtual_network.iq_vnet
+  ]
+}
+
+# Role assignment for AKS cluster identity to join NSGs (required for NFS service endpoints)
+resource "azurerm_role_assignment" "aks_nsg_contributor_public" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_network_security_group.public_nsg.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_network_security_group.public_nsg
+  ]
+}
+
+resource "azurerm_role_assignment" "aks_nsg_contributor_aks" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_network_security_group.aks_nsg.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_network_security_group.aks_nsg
+  ]
+}
+
+resource "azurerm_role_assignment" "aks_nsg_contributor_db" {
+  principal_id         = azurerm_kubernetes_cluster.iq_aks.identity[0].principal_id
+  role_definition_name = "Network Contributor"
+  scope                = azurerm_network_security_group.db_nsg.id
+
+  depends_on = [
+    azurerm_kubernetes_cluster.iq_aks,
+    azurerm_network_security_group.db_nsg
   ]
 }
 
