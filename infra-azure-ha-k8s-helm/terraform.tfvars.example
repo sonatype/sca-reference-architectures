@@ -41,7 +41,7 @@ app_gateway_capacity     = 2
 app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
-# Nexus IQ Server HA Configuration - matching AWS
+# Nexus IQ Server HA Configuration
 nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"

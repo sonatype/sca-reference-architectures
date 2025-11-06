@@ -1,4 +1,4 @@
-# VPC Outputs
+
 output "vpc_id" {
   description = "ID of the VPC"
   value       = aws_vpc.iq_vpc.id
@@ -24,7 +24,7 @@ output "database_subnets" {
   value       = aws_subnet.db_subnets[*].id
 }
 
-# ECS Outputs
+
 output "cluster_name" {
   description = "Name of the ECS cluster"
   value       = aws_ecs_cluster.iq_cluster.name
@@ -65,7 +65,7 @@ output "service_discovery_namespace" {
   value       = aws_service_discovery_private_dns_namespace.iq_namespace.name
 }
 
-# Database Outputs
+
 output "aurora_cluster_endpoint" {
   description = "Aurora cluster endpoint"
   value       = aws_rds_cluster.iq_aurora_cluster.endpoint
@@ -102,7 +102,7 @@ output "aurora_security_group_id" {
   value       = aws_security_group.aurora.id
 }
 
-# Load Balancer Outputs
+
 output "alb_dns_name" {
   description = "The DNS name of the Application Load Balancer"
   value       = aws_lb.iq_alb.dns_name
@@ -123,13 +123,13 @@ output "target_group_arn" {
   value       = aws_lb_target_group.iq_tg.arn
 }
 
-# Application URLs
+
 output "application_url" {
   description = "URL to access Nexus IQ Server"
   value = var.ssl_certificate_arn != "" ? "https://${aws_lb.iq_alb.dns_name}" : "http://${aws_lb.iq_alb.dns_name}"
 }
 
-# EFS Outputs
+
 output "efs_id" {
   description = "EFS file system ID"
   value       = aws_efs_file_system.iq_efs.id
@@ -150,19 +150,19 @@ output "efs_logs_access_point_id" {
   value       = aws_efs_access_point.iq_logs_access_point.id
 }
 
-# Security Outputs
+
 output "db_credentials_secret_arn" {
   description = "ARN of the Secrets Manager secret containing database credentials"
   value       = aws_secretsmanager_secret.db_credentials.arn
 }
 
-# Service Discovery Outputs
+
 output "service_discovery_service" {
   description = "Service discovery service for IQ Server instances"
   value       = aws_service_discovery_service.iq_service.name
 }
 
-# Monitoring Outputs
+
 output "cloudwatch_log_group" {
   description = "Unified CloudWatch log group for all IQ Server logs"
   value       = aws_cloudwatch_log_group.iq_logs.name
@@ -173,19 +173,19 @@ output "aurora_log_group" {
   value       = "/aws/rds/cluster/${aws_rds_cluster.iq_aurora_cluster.cluster_identifier}/postgresql"
 }
 
-# WAF Outputs (DISABLED)
-# output "waf_web_acl_arn" {
-#   description = "ARN of the WAF Web ACL"
-#   value       = aws_wafv2_web_acl.iq_waf.arn
-# }
 
-# Backup Outputs
+
+
+
+
+
+
 output "backup_vault_name" {
   description = "Name of the backup vault for EFS"
   value       = aws_backup_vault.iq_efs_backup_vault.name
 }
 
-# ECS Cluster Information
+
 output "ecs_cluster_info" {
   description = "ECS cluster information and management commands"
   value = {
@@ -196,7 +196,7 @@ output "ecs_cluster_info" {
   }
 }
 
-# Architecture Summary
+
 output "architecture_summary" {
   description = "High-level summary of the deployed architecture"
   value = {

@@ -108,7 +108,6 @@ PostgreSQL Flexible Server (Zone-Redundant with Standby)
    - Get the URL: `terraform output application_gateway_fqdn`
    - URL format: `http://nexus-iq-ha-<random>.eastus2.cloudapp.azure.com`
    - Wait 5-10 minutes for all HA services to be ready
-   - **Note**: Current configuration uses reduced resources (2 CPU/12Gi per pod) due to vCPU quota limits. Request quota increase to 48+ vCPUs for production deployment with full resources (4 CPU/16Gi per pod)
    - Default credentials: `admin` / (password from terraform.tfvars)
 
 ## Configuration
@@ -186,7 +185,7 @@ resources:
     cpu: "6"
     memory: "24Gi"
 
-# Java options for HA deployment
+# Java options (heap sized for 24Gi memory limit)
 javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Service Type with Azure LoadBalancer
@@ -331,9 +330,9 @@ az storage share snapshot list \
 ## Performance Tuning
 
 ### **Pod Performance**
-- **CPU/Memory**: Right-size per pod (default: 1.5 CPU, 4GB)
+- **CPU/Memory**: Right-size per pod (default: 8 CPU, 8Gi - official Helm chart recommendations)
 - **HPA Thresholds**: Tune based on usage patterns (70% CPU, 80% memory)
-- **Pod Count**: Adjust min/max based on load requirements (2-10 pods)
+- **Pod Count**: Adjust min/max based on load requirements (2-5 pods)
 
 ### **Database Performance**
 - **Instance Size**: Scale up SKU based on concurrent connections

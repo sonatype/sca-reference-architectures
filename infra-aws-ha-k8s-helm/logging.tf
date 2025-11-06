@@ -1,8 +1,4 @@
-# CloudWatch Logging Infrastructure for Nexus IQ Server on EKS
-# Implements structured logging with Fluentd aggregator (matching Helm Chart pattern)
-# Uses single unified CloudWatch log group
 
-# Single unified CloudWatch Log Group for all IQ Server logs
 resource "aws_cloudwatch_log_group" "iq_logs" {
   name              = "/eks/${var.cluster_name}/nexus-iq-server"
   retention_in_days = var.log_retention_days
@@ -15,7 +11,6 @@ resource "aws_cloudwatch_log_group" "iq_logs" {
   }
 }
 
-# IAM Policy for Fluentd to write to CloudWatch Logs
 resource "aws_iam_policy" "fluentd_cloudwatch" {
   name        = "${var.cluster_name}-fluentd-cloudwatch-policy"
   description = "IAM policy for Fluentd to write logs to CloudWatch"
@@ -53,7 +48,6 @@ resource "aws_iam_policy" "fluentd_cloudwatch" {
   }
 }
 
-# IAM Role for Service Account (IRSA) - Fluentd
 resource "aws_iam_role" "fluentd_irsa" {
   name = "${var.cluster_name}-fluentd-irsa-role"
 
@@ -85,7 +79,6 @@ resource "aws_iam_role" "fluentd_irsa" {
   }
 }
 
-# Attach CloudWatch policy to IRSA role
 resource "aws_iam_role_policy_attachment" "fluentd_cloudwatch" {
   role       = aws_iam_role.fluentd_irsa.name
   policy_arn = aws_iam_policy.fluentd_cloudwatch.arn

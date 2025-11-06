@@ -115,43 +115,77 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-aws_region  = "us-east-1"
+aws_region   = "us-east-1"
+cluster_name = "ref-arch-iq-ha-cluster"
 
 # Network Configuration
 vpc_cidr               = "10.0.0.0/16"
-public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
-private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
-db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
+public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"]
+db_subnet_cidrs        = ["10.0.40.0/24", "10.0.50.0/24", "10.0.60.0/24"]
+enable_nat_gateway     = true
 
 # ECS Configuration
-ecs_cpu               = 8192        # 8 vCPU per task
-ecs_memory           = 32768       # 32 GB RAM per task
-iq_desired_count     = 3           # Initial number of tasks (2-5)
-iq_max_capacity      = 5           # Maximum auto scaling capacity
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
+ecs_cpu                 = 8192   # 8 vCPU
+ecs_memory              = 32768  # 32 GB
+ecs_memory_reservation  = 24576  # 24 GB soft limit
 
-# Auto Scaling Configuration
-cpu_target_percent    = 70         # CPU utilization target for scaling
-memory_target_percent = 80         # Memory utilization target for scaling
+# IQ Server Configuration
+iq_desired_count        = 3  # 3 instances for better HA
+iq_min_count           = 2  # Minimum for auto scaling
+iq_max_count           = 5  # Maximum for auto scaling
+iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
+iq_memory_target_value = 80  # Memory target for auto scaling (%)
+iq_docker_image        = "sonatype/nexus-iq-server:latest"
+java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
-# Database Configuration (Aurora Cluster)
+# Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
-db_password                 = "YourSecurePassword123!"  # Change this!
-aurora_engine_version      = "15.8"
-aurora_instance_class      = "db.r6g.4xlarge"
-aurora_backup_retention    = 7     # Days
+db_password                 = "YourSecurePassword123!"  # CHANGE THIS!
+aurora_engine_version       = "15.10"
+aurora_instance_class       = "db.r6g.4xlarge"
+aurora_instances            = 2  # Minimum 2 for HA
+db_backup_retention_period  = 7
+db_backup_window           = "03:00-04:00"
+db_maintenance_window      = "sun:04:00-sun:05:00"
+db_skip_final_snapshot     = false  # Set to true for development
+db_deletion_protection     = false  # Set to false for development
+
+# Load Balancer Configuration
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+alb_deletion_protection = false  # Set to true for production
+
+# EFS Configuration
+efs_throughput_mode                  = "provisioned"
+efs_provisioned_throughput_in_mibps = 100
+
+# Monitoring Configuration
+enable_container_insights = true
+enable_prometheus        = true
+log_retention_days       = 30
+
+# Common Tags
+common_tags = {
+  Project     = "nexus-iq-server-ha"
+  Environment = "production"  # or "development", "staging"
+  Terraform   = "true"
+  Owner       = "platform-team"
+  CostCenter  = "engineering"
+}
 ```
 
 ### 2. Important HA Settings
 
-- **`iq_desired_count = 3`** - Initial number of instances for HA (2-5 supported)
-- **`iq_max_capacity = 5`** - Maximum auto scaling capacity
-- **`cpu_target_percent = 70`** - CPU threshold for auto scaling
-- **`memory_target_percent = 80`** - Memory threshold for auto scaling
+- **`iq_desired_count = 3`** - Initial number of instances for HA (minimum 2)
+- **`iq_min_count = 2`** - Minimum auto scaling capacity
+- **`iq_max_count = 5`** - Maximum auto scaling capacity
+- **`iq_cpu_target_value = 70`** - CPU threshold for auto scaling (%)
+- **`iq_memory_target_value = 80`** - Memory threshold for auto scaling (%)
+- **`aurora_instances = 2`** - Number of Aurora instances (minimum 2 for HA)
 - **`db_password`** - Use a strong, unique password
-- **Resource Names** - All AWS resources are prefixed with "ref-arch-iq-ha" (e.g., "ref-arch-iq-ha-cluster")
-- **`aurora_backup_retention = 7`** - Database backup retention period
+- **Resource Names** - Controlled by `cluster_name` variable
+- **`db_backup_retention_period = 7`** - Database backup retention period (days)
 
 ## Security Features
 

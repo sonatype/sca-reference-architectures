@@ -22,7 +22,6 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
-# EKS Configuration
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
@@ -59,7 +58,6 @@ variable "node_disk_size" {
   default     = 50
 }
 
-# RDS Configuration
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version"
   type        = string
@@ -114,14 +112,12 @@ variable "deletion_protection" {
   default     = false
 }
 
-# EFS Configuration
 variable "efs_provisioned_throughput" {
   description = "Provisioned throughput for EFS in MiB/s"
   type        = number
   default     = 100
 }
 
-# Nexus IQ Server Configuration
 variable "nexus_iq_version" {
   description = "Version of Nexus IQ Server to deploy"
   type        = string
@@ -150,28 +146,27 @@ variable "nexus_iq_replica_count" {
 variable "nexus_iq_memory_request" {
   description = "Memory request for Nexus IQ Server pods"
   type        = string
-  default     = "4Gi"
+  default     = "16Gi"
 }
 
 variable "nexus_iq_memory_limit" {
   description = "Memory limit for Nexus IQ Server pods"
   type        = string
-  default     = "6Gi"
+  default     = "24Gi"
 }
 
 variable "nexus_iq_cpu_request" {
   description = "CPU request for Nexus IQ Server pods"
   type        = string
-  default     = "2"
+  default     = "4"
 }
 
 variable "nexus_iq_cpu_limit" {
   description = "CPU limit for Nexus IQ Server pods"
   type        = string
-  default     = "4"
+  default     = "6"
 }
 
-# Helm Configuration
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
@@ -184,7 +179,6 @@ variable "helm_namespace" {
   default     = "nexus-iq"
 }
 
-# Logging Configuration
 variable "enable_fluentd" {
   description = "Enable Fluentd for log aggregation"
   type        = bool
@@ -197,7 +191,6 @@ variable "enable_cloudwatch_logs" {
   default     = true
 }
 
-# Ingress Configuration
 variable "enable_ingress_nginx" {
   description = "Enable nginx ingress controller"
   type        = bool
@@ -222,7 +215,6 @@ variable "acm_certificate_arn" {
   default     = ""
 }
 
-# Monitoring Configuration
 variable "enable_hpa" {
   description = "Enable Horizontal Pod Autoscaler"
   type        = bool
@@ -252,7 +244,6 @@ variable "hpa_target_memory_utilization" {
   type        = number
   default     = 80
 }
-# Logging Configuration
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number

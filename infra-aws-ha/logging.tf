@@ -1,8 +1,8 @@
-# Advanced Logging Infrastructure for Nexus IQ Server
-# Implements structured logging with Fluent Bit
-# Uses single unified CloudWatch log group (matching Helm Chart pattern)
 
-# Single unified CloudWatch Log Group for all IQ Server logs
+
+
+
+
 resource "aws_cloudwatch_log_group" "iq_logs" {
   name              = "/ecs/${var.cluster_name}/nexus-iq-server"
   retention_in_days = var.log_retention_days
@@ -13,7 +13,7 @@ resource "aws_cloudwatch_log_group" "iq_logs" {
   })
 }
 
-# S3 bucket for log archival (optional, for compliance)
+
 resource "aws_s3_bucket" "log_archive" {
   count  = var.enable_log_archive ? 1 : 0
   bucket = "${var.cluster_name}-iq-logs-archive-${data.aws_caller_identity.current.account_id}"
@@ -63,12 +63,12 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "log_archive" {
   }
 }
 
-# Fluent Bit configuration stored in SSM Parameter Store
+
 resource "aws_ssm_parameter" "fluent_bit_config" {
   name        = "/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-config"
   description = "Fluent Bit configuration for Nexus IQ Server log parsing"
   type        = "String"
-  tier        = "Advanced"  # Required for configs > 4KB (supports up to 8KB)
+  tier        = "Advanced"
   value       = <<-EOF
 [SERVICE]
     Flush         5
@@ -79,7 +79,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     HTTP_Listen   0.0.0.0
     HTTP_Port     2020
 
-# Input: Read IQ Server application logs
+
 [INPUT]
     Name              tail
     Path              /var/log/nexus-iq-server/clm-server.log
@@ -89,7 +89,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Skip_Long_Lines   On
     DB                /fluent-bit/state/clm-server.db
 
-# Input: Read request logs
+
 [INPUT]
     Name              tail
     Path              /var/log/nexus-iq-server/request.log
@@ -99,7 +99,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Refresh_Interval  10
     DB                /fluent-bit/state/request.db
 
-# Input: Read audit logs (JSON)
+
 [INPUT]
     Name              tail
     Path              /var/log/nexus-iq-server/audit.log
@@ -109,7 +109,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Refresh_Interval  10
     DB                /fluent-bit/state/audit.db
 
-# Input: Read policy violation logs (JSON)
+
 [INPUT]
     Name              tail
     Path              /var/log/nexus-iq-server/policy-violation.log
@@ -119,7 +119,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Refresh_Interval  10
     DB                /fluent-bit/state/policy-violation.db
 
-# Input: Read stderr logs (raw text, no parsing)
+
 [INPUT]
     Name              tail
     Path              /var/log/nexus-iq-server/stderr.log
@@ -130,7 +130,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Skip_Long_Lines   Off
     Buffer_Max_Size   256k
 
-# Filter: Add ECS metadata to all logs
+
 [FILTER]
     Name                record_modifier
     Match               iq.*
@@ -138,13 +138,13 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Record              ecs_task_family ${var.cluster_name}-nexus-iq-server
     Record              aws_region ${var.aws_region}
 
-# Filter: Add hostname from environment
+
 [FILTER]
     Name                modify
     Match               iq.*
     Add                 hostname $${HOSTNAME}
 
-# Output: All logs to unified CloudWatch log group with distinct stream prefixes
+
 [OUTPUT]
     Name                cloudwatch_logs
     Match               iq.application
@@ -186,7 +186,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     auto_create_group   false
     retry_limit         2
 
-# Output: Application logs to file
+
 [OUTPUT]
     Name                file
     Match               iq.application
@@ -194,7 +194,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Format              plain
     mkdir               true
 
-# Output: Request logs to file
+
 [OUTPUT]
     Name                file
     Match               iq.request
@@ -202,7 +202,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Format              plain
     mkdir               true
 
-# Output: Audit logs to file
+
 [OUTPUT]
     Name                file
     Match               iq.audit
@@ -210,7 +210,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Format              plain
     mkdir               true
 
-# Output: Policy violation logs to file
+
 [OUTPUT]
     Name                file
     Match               iq.policy_violation
@@ -218,7 +218,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     Format              plain
     mkdir               true
 
-# Output: stderr logs to file
+
 [OUTPUT]
     Name                file
     Match               iq.stderr
@@ -227,7 +227,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
     mkdir               true
 
 ${var.enable_log_archive ? <<-S3_OUTPUT
-# Output: Archive all logs to S3
+
 [OUTPUT]
     Name                s3
     Match               iq.*
@@ -246,12 +246,12 @@ EOF
   })
 }
 
-# Fluent Bit custom parsers configuration
+
 resource "aws_ssm_parameter" "fluent_bit_parsers" {
   name        = "/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-parsers"
   description = "Custom parsers for Nexus IQ Server logs"
   type        = "String"
-  tier        = "Advanced"  # Use Advanced tier for consistency
+  tier        = "Advanced"
   value       = <<-EOF
 [PARSER]
     Name         iq_request

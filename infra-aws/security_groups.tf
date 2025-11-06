@@ -1,4 +1,4 @@
-# Application Load Balancer Security Group
+
 resource "aws_security_group" "alb" {
   name_prefix = "ref-arch-alb-"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -43,7 +43,7 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# ECS Tasks Security Group
+
 resource "aws_security_group" "ecs_tasks" {
   name_prefix = "ref-arch-ecs-tasks-"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -89,7 +89,7 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
-# RDS Security Group
+
 resource "aws_security_group" "rds" {
   name_prefix = "ref-arch-rds-"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -119,7 +119,7 @@ resource "aws_security_group" "rds" {
   }
 }
 
-# EFS Security Group
+
 resource "aws_security_group" "efs" {
   name_prefix = "ref-arch-efs-"
   vpc_id      = aws_vpc.iq_vpc.id
