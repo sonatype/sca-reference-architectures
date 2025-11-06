@@ -1,4 +1,4 @@
-# Public IP for Application Gateway
+
 resource "azurerm_public_ip" "app_gateway_pip" {
   name                = "pip-ref-arch-iq-appgw"
   resource_group_name = azurerm_resource_group.iq_rg.name
@@ -12,14 +12,14 @@ resource "azurerm_public_ip" "app_gateway_pip" {
   }
 }
 
-# Random suffix for DNS label (must be globally unique)
+
 resource "random_string" "dns_suffix" {
   length  = 6
   special = false
   upper   = false
 }
 
-# Application Gateway
+
 resource "azurerm_application_gateway" "iq_app_gateway" {
   name                = "appgw-ref-arch-iq"
   resource_group_name = azurerm_resource_group.iq_rg.name
@@ -31,7 +31,7 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     capacity = var.app_gateway_capacity
   }
 
-  # SSL Policy configuration to avoid deprecated TLS versions
+
   ssl_policy {
     policy_type = "Predefined"
     policy_name = "AppGwSslPolicy20220101"
@@ -63,9 +63,9 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     fqdns = [azurerm_container_app.iq_app.ingress[0].fqdn]
   }
 
-  # Removed conflicting iq-http-settings - using only iq-http-settings-new for HTTP port 80
 
-  # HTTP backend settings for Nexus IQ Server
+
+
   backend_http_settings {
     name                                = "iq-http-settings-new"
     cookie_based_affinity               = "Disabled"
@@ -97,7 +97,7 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
   }
 
 
-  # HTTP health probe for Nexus IQ Server
+
   probe {
     name                                      = "iq-http-probe-new"
     protocol                                  = "Http"
@@ -113,7 +113,7 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     }
   }
 
-  # Rewrite rule set to fix Container App hostname redirects
+
   rewrite_rule_set {
     name = "LocationHeaderRewrite"
 
@@ -135,7 +135,7 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     }
   }
 
-  # SSL Certificate configuration (optional)
+
   dynamic "ssl_certificate" {
     for_each = var.ssl_certificate_path != "" ? [1] : []
     content {
@@ -145,7 +145,7 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     }
   }
 
-  # HTTPS Listener (optional, when SSL certificate is provided)
+
   dynamic "http_listener" {
     for_each = var.ssl_certificate_path != "" ? [1] : []
     content {
@@ -157,7 +157,7 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     }
   }
 
-  # HTTPS Routing Rule (optional, when SSL certificate is provided)
+
   dynamic "request_routing_rule" {
     for_each = var.ssl_certificate_path != "" ? [1] : []
     content {

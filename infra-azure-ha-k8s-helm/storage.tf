@@ -1,20 +1,20 @@
-# Storage Account for Azure Files Premium (Zone-Redundant)
+
 resource "azurerm_storage_account" "iq_storage" {
-  name                     = "st${replace(var.cluster_name, "-", "")}iqha" # Storage account names must be lowercase and alphanumeric
+  name                     = "st${replace(var.cluster_name, "-", "")}iqha"
   resource_group_name      = azurerm_resource_group.iq_rg.name
   location                 = azurerm_resource_group.iq_rg.location
-  account_tier             = var.storage_account_tier             # Premium
-  account_replication_type = var.storage_account_replication_type # ZRS (Zone-Redundant Storage)
-  account_kind             = "FileStorage"                        # Required for Premium Files
+  account_tier             = var.storage_account_tier
+  account_replication_type = var.storage_account_replication_type
+  account_kind             = "FileStorage"
 
-  # Disable secure transfer for NFS (NFS doesn't use HTTPS)
+
   https_traffic_only_enabled = false
 
-  # Minimum TLS version (not applicable for NFS)
+
   min_tls_version = "TLS1_2"
 
-  # Network rules - allow access from AKS subnet
-  # Note: Initially set to "Allow" to enable share creation, then can be restricted
+
+
   network_rules {
     default_action             = "Allow"
     bypass                     = ["AzureServices"]
@@ -27,12 +27,12 @@ resource "azurerm_storage_account" "iq_storage" {
   })
 }
 
-# Azure Files Premium Share for Nexus IQ HA shared storage
+
 resource "azurerm_storage_share" "iq_data" {
   name                 = "iq-data-ha"
   storage_account_name = azurerm_storage_account.iq_storage.name
   quota                = var.storage_share_quota_gb
-  enabled_protocol     = "NFS"  # NFSv4.1 for better Linux compatibility and performance
+  enabled_protocol     = "NFS"
 
   metadata = {
     environment = var.environment
@@ -40,12 +40,12 @@ resource "azurerm_storage_share" "iq_data" {
   }
 }
 
-# Azure Files Premium Share for Nexus IQ cluster coordination
+
 resource "azurerm_storage_share" "iq_cluster" {
   name                 = "iq-cluster-ha"
   storage_account_name = azurerm_storage_account.iq_storage.name
-  quota                = 100 # 100GB for cluster coordination
-  enabled_protocol     = "NFS"  # NFSv4.1 for better Linux compatibility and performance
+  quota                = 100
+  enabled_protocol     = "NFS"
 
   metadata = {
     environment = var.environment

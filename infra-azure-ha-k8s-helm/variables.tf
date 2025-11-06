@@ -16,7 +16,7 @@ variable "cluster_name" {
   default     = "nexus-iq-ha"
 }
 
-# Network Configuration
+
 variable "vnet_cidr" {
   description = "CIDR block for Virtual Network"
   type        = string
@@ -41,7 +41,7 @@ variable "db_subnet_cidr" {
   default     = "10.1.20.0/24"
 }
 
-# AKS Configuration
+
 variable "kubernetes_version" {
   description = "Kubernetes version for AKS cluster"
   type        = string
@@ -51,7 +51,7 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "VM size for AKS worker nodes"
   type        = string
-  default     = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
+  default     = "Standard_D8s_v3"
 }
 
 variable "node_group_min_size" {
@@ -78,7 +78,7 @@ variable "node_disk_size" {
   default     = 50
 }
 
-# PostgreSQL Configuration
+
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
@@ -88,7 +88,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "SKU name for PostgreSQL Flexible Server"
   type        = string
-  default     = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS r6g.4xlarge)
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_high_availability_mode" {
@@ -100,13 +100,13 @@ variable "db_high_availability_mode" {
 variable "db_storage_mb" {
   description = "Storage size in MB for PostgreSQL"
   type        = number
-  default     = 65536 # 64GB
+  default     = 65536
 }
 
 variable "db_storage_tier" {
   description = "Storage tier for PostgreSQL (P6, P10, P15, P20, etc.)"
   type        = string
-  default     = "P6" # Minimum for 64GB
+  default     = "P6"
 }
 
 variable "database_name" {
@@ -139,7 +139,7 @@ variable "db_geo_redundant_backup_enabled" {
   default     = false
 }
 
-# Storage Configuration
+
 variable "storage_account_tier" {
   description = "Storage account tier (Premium for Azure Files Premium)"
   type        = string
@@ -158,7 +158,7 @@ variable "storage_share_quota_gb" {
   default     = 512
 }
 
-# Application Gateway Configuration
+
 variable "app_gateway_sku_name" {
   description = "SKU name for Application Gateway"
   type        = string
@@ -189,7 +189,7 @@ variable "app_gateway_max_capacity" {
   default     = 10
 }
 
-# Nexus IQ Server Configuration
+
 variable "nexus_iq_version" {
   description = "Version of Nexus IQ Server to deploy"
   type        = string
@@ -239,7 +239,7 @@ variable "nexus_iq_cpu_limit" {
   default     = "6"
 }
 
-# Helm Configuration
+
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
@@ -264,7 +264,7 @@ variable "aad_pod_identity_version" {
   default     = "4.1.18"
 }
 
-# Monitoring Configuration
+
 variable "log_retention_days" {
   description = "Number of days to retain logs in Log Analytics"
   type        = number
@@ -283,7 +283,7 @@ variable "enable_monitoring" {
   default     = true
 }
 
-# HPA Configuration
+
 variable "enable_hpa" {
   description = "Enable Horizontal Pod Autoscaler"
   type        = bool
@@ -314,7 +314,7 @@ variable "hpa_target_memory_utilization" {
   default     = 80
 }
 
-# Ingress Configuration
+
 variable "ingress_hostname" {
   description = "Hostname for Nexus IQ Server ingress"
   type        = string

@@ -1,4 +1,4 @@
-# Key Vault for secure credential storage (HA deployment)
+
 resource "azurerm_key_vault" "iq_kv_ha" {
   name                = "kvrefarchiqha${random_string.kv_suffix.result}"
   location            = azurerm_resource_group.iq_rg.location
@@ -6,16 +6,16 @@ resource "azurerm_key_vault" "iq_kv_ha" {
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = var.key_vault_sku_name
 
-  # HA and security configuration
-  soft_delete_retention_days = var.key_vault_soft_delete_retention_days
-  purge_protection_enabled   = false # Set to true for production
 
-  # Network access configuration for HA
+  soft_delete_retention_days = var.key_vault_soft_delete_retention_days
+  purge_protection_enabled   = false
+
+
   network_acls {
-    default_action = "Allow" # Allow access from Container Apps
+    default_action = "Allow"
     bypass         = "AzureServices"
 
-    # Allow access from all private subnets for HA
+
     virtual_network_subnet_ids = azurerm_subnet.private_subnets[*].id
   }
 
@@ -24,14 +24,14 @@ resource "azurerm_key_vault" "iq_kv_ha" {
   })
 }
 
-# Random string for Key Vault uniqueness
+
 resource "random_string" "kv_suffix" {
   length  = 8
   special = false
   upper   = false
 }
 
-# Access policy for current user (for Terraform operations)
+
 resource "azurerm_key_vault_access_policy" "current_user" {
   key_vault_id = azurerm_key_vault.iq_kv_ha.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -46,7 +46,7 @@ resource "azurerm_key_vault_access_policy" "current_user" {
   ]
 }
 
-# Access policy for Container App managed identity (will be created later)
+
 resource "azurerm_key_vault_access_policy" "container_app" {
   key_vault_id = azurerm_key_vault.iq_kv_ha.id
   tenant_id    = azurerm_container_app.iq_app_ha.identity[0].tenant_id
@@ -59,7 +59,7 @@ resource "azurerm_key_vault_access_policy" "container_app" {
   depends_on = [azurerm_container_app.iq_app_ha]
 }
 
-# Store database credentials in Key Vault (equivalent to AWS Secrets Manager)
+
 resource "azurerm_key_vault_secret" "db_username" {
   name         = "db-username"
   value        = var.db_username
@@ -84,7 +84,7 @@ resource "azurerm_key_vault_secret" "db_password" {
   })
 }
 
-# Store database connection details
+
 resource "azurerm_key_vault_secret" "db_host" {
   name         = "db-host"
   value        = azurerm_postgresql_flexible_server.iq_db_ha.fqdn

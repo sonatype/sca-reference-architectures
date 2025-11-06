@@ -1,4 +1,4 @@
-# Log Analytics Workspace for Container App Environment (HA)
+
 resource "azurerm_log_analytics_workspace" "iq_logs_ha" {
   name                = "log-ref-arch-iq-ha"
   location            = azurerm_resource_group.iq_rg.location
@@ -11,7 +11,7 @@ resource "azurerm_log_analytics_workspace" "iq_logs_ha" {
   })
 }
 
-# Application Insights for monitoring (HA deployment)
+
 resource "azurerm_application_insights" "iq_insights_ha" {
   count               = var.enable_monitoring ? 1 : 0
   name                = "appi-ref-arch-iq-ha"
@@ -25,22 +25,22 @@ resource "azurerm_application_insights" "iq_insights_ha" {
   })
 }
 
-# Container App Environment with multi-subnet support for HA
+
 resource "azurerm_container_app_environment" "iq_env_ha" {
   name                       = "cae-ref-arch-iq-ha"
   location                   = azurerm_resource_group.iq_rg.location
   resource_group_name        = azurerm_resource_group.iq_rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs_ha.id
 
-  # Use the first private subnet for the environment (Container Apps will be distributed across zones)
+
   infrastructure_subnet_id = azurerm_subnet.private_subnets[0].id
 
-  # Workload profile to support higher resource limits (4.0 vCPU / 8.0 Gi)
+
   workload_profile {
     name                  = "D4-Profile-HA"
-    workload_profile_type = "D4" # 4 vCPU, 16 GB RAM capacity per node
+    workload_profile_type = "D4"
     minimum_count         = 1
-    maximum_count         = 3 # Support multiple replicas across zones
+    maximum_count         = 3
   }
 
   tags = merge(var.common_tags, {
@@ -48,33 +48,33 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
   })
 }
 
-# Container App with High Availability configuration
+
 resource "azurerm_container_app" "iq_app_ha" {
   name                         = "ca-ref-arch-iq-ha"
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile-HA" # Use workload profile to access 4.0 vCPU / 8.0 Gi limits
+  workload_profile_name        = "D4-Profile-HA"
 
   identity {
     type = "SystemAssigned"
   }
 
   template {
-    # HA configuration: minimum 2 replicas, up to 10 for scaling (equivalent to AWS ECS 2-6 tasks)
+
     min_replicas = var.iq_min_replicas
     max_replicas = var.iq_max_replicas
 
-    # Auto-scaling rules (equivalent to AWS ECS Auto Scaling policies)
-    # HTTP request-based scaling rule (Container Apps native scaling)
+
+
     http_scale_rule {
       name                = "http-requests"
       concurrent_requests = var.scale_rule_concurrent_requests
     }
 
-    # Alternative approach - create config in main container using shared volume
 
-    # Volume for shared storage (equivalent to AWS EFS)
+
+
     volume {
       name         = "iq-data-ha"
       storage_type = "AzureFile"
@@ -92,7 +92,7 @@ resource "azurerm_container_app" "iq_app_ha" {
       cpu    = var.container_cpu
       memory = var.container_memory
 
-      # HA deployment: Create complete config.yml with database and clustering in shared volume
+
       command = ["/bin/sh"]
       args = [
         "-c",
@@ -100,7 +100,7 @@ resource "azurerm_container_app" "iq_app_ha" {
           set -e
           echo "Starting Nexus IQ Server HA instance - Replica: $HOSTNAME"
 
-          # Create unique work directory per replica (like AWS ECS tasks)
+
           UNIQUE_WORK="/sonatype-work/clm-server-$HOSTNAME"
           CLUSTER_DIR="/sonatype-work/clm-cluster"
 
@@ -110,13 +110,13 @@ resource "azurerm_container_app" "iq_app_ha" {
           echo "Creating shared cluster directory: $CLUSTER_DIR"
           mkdir -p "$CLUSTER_DIR"
 
-          # Create HA config.yml in proper documented location (writable via EmptyDir mount)
-          # Create HA config.yml with complete database and clustering configuration
+
+
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: $UNIQUE_WORK
 clusterDirectory: $CLUSTER_DIR
 
-# Database configuration for PostgreSQL (HA cluster)
+
 database:
   type: postgresql
   hostname: $DB_HOST
@@ -172,7 +172,7 @@ logging:
 createSampleData: true
 CONFIGEOF
 
-          # Replace placeholders with actual environment values
+
           sed -i "s|\$UNIQUE_WORK|$UNIQUE_WORK|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$CLUSTER_DIR|$CLUSTER_DIR|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
@@ -186,16 +186,16 @@ CONFIGEOF
           echo "Generated config file contents:"
           cat /etc/nexus-iq-server/config.yml
 
-          # Verify directories exist and are writable
+
           ls -la /sonatype-work/
 
-          # Start IQ Server with HA configuration using proper documented path
+
           echo "Starting Nexus IQ Server HA replica: $HOSTNAME"
           exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
         EOF
       ]
 
-      # Environment variables for HA deployment
+
       env {
         name  = "JAVA_OPTS"
         value = var.java_opts
@@ -221,7 +221,7 @@ CONFIGEOF
         value = azurerm_postgresql_flexible_server_database.iq_database_ha.name
       }
 
-      # Use Container App secrets for database credentials
+
       env {
         name        = "DB_USER"
         secret_name = "db-username"
@@ -237,7 +237,7 @@ CONFIGEOF
         value = "false"
       }
 
-      # HA-specific environment variables
+
       env {
         name  = "CLUSTER_ENABLED"
         value = "true"
@@ -248,7 +248,7 @@ CONFIGEOF
         value = "/sonatype-work/clm-cluster"
       }
 
-      # Mount the shared storage for clustering
+
       volume_mounts {
         name = "iq-data-ha"
         path = "/sonatype-work"
@@ -262,7 +262,7 @@ CONFIGEOF
     }
   }
 
-  # Database credentials as Container App secrets
+
   secret {
     name  = "db-username"
     value = var.db_username
@@ -273,7 +273,7 @@ CONFIGEOF
     value = var.db_password
   }
 
-  # Ingress configuration for HA
+
   ingress {
     external_enabled           = true
     allow_insecure_connections = true
@@ -286,7 +286,7 @@ CONFIGEOF
     }
   }
 
-  # Auto-scaling configuration (equivalent to AWS ECS Auto Scaling)
+
   dapr {
     app_id       = "nexus-iq-ha"
     app_port     = 8070

@@ -1,4 +1,3 @@
-# Security Group for Application Load Balancer
 resource "aws_security_group" "alb" {
   name_prefix = "${var.cluster_name}-alb"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -34,7 +33,6 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# IAM policy for AWS Load Balancer Controller
 resource "aws_iam_policy" "aws_load_balancer_controller_policy" {
   name        = "${var.cluster_name}-aws-load-balancer-controller-policy"
   description = "IAM policy for AWS Load Balancer Controller"
@@ -284,7 +282,6 @@ resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller_custom" 
   role       = aws_iam_role.aws_load_balancer_controller.name
 }
 
-# Kubernetes Service Account for AWS Load Balancer Controller
 resource "kubernetes_service_account" "aws_load_balancer_controller" {
   metadata {
     name      = "aws-load-balancer-controller"
@@ -297,7 +294,6 @@ resource "kubernetes_service_account" "aws_load_balancer_controller" {
   depends_on = [module.eks]
 }
 
-# Helm release for AWS Load Balancer Controller
 resource "helm_release" "aws_load_balancer_controller" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"

@@ -1,4 +1,4 @@
-# ECS Cluster for HA deployment
+
 resource "aws_ecs_cluster" "iq_cluster" {
   name = var.cluster_name
 
@@ -12,7 +12,7 @@ resource "aws_ecs_cluster" "iq_cluster" {
   })
 }
 
-# ECS Task Definition for Nexus IQ Server HA
+
 resource "aws_ecs_task_definition" "iq_task" {
   family                   = "${var.cluster_name}-nexus-iq-server"
   network_mode             = "awsvpc"
@@ -68,19 +68,19 @@ resource "aws_ecs_task_definition" "iq_task" {
         }
       ]
 
-      # Create HA config with unique work directories and use JAVA_OPTS for database
+
       entryPoint = ["/bin/sh", "-c"]
       command = [
         <<-EOF
           set -e
           echo "Creating unique sonatypeWork directory for $HOSTNAME"
 
-          # Create unique work directory and shared cluster directory
+
           UNIQUE_WORK="/sonatype-work/clm-server-$HOSTNAME"
           mkdir -p "$UNIQUE_WORK"
           mkdir -p "/sonatype-work/clm-cluster"
 
-          # Create config.yml with HA settings and database config
+
           mkdir -p /etc/nexus-iq-server
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: $UNIQUE_WORK
@@ -141,7 +141,7 @@ logging:
 createSampleData: true
 CONFIGEOF
 
-          # Replace all placeholders with actual values
+
           sed -i "s|\$UNIQUE_WORK|$UNIQUE_WORK|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
@@ -149,12 +149,12 @@ CONFIGEOF
           sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 
-          # Debug: Show what's actually in the config file
+
           echo "=== DEBUG: Contents of config.yml after ALL replacements ==="
           cat /etc/nexus-iq-server/config.yml
           echo "=== END DEBUG ==="
 
-          # Keep original JAVA_OPTS (no database overrides)
+
           export JAVA_OPTS
 
           echo "Starting Nexus IQ Server with sonatypeWork: $UNIQUE_WORK"
@@ -174,8 +174,8 @@ CONFIGEOF
         }
       ]
 
-      # Container stdout/stderr goes to application log group
-      # Fluent Bit will tail file-based logs and route them to unified log group
+
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -185,8 +185,8 @@ CONFIGEOF
         }
       }
 
-      # Enhanced health check matching Kubernetes approach
-      # Checks database, cluster directory, and work directory connectivity
+
+
       healthCheck = {
         command = [
           "CMD-SHELL",
@@ -211,39 +211,39 @@ CONFIGEOF
         }
       ]
 
-      # Resource limits for HA deployment
+
       memoryReservation = var.ecs_memory_reservation
     }
   ],
-  # Fluent Bit sidecar for structured logging
+
   [{
     name      = "log_router"
     image     = var.fluent_bit_image
-    essential = false  # Non-essential: task continues if Fluent Bit fails
+    essential = false
 
-    # Write config from environment and run Fluent Bit
+
     entryPoint = ["/bin/sh", "-c"]
     command = [
       <<-EOF
         set -e
         echo "Loading Fluent Bit configuration from environment"
 
-        # Create config directories
+
         mkdir -p /fluent-bit/etc /fluent-bit/parsers /fluent-bit/state /var/log/nexus-iq-server/aggregated
 
-        # Write config from environment variable (loaded from SSM via ECS secrets)
+
         echo "$FLUENT_BIT_CONFIG" > /fluent-bit/etc/fluent-bit.conf
         echo "$FLUENT_BIT_PARSERS" > /fluent-bit/parsers/parsers.conf
 
         echo "Configuration loaded successfully"
         echo "Starting Fluent Bit..."
 
-        # Run Fluent Bit with fetched configuration
+
         exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
       EOF
     ]
 
-    # Load configuration from SSM Parameter Store via ECS secrets
+
     secrets = [
       {
         name      = "FLUENT_BIT_CONFIG"
@@ -270,21 +270,21 @@ CONFIGEOF
       }
     ]
 
-    # Mount shared log volume (read-write for Fluent Bit to write aggregated logs)
+
     mountPoints = [
       {
         sourceVolume  = "iq-logs"
         containerPath = "/var/log/nexus-iq-server"
-        readOnly      = false  # Fluent Bit needs to write aggregated logs
+        readOnly      = false
       }
     ]
 
-    # Resource limits for Fluent Bit sidecar
-    cpu            = 256   # 0.25 vCPU
-    memory         = 512   # 512 MB
+
+    cpu            = 256
+    memory         = 512
     memoryReservation = 256
 
-    # Health check for Fluent Bit
+
     healthCheck = {
       command     = ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
       interval    = 30
@@ -293,7 +293,7 @@ CONFIGEOF
       startPeriod = 60
     }
 
-    # Fluent Bit's own logs go to CloudWatch
+
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -303,7 +303,7 @@ CONFIGEOF
       }
     }
 
-    # Start Fluent Bit after IQ Server is running
+
     dependsOn = [{
       containerName = "nexus-iq-server"
       condition     = "START"
@@ -340,7 +340,7 @@ CONFIGEOF
   })
 }
 
-# ECS Service for High Availability
+
 resource "aws_ecs_service" "iq_service" {
   name            = "${var.cluster_name}-nexus-iq-service"
   cluster         = aws_ecs_cluster.iq_cluster.id
@@ -349,11 +349,11 @@ resource "aws_ecs_service" "iq_service" {
   launch_type     = "FARGATE"
   platform_version = "LATEST"
 
-  # HA deployment configuration
-  deployment_maximum_percent         = 200  # Allow running more than desired during deployment
-  deployment_minimum_healthy_percent = 50   # Keep at least 50% running during deployment
 
-  # Deployment circuit breaker
+  deployment_maximum_percent         = 200
+  deployment_minimum_healthy_percent = 50
+
+
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -371,12 +371,12 @@ resource "aws_ecs_service" "iq_service" {
     container_port   = 8070
   }
 
-  # Service discovery (optional, useful for internal communication)
+
   service_registries {
     registry_arn = aws_service_discovery_service.iq_service.arn
   }
 
-  # Auto scaling integration
+
   lifecycle {
     ignore_changes = [desired_count]
   }
@@ -392,7 +392,7 @@ resource "aws_ecs_service" "iq_service" {
   })
 }
 
-# Service Discovery for internal communication between IQ Server instances
+
 resource "aws_service_discovery_private_dns_namespace" "iq_namespace" {
   name        = "${var.cluster_name}.local"
   description = "Private DNS namespace for IQ Server HA"
@@ -423,7 +423,7 @@ resource "aws_service_discovery_service" "iq_service" {
   })
 }
 
-# Application Auto Scaling Target
+
 resource "aws_appautoscaling_target" "iq_target" {
   max_capacity       = var.iq_max_count
   min_capacity       = var.iq_min_count
@@ -436,7 +436,7 @@ resource "aws_appautoscaling_target" "iq_target" {
   })
 }
 
-# Application Auto Scaling Policy (CPU-based)
+
 resource "aws_appautoscaling_policy" "iq_cpu_policy" {
   name               = "${var.cluster_name}-cpu-autoscaling"
   policy_type        = "TargetTrackingScaling"
@@ -457,7 +457,7 @@ resource "aws_appautoscaling_policy" "iq_cpu_policy" {
   depends_on = [aws_appautoscaling_target.iq_target]
 }
 
-# Application Auto Scaling Policy (Memory-based)
+
 resource "aws_appautoscaling_policy" "iq_memory_policy" {
   name               = "${var.cluster_name}-memory-autoscaling"
   policy_type        = "TargetTrackingScaling"

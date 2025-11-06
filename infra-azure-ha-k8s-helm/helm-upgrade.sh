@@ -1,163 +1,112 @@
 #!/bin/bash
 
-# Helm upgrade script for Nexus IQ Server HA deployment on AKS
-# Usage: ./helm-upgrade.sh
-
 set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Configuration
 NAMESPACE="nexus-iq"
 HELM_RELEASE_NAME="nexus-iq-server-ha"
 HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
-echo -e "${BLUE}🔄 Nexus IQ Server HA - Helm Upgrade (Azure AKS)${NC}"
-echo "=========================================="
+echo -e "${BLUE}🔄 Nexus IQ Server HA on AKS - Helm Upgrade${NC}"
+echo "================================================"
 echo ""
 
-# Check prerequisites
-echo -e "${BLUE}🔍 Checking prerequisites...${NC}"
-
-# Check if kubectl is available and configured
 if ! command -v kubectl &> /dev/null; then
-    echo -e "${RED}❌ Error: kubectl not found in PATH${NC}"
-    echo "Please install kubectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/"
+    echo -e "${RED}❌ Error: kubectl not found${NC}"
     exit 1
 fi
 
-# Check if helm is available
 if ! command -v helm &> /dev/null; then
-    echo -e "${RED}❌ Error: helm not found in PATH${NC}"
-    echo "Please install Helm: https://helm.sh/docs/intro/install/"
+    echo -e "${RED}❌ Error: helm not found${NC}"
     exit 1
 fi
 
-# Check if az CLI is available
 if ! command -v az &> /dev/null; then
-    echo -e "${RED}❌ Error: Azure CLI (az) not found in PATH${NC}"
-    echo "Please install Azure CLI: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
+    echo -e "${RED}❌ Error: Azure CLI not found${NC}"
     exit 1
 fi
 
-# Check if we can connect to Kubernetes cluster, if not try to configure kubectl
 if ! kubectl cluster-info >/dev/null 2>&1; then
-    echo -e "${YELLOW}⚠️  Cannot connect to Kubernetes cluster, attempting to configure kubectl...${NC}"
-
-    # Get kubectl config command from terraform outputs
     KUBECTL_COMMAND=$(terraform output -raw kubectl_config_command 2>/dev/null || echo "")
 
     if [[ -n "$KUBECTL_COMMAND" ]]; then
-        echo "• Using terraform kubectl command: $KUBECTL_COMMAND"
-        eval "$KUBECTL_COMMAND"
+        eval "$KUBECTL_COMMAND" >/dev/null 2>&1
 
-        # Test connection again
-        echo "• Testing kubectl connection..."
         sleep 2
-        if kubectl cluster-info >/dev/null 2>&1; then
-            echo -e "${GREEN}✅ kubectl configured successfully${NC}"
-        else
+        if ! kubectl cluster-info >/dev/null 2>&1; then
             echo -e "${RED}❌ Error: kubectl configuration failed${NC}"
-            echo "Please configure kubectl manually with:"
-            echo "  $KUBECTL_COMMAND"
             exit 1
         fi
     else
-        echo -e "${RED}❌ Error: Cannot get kubectl config command from terraform outputs${NC}"
-        echo "Please configure kubectl manually with:"
-        echo "  az aks get-credentials --resource-group rg-nexus-iq-ha --name aks-nexus-iq-ha"
+        echo -e "${RED}❌ Error: Cannot configure kubectl${NC}"
         exit 1
     fi
 fi
 
-# Check if values file exists
 if [[ ! -f "$VALUES_FILE" ]]; then
     echo -e "${RED}❌ Error: $VALUES_FILE not found${NC}"
-    echo "Please ensure the Helm values file is available"
     exit 1
 fi
 
-# Check if namespace exists
 if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
     echo -e "${RED}❌ Error: Namespace '$NAMESPACE' does not exist${NC}"
-    echo "Please run ./helm-install.sh first to install Nexus IQ Server HA"
     exit 1
 fi
 
-# Check if release exists
-if ! helm list -n "$NAMESPACE" | grep -q "$HELM_RELEASE_NAME"; then
+if ! helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${RED}❌ Error: Helm release '$HELM_RELEASE_NAME' not found${NC}"
-    echo "Please run ./helm-install.sh first to install Nexus IQ Server HA"
     exit 1
 fi
 
-echo -e "${GREEN}✅ Prerequisites check passed${NC}"
-echo ""
-
-# Get current release information
-echo -e "${BLUE}📊 Current Release Information:${NC}"
+echo -e "${BLUE}📊 Current Release${NC}"
+echo "━━━━━━━━━━━━━━━━━━"
 helm list -n "$NAMESPACE"
 echo ""
 
 CURRENT_REVISION=$(helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .revision")
 CURRENT_CHART=$(helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .chart")
 
-echo "   Current Revision: $CURRENT_REVISION"
-echo "   Current Chart: $CURRENT_CHART"
+echo "• Current Revision: $CURRENT_REVISION"
+echo "• Current Chart: $CURRENT_CHART"
 echo ""
 
-# Get Terraform outputs
-echo -e "${BLUE}📊 Getting infrastructure details from Terraform...${NC}"
+echo -e "${BLUE}📊 Infrastructure Details${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [[ -f "terraform.tfstate" ]]; then
     DB_ENDPOINT=$(terraform output -raw postgres_fqdn 2>/dev/null)
-    AZURE_REGION=$(terraform output -raw location 2>/dev/null || grep '^location' terraform.tfvars | cut -d'"' -f2)
+    AZURE_REGION=$(terraform output -raw location 2>/dev/null || echo "eastus")
     CLUSTER_NAME=$(terraform output -raw aks_cluster_name 2>/dev/null)
     RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null)
 
-    echo "   Database Endpoint: $DB_ENDPOINT"
-    echo "   Azure Region: $AZURE_REGION"
-    echo "   AKS Cluster: $CLUSTER_NAME"
-    echo "   Resource Group: $RESOURCE_GROUP"
+    echo "• Database: $DB_ENDPOINT"
+    echo "• Region: $AZURE_REGION"
+    echo "• Cluster: $CLUSTER_NAME"
+    echo "• Resource Group: $RESOURCE_GROUP"
 else
-    echo -e "${YELLOW}⚠️  Terraform state not found, using defaults${NC}"
     AZURE_REGION=$(grep '^location' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "eastus")
 fi
 echo ""
 
-# Update Helm repository
-echo -e "${BLUE}📦 Updating Helm repository...${NC}"
-helm repo update
-echo -e "${GREEN}✅ Helm repository updated${NC}"
-echo ""
+helm repo update >/dev/null 2>&1
 
-# Show available chart versions
-echo -e "${BLUE}📋 Available Chart Versions:${NC}"
-helm search repo sonatype/nexus-iq-server-ha --versions | head -5
-echo ""
-
-# Get target chart version
 CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
-echo "   Target Chart Version: $CHART_VERSION"
-echo ""
 
-# Create temporary values file with substituted variables
-echo -e "${BLUE}⚙️  Preparing Helm values...${NC}"
+echo -e "${BLUE}📦 Preparing Upgrade${NC}"
+echo "━━━━━━━━━━━━━━━━━━━"
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-# Get database password from terraform
 DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
 
-# Substitute runtime values if Terraform state is available
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
         -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
@@ -165,37 +114,33 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
         "$TEMP_VALUES_FILE"
 fi
 
-echo -e "${GREEN}✅ Helm values prepared${NC}"
-echo ""
-
-# Show what will be upgraded
-echo -e "${BLUE}🔍 Checking upgrade changes...${NC}"
+echo "• Chart Version: $CHART_VERSION"
 echo ""
 
 helm diff upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
-    --allow-unreleased 2>/dev/null || echo -e "${YELLOW}⚠️  helm diff plugin not available, continuing with upgrade${NC}"
+    --allow-unreleased 2>/dev/null || echo -e "${YELLOW}⚠️  helm diff plugin not available${NC}"
 
 echo ""
 
-# Confirm upgrade
-read -p "Do you want to continue with the upgrade? (yes/no): " -r
+read -p "Continue with upgrade? (yes/no): " -r
 if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
     echo -e "${YELLOW}❌ Upgrade cancelled${NC}"
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 0
 fi
 
-# Backup current values before upgrade
-echo -e "${BLUE}💾 Creating backup of current configuration...${NC}"
+echo -e "${BLUE}💾 Creating Backup${NC}"
+echo "━━━━━━━━━━━━━━━━━━"
 helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml"
-echo -e "${GREEN}✅ Backup saved as: backup-values-revision-${CURRENT_REVISION}.yaml${NC}"
+echo "• Saved: backup-values-revision-${CURRENT_REVISION}.yaml"
 echo ""
 
-# Perform rolling upgrade
-echo -e "${BLUE}🔄 Performing Helm upgrade...${NC}"
+echo -e "${BLUE}🔄 Performing Upgrade${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━"
+echo "This may take 15-20 minutes..."
 echo ""
 
 helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
@@ -207,77 +152,73 @@ helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --atomic
 
 echo ""
-echo -e "${GREEN}✅ Nexus IQ Server HA upgrade completed!${NC}"
+echo -e "${GREEN}✅ Upgrade Completed Successfully${NC}"
 echo ""
 
-# Clean up temporary files
 rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
-# Show upgrade information
-echo -e "${BLUE}📊 Upgrade Information:${NC}"
+AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
+if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then
+    LB_IP=$(kubectl get svc nexus-iq-server-ha-iq-server-application-service -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+
+    if [[ -n "$LB_IP" ]]; then
+        CURRENT_BACKEND=$(az network application-gateway address-pool show \
+            --gateway-name "$AGW_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --name aks-backend-pool \
+            --query 'backendAddresses[0].ipAddress' -o tsv 2>/dev/null || echo "")
+
+        if [[ "$CURRENT_BACKEND" != "$LB_IP" ]]; then
+            az network application-gateway address-pool update \
+                --gateway-name "$AGW_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --name aks-backend-pool \
+                --set backendAddresses[0].ipAddress="$LB_IP" >/dev/null 2>&1 || true
+        fi
+    fi
+fi
+
+echo -e "${BLUE}📊 Upgrade Summary${NC}"
+echo "━━━━━━━━━━━━━━━━━━"
 helm list -n "$NAMESPACE"
 echo ""
 
 NEW_REVISION=$(helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .revision")
-echo "   Previous Revision: $CURRENT_REVISION"
-echo "   New Revision: $NEW_REVISION"
+echo "• Previous Revision: $CURRENT_REVISION"
+echo "• New Revision: $NEW_REVISION"
 echo ""
 
-# Show pod status
-echo -e "${BLUE}📊 Pod Status:${NC}"
+echo -e "${BLUE}📊 Pod Status${NC}"
+echo "━━━━━━━━━━━━━"
 kubectl get pods -n "$NAMESPACE" -o wide
 echo ""
 
-# Check rollout status
-echo -e "${BLUE}⏳ Checking rollout status...${NC}"
-kubectl rollout status deployment/nexus-iq-server-ha-iq-server-deployment -n "$NAMESPACE" --timeout=600s || true
-echo ""
+kubectl rollout status deployment/nexus-iq-server-ha-iq-server-deployment -n "$NAMESPACE" --timeout=600s >/dev/null 2>&1 || true
 
-# Show service information
-echo -e "${BLUE}🔗 Service Information:${NC}"
+echo -e "${BLUE}🔗 Service Information${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━"
 kubectl get svc -n "$NAMESPACE"
 echo ""
 
-# Show Application Gateway URL if available
 if [[ -f "terraform.tfstate" ]]; then
     APP_GATEWAY_URL=$(terraform output -raw application_gateway_url 2>/dev/null || echo "")
     if [[ -n "$APP_GATEWAY_URL" ]]; then
-        echo -e "${BLUE}🌐 Application URL:${NC}"
-        echo "   $APP_GATEWAY_URL"
+        echo "• Application URL: $APP_GATEWAY_URL"
         echo ""
     fi
 fi
 
-# Show recent events
-echo -e "${BLUE}📋 Recent Events:${NC}"
-kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' | tail -10
+echo -e "${BLUE}🔄 Rollback Information${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━"
+echo "To rollback: helm rollback $HELM_RELEASE_NAME $CURRENT_REVISION -n $NAMESPACE"
+echo "Or restore from backup: helm upgrade $HELM_RELEASE_NAME sonatype/nexus-iq-server-ha -n $NAMESPACE -f backup-values-revision-${CURRENT_REVISION}.yaml"
 echo ""
 
-# Provide rollback information
-echo -e "${BLUE}🔄 Rollback Information:${NC}"
-echo "If you need to rollback this upgrade, you can use:"
-echo "   helm rollback $HELM_RELEASE_NAME $CURRENT_REVISION -n $NAMESPACE"
-echo ""
-echo "Or restore from backup:"
-echo "   helm upgrade $HELM_RELEASE_NAME sonatype/nexus-iq-server-ha -n $NAMESPACE -f backup-values-revision-${CURRENT_REVISION}.yaml"
+echo -e "${BLUE}🎯 Next Steps${NC}"
+echo "━━━━━━━━━━━━"
+echo "1. Monitor pods: kubectl get pods -n $NAMESPACE -w"
+echo "2. Check logs: kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n $NAMESPACE"
+echo "3. Test application functionality"
 echo ""
 
-# Next steps
-echo -e "${BLUE}🚀 Next Steps:${NC}"
-echo "1. Monitor the pods to ensure they're healthy:"
-echo "   kubectl get pods -n $NAMESPACE -w"
-echo ""
-echo "2. Check logs if needed:"
-echo "   kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n $NAMESPACE"
-echo ""
-echo "3. Test the application functionality"
-echo ""
-echo "4. Check Application Gateway backend health:"
-echo "   az network application-gateway show-backend-health \\"
-echo "       --resource-group $RESOURCE_GROUP \\"
-echo "       --name agw-nexus-iq-ha"
-echo ""
-echo "5. If everything looks good, you can clean up old backups"
-echo ""
-
-echo -e "${GREEN}🎉 Nexus IQ Server HA upgrade completed successfully!${NC}"
+echo -e "${GREEN}🎉 Upgrade completed successfully!${NC}"

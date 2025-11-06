@@ -1,4 +1,4 @@
-# General Variables
+
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
@@ -11,7 +11,7 @@ variable "cluster_name" {
   default     = "ref-arch-iq-ha"
 }
 
-# Network Variables
+
 variable "vnet_cidr" {
   description = "CIDR block for VNet"
   type        = string
@@ -36,7 +36,7 @@ variable "db_subnet_cidr" {
   default     = "10.1.40.0/24"
 }
 
-# Container App Variables (HA Configuration)
+
 variable "container_cpu" {
   description = "CPU allocation per container replica (max 4.0 for Azure Container Apps)"
   type        = number
@@ -78,7 +78,7 @@ variable "java_opts" {
   default     = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
-# Auto Scaling Variables
+
 variable "cpu_utilization_threshold" {
   description = "CPU utilization percentage threshold for auto scaling"
   type        = number
@@ -97,7 +97,7 @@ variable "scale_rule_concurrent_requests" {
   default     = 100
 }
 
-# Database Variables (Zone-Redundant PostgreSQL)
+
 variable "db_name" {
   description = "Database name"
   type        = string
@@ -125,7 +125,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name for zone-redundant HA deployment"
   type        = string
-  default     = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_backup_retention_days" {
@@ -151,7 +151,7 @@ variable "db_high_availability_mode" {
   }
 }
 
-# Application Gateway Variables (Zone-Redundant)
+
 variable "app_gateway_sku_name" {
   description = "Application Gateway SKU name (v2 required for zone redundancy)"
   type        = string
@@ -176,7 +176,7 @@ variable "app_gateway_zones" {
   default     = ["1", "2", "3"]
 }
 
-# Storage Variables (Premium for HA)
+
 variable "storage_account_tier" {
   description = "Storage account performance tier (Premium required for zone redundancy)"
   type        = string
@@ -186,7 +186,7 @@ variable "storage_account_tier" {
 variable "storage_account_replication_type" {
   description = "Storage account replication type (ZRS for zone redundancy)"
   type        = string
-  default     = "ZRS" # Zone-Redundant Storage
+  default     = "ZRS"
 }
 
 variable "file_share_quota_gb" {
@@ -195,7 +195,7 @@ variable "file_share_quota_gb" {
   default     = 200
 }
 
-# Monitoring Variables
+
 variable "enable_monitoring" {
   description = "Enable Application Insights monitoring"
   type        = bool
@@ -214,14 +214,14 @@ variable "enable_container_insights" {
   default     = true
 }
 
-# Backup Variables
+
 variable "enable_backup" {
   description = "Enable backup for storage and database"
   type        = bool
   default     = true
 }
 
-# Key Vault Variables
+
 variable "key_vault_sku_name" {
   description = "Key Vault SKU name"
   type        = string
@@ -234,7 +234,7 @@ variable "key_vault_soft_delete_retention_days" {
   default     = 7
 }
 
-# Tagging Variables
+
 variable "common_tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)

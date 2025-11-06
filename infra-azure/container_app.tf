@@ -1,4 +1,4 @@
-# Log Analytics Workspace for Container App Environment
+
 resource "azurerm_log_analytics_workspace" "iq_logs" {
   name                = "log-ref-arch-iq"
   location            = azurerm_resource_group.iq_rg.location
@@ -11,7 +11,7 @@ resource "azurerm_log_analytics_workspace" "iq_logs" {
   }
 }
 
-# Application Insights (optional monitoring)
+
 resource "azurerm_application_insights" "iq_insights" {
   count               = var.enable_monitoring ? 1 : 0
   name                = "appi-ref-arch-iq"
@@ -25,7 +25,7 @@ resource "azurerm_application_insights" "iq_insights" {
   }
 }
 
-# Container App Environment
+
 resource "azurerm_container_app_environment" "iq_env" {
   name                       = "cae-ref-arch-iq"
   location                   = azurerm_resource_group.iq_rg.location
@@ -33,10 +33,10 @@ resource "azurerm_container_app_environment" "iq_env" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs.id
   infrastructure_subnet_id   = azurerm_subnet.private_subnet.id
 
-  # Use workload profiles to enable 4.0 vCPU / 8.0 Gi limits (vs 2.0/4.0 in consumption-only)
+
   workload_profile {
     name                  = "D4-Profile"
-    workload_profile_type = "D4" # 4 vCPU, 16 GB RAM capacity
+    workload_profile_type = "D4"
     minimum_count         = 1
     maximum_count         = 1
   }
@@ -46,13 +46,13 @@ resource "azurerm_container_app_environment" "iq_env" {
   }
 }
 
-# Container App
+
 resource "azurerm_container_app" "iq_app" {
   name                         = "ca-ref-arch-iq"
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile" # Use workload profile to access 4.0 vCPU / 8.0 Gi limits
+  workload_profile_name        = "D4-Profile"
 
   identity {
     type = "SystemAssigned"
@@ -62,8 +62,8 @@ resource "azurerm_container_app" "iq_app" {
     min_replicas = 1
     max_replicas = 1
 
-    # Init container approach - commented out due to provider version compatibility
-    # Will use alternative approach in main container
+
+
 
     volume {
       name         = "iq-data"
@@ -82,7 +82,7 @@ resource "azurerm_container_app" "iq_app" {
       cpu    = var.container_cpu
       memory = var.container_memory
 
-      # Single instance: Create config in proper location using mounted EmptyDir volume
+
       command = ["/bin/sh"]
       args = [
         "-c",
@@ -90,11 +90,11 @@ resource "azurerm_container_app" "iq_app" {
           set -e
           echo "Creating config.yml in proper /etc/nexus-iq-server location"
 
-          # Create config.yml with proper database configuration (same approach as HA)
+
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
 sonatypeWork: /sonatype-work
 
-# Database configuration for PostgreSQL (single instance)
+
 database:
   type: postgresql
   hostname: $DB_HOST
@@ -150,7 +150,7 @@ logging:
 createSampleData: true
 CONFIGEOF
 
-          # Replace placeholders with actual environment values
+
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
@@ -161,7 +161,7 @@ CONFIGEOF
           echo "Generated config file contents:"
           cat /etc/nexus-iq-server/config.yml
 
-          # Start the application using official Docker image server command with proper config path
+
           exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
         EOF
       ]
@@ -241,7 +241,7 @@ CONFIGEOF
     }
   }
 
-  # Force immediate revision replacement instead of gradual rollout
+
   lifecycle {
     replace_triggered_by = [
       azurerm_container_app_environment_storage.iq_storage
