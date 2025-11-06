@@ -157,6 +157,27 @@ echo ""
 
 rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
+AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
+if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then
+    LB_IP=$(kubectl get svc nexus-iq-server-ha-iq-server-application-service -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+
+    if [[ -n "$LB_IP" ]]; then
+        CURRENT_BACKEND=$(az network application-gateway address-pool show \
+            --gateway-name "$AGW_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --name aks-backend-pool \
+            --query 'backendAddresses[0].ipAddress' -o tsv 2>/dev/null || echo "")
+
+        if [[ "$CURRENT_BACKEND" != "$LB_IP" ]]; then
+            az network application-gateway address-pool update \
+                --gateway-name "$AGW_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --name aks-backend-pool \
+                --set backendAddresses[0].ipAddress="$LB_IP" >/dev/null 2>&1 || true
+        fi
+    fi
+fi
+
 echo -e "${BLUE}📊 Upgrade Summary${NC}"
 echo "━━━━━━━━━━━━━━━━━━"
 helm list -n "$NAMESPACE"

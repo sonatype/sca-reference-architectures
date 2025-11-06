@@ -77,17 +77,21 @@ kind: StorageClass
 metadata:
   name: azurefile-nfs
 provisioner: file.csi.azure.com
+allowVolumeExpansion: true
 parameters:
-  protocol: nfs
+  skuName: Premium_ZRS
   storageAccount: $STORAGE_ACCOUNT
   resourceGroup: $RESOURCE_GROUP
-  skuName: Premium_ZRS
 mountOptions:
-  - nconnect=4
-  - noresvport
+  - dir_mode=0777
+  - file_mode=0777
+  - uid=1000
+  - gid=1000
+  - mfsymlinks
+  - cache=strict
+  - actimeo=30
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
-allowVolumeExpansion: true
 EOF
 
 kubectl apply -f k8s-storageclass-nfs-runtime.yaml >/dev/null 2>&1
@@ -141,12 +145,41 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
-    --timeout 15m \
-    --wait; then
+    --timeout 15m; then
 
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
 
     kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=nexus-iq-server-ha -n "$NAMESPACE" --timeout=300s >/dev/null 2>&1 || true
+
+    AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
+    if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then
+        LB_IP=""
+        timeout=120
+        elapsed=0
+        while [[ -z "$LB_IP" ]] && [ $elapsed -lt $timeout ]; do
+            LB_IP=$(kubectl get svc nexus-iq-server-ha-iq-server-application-service -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            if [[ -z "$LB_IP" ]]; then
+                sleep 5
+                elapsed=$((elapsed + 5))
+            fi
+        done
+
+        if [[ -n "$LB_IP" ]]; then
+            CURRENT_BACKEND=$(az network application-gateway address-pool show \
+                --gateway-name "$AGW_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --name aks-backend-pool \
+                --query 'backendAddresses[0].ipAddress' -o tsv 2>/dev/null || echo "")
+
+            if [[ "$CURRENT_BACKEND" != "$LB_IP" ]]; then
+                az network application-gateway address-pool update \
+                    --gateway-name "$AGW_NAME" \
+                    --resource-group "$RESOURCE_GROUP" \
+                    --name aks-backend-pool \
+                    --set backendAddresses[0].ipAddress="$LB_IP" >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
 
     echo ""
     echo -e "${GREEN}✅ Installation Completed Successfully${NC}"

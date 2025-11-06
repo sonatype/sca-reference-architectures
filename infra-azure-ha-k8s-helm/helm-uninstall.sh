@@ -51,6 +51,16 @@ done
 
 kubectl delete storageclass azurefile-nfs --ignore-not-found=true >/dev/null 2>&1 || true
 
+RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null || echo "")
+AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
+if [[ -n "$AGW_NAME" && -n "$RESOURCE_GROUP" && "$AGW_NAME" != "null" ]]; then
+    az network application-gateway address-pool update \
+        --gateway-name "$AGW_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --name aks-backend-pool \
+        --set backendAddresses=[] >/dev/null 2>&1 || true
+fi
+
 echo ""
 echo -e "${GREEN}✅ Uninstallation Completed${NC}"
 echo ""
