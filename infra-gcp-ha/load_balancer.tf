@@ -51,8 +51,8 @@ resource "google_compute_backend_service" "iq_ha_backend" {
   # Connection draining timeout
   connection_draining_timeout_sec = 300
 
-  # Session affinity for IQ Server clustering
-  session_affinity = "CLIENT_IP"
+  # Session affinity NONE for proper HA clustering (instances share state via database)
+  session_affinity = "NONE"
 
   # Enable logging
   log_config {
@@ -61,21 +61,17 @@ resource "google_compute_backend_service" "iq_ha_backend" {
   }
 }
 
-# Health check for load balancer (different from MIG health check)
+# Health check for load balancer (TCP-based)
 resource "google_compute_health_check" "iq_lb_health_check" {
   name                = "ref-arch-iq-ha-lb-health-check"
-  description         = "Health check for Nexus IQ HA Load Balancer"
+  description         = "Health check for Nexus IQ HA Load Balancer (TCP on port 8070)"
   timeout_sec         = 10
   check_interval_sec  = 30
   healthy_threshold   = 2
   unhealthy_threshold = 3
 
-  http_health_check {
-    request_path       = "/assets/index.html"
-    port               = 8070
-    host               = ""
-    proxy_header       = "NONE"
-    port_specification = "USE_FIXED_PORT"
+  tcp_health_check {
+    port = 8070
   }
 
   log_config {
