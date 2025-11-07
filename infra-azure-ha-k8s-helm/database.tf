@@ -1,4 +1,4 @@
-# Private DNS Zone for PostgreSQL
+
 resource "azurerm_private_dns_zone" "postgres" {
   name                = "privatelink.postgres.database.azure.com"
   resource_group_name = azurerm_resource_group.iq_rg.name
@@ -8,7 +8,7 @@ resource "azurerm_private_dns_zone" "postgres" {
   })
 }
 
-# Link the private DNS zone to the virtual network
+
 resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
   name                  = "pdns-link-postgres-${var.cluster_name}"
   resource_group_name   = azurerm_resource_group.iq_rg.name
@@ -21,7 +21,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
   })
 }
 
-# PostgreSQL Flexible Server with Zone Redundancy for HA
+
 resource "azurerm_postgresql_flexible_server" "iq_db" {
   name                   = "psql-${var.cluster_name}"
   resource_group_name    = azurerm_resource_group.iq_rg.name
@@ -32,35 +32,35 @@ resource "azurerm_postgresql_flexible_server" "iq_db" {
   administrator_login    = var.database_username
   administrator_password = var.database_password
 
-  # Disable public network access for security
+
   public_network_access_enabled = false
 
-  # Zone redundancy for high availability (equivalent to Aurora Multi-AZ)
+
   zone = "1"
   high_availability {
-    mode                      = var.db_high_availability_mode # ZoneRedundant
+    mode                      = var.db_high_availability_mode
     standby_availability_zone = "2"
   }
 
-  # Storage configuration (64GB minimum for zone-redundant)
+
   storage_mb   = var.db_storage_mb
   storage_tier = var.db_storage_tier
 
-  # SKU configuration (equivalent to Aurora db.r6g.large)
-  sku_name = var.db_sku_name # GP_Standard_D4s_v3 = 4 vCores, 16GB RAM
 
-  # Backup configuration
+  sku_name = var.db_sku_name
+
+
   backup_retention_days        = var.backup_retention_period
   geo_redundant_backup_enabled = var.db_geo_redundant_backup_enabled
 
-  # Maintenance window
+
   maintenance_window {
-    day_of_week  = 0 # Sunday
+    day_of_week  = 0
     start_hour   = 4
     start_minute = 0
   }
 
-  # Create mode
+
   create_mode = "Default"
 
   tags = merge(local.common_tags, {
@@ -70,7 +70,7 @@ resource "azurerm_postgresql_flexible_server" "iq_db" {
   depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
 }
 
-# PostgreSQL Database for Nexus IQ Server
+
 resource "azurerm_postgresql_flexible_server_database" "iq_database" {
   name      = var.database_name
   server_id = azurerm_postgresql_flexible_server.iq_db.id
@@ -78,49 +78,49 @@ resource "azurerm_postgresql_flexible_server_database" "iq_database" {
   charset   = "UTF8"
 }
 
-# PostgreSQL Configuration - Enable required extensions
+
 resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
   name      = "azure.extensions"
   server_id = azurerm_postgresql_flexible_server.iq_db.id
   value     = "uuid-ossp"
 }
 
-# PostgreSQL Configuration - Max connections
+
 resource "azurerm_postgresql_flexible_server_configuration" "max_connections" {
   name      = "max_connections"
   server_id = azurerm_postgresql_flexible_server.iq_db.id
   value     = "200"
 }
 
-# PostgreSQL Configuration - Shared buffers
+
 resource "azurerm_postgresql_flexible_server_configuration" "shared_buffers" {
   name      = "shared_buffers"
   server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "2097152" # 2GB in 8KB pages
+  value     = "2097152"
 }
 
-# PostgreSQL Configuration - Work mem
+
 resource "azurerm_postgresql_flexible_server_configuration" "work_mem" {
   name      = "work_mem"
   server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "16384" # 16MB in KB
+  value     = "16384"
 }
 
-# PostgreSQL Configuration - Maintenance work mem
+
 resource "azurerm_postgresql_flexible_server_configuration" "maintenance_work_mem" {
   name      = "maintenance_work_mem"
   server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "524288" # 512MB in KB
+  value     = "524288"
 }
 
-# PostgreSQL Configuration - Effective cache size
+
 resource "azurerm_postgresql_flexible_server_configuration" "effective_cache_size" {
   name      = "effective_cache_size"
   server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "8388608" # 8GB in 8KB pages
+  value     = "8388608"
 }
 
-# PostgreSQL Firewall Rule - Allow access from AKS subnet
+
 resource "azurerm_postgresql_flexible_server_firewall_rule" "aks_access" {
   name             = "allow-aks-subnet"
   server_id        = azurerm_postgresql_flexible_server.iq_db.id

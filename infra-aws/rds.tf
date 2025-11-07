@@ -1,4 +1,4 @@
-# Database subnet group
+
 resource "aws_db_subnet_group" "iq_db_subnet_group" {
   name       = "ref-arch-iq-db-subnet-group"
   subnet_ids = aws_subnet.db_subnets[*].id
@@ -8,7 +8,7 @@ resource "aws_db_subnet_group" "iq_db_subnet_group" {
   }
 }
 
-# Database credentials in Secrets Manager
+
 resource "aws_secretsmanager_secret" "db_credentials" {
   name                    = "ref-arch-iq-db-credentials"
   description             = "Database credentials for Nexus IQ Server"
@@ -27,7 +27,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
   })
 }
 
-# RDS PostgreSQL Database
+
 resource "aws_db_instance" "iq_db" {
   identifier     = "ref-arch-iq-database"
   engine         = "postgres"
@@ -64,7 +64,7 @@ resource "aws_db_instance" "iq_db" {
   }
 }
 
-# Enhanced Monitoring Role for RDS
+
 resource "aws_iam_role" "rds_enhanced_monitoring" {
   name = "ref-arch-rds-enhanced-monitoring"
 

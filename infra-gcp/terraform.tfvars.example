@@ -1,35 +1,33 @@
-# Copy this file to terraform.tfvars and update the values                                                                                                                                                                                                                  
+# Copy this file to terraform.tfvars and update the values
 # cp terraform.tfvars.example terraform.tfvars
 
 # General Configuration
 gcp_project_id = "your-gcp-project-id"
 gcp_region     = "us-central1"
+gcp_zone       = "us-central1-a"
 environment    = "dev"
 
 # Network Configuration
-vpc_cidr              = "10.100.0.0/16"
-public_subnet_cidr    = "10.100.1.0/24"
-private_subnet_cidr   = "10.100.10.0/24"
-db_subnet_cidr        = "10.100.20.0/24"
-vpc_connector_cidr    = "10.100.50.0/28"
+vpc_cidr            = "10.100.0.0/16"
+public_subnet_cidr  = "10.100.1.0/24"
+private_subnet_cidr = "10.100.10.0/24"
+db_subnet_cidr      = "10.100.20.0/24"
 
-# Cloud Run Configuration
-iq_desired_count      = "1"  # Single instance (recommended)
-iq_docker_image       = "sonatypecommunity/nexus-iq-server:latest"
-iq_cpu_limit          = "2"
-iq_memory_limit       = "4Gi"
-iq_cpu_request        = "1"
-iq_memory_request     = "2Gi"
-container_concurrency = 80
-container_timeout     = 300
-java_opts             = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# GCE with Docker Configuration
+gce_machine_type   = "e2-standard-8"
+gce_boot_image     = "debian-cloud/debian-12"
+gce_boot_disk_size = 100
+iq_desired_count   = 1
+iq_docker_image    = "sonatype/nexus-iq-server:latest"
+java_opts          = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "YourSecurePassword123!"  # Change this!
-postgres_version                    = "POSTGRES_15"
-db_instance_tier                    = "db-custom-2-7680"
+postgres_version                    = "POSTGRES_17"
+db_instance_tier                    = "db-perf-optimized-N-8"
+db_edition                          = "ENTERPRISE_PLUS"
 db_availability_type                = "ZONAL"
 db_disk_size                        = 100
 db_max_disk_size                    = 1000
@@ -47,9 +45,8 @@ filestore_tier        = "BASIC_SSD"
 filestore_capacity_gb = 1024
 
 # Load Balancer Configuration
-enable_ssl     = true
-domain_name    = ""  # Set to your domain for managed SSL certificate
-custom_domain  = ""  # Set to your domain for Cloud Run domain mapping
+enable_ssl  = true
+domain_name = ""  # Set to your domain for managed SSL certificate
 
 # Logging Configuration
 log_retention_days = 30

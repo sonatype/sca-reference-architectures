@@ -1,4 +1,4 @@
-# EFS File System for shared storage across IQ Server pods
+
 resource "aws_efs_file_system" "iq_efs" {
   creation_token   = "${var.cluster_name}-efs"
   encrypted        = true
@@ -7,10 +7,10 @@ resource "aws_efs_file_system" "iq_efs" {
   performance_mode = "generalPurpose"
   throughput_mode  = var.efs_throughput_mode
 
-  # Only set provisioned throughput if mode is provisioned
+
   provisioned_throughput_in_mibps = var.efs_throughput_mode == "provisioned" ? var.efs_provisioned_throughput_in_mibps : null
 
-  # Lifecycle policy to transition files to IA storage
+
   lifecycle_policy {
     transition_to_ia = "AFTER_30_DAYS"
   }
@@ -24,7 +24,7 @@ resource "aws_efs_file_system" "iq_efs" {
   })
 }
 
-# KMS Key for EFS encryption
+
 resource "aws_kms_key" "efs" {
   description             = "KMS key for EFS encryption"
   deletion_window_in_days = 10
@@ -40,7 +40,7 @@ resource "aws_kms_alias" "efs" {
   target_key_id = aws_kms_key.efs.key_id
 }
 
-# EFS Mount Targets (one per private subnet for HA)
+
 resource "aws_efs_mount_target" "iq_efs_mt" {
   count           = length(aws_subnet.private_subnets)
   file_system_id  = aws_efs_file_system.iq_efs.id
@@ -48,13 +48,13 @@ resource "aws_efs_mount_target" "iq_efs_mt" {
   security_groups = [aws_security_group.efs.id]
 }
 
-# EFS Access Point for IQ Server with proper POSIX permissions
+
 resource "aws_efs_access_point" "iq_access_point" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
   posix_user {
-    uid = 1000  # IQ Server container user ID (official image)
-    gid = 1000  # IQ Server container group ID (official image)
+    uid = 1000
+    gid = 1000
   }
 
   root_directory {
@@ -71,13 +71,13 @@ resource "aws_efs_access_point" "iq_access_point" {
   })
 }
 
-# Additional access point for logs (used by Fluentd)
+
 resource "aws_efs_access_point" "iq_logs_access_point" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
   posix_user {
-    uid = 1000  # IQ Server container user ID (official image)
-    gid = 1000  # IQ Server container group ID (official image)
+    uid = 1000
+    gid = 1000
   }
 
   root_directory {
@@ -94,7 +94,7 @@ resource "aws_efs_access_point" "iq_logs_access_point" {
   })
 }
 
-# EFS Backup Policy
+
 resource "aws_efs_backup_policy" "iq_efs_backup" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
@@ -103,7 +103,7 @@ resource "aws_efs_backup_policy" "iq_efs_backup" {
   }
 }
 
-# EFS Backup Vault for more control
+
 resource "aws_backup_vault" "iq_efs_backup_vault" {
   name        = "${var.cluster_name}-efs-backup-vault"
   kms_key_arn = aws_kms_key.efs_backup.arn
@@ -113,7 +113,7 @@ resource "aws_backup_vault" "iq_efs_backup_vault" {
   })
 }
 
-# KMS Key for EFS backup encryption
+
 resource "aws_kms_key" "efs_backup" {
   description             = "KMS key for EFS backup encryption"
   deletion_window_in_days = 10
@@ -129,7 +129,7 @@ resource "aws_kms_alias" "efs_backup" {
   target_key_id = aws_kms_key.efs_backup.key_id
 }
 
-# IAM Role for EFS backup
+
 resource "aws_iam_role" "efs_backup_role" {
   name = "${var.cluster_name}-efs-backup-role"
 
@@ -156,14 +156,14 @@ resource "aws_iam_role_policy_attachment" "efs_backup_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
 }
 
-# EFS Backup Plan
+
 resource "aws_backup_plan" "iq_efs_backup_plan" {
   name = "${var.cluster_name}-efs-backup-plan"
 
   rule {
     rule_name         = "daily_backups"
     target_vault_name = aws_backup_vault.iq_efs_backup_vault.name
-    schedule          = "cron(0 2 ? * * *)"  # Daily at 2 AM
+    schedule          = "cron(0 2 ? * * *)"
 
     recovery_point_tags = merge(var.common_tags, {
       BackupType = "Daily"
@@ -171,14 +171,14 @@ resource "aws_backup_plan" "iq_efs_backup_plan" {
 
     lifecycle {
       cold_storage_after = 30
-      delete_after       = 120  # Keep for 4 months
+      delete_after       = 120
     }
   }
 
   rule {
     rule_name         = "weekly_backups"
     target_vault_name = aws_backup_vault.iq_efs_backup_vault.name
-    schedule          = "cron(0 3 ? * SUN *)"  # Weekly on Sunday at 3 AM
+    schedule          = "cron(0 3 ? * SUN *)"
 
     recovery_point_tags = merge(var.common_tags, {
       BackupType = "Weekly"
@@ -186,7 +186,7 @@ resource "aws_backup_plan" "iq_efs_backup_plan" {
 
     lifecycle {
       cold_storage_after = 30
-      delete_after       = 365  # Keep for 1 year
+      delete_after       = 365
     }
   }
 
@@ -195,7 +195,7 @@ resource "aws_backup_plan" "iq_efs_backup_plan" {
   })
 }
 
-# EFS Backup Selection
+
 resource "aws_backup_selection" "iq_efs_backup_selection" {
   iam_role_arn = aws_iam_role.efs_backup_role.arn
   name         = "${var.cluster_name}-efs-backup-selection"

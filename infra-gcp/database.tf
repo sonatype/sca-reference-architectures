@@ -7,6 +7,7 @@ resource "google_sql_database_instance" "iq_db" {
 
   settings {
     tier                  = var.db_instance_tier
+    edition               = var.db_edition
     availability_type     = var.db_availability_type
     disk_type             = "PD_SSD"
     disk_size             = var.db_disk_size

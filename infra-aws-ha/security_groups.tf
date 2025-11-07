@@ -1,9 +1,9 @@
-# Security Group for ECS Tasks
+
 resource "aws_security_group" "ecs_tasks" {
   name_prefix = "${var.cluster_name}-ecs-tasks-sg"
   vpc_id      = aws_vpc.iq_vpc.id
 
-  # HTTP access from ALB
+
   ingress {
     description     = "HTTP from ALB"
     from_port       = 8070
@@ -12,7 +12,7 @@ resource "aws_security_group" "ecs_tasks" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  # Admin port access from ALB (optional)
+
   ingress {
     description     = "Admin HTTP from ALB"
     from_port       = 8071
@@ -21,7 +21,7 @@ resource "aws_security_group" "ecs_tasks" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  # Inter-task communication for HA clustering
+
   ingress {
     description = "Inter-task communication"
     from_port   = 0
@@ -44,12 +44,12 @@ resource "aws_security_group" "ecs_tasks" {
 }
 
 
-# Security Group for Application Load Balancer
+
 resource "aws_security_group" "alb" {
   name_prefix = "${var.cluster_name}-alb-sg"
   vpc_id      = aws_vpc.iq_vpc.id
 
-  # HTTP access from anywhere
+
   ingress {
     description = "HTTP"
     from_port   = 80
@@ -58,7 +58,7 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # HTTPS access from anywhere (if SSL certificate is configured)
+
   ingress {
     description = "HTTPS"
     from_port   = 443
@@ -79,12 +79,12 @@ resource "aws_security_group" "alb" {
   })
 }
 
-# Security Group for Aurora Database
+
 resource "aws_security_group" "aurora" {
   name_prefix = "${var.cluster_name}-aurora-sg"
   vpc_id      = aws_vpc.iq_vpc.id
 
-  # PostgreSQL access from ECS tasks
+
   ingress {
     description     = "PostgreSQL from ECS tasks"
     from_port       = 5432
@@ -93,7 +93,7 @@ resource "aws_security_group" "aurora" {
     security_groups = [aws_security_group.ecs_tasks.id]
   }
 
-  # Allow Aurora cluster internal communication
+
   ingress {
     description = "Aurora cluster communication"
     from_port   = 5432
@@ -114,12 +114,12 @@ resource "aws_security_group" "aurora" {
   })
 }
 
-# Security Group for EFS
+
 resource "aws_security_group" "efs" {
   name_prefix = "${var.cluster_name}-efs-sg"
   vpc_id      = aws_vpc.iq_vpc.id
 
-  # NFS access from ECS tasks
+
   ingress {
     description     = "NFS from ECS tasks"
     from_port       = 2049

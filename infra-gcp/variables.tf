@@ -10,6 +10,12 @@ variable "gcp_region" {
   default     = "us-central1"
 }
 
+variable "gcp_zone" {
+  description = "GCP zone for GCE instances"
+  type        = string
+  default     = "us-central1-a"
+}
+
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
@@ -40,41 +46,41 @@ variable "db_subnet_cidr" {
   default     = "10.100.20.0/24"
 }
 
-variable "vpc_connector_cidr" {
-  description = "CIDR block for VPC connector"
-  type        = string
-  default     = "10.100.50.0/28"
-}
-
 variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed for SSH access"
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
 
-# Cloud Run Variables
-variable "iq_docker_image" {
-  description = "Docker image for Nexus IQ Server"
+# GCE Variables
+variable "gce_machine_type" {
+  description = "GCE machine type for Nexus IQ Server"
   type        = string
-  default     = "sonatypecommunity/nexus-iq-server:latest"
+  default     = "e2-standard-8"
+}
+
+variable "gce_boot_image" {
+  description = "Boot image for GCE instances"
+  type        = string
+  default     = "debian-cloud/debian-12"
+}
+
+variable "gce_boot_disk_size" {
+  description = "Boot disk size in GB"
+  type        = number
+  default     = 100
 }
 
 variable "iq_desired_count" {
-  description = "Desired number of Cloud Run instances"
+  description = "Desired number of IQ Server instances"
+  type        = number
+  default     = 1
+}
+
+variable "iq_docker_image" {
+  description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "1"
-}
-
-variable "container_concurrency" {
-  description = "Maximum number of concurrent requests per container"
-  type        = number
-  default     = 80
-}
-
-variable "container_timeout" {
-  description = "Container timeout in seconds"
-  type        = number
-  default     = 300
+  default     = "sonatype/nexus-iq-server:latest"
 }
 
 # Database Variables
@@ -99,13 +105,24 @@ variable "db_password" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "POSTGRES_15"
+  default     = "POSTGRES_17"
 }
 
 variable "db_instance_tier" {
-  description = "Database instance tier"
+  description = "Database instance tier (use db-perf-optimized-N-8 for ENTERPRISE_PLUS or db-custom-16-65536 for ENTERPRISE)"
   type        = string
-  default     = "db-custom-2-7680"
+  default     = "db-perf-optimized-N-8"
+}
+
+variable "db_edition" {
+  description = "Database edition (ENTERPRISE or ENTERPRISE_PLUS)"
+  type        = string
+  default     = "ENTERPRISE_PLUS"
+
+  validation {
+    condition     = contains(["ENTERPRISE", "ENTERPRISE_PLUS"], var.db_edition)
+    error_message = "Database edition must be ENTERPRISE or ENTERPRISE_PLUS."
+  }
 }
 
 variable "db_availability_type" {
@@ -210,6 +227,7 @@ variable "domain_name" {
   default     = ""
 }
 
+<<<<<<< HEAD
 variable "custom_domain" {
   description = "Custom domain for Cloud Run service"
   type        = string
@@ -244,5 +262,5 @@ variable "iq_memory_request" {
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }

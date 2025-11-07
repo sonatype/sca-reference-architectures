@@ -1,4 +1,4 @@
-# Application Load Balancer
+
 resource "aws_lb" "iq_alb" {
   name               = "ref-arch-iq-alb"
   internal           = false
@@ -19,7 +19,7 @@ resource "aws_lb" "iq_alb" {
   }
 }
 
-# Target Group
+
 resource "aws_lb_target_group" "iq_tg" {
   name        = "ref-arch-iq-tg"
   port        = 8070
@@ -27,7 +27,7 @@ resource "aws_lb_target_group" "iq_tg" {
   vpc_id      = aws_vpc.iq_vpc.id
   target_type = "ip"
 
-  # ALB health check matching Kubernetes Ingress pattern
+
   health_check {
     enabled             = true
     healthy_threshold   = 2
@@ -45,7 +45,7 @@ resource "aws_lb_target_group" "iq_tg" {
   }
 }
 
-# Admin Target Group (for testing)
+
 resource "aws_lb_target_group" "iq_admin_tg" {
   name        = "ref-arch-iq-admin-tg"
   port        = 8071
@@ -71,7 +71,7 @@ resource "aws_lb_target_group" "iq_admin_tg" {
 }
 
 
-# ALB Listener (HTTP - for development)
+
 resource "aws_lb_listener" "iq_listener" {
   load_balancer_arn = aws_lb.iq_alb.arn
   port              = "80"
@@ -84,7 +84,7 @@ resource "aws_lb_listener" "iq_listener" {
 }
 
 
-# S3 bucket for ALB access logs
+
 resource "aws_s3_bucket" "alb_logs" {
   bucket        = "ref-arch-iq-alb-logs-${random_string.bucket_suffix.result}"
   force_destroy = true

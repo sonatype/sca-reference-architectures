@@ -1,4 +1,4 @@
-# Key Vault for secrets management
+
 resource "azurerm_key_vault" "iq_kv" {
   name                        = "kv-ref-arch-iq-${random_string.kv_suffix.result}"
   location                    = azurerm_resource_group.iq_rg.location
@@ -9,7 +9,7 @@ resource "azurerm_key_vault" "iq_kv" {
   purge_protection_enabled    = false
   sku_name                    = var.key_vault_sku_name
 
-  # Network ACLs - Allow all for now, can be restricted later
+
   network_acls {
     bypass         = "AzureServices"
     default_action = "Allow"
@@ -20,14 +20,14 @@ resource "azurerm_key_vault" "iq_kv" {
   }
 }
 
-# Random suffix for Key Vault name (must be globally unique)
+
 resource "random_string" "kv_suffix" {
   length  = 6
   special = false
   upper   = false
 }
 
-# Key Vault Access Policy for current user/service principal
+
 resource "azurerm_key_vault_access_policy" "current_user" {
   key_vault_id = azurerm_key_vault.iq_kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -46,7 +46,7 @@ resource "azurerm_key_vault_access_policy" "current_user" {
   ]
 }
 
-# Key Vault Access Policy for Container App Managed Identity
+
 resource "azurerm_key_vault_access_policy" "container_app" {
   key_vault_id = azurerm_key_vault.iq_kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -59,5 +59,5 @@ resource "azurerm_key_vault_access_policy" "container_app" {
   depends_on = [azurerm_container_app.iq_app]
 }
 
-# Database credentials stored directly in Container App secrets for simplicity
+
 

@@ -1,30 +1,30 @@
-# Nexus IQ Server HA Helm Chart Values for Azure AKS
-# Configured for Application Gateway Ingress Controller (AGIC)
 
-# Nexus IQ Server HA configuration
+
+
+
 iq_server:
   image: "sonatype/nexus-iq-server"
   tag: "latest"
   imagePullPolicy: "Always"
 
-  # Resources - optimized for Standard_D2s_v3 nodes (2 vCPU, 8GB RAM)
+
   resources:
     requests:
-      cpu: "500m"
-      memory: "2Gi"
+      cpu: "4"
+      memory: "16Gi"
     limits:
-      cpu: "1500m"
-      memory: "4Gi"
+      cpu: "6"
+      memory: "24Gi"
 
-  # Java options for HA deployment (reduced for smaller nodes)
-  javaOpts: "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
-  # HA Configuration using Helm chart's config mechanism (shared storage pattern like AWS EKS)
+  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+
   config:
     sonatypeWork: "/sonatype-work/clm-server"
     clusterDirectory: "/sonatype-work/clm-cluster"
 
-  # Environment variables for HA clustering
+
   env:
     - name: NXIQ_DATABASE_MIGRATION
       value: "true"
@@ -32,9 +32,9 @@ iq_server:
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
       value: "false"
-    # Database environment variables (set by deployment script)
+
     - name: DB_HOSTNAME
-      value: ""  # Will be set by helm-install.sh
+      value: ""
     - name: DB_PORT
       value: "5432"
     - name: DB_NAME
@@ -42,52 +42,52 @@ iq_server:
     - name: DB_USERNAME
       value: "nexusiq"
     - name: DB_PASSWORD
-      value: ""  # Will be set by helm-install.sh
+      value: ""
 
-  # License configuration
+
   licenseSecret: "nexus-iq-license"
 
-  # Database configuration
+
   database:
-    hostname: ""  # Will be set by helm-install.sh
+    hostname: ""
     port: 5432
     name: "nexusiq"
     username: "nexusiq"
-    password: ""  # Will be set by helm-install.sh
+    password: ""
     type: "postgresql"
     migration: true
 
-  # Persistence using Azure Files (dynamic provisioning)
+
   persistence:
-    # Skip PV creation - use dynamic provisioning from PVC
-    # Setting this to a space character to skip PV creation entirely
+
+
     existingPersistentVolumeName: " "
     persistentVolumeClaimName: "iq-server-pvc"
     size: "100Gi"
-    storageClassName: "azurefile-csi"  # Azure Files CSI driver
+    storageClassName: "azurefile-nfs"
     accessModes:
       - ReadWriteMany
 
-  # Security context to allow writing to /etc/nexus-iq-server
+
   securityContext:
     readOnlyRootFilesystem: false
 
-  # Service Account
+
   serviceAccountName: "nexus-iq-sa"
 
-  # Service configuration
+
   serviceType: "LoadBalancer"
   serviceAnnotations:
     service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/ping"
     service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
 
-  # HA Replica count (minimum 2 for HA)
-  replicaCount: 2
 
-  # HA Configuration - now handled by custom command above
-  # config.yml is created dynamically per-replica with unique sonatypeWork directories
+  replicaCount: 3
 
-  # Pod anti-affinity for HA
+
+
+
+
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -101,25 +101,25 @@ iq_server:
                     - nexus-iq-server-ha
             topologyKey: "kubernetes.io/hostname"
 
-  # Pod Disruption Budget for HA
+
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
 
-# Service Account configuration
+
 serviceAccount:
   create: true
   name: "nexus-iq-sa"
   annotations:
-    # Azure-specific annotations if needed
+
     azure.workload.identity/client-id: ""
 
-# Ingress configuration for Azure Application Gateway
+
 ingress:
   enabled: false
-  ingressClassName: "nginx"  # Changed from azure/application-gateway - not installed yet
+  ingressClassName: "nginx"
   annotations:
-    # Application Gateway Ingress Controller annotations
+
     appgw.ingress.kubernetes.io/backend-path-prefix: "/"
     appgw.ingress.kubernetes.io/ssl-redirect: "false"
     appgw.ingress.kubernetes.io/connection-draining: "true"
@@ -130,23 +130,44 @@ ingress:
     appgw.ingress.kubernetes.io/health-probe-timeout: "30"
     appgw.ingress.kubernetes.io/health-probe-unhealthy-threshold: "3"
   hosts:
-    - host: ""  # Will use Application Gateway public IP
+    - host: ""
       paths:
         - path: /
           pathType: Prefix
   tls: []
 
-# Horizontal Pod Autoscaler
+
 autoscaling:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 3
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
-# Disable components not needed for Azure
+
 fluentd:
-  enabled: false
+  enabled: true
+
+
+  image:
+    repository: bitnamilegacy/fluentd
+    tag: "1.17.1-debian-12-r4"
+    pullPolicy: IfNotPresent
+
+
+  azureMonitor:
+    enabled: true
+    workspaceId: ""
+    logType: "nexus-iq-server"
+
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
 
 external-dns:
   enabled: false
@@ -154,12 +175,12 @@ external-dns:
 migrationJob:
   enabled: false
 
-# Azure-specific configurations
+
 azureFiles:
   enabled: true
   storageClass: "azure-files-premium-zrs"
 
-# Health checks
+
 livenessProbe:
   httpGet:
     path: /ping
@@ -178,9 +199,9 @@ readinessProbe:
   timeoutSeconds: 10
   failureThreshold: 3
 
-# Monitoring integration with Azure Application Insights
+
 monitoring:
   enabled: true
   applicationInsights:
     enabled: true
-    instrumentationKey: ""  # Set via environment or secret
+    instrumentationKey: ""

@@ -1,143 +1,126 @@
 #!/bin/bash
 
-# Terraform destroy script with MFA support for IQ Server Single Instance deployment
-# Usage: ./tf-destroy.sh
-
 set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Disable AWS CLI pager to prevent interactive prompts
 export AWS_PAGER=""
 
-# Configuration
+DEPLOYMENT_NAME="Nexus IQ Server"
+DEPLOYMENT_TYPE="Single Instance"
+CLOUD_PROVIDER="AWS"
+TERRAFORM_DIR="$(dirname "$0")"
 AWS_PROFILE="admin@iq-sandbox"
 AWS_REGION="us-east-1"
-TERRAFORM_DIR="$(dirname "$0")"
 
-echo -e "${BLUE}🧹 Nexus IQ Server Single Instance - Terraform Destroy${NC}"
-echo "===================================================="
+echo -e "${BLUE}🧹 ${DEPLOYMENT_NAME} ${DEPLOYMENT_TYPE} - Terraform Destroy${NC}"
+echo "==========================================================="
 echo ""
 
-# Check if we're in the right directory
 if [[ ! -f "main.tf" ]]; then
-    echo -e "${RED}❌ Error: main.tf not found in current directory${NC}"
-    echo "Please run this script from the infra-aws directory"
+    echo -e "${RED}❌ Error: main.tf not found${NC}"
     exit 1
 fi
 
-# Check for required tools
-command -v aws-vault >/dev/null 2>&1 || {
-    echo -e "${RED}❌ Error: aws-vault is required but not installed${NC}"
-    exit 1
-}
-
 command -v terraform >/dev/null 2>&1 || {
-    echo -e "${RED}❌ Error: terraform is required but not installed${NC}"
+    echo -e "${RED}❌ Error: terraform not installed${NC}"
     exit 1
 }
 
-echo -e "${BLUE}📋 Pre-destruction checks${NC}"
+command -v aws-vault >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: aws-vault not installed${NC}"
+    exit 1
+}
+
+echo "• Cloud Provider: AWS"
 echo "• AWS Profile: $AWS_PROFILE"
-echo "• Terraform Directory: $TERRAFORM_DIR"
+echo "• Deployment: $DEPLOYMENT_NAME $DEPLOYMENT_TYPE"
 echo ""
 
-# Check if infrastructure exists
-echo -e "${BLUE}🔍 Checking existing infrastructure...${NC}"
+echo -e "${BLUE}🔍 Checking Existing Infrastructure${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy > /dev/null 2>&1
 
 if [[ $? -ne 0 ]]; then
-    echo -e "${YELLOW}⚠️  No infrastructure found or unable to plan destruction${NC}"
-    echo "Either there's no infrastructure to destroy or there's a configuration issue."
-    echo "Run 'terraform plan -destroy' manually to see detailed information."
+    echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
+    echo "Nothing to destroy."
     exit 0
 fi
 
-# Show what will be destroyed
-echo -e "${BLUE}📊 Resources to be destroyed${NC}"
-echo "=============================="
+echo -e "${BLUE}📊 Resources to be Destroyed${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy
 
 echo ""
-echo -e "${RED}⚠️  DANGER: This will permanently destroy ALL infrastructure${NC}"
+echo -e "${RED}⚠️  DANGER: Permanent Destruction${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo -e "${YELLOW}Resources that will be PERMANENTLY DELETED:${NC}"
-echo "• ECS cluster and running task"
-echo "• RDS PostgreSQL database and ALL data"
-echo "• EFS file system and ALL stored data"
-echo "• Application Load Balancer and target groups"
-echo "• NAT Gateway and Elastic IP"
-echo "• All security groups, IAM roles, and policies"
-echo "• All CloudWatch logs (based on retention settings)"
+echo -e "${YELLOW}This will PERMANENTLY DELETE:${NC}"
+echo "• All compute resources (ECS/EKS)"
+echo "• All databases and data (RDS/Aurora)"
+echo "• All storage and files (EFS)"
+echo "• All load balancers and networking"
+echo "• All security groups and IAM roles"
+echo "• All logs (based on retention settings)"
 echo ""
-
 echo -e "${RED}⚠️  DATA LOSS WARNING:${NC}"
-echo "• Database data will be permanently lost"
-echo "• Application data stored in EFS will be permanently lost"
-echo "• Secrets Manager secrets will be force-deleted (no recovery period)"
+echo "• All database data will be permanently lost"
+echo "• All application data will be permanently lost"
+echo "• Secrets will be force-deleted (no recovery)"
 echo "• This action CANNOT be undone"
 echo ""
 
-echo ""
-echo -e "${BLUE}🧹 Pre-destruction cleanup...${NC}"
-
-echo "🗑️  Cleaning up secrets manager secrets..."
-
-# Force delete the database credentials secret to avoid retention period issues
 aws-vault exec "$AWS_PROFILE" -- aws secretsmanager delete-secret \
   --secret-id "ref-arch-iq-db-credentials" \
   --force-delete-without-recovery \
-  --region $AWS_REGION || echo "⚠️  Secret may not exist or already deleted"
+  --region $AWS_REGION 2>/dev/null || true
 
-echo ""
-echo -e "${BLUE}🧹 Destroying infrastructure...${NC}"
-echo "This may take 15-20 minutes to complete."
+
+echo -e "${BLUE}🔥 Destroying Infrastructure${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "This may take 15-30 minutes to complete."
 echo ""
 
-# Destroy the infrastructure
 aws-vault exec "$AWS_PROFILE" -- terraform destroy -auto-approve
 
 if [[ $? -eq 0 ]]; then
     echo ""
-    echo -e "${GREEN}✅ Infrastructure destroyed successfully${NC}"
+    echo -e "${GREEN}✅ Infrastructure Destroyed Successfully${NC}"
     echo ""
-
-    echo -e "${BLUE}🧹 Clean-up completed${NC}"
-    echo "==================="
-    echo "• All AWS resources have been destroyed"
-    echo "• Secrets Manager secrets force-deleted (no recovery period)"
-    echo "• ECS task, RDS database, EFS, and ALB completely removed"
-    echo "• Terraform state has been updated"
-    echo "• Local plan files have been removed"
+    
+    echo -e "${BLUE}🧹 Cleanup Summary${NC}"
+    echo "━━━━━━━━━━━━━━━━━━"
+    echo "• All AWS resources destroyed"
+    echo "• Terraform state updated"
+    echo "• Local artifacts removed"
     echo ""
-
-    # Clean up local files
+    
     rm -f tfplan terraform.tfstate.backup
-
-    echo -e "${YELLOW}📝 Manual clean-up tasks (if needed):${NC}"
-    echo "• Remove any manually created DNS records"
-    echo "• Clean up any external monitoring configurations"
-    echo "• Verify no orphaned ECS tasks or services remain"
-    echo "• Check for any remaining CloudWatch alarms or dashboards"
+    
+    echo -e "${YELLOW}📝 Manual Cleanup Tasks (if needed)${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "• Remove any manual DNS records"
+    echo "• Clean up external monitoring"
+    echo "• Verify no orphaned resources"
     echo ""
-
-    echo -e "${GREEN}✅ Destruction process completed${NC}"
-
+    
+    echo -e "${GREEN}✅ Destruction Process Completed${NC}"
+    
 else
-    echo -e "${RED}❌ Destruction failed${NC}"
     echo ""
-    echo -e "${YELLOW}Common issues and solutions:${NC}"
-    echo "• ELBs may take time to delete - wait and retry"
-    echo "• Security groups might have dependencies - check for attached resources"
-    echo "• RDS deletion protection might be enabled - disable and retry"
-    echo "• Some resources might need manual cleanup"
+    echo -e "${RED}❌ Destruction Failed${NC}"
     echo ""
-    echo "You can retry destruction with: ./tf-destroy.sh"
-    echo "Or run 'terraform destroy' manually for more detailed error information"
+    echo -e "${YELLOW}Common Issues:${NC}"
+    echo "• Resources may have dependencies - check and retry"
+    echo "• Deletion protection may be enabled"
+    echo "• Some resources may need manual cleanup"
+    echo ""
+    echo "Retry with: ./tf-destroy.sh"
     exit 1
 fi

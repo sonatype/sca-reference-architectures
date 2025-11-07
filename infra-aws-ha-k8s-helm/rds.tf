@@ -1,4 +1,3 @@
-# RDS Subnet Group
 resource "aws_db_subnet_group" "iq_db_subnet_group" {
   name       = "${var.cluster_name}-db-subnet-group"
   subnet_ids = aws_subnet.database[*].id
@@ -10,7 +9,6 @@ resource "aws_db_subnet_group" "iq_db_subnet_group" {
   }
 }
 
-# RDS Aurora PostgreSQL Cluster
 resource "aws_rds_cluster" "iq_cluster" {
   cluster_identifier      = "${var.cluster_name}-aurora-cluster"
   engine                  = "aurora-postgresql"
@@ -39,7 +37,6 @@ resource "aws_rds_cluster" "iq_cluster" {
   }
 }
 
-# RDS Aurora PostgreSQL Cluster Instances
 resource "aws_rds_cluster_instance" "iq_cluster_instances" {
   count              = var.aurora_instance_count
   identifier         = "${var.cluster_name}-aurora-${count.index}"
@@ -59,7 +56,6 @@ resource "aws_rds_cluster_instance" "iq_cluster_instances" {
   }
 }
 
-# KMS Key for RDS encryption
 resource "aws_kms_key" "iq_kms_key" {
   description             = "KMS key for ${var.cluster_name} RDS encryption"
   deletion_window_in_days = 7
@@ -76,7 +72,6 @@ resource "aws_kms_alias" "iq_kms_key_alias" {
   target_key_id = aws_kms_key.iq_kms_key.key_id
 }
 
-# Security Group for RDS
 resource "aws_security_group" "rds" {
   name_prefix = "${var.cluster_name}-rds"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -104,7 +99,6 @@ resource "aws_security_group" "rds" {
   }
 }
 
-# IAM Role for RDS Enhanced Monitoring
 resource "aws_iam_role" "rds_enhanced_monitoring" {
   name = "${var.cluster_name}-rds-enhanced-monitoring"
 
@@ -132,11 +126,10 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
-# Secrets Manager for database credentials
 resource "aws_secretsmanager_secret" "db_credentials" {
   name                           = "${var.cluster_name}-db-credentials"
   description                    = "Database credentials for ${var.cluster_name}"
-  recovery_window_in_days        = 0  # Force delete immediately to avoid conflicts
+  recovery_window_in_days        = 0
   force_overwrite_replica_secret = true
 
   tags = {
@@ -153,7 +146,6 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
   })
 }
 
-# Parameter Store values for use in Kubernetes
 resource "aws_ssm_parameter" "db_host" {
   name  = "/${var.cluster_name}/database/host"
   type  = "String"

@@ -1,5 +1,5 @@
 # Azure Configuration
-azure_region = "eastus"
+azure_region = "eastus2"
 environment  = "prod"
 cluster_name = "nexus-iq-ha"
 
@@ -11,15 +11,15 @@ db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
 kubernetes_version      = "1.33.3"
-node_instance_type      = "Standard_D4s_v3" # 4 vCPU, 16GB RAM
+node_instance_type      = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
 node_group_min_size     = 2
-node_group_max_size     = 6
+node_group_max_size     = 5
 node_group_desired_size = 3
 node_disk_size          = 50
 
-# PostgreSQL Configuration (Zone-Redundant HA)
+# PostgreSQL Configuration (Zone-Redundant HA) - matching AWS Aurora specs
 postgres_version                 = "15"
-db_sku_name                      = "GP_Standard_D4s_v3" # 4 vCores, 16GB RAM
+db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS r6g.4xlarge)
 db_high_availability_mode        = "ZoneRedundant"
 db_storage_mb                    = 65536 # 64GB
 db_storage_tier                  = "P6"
@@ -27,7 +27,7 @@ database_name                    = "nexusiq"
 database_username                = "nexusiq"
 database_password                = "SecurePassword123!"
 backup_retention_period          = 7
-db_geo_redundant_backup_enabled  = true
+db_geo_redundant_backup_enabled  = false # Not supported in all regions
 
 # Azure Files Premium Storage (Zone-Redundant)
 storage_account_tier             = "Premium"
@@ -45,11 +45,11 @@ app_gateway_max_capacity = 10
 nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
-nexus_iq_replica_count   = 2  # Minimum 2 for HA
-nexus_iq_memory_request  = "4Gi"
-nexus_iq_memory_limit    = "6Gi"
-nexus_iq_cpu_request     = "2"
-nexus_iq_cpu_limit       = "4"
+nexus_iq_replica_count   = 3
+nexus_iq_memory_request  = "16Gi"
+nexus_iq_memory_limit    = "24Gi"
+nexus_iq_cpu_request     = "4"
+nexus_iq_cpu_limit       = "6"
 
 # Helm Configuration
 helm_chart_version      = "195.0.0"
@@ -62,10 +62,10 @@ log_retention_days = 30
 enable_fluentd     = true
 enable_monitoring  = true
 
-# HPA Configuration
+# HPA Configuration - matching AWS
 enable_hpa                   = true
-hpa_min_replicas             = 2
-hpa_max_replicas             = 10
+hpa_min_replicas             = 3
+hpa_max_replicas             = 5
 hpa_target_cpu_utilization   = 70
 hpa_target_memory_utilization = 80
 

@@ -1,8 +1,8 @@
-# General Variables
+
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
-  default     = "East US"
+  default     = "East US 2"
 }
 
 variable "cluster_name" {
@@ -11,7 +11,7 @@ variable "cluster_name" {
   default     = "ref-arch-iq-ha"
 }
 
-# Network Variables
+
 variable "vnet_cidr" {
   description = "CIDR block for VNet"
   type        = string
@@ -36,23 +36,23 @@ variable "db_subnet_cidr" {
   default     = "10.1.40.0/24"
 }
 
-# Container App Variables (HA Configuration)
+
 variable "container_cpu" {
-  description = "CPU allocation per container replica"
+  description = "CPU allocation per container replica (max 4.0 for Azure Container Apps)"
   type        = number
-  default     = 2.0
+  default     = 4.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation per container replica"
+  description = "Memory allocation per container replica (max 8Gi for Azure Container Apps)"
   type        = string
-  default     = "4Gi"
+  default     = "8Gi"
 }
 
 variable "iq_min_replicas" {
   description = "Minimum number of IQ Server replicas (HA requires minimum 2)"
   type        = number
-  default     = 2
+  default     = 3
 
   validation {
     condition     = var.iq_min_replicas >= 2
@@ -63,7 +63,7 @@ variable "iq_min_replicas" {
 variable "iq_max_replicas" {
   description = "Maximum number of IQ Server replicas for auto scaling"
   type        = number
-  default     = 10
+  default     = 5
 }
 
 variable "iq_docker_image" {
@@ -75,10 +75,10 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
-# Auto Scaling Variables
+
 variable "cpu_utilization_threshold" {
   description = "CPU utilization percentage threshold for auto scaling"
   type        = number
@@ -97,7 +97,7 @@ variable "scale_rule_concurrent_requests" {
   default     = 100
 }
 
-# Database Variables (Zone-Redundant PostgreSQL)
+
 variable "db_name" {
   description = "Database name"
   type        = string
@@ -125,7 +125,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name for zone-redundant HA deployment"
   type        = string
-  default     = "GP_Standard_D4s_v3" # 4 vCores, 16GB RAM
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_backup_retention_days" {
@@ -135,9 +135,9 @@ variable "db_backup_retention_days" {
 }
 
 variable "db_geo_redundant_backup_enabled" {
-  description = "Enable geo-redundant backup for additional HA"
+  description = "Enable geo-redundant backup for additional HA (not supported in all regions)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "db_high_availability_mode" {
@@ -151,7 +151,7 @@ variable "db_high_availability_mode" {
   }
 }
 
-# Application Gateway Variables (Zone-Redundant)
+
 variable "app_gateway_sku_name" {
   description = "Application Gateway SKU name (v2 required for zone redundancy)"
   type        = string
@@ -176,7 +176,7 @@ variable "app_gateway_zones" {
   default     = ["1", "2", "3"]
 }
 
-# Storage Variables (Premium for HA)
+
 variable "storage_account_tier" {
   description = "Storage account performance tier (Premium required for zone redundancy)"
   type        = string
@@ -186,7 +186,7 @@ variable "storage_account_tier" {
 variable "storage_account_replication_type" {
   description = "Storage account replication type (ZRS for zone redundancy)"
   type        = string
-  default     = "ZRS" # Zone-Redundant Storage
+  default     = "ZRS"
 }
 
 variable "file_share_quota_gb" {
@@ -195,7 +195,7 @@ variable "file_share_quota_gb" {
   default     = 200
 }
 
-# Monitoring Variables
+
 variable "enable_monitoring" {
   description = "Enable Application Insights monitoring"
   type        = bool
@@ -214,14 +214,14 @@ variable "enable_container_insights" {
   default     = true
 }
 
-# Backup Variables
+
 variable "enable_backup" {
   description = "Enable backup for storage and database"
   type        = bool
   default     = true
 }
 
-# Key Vault Variables
+
 variable "key_vault_sku_name" {
   description = "Key Vault SKU name"
   type        = string
@@ -234,7 +234,7 @@ variable "key_vault_soft_delete_retention_days" {
   default     = 7
 }
 
-# Tagging Variables
+
 variable "common_tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)

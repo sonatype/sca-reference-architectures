@@ -18,7 +18,7 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
-# Resource Group
+
 resource "azurerm_resource_group" "iq_rg" {
   name     = "rg-ref-arch-iq"
   location = var.azure_region
@@ -28,7 +28,7 @@ resource "azurerm_resource_group" "iq_rg" {
   }
 }
 
-# Virtual Network
+
 resource "azurerm_virtual_network" "iq_vnet" {
   name                = "vnet-ref-arch-iq"
   address_space       = [var.vnet_cidr]
@@ -41,7 +41,7 @@ resource "azurerm_virtual_network" "iq_vnet" {
   }
 }
 
-# Public Subnet (for Application Gateway)
+
 resource "azurerm_subnet" "public_subnet" {
   name                 = "snet-public"
   resource_group_name  = azurerm_resource_group.iq_rg.name
@@ -49,7 +49,7 @@ resource "azurerm_subnet" "public_subnet" {
   address_prefixes     = [var.public_subnet_cidr]
 }
 
-# Private Subnet (for Container Apps)
+
 resource "azurerm_subnet" "private_subnet" {
   name                 = "snet-private"
   resource_group_name  = azurerm_resource_group.iq_rg.name
@@ -57,9 +57,17 @@ resource "azurerm_subnet" "private_subnet" {
   address_prefixes     = [var.private_subnet_cidr]
 
   service_endpoints = ["Microsoft.KeyVault", "Microsoft.Storage"]
+
+  delegation {
+    name = "containerapp-delegation"
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+    }
+  }
 }
 
-# Database Subnet (for PostgreSQL Flexible Server)
+
 resource "azurerm_subnet" "db_subnet" {
   name                 = "snet-database"
   resource_group_name  = azurerm_resource_group.iq_rg.name
@@ -75,7 +83,7 @@ resource "azurerm_subnet" "db_subnet" {
   }
 }
 
-# Network Security Group for Application Gateway
+
 resource "azurerm_network_security_group" "public_nsg" {
   name                = "nsg-public"
   location            = azurerm_resource_group.iq_rg.location
@@ -122,7 +130,7 @@ resource "azurerm_network_security_group" "public_nsg" {
   }
 }
 
-# Network Security Group for Container Apps
+
 resource "azurerm_network_security_group" "private_nsg" {
   name                = "nsg-private"
   location            = azurerm_resource_group.iq_rg.location
@@ -170,7 +178,7 @@ resource "azurerm_network_security_group" "private_nsg" {
   }
 }
 
-# Network Security Group for Database
+
 resource "azurerm_network_security_group" "db_nsg" {
   name                = "nsg-database"
   location            = azurerm_resource_group.iq_rg.location
@@ -193,7 +201,7 @@ resource "azurerm_network_security_group" "db_nsg" {
   }
 }
 
-# Associate NSGs with subnets
+
 resource "azurerm_subnet_network_security_group_association" "public_nsg_association" {
   subnet_id                 = azurerm_subnet.public_subnet.id
   network_security_group_id = azurerm_network_security_group.public_nsg.id

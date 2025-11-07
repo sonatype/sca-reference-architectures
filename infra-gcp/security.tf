@@ -1,26 +1,5 @@
 # VPC Firewall Rules (equivalent to AWS Security Groups)
 
-# Allow ingress from Load Balancer to Cloud Run (Health Checks)
-resource "google_compute_firewall" "allow_lb_to_cloudrun" {
-  name    = "allow-lb-to-cloudrun"
-  network = google_compute_network.iq_vpc.name
-  project = var.gcp_project_id
-
-  allow {
-    protocol = "tcp"
-    ports    = ["8070", "8071"]
-  }
-
-  source_ranges = [
-    "130.211.0.0/22", # Google Load Balancer health check ranges
-    "35.191.0.0/16"   # Google Load Balancer health check ranges
-  ]
-
-  target_tags = ["nexus-iq-service"]
-
-  description = "Allow health checks from Google Load Balancer to Cloud Run services"
-}
-
 # Allow internal communication within VPC
 resource "google_compute_firewall" "allow_internal" {
   name    = "allow-internal-nexus-iq"
@@ -62,7 +41,7 @@ resource "google_compute_firewall" "allow_ssh" {
   }
 
   source_ranges = var.allowed_ssh_cidrs
-  target_tags   = ["nexus-iq-maintenance"]
+  target_tags   = ["nexus-iq-server", "nexus-iq-maintenance"]
 
   description = "Allow SSH access for maintenance"
 }
@@ -84,9 +63,9 @@ resource "google_compute_firewall" "allow_http_https" {
   description = "Allow HTTP/HTTPS traffic from internet to load balancer"
 }
 
-# Allow egress from Cloud Run for external API calls
-resource "google_compute_firewall" "allow_egress_cloudrun" {
-  name      = "allow-egress-cloudrun"
+# Allow egress from GCE instances for external API calls
+resource "google_compute_firewall" "allow_egress_gce" {
+  name      = "allow-egress-gce"
   network   = google_compute_network.iq_vpc.name
   project   = var.gcp_project_id
   direction = "EGRESS"
@@ -102,9 +81,9 @@ resource "google_compute_firewall" "allow_egress_cloudrun" {
   }
 
   destination_ranges = ["0.0.0.0/0"]
-  target_tags        = ["nexus-iq-service"]
+  target_tags        = ["nexus-iq-server"]
 
-  description = "Allow Cloud Run egress for external API calls and updates"
+  description = "Allow GCE instance egress for external API calls and updates"
 }
 
 # Allow access to Google APIs through private Google access
