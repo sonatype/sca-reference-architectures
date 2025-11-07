@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 echo "============================================"
 echo "Nexus IQ Server GKE HA - Terraform Destroy"
 echo "============================================"
@@ -22,10 +20,34 @@ if [ "$CONFIRM" != "YES" ]; then
 fi
 
 echo ""
-echo "Destroying infrastructure..."
-terraform destroy
+echo "Attempting terraform destroy..."
 
-echo ""
-echo "============================================"
-echo "Infrastructure destroyed successfully"
-echo "============================================"
+if terraform destroy; then
+    echo ""
+    echo "============================================"
+    echo "✅ Infrastructure destroyed successfully"
+    echo "============================================"
+else
+    echo ""
+    echo "⚠️  Terraform destroy encountered errors"
+    echo ""
+    echo "This usually happens when:"
+    echo "1. Deployment failed mid-way"
+    echo "2. Resources exist outside Terraform state"
+    echo "3. Service connections are still in use"
+    echo ""
+    read -p "Would you like to run the force cleanup script? (yes/no): " FORCE_CLEANUP
+    
+    if [ "$FORCE_CLEANUP" == "yes" ]; then
+        echo ""
+        echo "Running force cleanup..."
+        ./force-cleanup.sh
+    else
+        echo ""
+        echo "To manually clean up, you can:"
+        echo "1. Run: ./force-cleanup.sh"
+        echo "2. Check: CLEANUP_INSTRUCTIONS.md"
+        echo ""
+        exit 1
+    fi
+fi

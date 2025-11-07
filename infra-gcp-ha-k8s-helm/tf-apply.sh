@@ -12,11 +12,21 @@ if [ ! -f "terraform.tfvars" ]; then
     exit 1
 fi
 
-echo "Initializing Terraform..."
+echo ""
+echo "Step 1: Checking GCP permissions..."
+if ! ./check-permissions.sh; then
+    echo ""
+    echo "❌ Permission check failed!"
+    echo "Please obtain the required permissions before deploying."
+    exit 1
+fi
+
+echo ""
+echo "Step 2: Initializing Terraform..."
 terraform init
 
 echo ""
-echo "Planning infrastructure deployment..."
+echo "Step 3: Planning infrastructure deployment..."
 terraform plan
 
 echo ""
@@ -27,7 +37,7 @@ if [ "$CONFIRM" != "yes" ]; then
 fi
 
 echo ""
-echo "Applying Terraform configuration..."
+echo "Step 4: Applying Terraform configuration..."
 terraform apply -auto-approve
 
 echo ""
