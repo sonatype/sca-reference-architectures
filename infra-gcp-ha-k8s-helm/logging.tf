@@ -68,7 +68,7 @@ resource "google_monitoring_alert_policy" "pod_restart_alert" {
     display_name = "Pod Restart Rate"
 
     condition_threshold {
-      filter          = "resource.type=\"k8s_pod\" AND resource.labels.cluster_name=\"${local.cluster_name}\" AND resource.labels.namespace_name=\"nexus-iq\" AND metric.type=\"kubernetes.io/container/restart_count\""
+      filter          = "resource.type=\"k8s_container\" AND resource.labels.cluster_name=\"${local.cluster_name}\" AND resource.labels.namespace_name=\"nexus-iq\" AND metric.type=\"kubernetes.io/container/restart_count\""
       duration        = "60s"
       comparison      = "COMPARISON_GT"
       threshold_value = 2
@@ -85,6 +85,8 @@ resource "google_monitoring_alert_policy" "pod_restart_alert" {
   }
 
   enabled = var.enable_monitoring_alerts
+  
+  depends_on = [google_container_cluster.iq_gke]
 }
 
 resource "google_monitoring_alert_policy" "high_error_rate" {
@@ -96,7 +98,7 @@ resource "google_monitoring_alert_policy" "high_error_rate" {
     display_name = "High Error Rate"
 
     condition_threshold {
-      filter          = "metric.type=\"logging.googleapis.com/user/${local.cluster_name}-error-count\""
+      filter          = "resource.type=\"k8s_container\" AND metric.type=\"logging.googleapis.com/user/${local.cluster_name}-error-count\""
       duration        = "300s"
       comparison      = "COMPARISON_GT"
       threshold_value = 10
@@ -113,4 +115,9 @@ resource "google_monitoring_alert_policy" "high_error_rate" {
   }
 
   enabled = var.enable_monitoring_alerts
+  
+  depends_on = [
+    google_logging_metric.error_count,
+    google_container_cluster.iq_gke
+  ]
 }
