@@ -1,4 +1,4 @@
-# Storage Account for File Share
+
 resource "azurerm_storage_account" "iq_storage" {
   name                     = "st${replace(lower("refarchiq"), "-", "")}${random_string.storage_suffix.result}"
   resource_group_name      = azurerm_resource_group.iq_rg.name
@@ -7,10 +7,10 @@ resource "azurerm_storage_account" "iq_storage" {
   account_replication_type = var.storage_account_replication_type
   min_tls_version          = "TLS1_2"
 
-  # Enable secure transfer
+
   https_traffic_only_enabled = true
 
-  # Network rules - Allow Azure services and trusted Microsoft services for management
+
   network_rules {
     default_action = "Allow"
     bypass         = ["AzureServices", "Logging", "Metrics"]
@@ -21,14 +21,14 @@ resource "azurerm_storage_account" "iq_storage" {
   }
 }
 
-# Random suffix for storage account name (must be globally unique)
+
 resource "random_string" "storage_suffix" {
   length  = 6
   special = false
   upper   = false
 }
 
-# File Share for persistent data
+
 resource "azurerm_storage_share" "iq_file_share" {
   name                 = "nexus-iq-data"
   storage_account_name = azurerm_storage_account.iq_storage.name
@@ -38,7 +38,7 @@ resource "azurerm_storage_share" "iq_file_share" {
   depends_on = [azurerm_storage_account.iq_storage]
 }
 
-# Container App Environment Storage
+
 resource "azurerm_container_app_environment_storage" "iq_storage" {
   name                         = "nexus-iq-storage"
   container_app_environment_id = azurerm_container_app_environment.iq_env.id

@@ -1,4 +1,4 @@
-# Application Gateway URL (Primary access point for HA deployment)
+
 output "application_gateway_url" {
   description = "Application Gateway URL for accessing Nexus IQ Server HA cluster"
   value       = "http://${azurerm_public_ip.app_gw_pip_ha.fqdn != null ? azurerm_public_ip.app_gw_pip_ha.fqdn : azurerm_public_ip.app_gw_pip_ha.ip_address}"
@@ -9,7 +9,7 @@ output "application_gateway_fqdn" {
   value       = azurerm_public_ip.app_gw_pip_ha.fqdn
 }
 
-# Container App URL (Direct access to HA cluster)
+
 output "container_app_url" {
   description = "Container App direct URL for HA cluster"
   value       = "https://${azurerm_container_app.iq_app_ha.ingress[0].fqdn}"
@@ -20,7 +20,7 @@ output "container_app_fqdn" {
   value       = azurerm_container_app.iq_app_ha.ingress[0].fqdn
 }
 
-# HA Configuration Details
+
 output "ha_configuration" {
   description = "High Availability configuration details"
   value = {
@@ -32,7 +32,7 @@ output "ha_configuration" {
   }
 }
 
-# Database Information
+
 output "database_endpoint" {
   description = "PostgreSQL Flexible Server endpoint (Zone-redundant)"
   value       = azurerm_postgresql_flexible_server.iq_db_ha.fqdn
@@ -54,7 +54,7 @@ output "database_ha_status" {
   }
 }
 
-# Storage Information
+
 output "storage_account_name" {
   description = "Storage account name for HA file share"
   value       = azurerm_storage_account.iq_storage_ha.name
@@ -70,14 +70,14 @@ output "storage_redundancy" {
   value       = azurerm_storage_account.iq_storage_ha.account_replication_type
 }
 
-# Key Vault Information
+
 output "key_vault_uri" {
   description = "Key Vault URI for secrets management"
   value       = azurerm_key_vault.iq_kv_ha.vault_uri
   sensitive   = false
 }
 
-# Container App Environment
+
 output "container_app_environment_id" {
   description = "Container App Environment ID"
   value       = azurerm_container_app_environment.iq_env_ha.id
@@ -88,13 +88,13 @@ output "container_app_environment_default_domain" {
   value       = azurerm_container_app_environment.iq_env_ha.default_domain
 }
 
-# Log Analytics
+
 output "log_analytics_workspace_id" {
   description = "Log Analytics Workspace ID for monitoring"
   value       = azurerm_log_analytics_workspace.iq_logs_ha.id
 }
 
-# Application Insights (if enabled)
+
 output "application_insights_instrumentation_key" {
   description = "Application Insights instrumentation key"
   value       = var.enable_monitoring ? azurerm_application_insights.iq_insights_ha[0].instrumentation_key : null
@@ -107,7 +107,7 @@ output "application_insights_connection_string" {
   sensitive   = true
 }
 
-# Network Information
+
 output "virtual_network_id" {
   description = "Virtual Network ID"
   value       = azurerm_virtual_network.iq_vnet.id
@@ -123,7 +123,7 @@ output "public_subnet_ids" {
   value       = azurerm_subnet.public_subnets[*].id
 }
 
-# Resource Group
+
 output "resource_group_name" {
   description = "Resource group name"
   value       = azurerm_resource_group.iq_rg.name
@@ -134,7 +134,7 @@ output "resource_group_location" {
   value       = azurerm_resource_group.iq_rg.location
 }
 
-# HA Deployment Summary
+
 output "ha_deployment_summary" {
   description = "High Availability deployment summary"
   value = {

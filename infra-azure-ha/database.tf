@@ -1,4 +1,4 @@
-# Private DNS Zone for PostgreSQL (required for private endpoints)
+
 resource "azurerm_private_dns_zone" "postgres" {
   name                = "privatelink.postgres.database.azure.com"
   resource_group_name = azurerm_resource_group.iq_rg.name
@@ -8,7 +8,7 @@ resource "azurerm_private_dns_zone" "postgres" {
   })
 }
 
-# Link the private DNS zone to the virtual network
+
 resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
   name                  = "pdns-link-postgres-ha"
   resource_group_name   = azurerm_resource_group.iq_rg.name
@@ -21,7 +21,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
   })
 }
 
-# PostgreSQL Flexible Server with Zone Redundancy (HA)
+
 resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
   name                   = "psqlfs-ref-arch-iq-ha"
   resource_group_name    = azurerm_resource_group.iq_rg.name
@@ -32,33 +32,33 @@ resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
   administrator_login    = var.db_username
   administrator_password = var.db_password
 
-  # Disable public network access when using VNet integration
+
   public_network_access_enabled = false
 
-  # Zone redundancy for HA (equivalent to AWS Aurora Multi-AZ)
+
   zone = "1"
   high_availability {
-    mode                      = var.db_high_availability_mode # ZoneRedundant
+    mode                      = var.db_high_availability_mode
     standby_availability_zone = "2"
   }
 
-  # Storage configuration for HA
-  storage_mb   = 65536 # 64GB initial
-  storage_tier = "P6"  # Premium tier for better performance (P6 is minimum for 64GB)
 
-  # SKU for HA workload (equivalent to AWS db.r6g.large)
-  sku_name = var.db_sku_name # GP_Standard_D4s_v3 = 4 vCores, 16GB RAM
+  storage_mb   = 65536
+  storage_tier = "P6"
 
-  # Backup configuration for HA
+
+  sku_name = var.db_sku_name
+
+
   backup_retention_days        = var.db_backup_retention_days
   geo_redundant_backup_enabled = var.db_geo_redundant_backup_enabled
 
-  # Security
+
   create_mode = "Default"
 
-  # Maintenance window
+
   maintenance_window {
-    day_of_week  = 0 # Sunday
+    day_of_week  = 0
     start_hour   = 4
     start_minute = 0
   }
@@ -70,7 +70,7 @@ resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
   depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
 }
 
-# Database for Nexus IQ Server
+
 resource "azurerm_postgresql_flexible_server_database" "iq_database_ha" {
   name      = var.db_name
   server_id = azurerm_postgresql_flexible_server.iq_db_ha.id
@@ -78,7 +78,7 @@ resource "azurerm_postgresql_flexible_server_database" "iq_database_ha" {
   charset   = "utf8"
 }
 
-# PostgreSQL Configuration for IQ Server optimization (similar to AWS Aurora parameter groups)
+
 resource "azurerm_postgresql_flexible_server_configuration" "shared_preload_libraries" {
   name      = "shared_preload_libraries"
   server_id = azurerm_postgresql_flexible_server.iq_db_ha.id
@@ -94,7 +94,7 @@ resource "azurerm_postgresql_flexible_server_configuration" "log_statement" {
 resource "azurerm_postgresql_flexible_server_configuration" "log_min_duration_statement" {
   name      = "log_min_duration_statement"
   server_id = azurerm_postgresql_flexible_server.iq_db_ha.id
-  value     = "1000" # Log queries taking longer than 1 second
+  value     = "1000"
 }
 
 resource "azurerm_postgresql_flexible_server_configuration" "log_checkpoints" {
@@ -115,7 +115,7 @@ resource "azurerm_postgresql_flexible_server_configuration" "log_disconnections"
   value     = "on"
 }
 
-# Firewall rule to allow Container Apps private subnets
+
 resource "azurerm_postgresql_flexible_server_firewall_rule" "container_apps" {
   count            = length(var.private_subnet_cidrs)
   name             = "AllowContainerApps-${count.index + 1}"
@@ -124,7 +124,7 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "container_apps" {
   end_ip_address   = cidrhost(var.private_subnet_cidrs[count.index], -2)
 }
 
-# Additional firewall rule for Azure services
+
 resource "azurerm_postgresql_flexible_server_firewall_rule" "azure_services" {
   name             = "AllowAzureServices"
   server_id        = azurerm_postgresql_flexible_server.iq_db_ha.id

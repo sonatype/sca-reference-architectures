@@ -1,4 +1,4 @@
-# ECS Task Execution Role
+
 resource "aws_iam_role" "ecs_execution_role" {
   name = "ref-arch-ecs-execution-role"
 
@@ -20,13 +20,13 @@ resource "aws_iam_role" "ecs_execution_role" {
   }
 }
 
-# Attach the managed ECS Task Execution policy
+
 resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   role       = aws_iam_role.ecs_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Additional policy for Secrets Manager and SSM Parameter Store access
+
 resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
   name = "ref-arch-ecs-execution-secrets-policy"
   role = aws_iam_role.ecs_execution_role.id
@@ -57,7 +57,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
   })
 }
 
-# ECS Task Role (for application-level permissions)
+
 resource "aws_iam_role" "ecs_task_role" {
   name = "ref-arch-ecs-task-role"
 
@@ -79,7 +79,7 @@ resource "aws_iam_role" "ecs_task_role" {
   }
 }
 
-# Custom policy for ECS Task Role (includes Fluent Bit permissions)
+
 resource "aws_iam_role_policy" "ecs_task_policy" {
   name = "ref-arch-ecs-task-policy"
   role = aws_iam_role.ecs_task_role.id

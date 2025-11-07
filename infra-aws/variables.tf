@@ -1,4 +1,4 @@
-# General Variables
+
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
@@ -6,7 +6,7 @@ variable "aws_region" {
 }
 
 
-# Network Variables
+
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string
@@ -31,7 +31,7 @@ variable "db_subnet_cidrs" {
   default     = ["10.0.30.0/24", "10.0.40.0/24"]
 }
 
-# ECS Variables
+
 variable "ecs_cpu" {
   description = "CPU units for ECS task (1024 = 1 vCPU)"
   type        = number
@@ -62,7 +62,7 @@ variable "java_opts" {
   default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
-# Database Variables
+
 variable "db_name" {
   description = "Database name"
   type        = string
@@ -102,7 +102,7 @@ variable "db_max_allocated_storage" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "15.8"
+  default     = "15.10"
 }
 
 variable "db_backup_retention_period" {
@@ -135,7 +135,7 @@ variable "db_deletion_protection" {
   default     = false
 }
 
-# Load Balancer Variables
+
 variable "ssl_certificate_arn" {
   description = "ARN of SSL certificate for ALB HTTPS listener"
   type        = string
@@ -148,7 +148,7 @@ variable "alb_deletion_protection" {
   default     = false
 }
 
-# Logging Variables
+
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
@@ -159,7 +159,7 @@ variable "fluent_bit_image" {
   description = "Fluent Bit Docker image (use custom image with IQ Server parsers)"
   type        = string
   default     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
-  # After building custom image: "YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/nexus-iq-fluent-bit:latest"
+
 }
 
 variable "enable_log_archive" {
@@ -171,5 +171,5 @@ variable "enable_log_archive" {
 variable "log_archive_retention_days" {
   description = "Days to retain archived logs in S3 before deletion"
   type        = number
-  default     = 2555  # 7 years for compliance
+  default     = 2555
 }

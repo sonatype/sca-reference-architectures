@@ -1,4 +1,3 @@
-# EFS File System
 resource "aws_efs_file_system" "iq_efs" {
   creation_token   = "${var.cluster_name}-efs"
   performance_mode = "generalPurpose"
@@ -23,7 +22,6 @@ resource "aws_efs_file_system" "iq_efs" {
   }
 }
 
-# KMS Key for EFS encryption
 resource "aws_kms_key" "efs_kms_key" {
   description             = "KMS key for ${var.cluster_name} EFS encryption"
   deletion_window_in_days = 7
@@ -40,7 +38,6 @@ resource "aws_kms_alias" "efs_kms_key_alias" {
   target_key_id = aws_kms_key.efs_kms_key.key_id
 }
 
-# EFS Mount Targets
 resource "aws_efs_mount_target" "iq_efs_mount_target" {
   count = length(aws_subnet.private)
 
@@ -49,7 +46,6 @@ resource "aws_efs_mount_target" "iq_efs_mount_target" {
   security_groups = [aws_security_group.efs.id]
 }
 
-# Security Group for EFS
 resource "aws_security_group" "efs" {
   name_prefix = "${var.cluster_name}-efs"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -77,7 +73,6 @@ resource "aws_security_group" "efs" {
   }
 }
 
-# EFS Access Point for Nexus IQ Server data
 resource "aws_efs_access_point" "iq_data" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
@@ -102,7 +97,6 @@ resource "aws_efs_access_point" "iq_data" {
   }
 }
 
-# EFS Access Point for Nexus IQ Server logs
 resource "aws_efs_access_point" "iq_logs" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
@@ -127,7 +121,6 @@ resource "aws_efs_access_point" "iq_logs" {
   }
 }
 
-# EFS Backup Policy
 resource "aws_efs_backup_policy" "iq_efs_backup" {
   file_system_id = aws_efs_file_system.iq_efs.id
 
@@ -136,7 +129,6 @@ resource "aws_efs_backup_policy" "iq_efs_backup" {
   }
 }
 
-# Parameter Store values for EFS
 resource "aws_ssm_parameter" "efs_id" {
   name  = "/${var.cluster_name}/efs/id"
   type  = "String"

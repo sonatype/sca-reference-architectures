@@ -22,12 +22,12 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
-# Get available zones for HA deployment (using client config for region info)
+
 locals {
-  availability_zones = ["1", "2", "3"] # East US has zones 1, 2, 3
+  availability_zones = ["1", "2", "3"]
 }
 
-# Resource Group
+
 resource "azurerm_resource_group" "iq_rg" {
   name     = "rg-ref-arch-iq-ha"
   location = var.azure_region
@@ -35,7 +35,7 @@ resource "azurerm_resource_group" "iq_rg" {
   tags = var.common_tags
 }
 
-# Virtual Network with multiple subnets for HA
+
 resource "azurerm_virtual_network" "iq_vnet" {
   name                = "vnet-ref-arch-iq-ha"
   address_space       = [var.vnet_cidr]
@@ -53,7 +53,7 @@ resource "azurerm_virtual_network" "iq_vnet" {
   }
 }
 
-# Public Subnets (for Application Gateway) - Multiple zones for HA
+
 resource "azurerm_subnet" "public_subnets" {
   count                = length(var.public_subnet_cidrs)
   name                 = "snet-public-${count.index + 1}"
@@ -62,7 +62,7 @@ resource "azurerm_subnet" "public_subnets" {
   address_prefixes     = [var.public_subnet_cidrs[count.index]]
 }
 
-# Force complete network recreation when CIDR blocks change
+
 resource "null_resource" "vnet_recreate_trigger" {
   triggers = {
     vnet_cidr     = var.vnet_cidr
@@ -72,7 +72,7 @@ resource "null_resource" "vnet_recreate_trigger" {
   }
 }
 
-# Force subnet recreation when CIDR blocks change
+
 resource "null_resource" "private_subnet_recreate_trigger" {
   count = length(var.private_subnet_cidrs)
 
@@ -82,7 +82,7 @@ resource "null_resource" "private_subnet_recreate_trigger" {
   }
 }
 
-# Private Subnets (for Container Apps) - Multiple zones for HA
+
 resource "azurerm_subnet" "private_subnets" {
   count                = length(var.private_subnet_cidrs)
   name                 = "snet-private-${count.index + 1}"
@@ -92,6 +92,17 @@ resource "azurerm_subnet" "private_subnets" {
 
   service_endpoints = ["Microsoft.KeyVault", "Microsoft.Storage"]
 
+
+  delegation {
+    name = "containerapp-delegation"
+    service_delegation {
+      name = "Microsoft.App/environments"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/join/action",
+      ]
+    }
+  }
+
   lifecycle {
     create_before_destroy = true
     replace_triggered_by = [
@@ -100,7 +111,7 @@ resource "azurerm_subnet" "private_subnets" {
   }
 }
 
-# Database Subnet (for PostgreSQL Flexible Server with zone redundancy)
+
 resource "azurerm_subnet" "db_subnet" {
   name                 = "snet-database"
   resource_group_name  = azurerm_resource_group.iq_rg.name
@@ -116,7 +127,7 @@ resource "azurerm_subnet" "db_subnet" {
   }
 }
 
-# Network Security Group for Application Gateway (HA)
+
 resource "azurerm_network_security_group" "public_nsg" {
   name                = "nsg-public-ha"
   location            = azurerm_resource_group.iq_rg.location
@@ -163,7 +174,7 @@ resource "azurerm_network_security_group" "public_nsg" {
   })
 }
 
-# Network Security Group for Container Apps (HA)
+
 resource "azurerm_network_security_group" "private_nsg" {
   name                = "nsg-private-ha"
   location            = azurerm_resource_group.iq_rg.location
@@ -205,7 +216,7 @@ resource "azurerm_network_security_group" "private_nsg" {
     destination_address_prefix = "*"
   }
 
-  # Allow inter-replica communication for clustering
+
   security_rule {
     name                       = "AllowClusterCommunication"
     priority                   = 903
@@ -223,7 +234,7 @@ resource "azurerm_network_security_group" "private_nsg" {
   })
 }
 
-# Network Security Group for Database (HA)
+
 resource "azurerm_network_security_group" "db_nsg" {
   name                = "nsg-database-ha"
   location            = azurerm_resource_group.iq_rg.location
@@ -246,7 +257,7 @@ resource "azurerm_network_security_group" "db_nsg" {
   })
 }
 
-# Associate NSGs with subnets
+
 resource "azurerm_subnet_network_security_group_association" "public_nsg_association" {
   count                     = length(azurerm_subnet.public_subnets)
   subnet_id                 = azurerm_subnet.public_subnets[count.index].id

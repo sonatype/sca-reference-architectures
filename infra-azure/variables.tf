@@ -1,11 +1,11 @@
-# General Variables
+
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
-  default     = "East US"
+  default     = "West US 2"
 }
 
-# Network Variables
+
 variable "vnet_cidr" {
   description = "CIDR block for Virtual Network"
   type        = string
@@ -30,17 +30,17 @@ variable "db_subnet_cidr" {
   default     = "10.0.30.0/24"
 }
 
-# Container App Variables
+
 variable "container_cpu" {
-  description = "CPU allocation for container (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)"
+  description = "CPU allocation for container (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0)"
   type        = number
-  default     = 2.0
+  default     = 4.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation for container in Gi (0.5, 1.0, 1.5, 2.0, 3.0, 3.5, 4.0)"
+  description = "Memory allocation for container in Gi (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 8Gi)"
   type        = string
-  default     = "4Gi"
+  default     = "8Gi"
 }
 
 variable "iq_docker_image" {
@@ -52,10 +52,10 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xmx2g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
-# Database Variables
+
 variable "db_name" {
   description = "Database name"
   type        = string
@@ -81,15 +81,15 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "Database SKU name (B_Standard_B1ms, GP_Standard_D2s_v3, MO_Standard_E4s_v3)"
+  description = "Database SKU name (B_Standard_B1ms, GP_Standard_D4s_v3, MO_Standard_E16s_v3)"
   type        = string
-  default     = "B_Standard_B2s"
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_storage_mb" {
   description = "Database storage in MB"
   type        = number
-  default     = 32768 # 32 GB
+  default     = 524288
 }
 
 variable "db_auto_grow_enabled" {
@@ -116,7 +116,7 @@ variable "db_high_availability_enabled" {
   default     = false
 }
 
-# Application Gateway Variables
+
 variable "app_gateway_sku_name" {
   description = "Application Gateway SKU name"
   type        = string
@@ -148,7 +148,7 @@ variable "ssl_certificate_password" {
   default     = ""
 }
 
-# Storage Variables
+
 variable "storage_account_tier" {
   description = "Storage account tier (Standard, Premium)"
   type        = string
@@ -164,24 +164,24 @@ variable "storage_account_replication_type" {
 variable "file_share_quota" {
   description = "File share quota in GB"
   type        = number
-  default     = 100
+  default     = 500
 }
 
-# Logging Variables
+
 variable "log_retention_days" {
   description = "Log Analytics workspace retention in days"
   type        = number
   default     = 30
 }
 
-# Monitoring Variables
+
 variable "enable_monitoring" {
   description = "Enable Application Insights monitoring"
   type        = bool
   default     = true
 }
 
-# Security Variables
+
 variable "key_vault_sku_name" {
   description = "Key Vault SKU name"
   type        = string

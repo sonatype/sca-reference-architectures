@@ -119,27 +119,68 @@ aws sts get-caller-identity --profile admin@iq-sandbox
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
-# General Configuration
-aws_region = "us-east-1"
+# AWS Configuration
+aws_region  = "us-east-1"
 environment = "prod"
+
+# Cluster Configuration
 cluster_name = "nexus-iq-ha"
+vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
-kubernetes_version = "1.27"
-node_instance_type = "m5.2xlarge"
-node_group_min_size = 2
-node_group_max_size = 6
+kubernetes_version       = "1.27"
+node_instance_type      = "m5d.2xlarge"
+node_group_min_size     = 2
+node_group_max_size     = 5
 node_group_desired_size = 3
+node_disk_size          = 50
 
-# Aurora Configuration
-aurora_instance_class = "db.r6g.4xlarge"
-aurora_instance_count = 2  # 1 writer + 1 reader
-database_password = "YourSecurePassword123!"  # Change this!
+# RDS Aurora Configuration
+aurora_engine_version   = "15.8"
+aurora_instance_class   = "db.r6g.4xlarge"
+aurora_instance_count   = 2
+database_name           = "nexusiq"
+database_username       = "nexusiq"
+database_password       = "SecurePassword123!"
+backup_retention_period = 7
+skip_final_snapshot     = false
+deletion_protection     = true
 
-# Nexus IQ HA Configuration
-nexus_iq_replica_count = 3
-nexus_iq_license = "base64-encoded-license"
+# EFS Configuration
+efs_provisioned_throughput = 100
+
+# Nexus IQ Server Configuration
+nexus_iq_version       = "1.195.0"
+nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
+nexus_iq_replica_count = 3
+
+# Resource Limits (adjusted for node capacity)
+nexus_iq_memory_request = "16Gi"
+nexus_iq_memory_limit   = "24Gi"
+nexus_iq_cpu_request    = "4"
+nexus_iq_cpu_limit      = "6"
+
+# Helm Configuration
+helm_chart_version = "195.0.0"
+helm_namespace     = "nexus-iq"
+
+# Logging Configuration
+enable_fluentd        = true
+enable_cloudwatch_logs = true
+
+# Ingress Configuration
+enable_ingress_nginx = true
+ingress_hostname     = "nexus-iq.yourdomain.com"
+ingress_tls_enabled  = false
+acm_certificate_arn  = ""
+
+# Monitoring Configuration
+enable_hpa                      = true
+hpa_min_replicas               = 2
+hpa_max_replicas               = 5
+hpa_target_cpu_utilization     = 70
+hpa_target_memory_utilization  = 80
 ```
 
 ### 2. Important Settings

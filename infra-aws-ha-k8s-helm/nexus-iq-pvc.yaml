@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: nexus-iq-pvc
+  name: iq-server-pvc
   namespace: nexus-iq
   labels:
     app.kubernetes.io/managed-by: Helm

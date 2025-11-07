@@ -1,4 +1,3 @@
-# EKS Cluster Outputs
 output "cluster_id" {
   description = "EKS cluster ID"
   value       = module.eks.cluster_id
@@ -34,13 +33,11 @@ output "cluster_version" {
   value       = module.eks.cluster_version
 }
 
-# AWS Region Output
 output "aws_region" {
   description = "AWS region where resources are deployed"
   value       = var.aws_region
 }
 
-# VPC Outputs
 output "vpc_id" {
   description = "ID of the VPC where the cluster and associated resources are created"
   value       = aws_vpc.iq_vpc.id
@@ -66,7 +63,6 @@ output "database_subnets" {
   value       = aws_subnet.database[*].id
 }
 
-# RDS Outputs
 output "rds_cluster_endpoint" {
   description = "Aurora cluster endpoint"
   value       = aws_rds_cluster.iq_cluster.endpoint
@@ -95,7 +91,6 @@ output "rds_cluster_master_username" {
   sensitive   = true
 }
 
-# EFS Outputs
 output "efs_id" {
   description = "ID of the EFS file system"
   value       = aws_efs_file_system.iq_efs.id
@@ -116,7 +111,6 @@ output "efs_logs_access_point_id" {
   value       = aws_efs_access_point.iq_logs.id
 }
 
-# Security Group Outputs
 output "eks_nodes_security_group_id" {
   description = "Security group ID for EKS nodes"
   value       = aws_security_group.eks_nodes.id
@@ -137,7 +131,6 @@ output "alb_security_group_id" {
   value       = aws_security_group.alb.id
 }
 
-# Secrets Manager Outputs
 output "secrets_manager_secret_arn" {
   description = "ARN of the Secrets Manager secret containing database credentials"
   value       = aws_secretsmanager_secret.db_credentials.arn
@@ -149,7 +142,6 @@ output "secrets_manager_secret_name" {
   value       = aws_secretsmanager_secret.db_credentials.name
 }
 
-# Parameter Store Keys (kept for backward compatibility)
 output "ssm_parameter_db_host_key" {
   description = "SSM parameter key for database host"
   value       = aws_ssm_parameter.db_host.name
@@ -170,25 +162,21 @@ output "ssm_parameter_efs_id_key" {
   value       = aws_ssm_parameter.efs_id.name
 }
 
-# Kubernetes Configuration Command
 output "kubectl_config_command" {
   description = "Command to configure kubectl for this EKS cluster"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
 
-# Helm Installation Instructions
 output "helm_installation_command" {
   description = "Command to install Nexus IQ Server using Helm"
   value       = "./helm-install.sh"
 }
 
-# CloudWatch Logging Outputs
 output "cloudwatch_log_group" {
   description = "Name of the unified CloudWatch log group for all IQ Server logs"
   value       = aws_cloudwatch_log_group.iq_logs.name
 }
 
-# IRSA Role ARN for Fluentd
 output "fluentd_irsa_role_arn" {
   description = "IAM Role ARN for Fluentd IRSA (to be annotated on ServiceAccount)"
   value       = aws_iam_role.fluentd_irsa.arn

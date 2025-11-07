@@ -121,17 +121,32 @@ private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 
 # ECS Configuration
-ecs_cpu           = 8192        # 8 vCPU
-ecs_memory        = 16384       # 16 GB RAM
-iq_desired_count  = 1           # Single instance (recommended)
+ecs_cpu           = 8192  # 8 vCPU
+ecs_memory        = 32768 # 32 GB
+iq_desired_count  = 1 # Single instance (recommended)
 iq_docker_image   = "sonatype/nexus-iq-server:latest"
+java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
 db_instance_class           = "db.r6g.4xlarge"
-postgres_version            = "15.8"
+db_allocated_storage        = 500
+db_max_allocated_storage    = 1000
+postgres_version            = "15.10"
+db_backup_retention_period  = 7
+db_backup_window           = "03:00-04:00"
+db_maintenance_window      = "sun:04:00-sun:05:00"
+db_skip_final_snapshot     = true
+db_deletion_protection     = false
+
+# Load Balancer Configuration
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+alb_deletion_protection = false
+
+# Logging Configuration
+log_retention_days = 30
 ```
 
 ### 2. Important Settings
@@ -394,7 +409,7 @@ infra-aws/
 ### Resource Limits
 
 - **ECS Service**: Limited to 1 task (Nexus IQ requirement)
-- **Database**: Uses db.m5.4xlarge
+- **Database**: Uses db.r6g.4xlarge
 - **Storage**: EFS provides unlimited scalable storage
 
 ## Cleanup

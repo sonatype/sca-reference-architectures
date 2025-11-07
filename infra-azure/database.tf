@@ -1,4 +1,4 @@
-# Private DNS Zone for PostgreSQL
+
 resource "azurerm_private_dns_zone" "iq_db_dns" {
   name                = "privatelink.postgres.database.azure.com"
   resource_group_name = azurerm_resource_group.iq_rg.name
@@ -8,7 +8,7 @@ resource "azurerm_private_dns_zone" "iq_db_dns" {
   }
 }
 
-# Private DNS Zone Virtual Network Link
+
 resource "azurerm_private_dns_zone_virtual_network_link" "iq_db_dns_link" {
   name                  = "vnetlink-ref-arch-iq-db"
   resource_group_name   = azurerm_resource_group.iq_rg.name
@@ -21,7 +21,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "iq_db_dns_link" {
   }
 }
 
-# PostgreSQL Flexible Server
+
 resource "azurerm_postgresql_flexible_server" "iq_db" {
   name                          = "psql-ref-arch-iq"
   resource_group_name           = azurerm_resource_group.iq_rg.name
@@ -58,10 +58,13 @@ resource "azurerm_postgresql_flexible_server" "iq_db" {
     Name = "psql-ref-arch-iq"
   }
 
-  depends_on = [azurerm_private_dns_zone_virtual_network_link.iq_db_dns_link]
+  depends_on = [
+    azurerm_subnet_network_security_group_association.db_nsg_association,
+    azurerm_private_dns_zone_virtual_network_link.iq_db_dns_link
+  ]
 }
 
-# PostgreSQL Database
+
 resource "azurerm_postgresql_flexible_server_database" "iq_database" {
   name      = var.db_name
   server_id = azurerm_postgresql_flexible_server.iq_db.id
@@ -69,7 +72,7 @@ resource "azurerm_postgresql_flexible_server_database" "iq_database" {
   charset   = "utf8"
 }
 
-# PostgreSQL Firewall Rule (allow Azure services)
+
 resource "azurerm_postgresql_flexible_server_firewall_rule" "allow_azure_services" {
   name             = "AllowAzureServices"
   server_id        = azurerm_postgresql_flexible_server.iq_db.id

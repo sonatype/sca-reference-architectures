@@ -2,7 +2,7 @@
 # Copy this file to terraform.tfvars and customize for your environment
 
 # General Configuration
-azure_region  = "East US"
+azure_region  = "East US 2"
 cluster_name  = "ref-arch-iq-ha"
 
 # Network Configuration (Multi-zone for HA)
@@ -12,12 +12,12 @@ private_subnet_cidrs    = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"] # Mul
 db_subnet_cidr          = "10.0.40.0/24"
 
 # High Availability Container App Configuration
-container_cpu           = 2.0      # CPU per replica
-container_memory       = "4Gi"     # Memory per replica
-iq_min_replicas        = 2         # Minimum replicas for HA (must be >= 2)
-iq_max_replicas        = 10        # Maximum replicas for auto-scaling
+container_cpu           = 4.0      # CPU per replica (max for Azure Container Apps)
+container_memory       = "8Gi"     # Memory per replica (max for Azure Container Apps)
+iq_min_replicas        = 3         # Minimum replicas for HA (must be >= 2)
+iq_max_replicas        = 5         # Maximum replicas for auto-scaling
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
 cpu_utilization_threshold     = 70    # CPU threshold for scaling (%)
@@ -29,9 +29,9 @@ db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "YourSecurePassword123!"  # Change this!
 postgres_version               = "15"
-db_sku_name                    = "GP_Standard_D4s_v3"      # 4 vCores, 16GB RAM
+db_sku_name                    = "MO_Standard_E16s_v3"     # Memory Optimized: 16 vCores, 128GB RAM
 db_backup_retention_days       = 7
-db_geo_redundant_backup_enabled = true
+db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
 db_high_availability_mode      = "ZoneRedundant"           # Zone-redundant HA
 
 # Zone-Redundant Application Gateway Configuration (HA)

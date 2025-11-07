@@ -1,4 +1,4 @@
-# Application Gateway for Kubernetes Ingress (Zone-Redundant)
+
 resource "azurerm_application_gateway" "appgw" {
   name                = "agw-${var.cluster_name}"
   resource_group_name = azurerm_resource_group.iq_rg.name
@@ -6,9 +6,9 @@ resource "azurerm_application_gateway" "appgw" {
   zones               = local.availability_zones
 
   sku {
-    name = var.app_gateway_sku_name # Standard_v2 or WAF_v2
+    name = var.app_gateway_sku_name
     tier = var.app_gateway_sku_tier
-    # Note: capacity is not specified when using autoscale_configuration
+
   }
 
   gateway_ip_configuration {
@@ -38,7 +38,7 @@ resource "azurerm_application_gateway" "appgw" {
   backend_http_settings {
     name                                = "backend-http-settings"
     cookie_based_affinity               = "Disabled"
-    port                                = 8070  # Nexus IQ Server port
+    port                                = 8070
     protocol                            = "Http"
     request_timeout                     = 60
     probe_name                          = "health-probe"
@@ -65,8 +65,8 @@ resource "azurerm_application_gateway" "appgw" {
   probe {
     name                                      = "health-probe"
     protocol                                  = "Http"
-    path                                      = "/ping"  # Nexus IQ health check endpoint
-    port                                      = 8070     # Nexus IQ Server port
+    path                                      = "/ping"
+    port                                      = 8070
     interval                                  = 30
     timeout                                   = 30
     unhealthy_threshold                       = 3
@@ -77,16 +77,16 @@ resource "azurerm_application_gateway" "appgw" {
     }
   }
 
-  # SSL Policy
+
   ssl_policy {
     policy_type = "Predefined"
     policy_name = "AppGwSslPolicy20220101"
   }
 
-  # Enable HTTP/2
+
   enable_http2 = true
 
-  # Autoscale configuration
+
   autoscale_configuration {
     min_capacity = var.app_gateway_min_capacity
     max_capacity = var.app_gateway_max_capacity
@@ -102,7 +102,7 @@ resource "azurerm_application_gateway" "appgw" {
   ]
 }
 
-# User Assigned Identity for Application Gateway Ingress Controller
+
 resource "azurerm_user_assigned_identity" "agic_identity" {
   name                = "agic-identity-${var.cluster_name}"
   resource_group_name = azurerm_resource_group.iq_rg.name
@@ -111,28 +111,28 @@ resource "azurerm_user_assigned_identity" "agic_identity" {
   tags = local.common_tags
 }
 
-# Role assignment for AGIC identity to manage Application Gateway
+
 resource "azurerm_role_assignment" "agic_appgw_contributor" {
   principal_id         = azurerm_user_assigned_identity.agic_identity.principal_id
   role_definition_name = "Contributor"
   scope                = azurerm_application_gateway.appgw.id
 }
 
-# Role assignment for AGIC identity to read resource group
+
 resource "azurerm_role_assignment" "agic_rg_reader" {
   principal_id         = azurerm_user_assigned_identity.agic_identity.principal_id
   role_definition_name = "Reader"
   scope                = azurerm_resource_group.iq_rg.id
 }
 
-# Role assignment for AGIC identity to manage Public IP
+
 resource "azurerm_role_assignment" "agic_pip_contributor" {
   principal_id         = azurerm_user_assigned_identity.agic_identity.principal_id
   role_definition_name = "Contributor"
   scope                = azurerm_public_ip.appgw_pip.id
 }
 
-# Role assignment for AGIC identity to manage Virtual Network
+
 resource "azurerm_role_assignment" "agic_vnet_contributor" {
   principal_id         = azurerm_user_assigned_identity.agic_identity.principal_id
   role_definition_name = "Contributor"
