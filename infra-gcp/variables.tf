@@ -28,12 +28,6 @@ variable "environment" {
 }
 
 # Network Variables
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
-  type        = string
-  default     = "10.100.0.0/16"
-}
-
 variable "public_subnet_cidr" {
   description = "CIDR block for public subnet"
   type        = string
@@ -233,11 +227,36 @@ variable "domain_name" {
   default     = ""
 }
 
-# Logging Variables
-variable "log_retention_days" {
-  description = "Log retention in days"
-  type        = number
-  default     = 30
+<<<<<<< HEAD
+variable "custom_domain" {
+  description = "Custom domain for Cloud Run service"
+  type        = string
+  default     = ""
+}
+
+# Cloud Run Resource Variables
+variable "iq_cpu_limit" {
+  description = "CPU limit for Cloud Run container"
+  type        = string
+  default     = "2"
+}
+
+variable "iq_memory_limit" {
+  description = "Memory limit for Cloud Run container"
+  type        = string
+  default     = "4Gi"
+}
+
+variable "iq_cpu_request" {
+  description = "CPU request for Cloud Run container"
+  type        = string
+  default     = "1"
+}
+
+variable "iq_memory_request" {
+  description = "Memory request for Cloud Run container"
+  type        = string
+  default     = "2Gi"
 }
 
 variable "java_opts" {

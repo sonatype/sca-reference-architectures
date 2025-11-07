@@ -539,25 +539,51 @@ perform_destroy() {
     fi
     
     # Destroy database resources in specific order
-    terraform destroy -target=google_sql_user.iq_db_user \
-                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database user destruction may have failed"
+    # Note: Database user often cannot be dropped due to dependent objects
+    # Remove it from state instead to allow database instance deletion
+    if terraform state list 2>/dev/null | grep -q "google_sql_user.iq_ha_db_user"; then
+        print_status "Removing database user from Terraform state (has dependent objects)..."
+        terraform state rm google_sql_user.iq_ha_db_user >> "$LOG_FILE" 2>&1 || print_warning "Database user removal from state failed"
+    fi
     
-    terraform destroy -target=google_sql_database.iq_database \
-                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database destruction may have failed"
+    # Destroy read replica first if it exists
+    if terraform state list 2>/dev/null | grep -q "google_sql_database_instance.iq_ha_db_replica"; then
+        print_status "Destroying database read replica..."
+        terraform destroy -target=google_sql_database_instance.iq_ha_db_replica \
+                         -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database replica destruction may have failed"
+        sleep 30
+    fi
+    
+    # Destroy database and related resources
+    terraform destroy -target=google_sql_database.iq_ha_database \
+                     -target=google_sql_ssl_cert.iq_ha_client_cert \
+                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database resources destruction may have failed"
     
     # Wait for database operations to complete
     print_status "Waiting for database operations to complete..."
     sleep 45
     
     # Finally destroy the database instance
-    terraform destroy -target=google_sql_database_instance.iq_db \
+    terraform destroy -target=google_sql_database_instance.iq_ha_db \
                      -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Database instance destruction may have failed"
     
     # Stage 4: Destroy storage and other persistent resources
     print_status "Stage 4: Destroying storage and persistent resources..."
-    terraform destroy -target=google_storage_bucket.iq_backup_bucket \
-                     -target=google_storage_bucket.iq_config_bucket \
-                     -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Some storage resources may not have been destroyed cleanly"
+    
+    # Destroy Filestore instance if it exists
+    if terraform state list 2>/dev/null | grep -q "google_filestore_instance.iq_ha_filestore"; then
+        print_status "Destroying Cloud Filestore instance..."
+        terraform destroy -target=google_filestore_instance.iq_ha_filestore \
+                         -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Filestore destruction may have failed"
+        sleep 30
+    fi
+    
+    # Destroy storage buckets if they exist (legacy single-instance only)
+    if terraform state list 2>/dev/null | grep -q "google_storage_bucket"; then
+        terraform destroy -target=google_storage_bucket.iq_backup_bucket \
+                         -target=google_storage_bucket.iq_config_bucket \
+                         -auto-approve -var-file="$TFVARS_FILE" >> "$LOG_FILE" 2>&1 || print_warning "Some storage resources may not have been destroyed cleanly"
+    fi
     
     # Stage 5: Handle service networking connection (remove from state)
     print_status "Stage 5: Removing service networking connection from Terraform state..."

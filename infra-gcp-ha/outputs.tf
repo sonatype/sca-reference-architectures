@@ -156,16 +156,7 @@ output "ssl_certificate_status" {
   value       = var.enable_ssl && var.domain_name != "" ? google_compute_managed_ssl_certificate.iq_ha_ssl_cert[0].certificate_id : null
 }
 
-# Monitoring outputs
-output "monitoring_dashboard_id" {
-  description = "ID of the monitoring dashboard"
-  value       = google_monitoring_dashboard.iq_ha_dashboard.id
-}
-
-output "uptime_check_id" {
-  description = "ID of the uptime check"
-  value       = google_monitoring_uptime_check_config.iq_ha_uptime_check.name
-}
+# Monitoring outputs (commented out - monitoring.tf is disabled)
 
 # Region and Zone information
 output "deployment_region" {
@@ -189,6 +180,7 @@ output "deployment_summary" {
   description = "Summary of the HA deployment"
   value = {
     load_balancer_url    = var.enable_ssl ? "https://${var.domain_name != "" ? var.domain_name : google_compute_global_address.iq_ha_lb_ip.address}" : "http://${google_compute_global_address.iq_ha_lb_ip.address}"
+    docker_image         = var.iq_docker_image
     min_instances        = var.iq_min_instances
     max_instances        = var.iq_max_instances
     database_type        = "PostgreSQL ${var.postgres_version}"
