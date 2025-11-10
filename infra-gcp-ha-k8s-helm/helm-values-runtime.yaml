@@ -21,7 +21,7 @@ iq_server:
     - name: NEXUS_SECURITY_RANDOMPASSWORD
       value: "false"
     - name: DB_HOSTNAME
-      value: ""
+      value: "10.51.0.2"
     - name: DB_PORT
       value: "5432"
     - name: DB_NAME
@@ -29,16 +29,17 @@ iq_server:
     - name: DB_USERNAME
       value: "nexusiq"
     - name: DB_PASSWORD
-      value: ""
+      value: "SecureNexusPassword123!"
+      value: "10.51.0.2"
 
   licenseSecret: "nexus-iq-license"
 
   database:
-    hostname: ""
+    hostname: "10.51.0.2"
     port: 5432
     name: "nexusiq"
     username: "nexusiq"
-    password: ""
+    password: "SecureNexusPassword123!"
     type: "postgresql"
     migration: true
 
@@ -108,11 +109,11 @@ serviceAccount:
   create: true
   name: "nexus-iq-sa"
   annotations:
-    iam.gke.io/gcp-service-account: ""
+    iam.gke.io/gcp-service-account: "nexus-iq-ha-wi-sa@nxrm-support-gcp-deployments.iam.gserviceaccount.com"
 
 cloudLogging:
   enabled: true
-  projectId: ""
+  projectId: "nxrm-support-gcp-deployments"
   logName: "nexus-iq-server"
 
 ingress:
@@ -120,7 +121,7 @@ ingress:
   ingressClassName: "gce"
   annotations:
     kubernetes.io/ingress.class: "gce"
-    kubernetes.io/ingress.global-static-ip-name: ""
+    kubernetes.io/ingress.global-static-ip-name: "nexus-iq-ha-ingress-ip"
     kubernetes.io/ingress.allow-http: "true"
     ingress.gcp.kubernetes.io/pre-shared-cert: ""
   # Only expose the application service (not admin service) for GCE Ingress
@@ -138,7 +139,7 @@ fluentd:
 
   cloudLogging:
     enabled: true
-    projectId: ""
+    projectId: "nxrm-support-gcp-deployments"
     logName: "nexus-iq-server"
 
   resources:
@@ -155,7 +156,7 @@ fluentd:
       create: true
       name: "fluentd-aggregator-sa"
       annotations:
-        iam.gke.io/gcp-service-account: ""
+        iam.gke.io/gcp-service-account: "nexus-iq-ha-wi-sa@nxrm-support-gcp-deployments.iam.gserviceaccount.com"
     securityContext:
       runAsUser: 1000
       runAsGroup: 1000

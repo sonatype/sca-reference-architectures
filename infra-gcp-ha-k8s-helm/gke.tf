@@ -74,6 +74,8 @@ resource "google_container_cluster" "iq_gke" {
 
   resource_labels = local.common_tags
 
+  deletion_protection = false
+
   depends_on = [
     google_project_service.required_apis,
     google_compute_subnetwork.public_subnet,

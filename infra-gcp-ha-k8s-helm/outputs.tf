@@ -40,6 +40,12 @@ output "database_username" {
   value       = var.db_username
 }
 
+output "database_password" {
+  description = "Database password"
+  value       = var.db_password
+  sensitive   = true
+}
+
 output "filestore_ip" {
   description = "Filestore IP address"
   value       = google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]
@@ -53,6 +59,11 @@ output "filestore_share_name" {
 output "ingress_ip" {
   description = "Global ingress IP address"
   value       = google_compute_global_address.ingress_ip.address
+}
+
+output "ingress_ip_name" {
+  description = "Global ingress IP address name"
+  value       = google_compute_global_address.ingress_ip.name
 }
 
 output "workload_identity_email" {
