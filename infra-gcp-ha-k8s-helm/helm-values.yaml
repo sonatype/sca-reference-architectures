@@ -47,7 +47,7 @@ iq_server:
 
   serviceAccountName: "nexus-iq-sa"
 
-  serviceType: "ClusterIP"
+  serviceType: "NodePort"
 
   replicaCount: 3
 
@@ -116,18 +116,17 @@ cloudLogging:
   logName: "nexus-iq-server"
 
 ingress:
-  enabled: true
+  enabled: false
   ingressClassName: "gce"
   annotations:
     kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.global-static-ip-name: ""
     kubernetes.io/ingress.allow-http: "true"
     ingress.gcp.kubernetes.io/pre-shared-cert: ""
-  hosts:
-    - host: ""
-      paths:
-        - path: /
-          pathType: Prefix
+  # Only expose the application service (not admin service) for GCE Ingress
+  service:
+    name: "nexus-iq-server-ha-iq-server-application-service"
+    port: 8070
 
 fluentd:
   enabled: true
@@ -162,11 +161,15 @@ fluentd:
       runAsGroup: 1000
       fsGroup: 1000
       runAsNonRoot: true
+    extraVolumes:
+      - name: "iq-server-pod-volume"
+        persistentVolumeClaim:
+          claimName: "nexus-iq-pvc"
     initContainers:
       - name: "set-fluentd-persistence-ownership"
         image: busybox:latest
         command: ["/bin/sh", "-c"]
-        args: ["mkdir -p /opt/bitnami/fluentd/logs/nexus-iq-server && chmod 755 /opt/bitnami/fluentd/logs/nexus-iq-server"]
+        args: ["mkdir -p /opt/bitnami/fluentd/logs/nexus-iq-server"]
         securityContext:
           runAsUser: 1000
           runAsGroup: 1000
