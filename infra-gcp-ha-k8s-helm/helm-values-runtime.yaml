@@ -1,0 +1,201 @@
+iq_server:
+  image: "sonatype/nexus-iq-server"
+  tag: "latest"
+  imagePullPolicy: "Always"
+
+  resources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+    limits:
+      cpu: "6"
+      memory: "24Gi"
+
+  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+  env:
+    - name: NXIQ_DATABASE_MIGRATION
+      value: "true"
+    - name: CLUSTER_DIRECTORY
+      value: "/sonatype-work/clm-cluster"
+    - name: NEXUS_SECURITY_RANDOMPASSWORD
+      value: "false"
+    - name: DB_HOSTNAME
+      value: "10.51.0.2"
+    - name: DB_PORT
+      value: "5432"
+    - name: DB_NAME
+      value: "nexusiq"
+    - name: DB_USERNAME
+      value: "nexusiq"
+    - name: DB_PASSWORD
+      value: "SecureNexusPassword123!"
+      value: "10.51.0.2"
+
+  licenseSecret: "nexus-iq-license"
+
+  database:
+    hostname: "10.51.0.2"
+    port: 5432
+    name: "nexusiq"
+    username: "nexusiq"
+    password: "SecureNexusPassword123!"
+    type: "postgresql"
+    migration: true
+
+  persistence:
+    existingPersistentVolumeClaimName: "nexus-iq-pvc"
+
+  serviceAccountName: "nexus-iq-sa"
+
+  serviceType: "NodePort"
+
+  replicaCount: 3
+
+  config:
+    sonatypeWork: "/sonatype-work"
+    clusterDirectory: "/sonatype-work/clm-cluster"
+    createSampleData: true
+
+    server:
+      applicationConnectors:
+        - type: http
+          port: 8070
+      adminConnectors:
+        - type: http
+          port: 8071
+      requestLog:
+        appenders:
+          - type: file
+            currentLogFilename: "/var/log/nexus-iq-server/request.log"
+            archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+            archivedFileCount: 50
+
+    logging:
+      level: DEBUG
+      loggers:
+        com.sonatype.insight.scan: INFO
+        eu.medsea.mimeutil.MimeUtil2: INFO
+        org.apache.http: INFO
+        org.apache.http.wire: ERROR
+        org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
+        org.eclipse.jetty: INFO
+        org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
+        com.networknt.schema: false
+        com.sonatype.insight.audit:
+          appenders:
+            - type: file
+              currentLogFilename: "/var/log/nexus-iq-server/audit.log"
+              archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+              archivedFileCount: 50
+        com.sonatype.insight.policy.violation:
+          appenders:
+            - type: file
+              currentLogFilename: "/var/log/nexus-iq-server/policy-violation.log"
+              archivedLogFilenamePattern: "/var/log/nexus-iq-server/policy-violation-%d.log.gz"
+              archivedFileCount: 50
+      appenders:
+        - type: console
+          threshold: DEBUG
+          logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+        - type: file
+          threshold: ALL
+          currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
+          archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+          logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+          archivedFileCount: 50
+
+serviceAccount:
+  create: true
+  name: "nexus-iq-sa"
+  annotations:
+    iam.gke.io/gcp-service-account: "nexus-iq-ha-wi-sa@nxrm-support-gcp-deployments.iam.gserviceaccount.com"
+
+cloudLogging:
+  enabled: true
+  projectId: "nxrm-support-gcp-deployments"
+  logName: "nexus-iq-server"
+
+ingress:
+  enabled: false
+  ingressClassName: "gce"
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "nexus-iq-ha-ingress-ip"
+    kubernetes.io/ingress.allow-http: "true"
+    ingress.gcp.kubernetes.io/pre-shared-cert: ""
+  # Only expose the application service (not admin service) for GCE Ingress
+  service:
+    name: "nexus-iq-server-ha-iq-server-application-service"
+    port: 8070
+
+fluentd:
+  enabled: true
+
+  image:
+    repository: bitnamilegacy/fluentd
+    tag: "1.17.1-debian-12-r4"
+    pullPolicy: IfNotPresent
+
+  cloudLogging:
+    enabled: true
+    projectId: "nxrm-support-gcp-deployments"
+    logName: "nexus-iq-server"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+  aggregator:
+    enabled: true
+    serviceAccount:
+      create: true
+      name: "fluentd-aggregator-sa"
+      annotations:
+        iam.gke.io/gcp-service-account: "nexus-iq-ha-wi-sa@nxrm-support-gcp-deployments.iam.gserviceaccount.com"
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+    extraVolumes:
+      - name: "iq-server-pod-volume"
+        persistentVolumeClaim:
+          claimName: "nexus-iq-pvc"
+    initContainers:
+      - name: "set-fluentd-persistence-ownership"
+        image: busybox:latest
+        command: ["/bin/sh", "-c"]
+        args: ["mkdir -p /opt/bitnami/fluentd/logs/nexus-iq-server"]
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        volumeMounts:
+          - mountPath: "/opt/bitnami/fluentd/logs/nexus-iq-server"
+            name: "iq-server-pod-volume"
+            subPath: log
+
+external-dns:
+  enabled: false
+
+migrationJob:
+  enabled: false
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podAntiAffinity:
+  enabled: true
+  topologyKey: "kubernetes.io/hostname"
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

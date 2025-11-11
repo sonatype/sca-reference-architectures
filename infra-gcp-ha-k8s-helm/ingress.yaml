@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nexus-iq-server-ha-ingress
+  namespace: nexus-iq
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "INGRESS_IP_NAME_PLACEHOLDER"
+    kubernetes.io/ingress.allow-http: "true"
+spec:
+  ingressClassName: gce
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nexus-iq-server-ha-iq-server-application-service
+            port:
+              number: 8070
