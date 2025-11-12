@@ -88,12 +88,17 @@ gcloud projects list
    ./tf-apply.sh
    ```
 
-5. **Deploy Nexus IQ Server**:
+5. **Add the cluster license** (required for HA):
+   ```bash
+   kubectl create secret generic nexus-iq-license --from-file=node-cluster.lic -n nexus-iq
+   ```
+
+6. **Deploy Nexus IQ Server**:
    ```bash
    ./helm-install.sh
    ```
 
-6. **Access your Nexus IQ Server**:
+7. **Access your Nexus IQ Server**:
    - Get the ingress IP: `kubectl get ingress -n nexus-iq`
    - Wait 10-15 minutes for service to be ready
    - Default credentials: `admin` / `admin123`
@@ -163,6 +168,16 @@ java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRo
 - **`enable_read_replica = true`** - Database read replica for load distribution
 - **`filestore_tier = "BASIC_SSD"`** - High-performance NFS storage
 - **`nexus_iq_replica_count = 3`** - Minimum 2 for HA (requires HA license)
+
+### 3. Cluster License Requirement
+
+For HA deployments with multiple replicas, you must add a cluster license before deploying:
+
+```bash
+kubectl create secret generic nexus-iq-license --from-file=node-cluster.lic -n nexus-iq
+```
+
+This secret must be created before running `./helm-install.sh`.
 
 ## High Availability Features
 

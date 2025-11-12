@@ -698,62 +698,41 @@ verify_destruction() {
 
 # Function to show enhanced final summary
 show_final_summary() {
-    success "🎉 HA Infrastructure destruction completed!"
-    echo
+    echo ""
+    print_status "✅ Infrastructure Destroyed Successfully"
+    echo ""
     
-    print_status "🗑️ What was destroyed:"
-    echo "  • Nexus IQ Server HA cluster infrastructure"
-    echo "  • All Compute Engine managed instance groups (2-6+ instances)"
-    echo "  • Regional autoscaler and load balancing components"
-    echo "  • Cloud SQL regional database with read replicas"
-    echo "  • Regional persistent disks and file storage"
-    echo "  • Monitoring, logging, and alerting configuration"
-    echo "  • VPC networking, firewall rules, and service accounts"
-    echo "  • All backup buckets and stored data"
-    echo
+    print_status "🧹 Cleanup Summary"
+    print_status "━━━━━━━━━━━━━━━━━━"
+    print_status "• All GCP resources destroyed"
+    print_status "• Terraform state updated"
+    print_status "• Local artifacts removed"
+    echo ""
     
     if [[ "$SKIP_BACKUP" == "false" ]] && [[ -n "$BACKUP_DIR" ]] && [[ -d "$BACKUP_DIR" ]]; then
-        print_status "💾 Backup Information:"
-        echo "  • State backup: $BACKUP_DIR/terraform.tfstate"
-        echo "  • Configuration backup: $BACKUP_DIR/terraform.tfvars"
-        echo "  • State JSON: $BACKUP_DIR/terraform-state.json"
-        local backup_size
-        backup_size=$(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1 || echo "Unknown")
-        echo "  • Total backup size: $backup_size"
-        echo
-        print_status "📋 To restore HA infrastructure (if needed):"
-        echo "  1. Copy $BACKUP_DIR/terraform.tfstate to terraform.tfstate"
-        echo "  2. Run './gcp-ha-plan.sh' to verify restoration plan"
-        echo "  3. Run './gcp-ha-apply.sh' to restore HA infrastructure"
-        echo "  4. Restore application data from backups"
-        echo
+        print_status "💾 Data backup location: $BACKUP_DIR"
+        print_warning "   - Application data and configuration saved"
+        print_warning "   - Terraform state backed up"
+        print_warning "   - Keep this backup for recovery if needed"
+        echo ""
     fi
     
-    print_status "✅ Verification Steps:"
-    echo "  • Check GCP Console to confirm all HA resources are deleted"
-    echo "  • Verify GCP billing to ensure no ongoing charges"
-    echo "  • Clean up any remaining DNS entries if custom domains were used"
-    echo "  • Review any service networking connections in VPC console"
-    echo "  • Store backups in a secure location for future reference"
-    echo
-    
-    print_warning "⚠️ MANUAL CLEANUP REQUIRED:"
-    print_warning "   Service Networking Connection may still exist in GCP"
-    print_warning "   This resource was abandoned to avoid destroy failures"
-    print_warning "   To clean up manually, run:"
+    print_warning "📝 Manual Cleanup Tasks (if needed)"
+    print_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_warning "• Remove any manual DNS records"
+    print_warning "• Clean up external monitoring"
+    print_warning "• Verify no orphaned resources"
+    print_warning "• Check GCP billing for unexpected charges"
     echo ""
+    print_warning "⚠️  Service Networking Connection may require manual cleanup:"
     print_warning "   gcloud services vpc-peerings delete \\"
     print_warning "     --network=nexus-iq-ha-vpc \\"
     print_warning "     --service=servicenetworking.googleapis.com \\"
     print_warning "     --project=$project_id"
     echo ""
-    print_warning "   Or delete via GCP Console: VPC Networks > Private Service Connection"
-    echo ""
     
+    print_status "✅ Destruction Process Completed"
     print_status "📁 Log file: $LOG_FILE"
-    echo
-    
-    success "✅ High Availability infrastructure destruction completed successfully!"
 }
 
 # Function to handle cleanup on exit
