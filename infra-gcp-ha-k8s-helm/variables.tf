@@ -72,7 +72,7 @@ variable "node_group_min_size" {
 variable "node_group_max_size" {
   description = "Maximum number of nodes in the node pool"
   type        = number
-  default     = 6
+  default     = 5
 }
 
 variable "node_group_desired_size" {
@@ -210,7 +210,7 @@ variable "filestore_capacity_gb" {
 variable "log_retention_days" {
   description = "Log retention days for Cloud Logging"
   type        = number
-  default     = 30
+  default     = 7
 }
 
 variable "enable_monitoring_alerts" {

@@ -21,7 +21,7 @@ Internet
 Cloud Load Balancer (L7 with Cloud Armor)
     ↓
 GKE Cluster (Private, Multi-Zone)
-├── Nexus IQ Server HA (2-10 replicas) ←→ Filestore (Shared NFS)
+├── Nexus IQ Server HA (2-5 replicas) ←→ Filestore (Shared NFS)
 ├── Fluentd Aggregator (Cloud Logging)
 └── Horizontal Pod Autoscaler
     ↓
@@ -112,28 +112,53 @@ cluster_name   = "nexus-iq-ha"
 
 public_subnet_cidr   = "10.100.1.0/24"
 private_subnet_cidrs = ["10.100.10.0/24", "10.100.11.0/24", "10.100.12.0/24"]
+gke_pods_cidr        = "10.101.0.0/16"
+gke_services_cidr    = "10.102.0.0/16"
+gke_master_cidr      = "172.16.0.0/28"
 
-kubernetes_version      = "1.27"
-node_instance_type      = "n2-standard-8"
-node_group_min_size     = 2
-node_group_max_size     = 6
-node_group_desired_size = 3
+kubernetes_version           = "1.27"
+node_instance_type           = "n2-standard-8"
+node_group_min_size          = 2
+node_group_max_size          = 5
+node_group_desired_size      = 3
+node_disk_size               = 100
+gke_maintenance_window_start = "03:00"
 
-postgres_version         = "POSTGRES_15"
-db_instance_tier         = "db-custom-8-30720"
-db_availability_type     = "REGIONAL"
-db_password              = "YourSecurePassword123!"
+postgres_version                   = "POSTGRES_15"
+db_instance_tier                   = "db-custom-8-30720"
+db_availability_type               = "REGIONAL"
+db_disk_size                       = 100
+db_max_disk_size                   = 1000
+db_max_connections                 = "400"
+db_backup_start_time               = "03:00"
+db_transaction_log_retention_days  = 7
+db_backup_retention_count          = 7
+db_maintenance_window_day          = 7
+db_maintenance_window_hour         = 3
+db_deletion_protection             = false
+enable_read_replica                = true
+db_name                            = "nexusiq"
+db_username                        = "nexusiq"
+db_password                        = "YourSecurePassword123!"
 
+filestore_zone        = "us-central1-a"
 filestore_tier        = "BASIC_SSD"
 filestore_capacity_gb = 2560
 
-nexus_iq_replica_count = 3
+log_retention_days               = 7
+enable_monitoring_alerts         = true
+cloud_armor_rate_limit_threshold = 1000
+
+nexus_iq_replica_count  = 3
+nexus_iq_admin_password = "admin123"
+helm_chart_version      = "195.0.0"
+java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 
 ### 2. Important HA Settings
 
 - **`node_group_min_size = 2`** - Minimum nodes for HA
-- **`node_group_max_size = 6`** - Maximum auto scaling capacity
+- **`node_group_max_size = 5`** - Maximum auto scaling capacity
 - **`db_availability_type = "REGIONAL"`** - Multi-zone database with automatic failover
 - **`enable_read_replica = true`** - Database read replica for load distribution
 - **`filestore_tier = "BASIC_SSD"`** - High-performance NFS storage
@@ -147,8 +172,8 @@ nexus_iq_replica_count = 3
 - **Filestore**: Zone-redundant shared storage
 
 ### Auto-Scaling & Load Balancing
-- **Horizontal Pod Autoscaler**: CPU (70%) and memory (80%) based scaling (2-10 pods)
-- **Cluster Autoscaler**: Node-level scaling (2-6 nodes)
+- **Horizontal Pod Autoscaler**: CPU (70%) and memory (80%) based scaling (2-5 pods)
+- **Cluster Autoscaler**: Node-level scaling (2-5 nodes)
 - **Cloud Load Balancer**: L7 load balancing with health checks
 - **Rolling Updates**: Zero-downtime deployments with Pod Disruption Budgets
 
