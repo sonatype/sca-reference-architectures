@@ -104,7 +104,7 @@ resource "google_compute_region_instance_group_manager" "iq_mig" {
   ]
 }
 
-# Health check for auto healing (TCP-based)
+# Health check for auto healing
 resource "google_compute_health_check" "iq_health_check" {
   name                = "ref-arch-iq-ha-health-check"
   check_interval_sec  = 30
@@ -112,8 +112,9 @@ resource "google_compute_health_check" "iq_health_check" {
   healthy_threshold   = 2
   unhealthy_threshold = 3
 
-  tcp_health_check {
-    port = 8070
+  http_health_check {
+    request_path = "/ping"
+    port         = 8070
   }
 
   log_config {
