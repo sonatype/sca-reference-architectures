@@ -44,19 +44,18 @@ Your IAM user/role needs these AWS service permissions:
    mfa_serial = arn:aws:iam::<YOUR_ACCOUNT_ID>:mfa/<YOUR-USERNAME>
    ```
 
-3. **Add credentials to aws-vault:**
+3. **Add credentials to aws-vault and test:**
    ```bash
    aws-vault add nexus-iq-deployment
    ```
    Enter your AWS Access Key ID and Secret Access Key when prompted
 
-4. **Test the configuration:**
    ```bash
    aws-vault exec nexus-iq-deployment -- aws sts get-caller-identity
    ```
    You should see your AWS account details.
 
-5. **Set the AWS_PROFILE environment variable:**
+4. **Set the AWS_PROFILE environment variable:**
 
    The scripts require the `AWS_PROFILE` environment variable to be set:
 
@@ -83,9 +82,6 @@ Your IAM user/role needs these AWS service permissions:
    ```bash
    vi terraform.tfvars
    ```
-
-   **Required changes:**
-   - `db_password` - Change to a strong, unique password
 
 ### Step 4: Deploy Infrastructure
 
@@ -189,7 +185,8 @@ log_retention_days = 30
 **Important Settings:**
 - **`iq_desired_count = 1`** - Keep this at 1. Only use a single Sonatype IQ Server instance
 - **`db_password`** - Use a strong, unique password (required change)
-- **`db_deletion_protection = false`** - Set to `true` for production use
+- **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
+- **`db_skip_final_snapshot = true`** - Set to `false` for production to create a final backup snapshot before database deletion
 - **`alb_deletion_protection = false`** - Set to `true` for production use
 - **Resource Names** - All AWS resources are prefixed with "ref-arch" (e.g., "ref-arch-iq-cluster")
 
