@@ -1,3 +1,7 @@
+# NOTE: This file contains placeholder values that need to be populated during deployment.
+# The helm-install.sh script will substitute these placeholders with actual values from Terraform outputs.
+# Empty values marked with "" will be filled automatically by the deployment script.
+
 iq_server:
   image: "sonatype/nexus-iq-server"
   tag: "latest"
@@ -187,7 +191,7 @@ migrationJob:
 autoscaling:
   enabled: true
   minReplicas: 2
-  maxReplicas: 10
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 

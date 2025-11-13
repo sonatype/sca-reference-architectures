@@ -9,7 +9,7 @@
 - **Mission-critical deployments** with zero-downtime requirements
 
 **System Specifications:**
-- 2-10 replicas with 4GB RAM each (Kubernetes HA optimized)
+- 2-5 replicas with 4 vCPU, 16-24GB RAM each (aligned with Sonatype benchmarks)
 - Cloud SQL PostgreSQL Regional (Multi-Zone with automatic failover)
 - Filestore shared persistent storage (2.5TB BASIC_SSD)
 - Multi-zone deployment across zones within a region
@@ -20,8 +20,8 @@ This reference architecture deploys Nexus IQ Server on GCP GKE using Kubernetes-
 **⚠️ Important**: This HA deployment requires a clustering-capable Nexus IQ license and uses shared Filestore (NFS) for cluster coordination between pods.
 
 ## Scaling Options
-- **Current Deployment**: High Availability (2-10 replicas, unlimited applications)
-- **Horizontal Scaling**: Auto-scaling 2-10 pods based on CPU/memory utilization
+- **Current Deployment**: High Availability (2-5 replicas, unlimited applications)
+- **Horizontal Scaling**: Auto-scaling 2-5 pods based on CPU/memory utilization
 - **Vertical Scaling**: Increase pod CPU/memory resources as needed
 - **Database Scaling**: Cloud SQL read replicas for enhanced database performance
 
@@ -51,7 +51,7 @@ This reference architecture deploys Nexus IQ Server on GCP GKE using Kubernetes-
 │   │   ┌─────────────────────────────────────────────────────────────────────────────┐  │   │
 │   │   │                           GKE CLUSTER (Private)                             │  │   │
 │   │   │   ┌──────────────────────────────────────────────────────────────────────┐  │  │   │
-│   │   │   │              Nexus IQ Server HA Pods (2-10 replicas)                │  │  │   │
+│   │   │   │              Nexus IQ Server HA Pods (2-5 replicas)                 │  │  │   │
 │   │   │   │                   Port 8070: Application                             │  │  │   │
 │   │   │   │                   CPU: 2, Memory: 4Gi each                           │  │  │   │
 │   │   │   │                   Anti-Affinity: Different nodes                     │  │  │   │
@@ -141,7 +141,7 @@ GKE Cluster: nexus-iq-ha
     ↓
 Namespace: nexus-iq
     ├── Deployment: nexus-iq-server-ha
-    │   ├── Replicas: 2-10 (HPA managed)
+    │   ├── Replicas: 2-5 (HPA managed)
     │   ├── Strategy: RollingUpdate
     │   └── Pod Anti-Affinity: Ensure distribution across zones
     ├── Service: nexus-iq-server-ha (NodePort - GCE Ingress requirement)
@@ -209,7 +209,7 @@ Cloud Logging Architecture:
 └── Retention: Configurable with log bucket policies
 
 Auto-Scaling:
-├── Horizontal Pod Autoscaler: 2-10 pods based on CPU/memory
+├── Horizontal Pod Autoscaler: 2-5 pods based on CPU/memory
 ├── Cluster Autoscaler: Node pools scale based on pod demands
 └── Metrics: Cloud Monitoring metrics integration
 

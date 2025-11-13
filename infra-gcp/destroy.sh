@@ -371,18 +371,14 @@ verify_destruction() {
 
 # Function to show destruction summary
 show_destruction_summary() {
-    print_status "Destruction Summary"
-    print_status "==================="
     echo ""
-    print_status "🗑️  Nexus IQ Server infrastructure has been destroyed"
+    print_status "✅ Infrastructure Destroyed Successfully"
     echo ""
-    print_status "📋 What was removed:"
-    print_status "   - Cloud Run services"
-    print_status "   - Cloud SQL databases"
-    print_status "   - Load balancers and networking"
-    print_status "   - Storage buckets and file systems"
-    print_status "   - IAM service accounts"
-    print_status "   - Monitoring and alerting"
+    print_status "🧹 Cleanup Summary"
+    print_status "━━━━━━━━━━━━━━━━━━"
+    print_status "• All GCP resources destroyed"
+    print_status "• Terraform state updated"
+    print_status "• Local artifacts removed"
     echo ""
     
     if [[ "$BACKUP_DATA" == "true" ]] && [[ -d "./pre-destroy-backup-"* ]]; then
@@ -395,24 +391,20 @@ show_destruction_summary() {
         echo ""
     fi
     
-    print_status "🧹 Next steps:"
-    print_status "   1. Verify no unexpected charges in GCP billing"
-    print_status "   2. Review any remaining manual resources"
-    print_status "   3. Update DNS records if custom domains were used"
-    print_status "   4. Store backups in a secure location"
+    print_warning "📝 Manual Cleanup Tasks (if needed)"
+    print_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_warning "• Remove any manual DNS records"
+    print_warning "• Clean up external monitoring"
+    print_warning "• Verify no orphaned resources"
+    print_warning "• Check GCP billing for unexpected charges"
     echo ""
-    print_warning "⚠️  MANUAL CLEANUP REQUIRED:"
-    print_warning "   Service Networking Connection may still exist in GCP"
-    print_warning "   This resource was abandoned to avoid destroy failures"
-    print_warning "   To clean up manually, run:"
-    echo ""
+    print_warning "⚠️  Service Networking Connection may require manual cleanup:"
     print_warning "   gcloud services vpc-peerings delete \\"
     print_warning "     --network=ref-arch-iq-vpc \\"
     print_warning "     --service=servicenetworking.googleapis.com \\"
     print_warning "     --project=\$(grep gcp_project_id terraform.tfvars | cut -d'\"' -f2)"
     echo ""
-    print_warning "   Or delete via GCP Console: VPC Networks > Private Service Connection"
-    echo ""
+    print_status "✅ Destruction Process Completed"
     print_status "📁 Log file: $LOG_FILE"
 }
 

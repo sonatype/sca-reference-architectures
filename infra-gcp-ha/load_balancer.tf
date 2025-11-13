@@ -61,17 +61,18 @@ resource "google_compute_backend_service" "iq_ha_backend" {
   }
 }
 
-# Health check for load balancer (TCP-based)
+# Health check for load balancer
 resource "google_compute_health_check" "iq_lb_health_check" {
   name                = "ref-arch-iq-ha-lb-health-check"
-  description         = "Health check for Nexus IQ HA Load Balancer (TCP on port 8070)"
+  description         = "Health check for Nexus IQ HA Load Balancer"
   timeout_sec         = 10
   check_interval_sec  = 30
   healthy_threshold   = 2
   unhealthy_threshold = 3
 
-  tcp_health_check {
-    port = 8070
+  http_health_check {
+    request_path = "/ping"
+    port         = 8070
   }
 
   log_config {

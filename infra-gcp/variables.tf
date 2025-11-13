@@ -227,38 +227,6 @@ variable "domain_name" {
   default     = ""
 }
 
-<<<<<<< HEAD
-variable "custom_domain" {
-  description = "Custom domain for Cloud Run service"
-  type        = string
-  default     = ""
-}
-
-# Cloud Run Resource Variables
-variable "iq_cpu_limit" {
-  description = "CPU limit for Cloud Run container"
-  type        = string
-  default     = "2"
-}
-
-variable "iq_memory_limit" {
-  description = "Memory limit for Cloud Run container"
-  type        = string
-  default     = "4Gi"
-}
-
-variable "iq_cpu_request" {
-  description = "CPU request for Cloud Run container"
-  type        = string
-  default     = "1"
-}
-
-variable "iq_memory_request" {
-  description = "Memory request for Cloud Run container"
-  type        = string
-  default     = "2Gi"
-}
-
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
