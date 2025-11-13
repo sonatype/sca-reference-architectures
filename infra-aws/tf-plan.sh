@@ -12,8 +12,21 @@ DEPLOYMENT_NAME="Nexus IQ Server"
 DEPLOYMENT_TYPE="Single Instance"
 CLOUD_PROVIDER="AWS"
 TERRAFORM_DIR="$(dirname "$0")"
-AWS_PROFILE="admin@iq-sandbox"
-AWS_REGION="us-east-1"
+AWS_PROFILE="${AWS_PROFILE}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
+
+# Check if AWS_PROFILE is set
+if [[ -z "$AWS_PROFILE" ]]; then
+    echo -e "${RED}❌ Error: AWS_PROFILE environment variable is not set${NC}"
+    echo ""
+    echo "Please set your AWS profile name:"
+    echo "  export AWS_PROFILE=your-profile-name"
+    echo ""
+    echo "Or run with inline variable:"
+    echo "  AWS_PROFILE=your-profile-name ./tf-plan.sh"
+    echo ""
+    exit 1
+fi
 
 echo -e "${BLUE}📋 ${DEPLOYMENT_NAME} ${DEPLOYMENT_TYPE} - Terraform Plan${NC}"
 echo "========================================================"

@@ -1,112 +1,149 @@
-# Nexus IQ Server AWS Infrastructure
+# Sonatype IQ Reference Architecture - AWS Cloud-Native (Single Instance)
 
-This directory contains Terraform configuration for deploying Nexus IQ Server on AWS using ECS Fargate as part of a **Reference Architecture for Native Cloud Deployments**.
+This directory contains Terraform configuration for deploying a **single-instance** Sonatype IQ Server on AWS using ECS Fargate.
 
-## Architecture Overview
+## Quick Start Guide
 
-This infrastructure deploys a complete, production-ready Nexus IQ Server environment including:
+### Step 1: Prerequisites
 
-- **ECS Fargate Cluster** - Containerized Nexus IQ Server deployment
-- **Application Load Balancer (ALB)** - HTTP load balancer with health checks
-- **RDS PostgreSQL** - Managed database with encryption and automated backups
-- **EFS File System** - Shared persistent storage for Nexus IQ data with proper permissions
-- **VPC & Networking** - Complete network infrastructure with public/private subnets
-- **Security Groups** - Least-privilege network access controls
-- **IAM Roles** - Service-specific permissions following AWS best practices
-- **Advanced Logging** - Fluent Bit sidecar with structured logging to CloudWatch and EFS
-- **Secrets Manager** - Secure database credential storage
+#### Required Tools
+Install these tools on your local machine:
 
-```
-Internet
-    ↓
-Application Load Balancer (Public Subnets)
-    ↓
-ECS Fargate Tasks (Private Subnets) ←→ EFS (Persistent Storage)
-    ↓
-RDS PostgreSQL (Database Subnets)
-```
+| Tool | Version | Installation | Purpose |
+|------|---------|--------------|---------|
+| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access |
+| **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
 
-## Prerequisites
+#### AWS Account Requirements
+- ✅ AWS account with administrative access (or sufficient permissions listed below)
+- ✅ IAM user with MFA enabled
+- ✅ Ability to create: VPC, ECS, RDS, EFS, ALB, IAM roles
 
-### Required Tools
-- **Terraform** >= 1.0
-- **AWS CLI** >= 2.0
-- **aws-vault**
+#### Required AWS Permissions
+Your IAM user/role needs these AWS service permissions:
+- **EC2**: VPC, subnets, security groups, network interfaces
+- **ECS**: Clusters, task definitions, services
+- **RDS**: Database instances, subnet groups, parameter groups
+- **EFS**: File systems, mount targets, access points
+- **ELB**: Application Load Balancers, target groups, listeners
+- **IAM**: Roles, policies, instance profiles
+- **Logs**: CloudWatch log groups
+- **Secrets Manager**: Secrets creation and management
+- **S3**: Terraform state storage (if using remote state)
 
-### AWS Account Requirements
-- AWS account with administrative access
-- MFA-enabled IAM user
-- Cross-account role assumption capability
+**The provided scripts use aws-vault for secure credential management.**
 
-## AWS Configuration Setup
+1. **Choose a profile name** (e.g., `nexus-iq-deployment`)
 
-### 1. AWS CLI Profile Configuration
+2. **Configure your AWS profile in `~/.aws/config`:**
+   ```ini
+   [profile nexus-iq-deployment]
+   region = us-east-1
+   output = json
+   mfa_serial = arn:aws:iam::<YOUR_ACCOUNT_ID>:mfa/<YOUR-USERNAME>
+   ```
 
-Create or update your `~/.aws/config` file with the following configuration:
+3. **Add credentials to aws-vault:**
+   ```bash
+   aws-vault add nexus-iq-deployment
+   ```
+   Enter your AWS Access Key ID and Secret Access Key when prompted
 
-```ini
-[profile sonatype-ops]
-credential_process = aws-vault export sonatype-ops --format=json
-mfa_serial = arn:aws:iam::451349303221:mfa/your-username
-region = us-east-1
+4. **Test the configuration:**
+   ```bash
+   aws-vault exec nexus-iq-deployment -- aws sts get-caller-identity
+   ```
+   You should see your AWS account details.
 
-[profile admin@iq-sandbox]
-role_arn = arn:aws:iam::552183322382:role/admin
-source_profile = sonatype-ops
-```
+5. **Set the AWS_PROFILE environment variable:**
 
-**Key Configuration Details:**
-- **`default`**: Basic AWS CLI defaults for region and output format
-- **`sonatype-ops`**: Base profile using aws-vault's `credential_process` for secure MFA authentication
-- **`admin@iq-sandbox`**: Cross-account role assumption profile that uses `sonatype-ops` as source
+   The scripts require the `AWS_PROFILE` environment variable to be set:
 
-**Note**: This configuration uses aws-vault's `credential_process` to automatically handle MFA authentication, which is more secure than storing static credentials in `~/.aws/credentials`.
+   Option 1: Export for your entire session
+   ```bash
+   export AWS_PROFILE=nexus-iq-deployment
+   export AWS_REGION=us-east-1  # Optional: override default region
+   ```
 
-### 2. Verify Configuration
+   Option 2: Set inline for a single command
+   ```bash
+   AWS_PROFILE=nexus-iq-deployment <script>
+   ```
 
-Test your AWS configuration:
-```bash
-aws sts get-caller-identity --profile admin@iq-sandbox
-```
+### Step 3: Configure Terraform Variables
 
-This should prompt for MFA and return your assumed role information.
-
-## Quick Start
-
-1. **Navigate to the infrastructure directory**:
+1. **Copy the example configuration:**
    ```bash
    cd /path/to/sca-example-terraform/infra-aws
+   cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Review and customize variables**:
+2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
    ```bash
-   # Edit terraform.tfvars with your specific values
-   vim terraform.tfvars
+   vi terraform.tfvars
    ```
 
-3. **Initialize Terraform**:
+   **Required changes:**
+   - `db_password` - Change to a strong, unique password
+
+### Step 4: Deploy Infrastructure
+
+1. **Initialize Terraform:**
    ```bash
    terraform init
    ```
 
-4. **Plan the deployment**:
+   This downloads required providers (AWS, etc.)
+
+2. **Review the deployment plan:**
    ```bash
    ./tf-plan.sh
    ```
 
-5. **Deploy the infrastructure**:
+   This shows what resources will be created without actually deploying them.
+
+3. **Deploy the infrastructure:**
    ```bash
    ./tf-apply.sh
    ```
 
-6. **Access your Nexus IQ Server**:
-   - Get the application URL: `terraform output`
-   - Wait 5-10 minutes for service to be ready
-   - Default credentials: `admin` / `admin123`
+   The script will display the application URL when complete.
+
+### Step 5: Access Sonatype IQ Server
+
+1. **Wait for service to be ready:**
+   - Initial startup can take 5-10 minutes
+   - Database migrations, if needed, run on first boot
+
+2. **Access the web UI:**
+
+   Use the application URL displayed at the end of the deployment.
+
+   Example: `http://ref-arch-iq-alb-123456789.us-east-1.elb.amazonaws.com`
+
+3. **Login credentials:**
+   - **Username:** `admin`
+   - **Password:** `admin123` (change immediately!)
+
+---
+
+## Teardown / Cleanup
+
+**WARNING: This will delete ALL infrastructure and data!**
+
+1. **Destroy all resources:**
+   ```bash
+   ./tf-destroy.sh
+   ```
+
+   > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+
+---
 
 ## Configuration
 
-### 1. Review Variables in terraform.tfvars
+### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
@@ -123,7 +160,7 @@ db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 # ECS Configuration
 ecs_cpu           = 8192  # 8 vCPU
 ecs_memory        = 32768 # 32 GB
-iq_desired_count  = 1 # Single instance (recommended)
+iq_desired_count  = 1 # Single instance
 iq_docker_image   = "sonatype/nexus-iq-server:latest"
 java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
@@ -149,12 +186,12 @@ alb_deletion_protection = false
 log_retention_days = 30
 ```
 
-### 2. Important Settings
-
-- **`iq_desired_count = 1`** - Keep this at 1. Only use a single Nexus IQ Server
-- **`db_password`** - Use a strong, unique password
+**Important Settings:**
+- **`iq_desired_count = 1`** - Keep this at 1. Only use a single Sonatype IQ Server instance
+- **`db_password`** - Use a strong, unique password (required change)
+- **`db_deletion_protection = false`** - Set to `true` for production use
+- **`alb_deletion_protection = false`** - Set to `true` for production use
 - **Resource Names** - All AWS resources are prefixed with "ref-arch" (e.g., "ref-arch-iq-cluster")
-- **`db_deletion_protection = false`** - Set to true for production use
 
 ## Security Features
 
@@ -167,12 +204,14 @@ log_retention_days = 30
   - S3 ALB logs encrypted
 - **Security Groups**: Least-privilege network access
 
-## High Availability
+## Reliability and Backup
 
-- **Multi-AZ Deployment**: Resources distributed across multiple availability zones
-- **Auto Scaling**: ECS service can scale based on demand
-- **Database Backup**: Automated backups with configurable retention
-- **Load Balancing**: ALB distributes traffic across healthy containers
+This is a **single instance** deployment.
+- **Single Instance**: One ECS Fargate task running Sonatype IQ Server
+- **Multi-AZ Infrastructure**: Supporting resources (ALB, subnets, RDS) span multiple availability zones
+- **Automatic Restart**: ECS automatically restarts the container if it fails
+- **Database Backups**: Automated RDS backups with 7-day retention (configurable)
+- **EFS Persistence**: Application data stored on EFS survives container restarts
 
 ## Monitoring and Logging
 
@@ -180,9 +219,10 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 
 ### Structured Logging with Fluent Bit
 - **Fluent Bit Sidecar**: Lightweight log processor running alongside IQ Server
-- **5 Separate Log Files**: Application, request, audit, policy-violation, stderr
-- **Dual Output**: Logs written to both CloudWatch AND EFS aggregated files
-- **Unified Log Group**: All logs sent to a single CloudWatch log group with distinct stream prefixes
+- **5 Log Types Collected**: Application, request, audit, policy-violation, stderr
+- **Aggregated to One CloudWatch Log Group**: All logs sent to `/ecs/ref-arch-nexus-iq-server`
+- **Separated by Stream Prefix**: Each log type has its own stream prefix for easy filtering
+- **Dual Output**: Logs written to both CloudWatch AND EFS for persistence
 
 ### CloudWatch Unified Log Group
 - **Log Group**: `/ecs/ref-arch-nexus-iq-server`
@@ -197,7 +237,6 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ### EFS Aggregated Logs
 - **Location**: `/var/log/nexus-iq-server/aggregated/`
 - **Format**: JSON with ECS metadata enrichment
-- **Purpose**: Local backup, compliance, grep-friendly analysis
 
 ### Additional Monitoring
 - **Container Insights**: ECS cluster monitoring enabled
@@ -209,13 +248,6 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **EFS File System**: Shared storage for `/sonatype-work` directory
 - **Database**: PostgreSQL RDS for application data
 - **Auto-scaling Storage**: RDS storage scales automatically up to configured limit
-
-## Cost Optimization
-
-- **Fargate**: Pay-per-use container compute
-- **RDS**: Right-sized instance with storage auto-scaling
-- **S3 Lifecycle**: ALB logs automatically expire after 90 days
-- **Resource Tagging**: All resources tagged for cost allocation
 
 ## Networking
 
@@ -230,254 +262,3 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **RDS**: Allows PostgreSQL (5432) from ECS tasks
 - **EFS**: Allows NFS (2049) from ECS tasks
 
-## Automated Deployment Scripts
-
-This infrastructure includes convenient scripts that handle MFA authentication automatically:
-
-### Available Scripts
-
-- **`./tf-plan.sh`** - Preview infrastructure changes with MFA authentication
-- **`./tf-apply.sh`** - Deploy infrastructure with MFA authentication
-- **`./tf-destroy.sh`** - Destroy infrastructure with automatic secret cleanup
-
-### How the Scripts Work
-
-1. **Use aws-vault** for secure MFA authentication
-2. **Handle credentials automatically** - no manual token management
-3. **Include safety features** - automatic secret cleanup in destroy script
-4. **Non-interactive** - run with `-auto-approve` flags for automation
-
-### Manual Terraform Commands (Alternative)
-
-If you prefer to run Terraform commands manually:
-
-```bash
-# Initialize Terraform
-terraform init
-
-# Plan deployment with MFA
-aws-vault exec admin@iq-sandbox -- terraform plan
-
-# Apply configuration with MFA
-aws-vault exec admin@iq-sandbox -- terraform apply
-
-# Show outputs
-terraform output
-
-# Destroy infrastructure with MFA
-aws-vault exec admin@iq-sandbox -- terraform destroy
-```
-
-## Accessing the Application
-
-### 1. Get Deployment Information
-
-```bash
-terraform output
-```
-
-Example output:
-```
-application_url = "http://ref-arch-iq-alb-1234567890.us-east-1.elb.amazonaws.com"
-ecs_cluster_name = "ref-arch-iq-cluster"
-ecs_service_name = "ref-arch-nexus-iq-service"
-database_endpoint = "ref-arch-iq-database.xxxxx.us-east-1.rds.amazonaws.com"
-```
-
-### 2. Access the Application
-
-1. **Wait for service to be ready** (5-10 minutes after deployment)
-2. **Open the application URL** from terraform output
-3. **Default credentials**: `admin` / `admin123`
-4. **Complete setup wizard** on first access
-
-### 3. Monitor Deployment Status
-
-Check ECS service status:
-```bash
-aws-vault exec admin@iq-sandbox -- aws ecs describe-services \
-  --cluster ref-arch-iq-cluster \
-  --services ref-arch-nexus-iq-service \
-  --region us-east-1
-```
-
-View application logs:
-```bash
-# All logs (unified log group)
-aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server \
-  --follow \
-  --region us-east-1
-
-# Filter by log type using stream prefix
-# Application logs
-aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server \
-  --follow \
-  --filter-pattern "application/" \
-  --region us-east-1
-
-# Request logs
-aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server \
-  --follow \
-  --filter-pattern "request/" \
-  --region us-east-1
-
-# Error logs
-aws-vault exec admin@iq-sandbox -- aws logs tail \
-  /ecs/ref-arch-nexus-iq-server \
-  --follow \
-  --filter-pattern "stderr/" \
-  --region us-east-1
-```
-
-## AWS Console Access
-
-Monitor your infrastructure in the AWS Console:
-
-- **ECS Service**: ECS → Clusters → `ref-arch-iq-cluster`
-- **Database**: RDS → Databases → `ref-arch-iq-database`
-- **Load Balancer**: EC2 → Load Balancers → `ref-arch-iq-alb`
-- **Logs**: CloudWatch → Log Groups → `/ecs/ref-arch-nexus-iq-server` (unified log group with stream prefixes)
-- **VPC**: VPC → Your VPCs → `ref-arch-iq-vpc`
-- **Storage**: EFS → File Systems → `ref-arch-iq-efs`
-
-## File Structure
-
-```
-infra-aws/
-├── main.tf              # VPC, networking, and core infrastructure
-├── ecs.tf               # ECS cluster, service, and task definitions (with Fluent Bit sidecar)
-├── rds.tf               # PostgreSQL database and secrets
-├── load_balancer.tf     # Application Load Balancer and S3 logging
-├── logging.tf           # Fluent Bit configuration, CloudWatch log groups, S3 archival
-├── security_groups.tf   # Network security rules
-├── iam.tf               # IAM roles and policies (includes logging permissions)
-├── variables.tf         # Input variable definitions
-├── outputs.tf           # Output value definitions
-├── terraform.tfvars     # Infrastructure configuration
-├── tf-apply.sh          # Deployment script with MFA support
-├── tf-plan.sh           # Planning script with MFA support
-├── tf-destroy.sh        # Cleanup script with MFA support
-└── README.md            # This file
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **MFA Authentication Fails**
-   ```bash
-   # Verify your AWS configuration
-   aws sts get-caller-identity --profile admin@iq-sandbox
-   ```
-
-2. **ECS Tasks Keep Restarting**
-   ```bash
-   # Check application container logs
-   aws-vault exec admin@iq-sandbox -- aws logs tail \
-     /ecs/ref-arch-nexus-iq-server --filter-pattern "application/" --follow --region us-east-1
-
-   # Check Fluent Bit sidecar logs
-   aws-vault exec admin@iq-sandbox -- aws logs tail \
-     /ecs/ref-arch-nexus-iq-server --filter-pattern "fluent-bit/" --follow --region us-east-1
-   ```
-   - **Lock file errors**: Ensure `iq_desired_count = 1` (single instance)
-   - **EFS permission errors**: Check EFS access point configuration
-   - **Fluent Bit issues**: Check fluent-bit logs in unified log group
-
-3. **Application Not Accessible**
-   - Wait 5-10 minutes for ECS service to fully start
-   - Check ALB target group health in AWS Console
-   - Verify security group rules allow HTTP traffic on port 80
-
-4. **Database Connection Issues**
-   - Verify database credentials in Secrets Manager
-   - Check RDS instance status in AWS Console
-   - Ensure ECS tasks can reach database subnets
-
-5. **Secrets Manager Conflicts**
-   ```bash
-   # If you get "secret already scheduled for deletion" error:
-   aws-vault exec admin@iq-sandbox -- aws secretsmanager restore-secret \
-     --secret-id ref-arch-iq-db-credentials --region us-east-1
-   aws-vault exec admin@iq-sandbox -- aws secretsmanager delete-secret \
-     --secret-id ref-arch-iq-db-credentials --force-delete-without-recovery --region us-east-1
-   ```
-
-### Resource Limits
-
-- **ECS Service**: Limited to 1 task (Nexus IQ requirement)
-- **Database**: Uses db.r6g.4xlarge
-- **Storage**: EFS provides unlimited scalable storage
-
-## Cleanup
-
-### Complete Infrastructure Removal
-
-Remove all AWS resources:
-```bash
-./tf-destroy.sh
-```
-
-This will:
-- Prompt for MFA authentication
-- Automatically clean up Secrets Manager secrets
-- Destroy all Terraform-managed resources
-
-### Partial Cleanup
-
-Stop only the ECS service (keeps data):
-```bash
-aws-vault exec admin@iq-sandbox -- terraform destroy \
-  -target=aws_ecs_service.iq_service
-```
-
-**Warning**: Complete cleanup will permanently delete all data including the database. Ensure you have backups if needed.
-
-## Security Features
-
-- **Network Isolation**: Private subnets for ECS and RDS
-- **Encryption**: RDS storage encryption enabled
-- **Secrets Management**: Database credentials stored in AWS Secrets Manager
-- **IAM**: Least-privilege roles with specific resource access
-- **Security Groups**: Minimal required network access
-- **VPC**: Isolated network environment
-- **EFS Access Points**: Proper file system permissions for container access
-
-## Production Considerations
-
-For production deployments, consider:
-
-1. **SSL/TLS Certificate**: Add ACM certificate and HTTPS listener
-2. **Domain Name**: Configure Route53 for custom domain
-3. **Backup Strategy**: Review RDS backup settings
-4. **Monitoring**: Add CloudWatch alarms and dashboards
-5. **High Availability**: Consider multi-AZ RDS deployment
-6. **Resource Sizing**: Adjust CPU/memory based on usage patterns
-7. **Network Security**: Restrict ALB access to specific IP ranges
-8. **Database Protection**: Set `db_deletion_protection = true`
-9. **Final Snapshots**: Set `db_skip_final_snapshot = false`
-
-## Reference Architecture
-
-This infrastructure serves as a **Reference Architecture for Native Cloud Deployments** demonstrating:
-
-- **Cloud-native patterns**: Serverless containers, managed services
-- **Security best practices**: Network isolation, encryption, secrets management
-- **Operational excellence**: Centralized logging, monitoring, automation
-- **Cost optimization**: Right-sized resources, lifecycle policies
-- **Reliability**: Multi-AZ deployment, automated backups
-
-## Support
-
-For issues with this infrastructure:
-1. Check the troubleshooting section above
-2. Review AWS CloudWatch logs
-3. Verify AWS permissions and MFA setup
-4. Consult the [Nexus IQ Server documentation](https://help.sonatype.com/iqserver)
-
-For Terraform-specific issues:
-- Review the [Terraform AWS Provider documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-- Check [AWS service documentation](https://docs.aws.amazon.com/) for specific services
