@@ -1,53 +1,125 @@
 #!/bin/bash
 
-echo "============================================"
-echo "Nexus IQ Server GKE HA - Terraform Destroy"
-echo "============================================"
+set -e
 
-echo ""
-echo "WARNING: This will destroy ALL infrastructure including:"
-echo "  - GKE Cluster"
-echo "  - Cloud SQL Database (all data will be lost)"
-echo "  - Filestore (all data will be lost)"
-echo "  - VPC and networking"
-echo "  - All other resources"
-echo ""
-read -p "Are you absolutely sure? Type 'YES' to confirm: " CONFIRM
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-if [ "$CONFIRM" != "YES" ]; then
-    echo "Destruction cancelled."
+export GCP_PAGER=""
+
+DEPLOYMENT_NAME="Nexus IQ Server"
+DEPLOYMENT_TYPE="High Availability on GKE"
+CLOUD_PROVIDER="GCP"
+TERRAFORM_DIR="$(dirname "$0")"
+
+echo -e "${BLUE}🧹 ${DEPLOYMENT_NAME} ${DEPLOYMENT_TYPE} - Terraform Destroy${NC}"
+echo "==========================================================="
+echo ""
+
+if [[ ! -f "main.tf" ]]; then
+    echo -e "${RED}❌ Error: main.tf not found${NC}"
+    exit 1
+fi
+
+command -v terraform >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: terraform not installed${NC}"
+    exit 1
+}
+
+command -v gcloud >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: gcloud not installed${NC}"
+    exit 1
+}
+
+PROJECT_ID=$(gcloud config get-value project 2>/dev/null || echo "")
+if [[ -z "$PROJECT_ID" ]]; then
+    echo -e "${YELLOW}⚠️  Warning: No GCP project configured${NC}"
+fi
+
+echo "• Cloud Provider: GCP"
+echo "• GCP Project: $PROJECT_ID"
+echo "• Deployment: $DEPLOYMENT_NAME $DEPLOYMENT_TYPE"
+echo ""
+
+echo -e "${BLUE}🔍 Checking Existing Infrastructure${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+terraform plan -destroy > /dev/null 2>&1
+
+if [[ $? -ne 0 ]]; then
+    echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
+    echo "Nothing to destroy."
     exit 0
 fi
 
-echo ""
-echo "Attempting terraform destroy..."
+echo -e "${BLUE}📊 Resources to be Destroyed${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if terraform destroy; then
+terraform plan -destroy
+
+echo ""
+echo -e "${RED}⚠️  DANGER: Permanent Destruction${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo -e "${YELLOW}This will PERMANENTLY DELETE:${NC}"
+echo "• All compute resources (GKE cluster)"
+echo "• All databases and data (Cloud SQL)"
+echo "• All storage and files (Filestore)"
+echo "• All load balancers and networking"
+echo "• All service accounts and IAM roles"
+echo "• All logs (based on retention settings)"
+echo ""
+echo -e "${RED}⚠️  DATA LOSS WARNING:${NC}"
+echo "• All database data will be permanently lost"
+echo "• All application data will be permanently lost"
+echo "• This action CANNOT be undone"
+echo ""
+
+echo -e "${BLUE}🔥 Destroying Infrastructure${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "This may take 15-30 minutes to complete."
+echo ""
+
+terraform destroy -auto-approve
+
+if [[ $? -eq 0 ]]; then
     echo ""
-    echo "============================================"
-    echo "✅ Infrastructure destroyed successfully"
-    echo "============================================"
+    echo -e "${GREEN}✅ Infrastructure Destroyed Successfully${NC}"
+    echo ""
+    
+    echo -e "${BLUE}🧹 Cleanup Summary${NC}"
+    echo "━━━━━━━━━━━━━━━━━━"
+    echo "• All GCP resources destroyed"
+    echo "• Terraform state updated"
+    echo "• Local artifacts removed"
+    echo ""
+    
+    rm -f tfplan-* terraform.tfstate.backup helm-values-runtime.yaml*
+    
+    echo -e "${YELLOW}📝 Manual Cleanup Tasks (if needed)${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "• Remove any manual DNS records"
+    echo "• Clean up external monitoring"
+    echo "• Verify no orphaned resources"
+    echo ""
+    
+    echo -e "${GREEN}✅ Destruction Process Completed${NC}"
+    
 else
     echo ""
-    echo "⚠️  Terraform destroy encountered errors"
+    echo -e "${RED}❌ Destruction Failed${NC}"
     echo ""
-    echo "This usually happens when:"
-    echo "1. Deployment failed mid-way"
-    echo "2. Resources exist outside Terraform state"
-    echo "3. Service connections are still in use"
+    echo -e "${YELLOW}Common Issues:${NC}"
+    echo "• Resources may have dependencies - check and retry"
+    echo "• Deletion protection may be enabled"
+    echo "• Some resources may need manual cleanup"
     echo ""
-    read -p "Would you like to run the force cleanup script? (yes/no): " FORCE_CLEANUP
-    
-    if [ "$FORCE_CLEANUP" == "yes" ]; then
-        echo ""
-        echo "Running force cleanup..."
-        ./force-cleanup.sh
-    else
-        echo ""
-        echo "To manually clean up, you can:"
-        echo "1. Run: ./force-cleanup.sh"
-        echo "2. Check: CLEANUP_INSTRUCTIONS.md"
-        echo ""
-        exit 1
-    fi
+    echo "For manual cleanup, check: CLEANUP_INSTRUCTIONS.md"
+    echo "Or run: ./force-cleanup.sh"
+    echo ""
+    echo "Retry with: ./tf-destroy.sh"
+    exit 1
 fi

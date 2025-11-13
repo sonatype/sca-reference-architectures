@@ -54,8 +54,9 @@ resource "google_compute_health_check" "iq_lb_health_check" {
   healthy_threshold   = 2
   unhealthy_threshold = 3
 
-  tcp_health_check {
-    port = 8070
+  http_health_check {
+    request_path = "/ping"
+    port         = 8070
   }
 }
 
