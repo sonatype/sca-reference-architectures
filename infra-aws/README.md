@@ -198,7 +198,7 @@ log_retention_days = 30
 - **Database Security**: RDS in isolated database subnets
 - **Secrets Management**: Database credentials stored in AWS Secrets Manager
 - **Encryption**:
-  - EFS encrypted at rest
+  - EFS encrypted at rest and in transit
   - RDS encrypted at rest
   - S3 ALB logs encrypted
 - **Security Groups**: Least-privilege network access
@@ -206,9 +206,10 @@ log_retention_days = 30
 ## Reliability and Backup
 
 This is a **single instance** deployment.
-- **Single Instance**: One ECS Fargate task running Sonatype IQ Server
-- **Multi-AZ Infrastructure**: Supporting resources (ALB, subnets, RDS) span multiple availability zones
-- **Automatic Restart**: ECS automatically restarts the container if it fails
+- **Single Instance**: One ECS Fargate task running Sonatype IQ Server (runs in one AZ at a time)
+- **Single AZ Database**: RDS instance runs in one availability zone (no multi-AZ failover)
+- **Multi-AZ Infrastructure**: Supporting resources (ALB, subnets, NAT gateways) span 2 availability zones for infrastructure resilience
+- **Automatic Restart**: ECS automatically restarts the container if it fails (may restart in different AZ, causing brief downtime)
 - **Database Backups**: Automated RDS backups with 7-day retention (configurable)
 - **EFS Persistence**: Application data stored on EFS survives container restarts
 
@@ -258,6 +259,6 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ### Security Groups
 - **ALB**: Allows HTTP (80) and HTTPS (443) from internet
 - **ECS**: Allows traffic from ALB on port 8070
-- **RDS**: Allows PostgreSQL (5432) from ECS tasks
-- **EFS**: Allows NFS (2049) from ECS tasks
+- **RDS**: Allows PostgreSQL (5432) from ECS tasks only
+- **EFS**: Allows NFS (2049) from ECS tasks only
 
