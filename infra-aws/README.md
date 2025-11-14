@@ -32,6 +32,8 @@ Your IAM user/role needs these AWS service permissions:
 - **Secrets Manager**: Secrets creation and management
 - **S3**: Terraform state storage (if using remote state)
 
+### Step 2: Configure AWS Credentials
+
 **The provided scripts use aws-vault for secure credential management.**
 
 1. **Choose a profile name** (e.g., `nexus-iq-deployment`)
