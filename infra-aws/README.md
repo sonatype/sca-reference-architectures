@@ -16,9 +16,9 @@ Install these tools on your local machine:
 | **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
 
 #### AWS Account Requirements
-- ✅ AWS account with administrative access (or sufficient permissions listed below)
-- ✅ IAM user with MFA enabled
-- ✅ Ability to create: VPC, ECS, RDS, EFS, ALB, IAM roles
+- AWS account with administrative access (or sufficient permissions listed below)
+- IAM user with MFA enabled
+- Ability to create: VPC, ECS, RDS, EFS, ALB, IAM roles
 
 #### Required AWS Permissions
 Your IAM user/role needs these AWS service permissions:
