@@ -2,7 +2,7 @@
 
 This directory contains Terraform configuration for deploying a **single-instance** Sonatype IQ Server on AWS using ECS Fargate.
 
-## Quick Start Guide
+## Deployment Guide
 
 ### Step 1: Prerequisites
 
