@@ -1,120 +1,168 @@
-# Nexus IQ Server AWS EKS Infrastructure (High Availability)
+# Sonatype IQ Reference Architecture - AWS EKS with Helm (High Availability)
 
-This directory contains Terraform configuration for deploying Nexus IQ Server on AWS using EKS (Elastic Kubernetes Service) with Helm in a **High Availability configuration** as part of a **Reference Architecture for Kubernetes Cloud Deployments**.
+This directory contains Terraform configuration for deploying Sonatype IQ Server on AWS using EKS (Elastic Kubernetes Service) with Helm in a **High Availability configuration** with auto-scaling and multi-AZ deployment.
 
-## Architecture Overview
+## Deployment Guide
 
-This infrastructure deploys a complete, production-ready Nexus IQ Server High Availability environment including:
+### Step 1: Prerequisites
 
-- **EKS Cluster** - Managed Kubernetes service with auto-scaling node groups
-- **Aurora PostgreSQL Cluster** - High-availability database with multiple instances
-- **EFS File System** - Shared persistent storage with access points for clustering
-- **Application Load Balancer** - AWS ALB with health checks and ingress routing
-- **VPC & Networking** - Complete network infrastructure with public/private subnets
-- **Security Groups** - Least-privilege network access controls
-- **IAM Roles** - Service-specific permissions following AWS best practices
-- **AWS Load Balancer Controller** - Native Kubernetes ingress integration
-- **Helm Chart Deployment** - Official Sonatype Nexus IQ Server HA chart
+#### Required Tools
+Install these tools on your local machine:
 
-```
-Internet
-    ↓
-Application Load Balancer (Public Subnets)
-    ↓
-EKS Cluster (Private Subnets)
-├── Nexus IQ Server HA (2+ replicas) ←→ EFS (Shared Storage)
-├── AWS Load Balancer Controller
-└── Ingress Controller
-    ↓
-Aurora PostgreSQL Cluster (Database Subnets)
-```
+| Tool | Version | Installation | Purpose |
+|------|---------|--------------|---------|
+| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access |
+| **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
+| **kubectl** | Latest | [Install Guide](https://kubernetes.io/docs/tasks/tools/) | Kubernetes cluster management |
+| **Helm** | >= 3.9.3 | [Install Guide](https://helm.sh/docs/intro/install/) | Application deployment |
 
-## Prerequisites
+#### AWS Account Requirements
+- AWS account with administrative access (or sufficient permissions listed below)
+- IAM user with MFA enabled
+- Ability to create: VPC, EKS, RDS Aurora, EFS, ALB, IAM roles
 
-### Required Tools
-- **Terraform** >= 1.0
-- **AWS CLI** >= 2.0
-- **kubectl** for Kubernetes cluster management
-- **Helm** >= 3.9.3 for application deployment
-- **aws-vault** (recommended for MFA)
+#### Required AWS Permissions
+Your IAM user/role needs these AWS service permissions:
+- **EC2**: VPC, subnets, security groups, network interfaces, EIPs, NAT gateways
+- **EKS**: Clusters, node groups, add-ons (CoreDNS, kube-proxy, VPC CNI, EBS CSI, EFS CSI), OIDC providers
+- **RDS**: Aurora clusters, instances, subnet groups, parameter groups
+- **EFS**: File systems, mount targets, access points, backup policies
+- **ELB**: Application Load Balancers, target groups, listeners
+- **IAM**: Roles, policies, OIDC providers
+- **Auto Scaling**: Launch configurations, auto scaling groups (for EKS node groups)
+- **KMS**: Keys and aliases for encryption (RDS, EFS)
+- **Logs**: CloudWatch log groups and streams
+- **Secrets Manager**: Secrets creation and management
+- **SSM Parameter Store**: Parameters for storing database credentials and EFS IDs
+- **S3**: Terraform state storage (if using remote state)
 
-### AWS Account Requirements
-- AWS account with administrative access
-- MFA-enabled IAM user
-- Cross-account role assumption capability
+### Step 2: Configure AWS Credentials
 
-## AWS Configuration Setup
+**The provided scripts use aws-vault for secure credential management.**
 
-### 1. AWS CLI Profile Configuration
+1. **Choose a profile name** (e.g., `nexus-iq-deployment`)
 
-Create or update your `~/.aws/config` file with the following configuration:
+2. **Configure your AWS profile in `~/.aws/config`:**
+   ```ini
+   [profile nexus-iq-deployment]
+   region = us-east-1
+   output = json
+   mfa_serial = arn:aws:iam::<YOUR_ACCOUNT_ID>:mfa/<YOUR-USERNAME>
+   ```
 
-```ini
-[profile sonatype-ops]
-credential_process = aws-vault export sonatype-ops --format=json
-mfa_serial = arn:aws:iam::451349303221:mfa/your-username
-region = us-east-1
+3. **Add credentials to aws-vault and test:**
+   ```bash
+   aws-vault add nexus-iq-deployment
+   ```
+   Enter your AWS Access Key ID and Secret Access Key when prompted
 
-[profile admin@iq-sandbox]
-role_arn = arn:aws:iam::552183322382:role/admin
-source_profile = sonatype-ops
-```
+   ```bash
+   aws-vault exec nexus-iq-deployment -- aws sts get-caller-identity
+   ```
+   You should see your AWS account details.
 
-**Key Configuration Details:**
-- **`default`**: Basic AWS CLI defaults for region and output format
-- **`sonatype-ops`**: Base profile using aws-vault's `credential_process` for secure MFA authentication
-- **`admin@iq-sandbox`**: Cross-account role assumption profile that uses `sonatype-ops` as source
+4. **Set the AWS_PROFILE environment variable:**
 
-**Note**: This configuration uses aws-vault's `credential_process` to automatically handle MFA authentication, which is more secure than storing static credentials in `~/.aws/credentials`.
+   The scripts require the `AWS_PROFILE` environment variable to be set:
 
-### 2. Verify Configuration
+   Option 1: Export for your entire session
+   ```bash
+   export AWS_PROFILE=nexus-iq-deployment
+   export AWS_REGION=us-east-1  # Optional: override default region
+   ```
 
-Test your AWS configuration:
-```bash
-aws sts get-caller-identity --profile admin@iq-sandbox
-```
+   Option 2: Set inline for a single command
+   ```bash
+   AWS_PROFILE=nexus-iq-deployment <script>
+   ```
 
-## Quick Start
+### Step 3: Configure Terraform Variables
 
-1. **Navigate to the infrastructure directory**:
+1. **Copy the example configuration:**
    ```bash
    cd /path/to/sca-example-terraform/infra-aws-ha-k8s-helm
+   cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Review and customize variables**:
+2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
    ```bash
-   # Edit terraform.tfvars with your specific values
-   vim terraform.tfvars
+   vi terraform.tfvars
    ```
 
-3. **Initialize Terraform**:
+### Step 4: Deploy Infrastructure and Application
+
+1. **Initialize Terraform:**
    ```bash
    terraform init
    ```
 
-4. **Plan the deployment**:
+   This downloads required providers (AWS, Kubernetes, Helm, etc.)
+
+2. **Review the deployment plan:**
    ```bash
    ./tf-plan.sh
    ```
 
-5. **Deploy the infrastructure**:
+   This shows what resources will be created without actually deploying them.
+
+3. **Deploy the infrastructure:**
    ```bash
    ./tf-apply.sh
    ```
 
-6. **Deploy Nexus IQ Server**:
+   This creates the EKS cluster, Aurora database, EFS, and networking.
+
+4. **Install IQ Server using Helm:**
    ```bash
    ./helm-install.sh
    ```
 
-7. **Access your Nexus IQ Server**:
-   - Get the application URL: `kubectl get ingress -n nexus-iq`
-   - Wait 10-15 minutes for service to be ready
-   - Default credentials: `admin` / `admin123`
+   This script:
+   - Configures kubectl to access the EKS cluster
+   - Retrieves database credentials from AWS Secrets Manager
+   - Installs the official Sonatype Helm chart
+   - Configures ingress and load balancer
+
+### Step 5: Access Sonatype IQ Server
+
+1. **Wait for service to be ready:**
+   - Initial startup can take 10-15 minutes
+   - All pods must complete database migrations and clustering setup
+
+2. **Access the web UI:**
+
+   Use the application URL displayed at the end of the Helm deployment.
+
+   Example: `http://k8s-nexusiq-12345-67890.us-east-1.elb.amazonaws.com`
+
+3. **Login credentials:**
+   - **Username:** `admin`
+   - **Password:** `admin123` (change immediately!)
+
+---
+
+## Teardown / Cleanup
+
+**WARNING: This will delete ALL infrastructure and data!**
+
+1. **Uninstall the Helm deployment:**
+   ```bash
+   ./helm-uninstall.sh
+   ```
+
+2. **Destroy all infrastructure:**
+   ```bash
+   ./tf-destroy.sh
+   ```
+
+   > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+
+---
 
 ## Configuration
 
-### 1. Review Variables in terraform.tfvars
+### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
@@ -128,7 +176,7 @@ cluster_name = "nexus-iq-ha"
 vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
-kubernetes_version       = "1.27"
+kubernetes_version       = "1.30"
 node_instance_type      = "m5d.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
@@ -136,15 +184,15 @@ node_group_desired_size = 3
 node_disk_size          = 50
 
 # RDS Aurora Configuration
-aurora_engine_version   = "15.8"
+aurora_engine_version   = "15.10"
 aurora_instance_class   = "db.r6g.4xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"
-database_password       = "SecurePassword123!"
+database_password       = "SecurePassword123!"  # Change this!
 backup_retention_period = 7
-skip_final_snapshot     = false
-deletion_protection     = true
+skip_final_snapshot     = true
+deletion_protection     = false
 
 # EFS Configuration
 efs_provisioned_throughput = 100
@@ -155,7 +203,7 @@ nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
 
-# Resource Limits (adjusted for node capacity)
+# Resource Limits
 nexus_iq_memory_request = "16Gi"
 nexus_iq_memory_limit   = "24Gi"
 nexus_iq_cpu_request    = "4"
@@ -183,231 +231,100 @@ hpa_target_cpu_utilization     = 70
 hpa_target_memory_utilization  = 80
 ```
 
-### 2. Important Settings
-
-- **`nexus_iq_replica_count = 3`** - Recommended for HA (requires HA license, minimum 2)
-- **`database_password`** - Use a strong, unique password
+**Important Settings:**
+- **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended)
+- **`hpa_min_replicas = 2`** - Minimum auto scaling capacity (must be at least 2 for HA)
+- **`hpa_max_replicas = 5`** - Maximum auto scaling capacity
+- **`aurora_instance_count = 2`** - Number of Aurora instances (minimum 2 for HA)
+- **`database_password`** - Use a strong, unique password (required change)
 - **`nexus_iq_license`** - Base64 encoded HA-capable license
+- **`deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
+- **`skip_final_snapshot = true`** - Set to `false` for production to create a final backup snapshot before database deletion
 - **Resource Names** - All AWS resources are prefixed with cluster name
 
-## High Availability Features
+### Clustering Solution
 
-- **Multi-AZ Deployment**: Infrastructure spans multiple Availability Zones
-- **Auto-Scaling**: EKS node groups and Horizontal Pod Autoscaler (HPA)
-- **Database HA**: Aurora PostgreSQL with automatic failover
-- **Shared Storage**: EFS provides consistent storage across all replicas
-- **Load Balancing**: Application Load Balancer with health checks
-- **Pod Anti-Affinity**: Ensures replicas run on different nodes
-- **Pod Disruption Budgets**: Maintains availability during updates
+This deployment leverages Kubernetes and Helm for IQ Server clustering:
+
+- **Pod Distribution**: Kubernetes pod anti-affinity ensures replicas run on different nodes across AZs
+- **Shared Storage**: EFS provides consistent storage across all replicas with proper locking
+- **Database Sharing**: All replicas connect to the shared Aurora cluster via Kubernetes secrets
+- **Service Discovery**: Kubernetes service provides stable DNS and load balancing
+
+**Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
 ## Security Features
 
-- **VPC Isolation**: Application runs in private subnets
-- **Database Security**: Aurora in isolated database subnets
-- **Secrets Management**: Database credentials stored in Kubernetes secrets
+- **VPC Isolation**: Application runs in private subnets across multiple AZs
+- **Database Security**: Aurora cluster in isolated database subnets with Multi-AZ deployment
+- **Secrets Management**: Database credentials stored in Kubernetes secrets (sourced from AWS Secrets Manager)
 - **Encryption**:
   - EFS encrypted at rest and in transit
   - Aurora encrypted at rest
   - EBS encryption for EKS node storage
 - **Security Groups**: Least-privilege network access
 - **RBAC**: Kubernetes role-based access control
+- **IRSA**: IAM Roles for Service Accounts for pod-level AWS permissions
 
-## Monitoring and Operations
+## Reliability and Backup
 
-### CloudWatch Logging
+This is a **High Availability** deployment with comprehensive reliability features:
 
-This deployment uses **production-grade logging** with a unified CloudWatch approach via Fluentd:
+- **Multi-AZ Deployment**: EKS nodes, pods, and Aurora instances distributed across multiple availability zones
+- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 2-5 based on CPU/memory utilization
+- **Node Auto Scaling**: EKS node groups scale from 2-5 nodes based on pod resource requests
+- **Aurora Cluster**: Multi-AZ database deployment with automatic failover (~30 seconds)
+- **Automatic Restart**: Kubernetes automatically restarts failed pods
+- **Pod Disruption Budgets**: Maintains availability during updates and node maintenance
+- **Rolling Updates**: Zero-downtime updates with controlled rollout
+- **Database Backups**: Automated Aurora backups with 7-day retention (configurable)
+- **EFS Persistence**: Application data stored on EFS survives pod restarts
 
-#### Fluentd Aggregator Pattern
+## Monitoring and Logging
+
+This deployment includes **production-grade logging** with a unified CloudWatch approach:
+
+### Structured Logging with Fluentd
 - **Fluentd Sidecars**: Lightweight log forwarders in each IQ Server pod
-- **Fluentd Aggregator**: Central aggregator pod (daemonset) receives logs from sidecars
-- **Unified Log Group**: All logs sent to `/eks/nexus-iq-ha/nexus-iq-server`
-- **Log Streams** organized by prefix:
-  - `application/` - Main IQ Server logs
-  - `request/` - HTTP request logs
-  - `audit/` - Audit events
-  - `policy-violation/` - Policy violations
-  - `stderr/` - Standard error output
-  - `fluentd/` - Fluentd internal logs
+- **Fluentd Aggregator**: Central aggregator pod (DaemonSet) receives logs from sidecars
+- **5 Log Types Collected**: Application, request, audit, policy-violation, stderr
+- **Aggregated to One CloudWatch Log Group**: All logs sent to `/eks/${cluster_name}/nexus-iq-server`
+- **Separated by Stream Prefix**: Each log type has its own stream prefix for easy filtering
 - **IRSA Authentication**: Fluentd uses IAM Roles for Service Accounts to write to CloudWatch
 
-#### Viewing CloudWatch Logs
+### CloudWatch Unified Log Group
+- **Log Group**: `/eks/${cluster_name}/nexus-iq-server`
+- **Log Streams** (organized by prefix):
+  - `application/` - Main IQ Server logs
+  - `request/` - HTTP request logs
+  - `audit/` - Audit events (JSON format)
+  - `policy-violation/` - Policy violations (JSON format)
+  - `stderr/` - System.err output for debugging
+  - `fluentd/` - Fluentd internal logs
 
-```bash
-# All logs (unified log group)
-aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --region us-east-1
+### Additional Monitoring
+- **Kubernetes Metrics**: Pod CPU/memory usage via `kubectl top`
+- **HPA Metrics**: Horizontal Pod Autoscaler metrics
+- **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
+- **EKS Control Plane Logs**: Audit, authenticator, controller logs
 
-# Filter by log type
-# Application logs
-aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --filter-pattern "application/" --region us-east-1
+## Persistent Storage
 
-# Request logs
-aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --filter-pattern "request/" --region us-east-1
+- **EFS File System**: Shared storage for clustering with Kubernetes CSI driver
+- **Aurora Database**: PostgreSQL cluster for application data with continuous backups
+- **Auto-scaling Storage**: Aurora storage scales automatically
+- **EBS Volumes**: Node storage encrypted at rest
 
-# Error logs
-aws logs tail /eks/nexus-iq-ha/nexus-iq-server --follow --filter-pattern "stderr/" --region us-east-1
-```
+## Networking
 
-### Check Deployment Status
+### Subnets
+- **Public Subnets**: Load balancer and NAT gateways across multiple AZs
+- **Private Subnets**: EKS worker nodes across multiple AZs
+- **Database Subnets**: Aurora cluster instances (no internet access)
 
-```bash
-# Check pod status
-kubectl get pods -n nexus-iq
+### Security Groups
+- **ALB**: Allows HTTP (80) and HTTPS (443) from internet
+- **EKS Nodes**: Allows traffic from ALB, inter-node communication
+- **Aurora**: Allows PostgreSQL (5432) from EKS nodes only
+- **EFS**: Allows NFS (2049) from EKS nodes only
 
-# Check service status
-kubectl get svc -n nexus-iq
-
-# Check ingress status
-kubectl get ingress -n nexus-iq
-
-# View pod logs (stdout/stderr)
-kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n nexus-iq
-
-# View Fluentd sidecar logs
-kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -c fluentd -n nexus-iq
-
-# Check Fluentd aggregator
-kubectl get pods -l app=fluentd-aggregator -n nexus-iq
-kubectl logs -f -l app=fluentd-aggregator -n nexus-iq
-```
-
-### Scaling Operations
-
-```bash
-# Scale manually
-kubectl scale deployment nexus-iq-server-ha --replicas=3 -n nexus-iq
-
-# Check HPA status
-kubectl get hpa -n nexus-iq
-```
-
-## Automated Deployment Scripts
-
-This infrastructure includes convenient scripts that handle MFA authentication automatically:
-
-### Available Scripts
-
-- **`./tf-plan.sh`** - Preview infrastructure changes with MFA authentication
-- **`./tf-apply.sh`** - Deploy infrastructure with MFA authentication
-- **`./tf-destroy.sh`** - Destroy infrastructure with automatic cleanup
-- **`./helm-install.sh`** - Install Nexus IQ Server HA using Helm
-- **`./helm-upgrade.sh`** - Upgrade existing Helm deployment
-- **`./helm-uninstall.sh`** - Uninstall Helm deployment with cleanup
-
-## AWS Console Access
-
-Monitor your infrastructure in the AWS Console:
-
-- **EKS Cluster**: EKS → Clusters → `nexus-iq-ha`
-- **Database**: RDS → Databases → `nexus-iq-ha-aurora-cluster`
-- **Load Balancer**: EC2 → Load Balancers → ALB created by ingress
-- **Logs**: CloudWatch → Log Groups → `/eks/nexus-iq-ha/nexus-iq-server` (unified log group with stream prefixes)
-- **VPC**: VPC → Your VPCs → `nexus-iq-ha-vpc`
-- **Storage**: EFS → File Systems → `nexus-iq-ha-efs`
-
-## File Structure
-
-```
-infra-aws-ha-k8s-helm/
-├── main.tf                    # VPC, networking, and core infrastructure
-├── eks.tf                     # EKS cluster and node groups
-├── rds.tf                     # Aurora PostgreSQL cluster
-├── efs.tf                     # EFS file system
-├── alb.tf                     # Application Load Balancer controller
-├── logging.tf                 # CloudWatch logging with Fluentd IRSA
-├── variables.tf               # Input variable definitions
-├── outputs.tf                 # Output value definitions
-├── terraform.tfvars           # Infrastructure configuration
-├── helm-values.yaml           # Helm chart values (includes Fluentd configuration)
-├── efs-storageclass.yaml      # EFS StorageClass
-├── nexus-iq-namespace.yaml    # Kubernetes namespace
-├── iq-server-pvc.yaml         # PersistentVolumeClaim for Fluentd buffer
-├── tf-*.sh                    # Terraform deployment scripts
-├── helm-*.sh                  # Helm deployment scripts
-└── README.md                  # This file
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **MFA Authentication Fails**
-   ```bash
-   # Verify your AWS configuration
-   aws sts get-caller-identity --profile admin@iq-sandbox
-   ```
-
-2. **Pods stuck in Pending state**
-   ```bash
-   kubectl describe pod <pod-name> -n nexus-iq
-   # Check events for resource constraints or scheduling issues
-   ```
-
-3. **Database connection issues**
-   ```bash
-   # Verify database credentials
-   kubectl get secret nexus-iq-db-credentials -n nexus-iq -o yaml
-   ```
-
-4. **EFS mount issues**
-   ```bash
-   # Check EFS mount targets
-   aws efs describe-mount-targets --file-system-id $(terraform output -raw efs_id)
-   ```
-
-5. **Load Balancer not accessible**
-   ```bash
-   # Check ALB status
-   kubectl get ingress -n nexus-iq
-   kubectl describe ingress nexus-iq-server-ha -n nexus-iq
-   ```
-
-## Cleanup
-
-### Remove Application Only
-
-```bash
-# Complete cleanup (default)
-./helm-uninstall.sh
-
-# Graceful uninstall (preserves cluster resources)
-./helm-uninstall.sh --graceful
-```
-
-### Remove All Infrastructure
-
-```bash
-# WARNING: This will delete ALL data
-./tf-destroy.sh
-```
-
-## Production Considerations
-
-For production deployments, consider:
-
-1. **SSL/TLS Certificate**: Add ACM certificate and HTTPS ingress
-2. **Domain Name**: Configure Route53 for custom domain
-3. **Backup Strategy**: Review Aurora and EFS backup settings
-4. **Monitoring**: Add CloudWatch alarms and dashboards
-5. **Resource Sizing**: Adjust CPU/memory based on usage patterns
-6. **Network Security**: Restrict ingress access to specific IP ranges
-7. **License Management**: Ensure HA license compliance
-
-## Reference Architecture
-
-This infrastructure serves as a **Reference Architecture for Kubernetes Cloud Deployments** demonstrating:
-
-- **Cloud-native patterns**: Managed Kubernetes, containerized deployments
-- **High availability**: Multi-AZ deployment, auto-scaling, shared storage
-- **Security best practices**: Network isolation, encryption, RBAC
-- **Operational excellence**: Centralized logging, monitoring, automation
-- **Cost optimization**: Right-sized resources, auto-scaling
-- **Reliability**: Multi-AZ deployment, automated backups
-
-## Support
-
-For issues with this infrastructure:
-1. Check the troubleshooting section above
-2. Review AWS CloudWatch and Kubernetes logs
-3. Verify AWS permissions and MFA setup
-4. Consult the [Nexus IQ Server documentation](https://help.sonatype.com/iqserver)

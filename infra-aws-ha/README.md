@@ -22,18 +22,20 @@ Install these tools on your local machine:
 
 #### Required AWS Permissions
 Your IAM user/role needs these AWS service permissions:
-- **EC2**: VPC, subnets, security groups, network interfaces
-- **ECS**: Clusters, task definitions, services, auto scaling
-- **RDS**: Aurora clusters, subnet groups, parameter groups
-- **EFS**: File systems, mount targets, access points
+- **EC2**: VPC, subnets, security groups, network interfaces, EIPs, NAT gateways, route tables
+- **ECS**: Clusters, task definitions, services, container insights
+- **RDS**: Aurora clusters, instances, subnet groups, parameter groups
+- **EFS**: File systems, mount targets, access points, backup policies
 - **ELB**: Application Load Balancers, target groups, listeners
 - **IAM**: Roles, policies, instance profiles
-- **Logs**: CloudWatch log groups
+- **Application Auto Scaling**: Scaling policies and targets for ECS services
+- **Cloud Map**: Service discovery private DNS namespaces and services
+- **Backup**: Backup vaults, plans, selections for EFS
+- **KMS**: Keys and aliases for encryption (Aurora, EFS, Backup)
+- **Logs**: CloudWatch log groups and streams
 - **Secrets Manager**: Secrets creation and management
-- **S3**: Terraform state storage (if using remote state)
-- **Application Auto Scaling**: Scaling policies and targets
-- **Cloud Map**: Service discovery namespaces
-- **Backup**: EFS backup plans and vaults
+- **SSM Parameter Store**: Parameters for storing Fluent Bit configuration
+- **S3**: ALB logs storage, log archival (optional), Terraform state storage (if using remote state)
 
 ### Step 2: Configure AWS Credentials
 
