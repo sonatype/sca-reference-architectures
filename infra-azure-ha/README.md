@@ -143,9 +143,7 @@ iq_docker_image    = "sonatype/nexus-iq-server:latest"
 java_opts          = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
-cpu_utilization_threshold     = 70    # CPU threshold for scaling (%)
-memory_utilization_threshold  = 80    # Memory threshold for scaling (%)
-scale_rule_concurrent_requests = 100  # Concurrent requests threshold
+scale_rule_concurrent_requests = 100  # Concurrent requests threshold for HTTP scaling
 
 # Zone-Redundant Database Configuration (HA)
 db_name                         = "nexusiq"
@@ -216,7 +214,7 @@ This deployment uses Azure Container Apps for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: Container Apps, Application Gateway, and database distributed across 3 availability zones
-- **Auto Scaling**: Container App replicas scale from 3-5 based on CPU/memory utilization and request load
+- **Auto Scaling**: Container App replicas scale from 3-5 based on concurrent HTTP request load
 - **Zone-Redundant Database**: PostgreSQL Flexible Server with automatic failover (~30 seconds) between zones
 - **Automatic Restart**: Container Apps automatically restarts failed replicas
 - **Zone-Redundant Storage**: Premium Azure Files (ZRS) provides 99.9999999999% durability

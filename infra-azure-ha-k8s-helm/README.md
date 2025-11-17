@@ -219,7 +219,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 - **Shared Storage**: Azure Files Premium (ZRS) provides consistent storage across all replicas with ReadWriteMany access
 - **Database Sharing**: All replicas connect to the shared zone-redundant PostgreSQL cluster via Kubernetes secrets
 - **Service Discovery**: Kubernetes service provides stable DNS and load balancing
-- **Horizontal Pod Autoscaler**: Pods scale from 2-10 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler**: Pods scale from 3-5 based on CPU/memory utilization
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -241,7 +241,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: AKS nodes, pods, Application Gateway, and database distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 2-10 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 3-5 based on CPU/memory utilization
 - **Cluster Autoscaler**: AKS nodes scale from 2-5 based on pod resource requests
 - **Zone-Redundant Database**: PostgreSQL Flexible Server with automatic failover (~30 seconds) between zones
 - **Automatic Restart**: Kubernetes automatically restarts failed pods
