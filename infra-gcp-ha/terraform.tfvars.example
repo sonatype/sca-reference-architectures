@@ -57,8 +57,8 @@ shared_disk_size_gb = 100      # GB
 shared_disk_type   = "pd-ssd"  # Options: pd-standard, pd-balanced, pd-ssd
 
 # Load Balancer and SSL Configuration
-enable_ssl  = true
-domain_name = ""  # Leave empty to use IP address, or set to your domain (e.g., "nexus-iq.example.com")
+enable_ssl  = false  # Set to true and provide domain_name for HTTPS
+domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 
 # Auto Scaling Configuration
 cpu_target_utilization      = 0.7   # 70% CPU utilization target

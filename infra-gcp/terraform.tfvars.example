@@ -45,8 +45,8 @@ filestore_tier        = "BASIC_SSD"
 filestore_capacity_gb = 1024
 
 # Load Balancer Configuration
-enable_ssl  = true
-domain_name = ""  # Set to your domain for managed SSL certificate
+enable_ssl  = false  # Set to true and provide domain_name for HTTPS
+domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 
 # Logging Configuration
 log_retention_days = 30

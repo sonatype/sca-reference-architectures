@@ -1,108 +1,155 @@
-# Nexus IQ Server GCP Infrastructure (High Availability)
+# Sonatype IQ Reference Architecture - GCP with Docker (High Availability)
 
-This directory contains Terraform configuration for deploying Nexus IQ Server on GCP using Docker containers on Compute Engine in a **High Availability configuration** as part of a **Reference Architecture for Enterprise Cloud Deployments**.
+This directory contains Terraform configuration for deploying Sonatype IQ Server on Google Cloud Platform using Managed Instance Groups with Docker containers in a **High Availability configuration** with auto-scaling and multi-zone deployment.
 
-## Architecture Overview
+## Deployment Guide
 
-This infrastructure deploys a complete, production-ready Nexus IQ Server High Availability environment including:
+### Step 1: Prerequisites
 
-- **Managed Instance Group (MIG)** - Multiple Docker containerized Nexus IQ Server instances (2-6 instances)
-- **Global HTTP(S) Load Balancer** - Load balancer with health checks and auto scaling
-- **Cloud SQL PostgreSQL Regional** - Managed database (db-custom-8-30720) with Multi-AZ failover and optional read replica
-- **Cloud Filestore** - Shared NFS storage (2.5TB BASIC_SSD) for clustering support and unique work directories
-- **VPC & Networking** - Complete network infrastructure with public/private/database subnets
-- **Cloud Armor** - DDoS protection and web application firewall with rate limiting
-- **Service Accounts** - Least-privilege IAM roles following GCP best practices
-- **Cloud Logging & Monitoring** - Comprehensive logging with Cloud Ops Agent and log-based metrics
-- **Secret Manager** - Secure database credential storage
-- **Auto Scaling** - Dynamic scaling based on CPU (70%) and load balancer utilization (80%)
-- **Cloud Ops Agent** - Structured log collection from NFS-backed log files
+#### Required Tools
+Install these tools on your local machine:
 
-```
-Internet
-    ↓
-Global HTTP(S) Load Balancer (Public)
-    ↓
-Managed Instance Group (2-6 Docker instances, Multi-Zone) ←→ Cloud Filestore (2.5TB BASIC_SSD NFS)
-    ↓
-Cloud SQL PostgreSQL Regional (db-custom-8-30720, Multi-AZ + Optional Read Replica)
-```
+| Tool | Version | Installation | Purpose |
+|------|---------|--------------|---------  |
+| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **gcloud CLI** | Latest | [Install Guide](https://cloud.google.com/sdk/docs/install) | GCP API access |
 
-## Prerequisites
+#### GCP Account Requirements
+- GCP account with appropriate permissions
+- GCP Project with billing enabled
+- Ability to create: Compute Engine, Cloud SQL, Cloud Filestore, Global Load Balancers
+- Zone-redundant resource support in target region (default: us-central1)
 
-### Required Tools
-- **Terraform** >= 1.0
-- **Google Cloud SDK** >= 400.0
-- **jq** and **curl**
+#### Required GCP Permissions
+Your GCP account needs permissions for these services:
+- **Compute Engine**: Instances, instance templates, regional managed instance groups, health checks, routers, regional autoscalers, security policies (Cloud Armor)
+- **Networking**: VPC, subnets, firewall rules, Cloud NAT, Global Load Balancers, backend services, URL maps, target proxies, global forwarding rules, global addresses
+- **Database**: Cloud SQL instances (including read replicas), databases, users, SSL certificates
+- **Storage**: Cloud Filestore instances, NFS shares
+- **Security**: Secret Manager secrets and secret versions, managed SSL certificates, IAM bindings for secrets
+- **IAM**: Service accounts, IAM policy bindings (roles assignment)
+- **Service Networking**: Private service connections, VPC peering for Cloud SQL
+- **Logging**: Log buckets, log sinks, log views, log-based metrics
+- **Monitoring**: Alert policies, notification channels
 
-### GCP Account Requirements
-- GCP project with billing enabled
-- Authenticated gcloud CLI
-- Sufficient IAM permissions to create resources
+#### Required GCP APIs
+Enable these APIs in your project:
+- Compute Engine API (compute.googleapis.com)
+- Cloud SQL Admin API (sqladmin.googleapis.com)
+- Cloud Filestore API (file.googleapis.com)
+- Secret Manager API (secretmanager.googleapis.com)
+- Cloud Logging API (logging.googleapis.com)
+- Cloud Monitoring API (monitoring.googleapis.com)
+- Cloud Resource Manager API (cloudresourcemanager.googleapis.com)
+- IAM API (iam.googleapis.com)
+- Service Networking API (servicenetworking.googleapis.com)
 
-## GCP Configuration Setup
+### Step 2: Configure GCP Credentials
 
-### 1. GCloud CLI Configuration
+**The provided scripts use gcloud CLI for authentication.**
 
-Authenticate with Google Cloud:
+1. **Login to GCP:**
+   ```bash
+   gcloud auth login
+   ```
 
-```bash
-# Login to Google Cloud
-gcloud auth login
+2. **Set your project:**
+   ```bash
+   gcloud config set project YOUR_PROJECT_ID
+   ```
 
-# Set your project
-gcloud config set project your-project-id
+3. **Enable required APIs:**
+   ```bash
+   gcloud services enable compute.googleapis.com sqladmin.googleapis.com file.googleapis.com secretmanager.googleapis.com logging.googleapis.com monitoring.googleapis.com cloudresourcemanager.googleapis.com iam.googleapis.com servicenetworking.googleapis.com
+   ```
 
-# Configure application default credentials for Terraform
-gcloud auth application-default login
-```
+### Step 3: Configure Terraform Variables
 
-### 2. Verify Configuration
-
-Test your GCP configuration:
-```bash
-gcloud config list
-gcloud projects list
-```
-
-## Quick Start
-
-1. **Navigate to the HA infrastructure directory**:
+1. **Copy the example configuration:**
    ```bash
    cd /path/to/sca-example-terraform/infra-gcp-ha
+   cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Review and customize variables**:
+2. **Edit `terraform.tfvars` with your values:**
    ```bash
-   # Edit terraform.tfvars with your specific values
-   vim terraform.tfvars
+   vi terraform.tfvars
    ```
 
-3. **Plan the deployment**:
+   **Required changes:**
+   - `gcp_project_id` - Your GCP project ID
+   - `db_password` - Strong, unique password
+
+### Step 4: Deploy Infrastructure
+
+1. **Initialize Terraform:**
    ```bash
-   ./gcp-ha-plan.sh
+   terraform init
    ```
 
-4. **Deploy the infrastructure**:
+   This downloads required providers (Google Cloud, etc.)
+
+2. **Review the deployment plan:**
    ```bash
-   ./gcp-ha-apply.sh
+   terraform plan
    ```
 
-5. **Access your Nexus IQ Server**:
-   - Get the application URL: `terraform output load_balancer_url`
-   - Wait 10-15 minutes for all services to be ready
-   - Default credentials: `admin` / `admin123` (change immediately)
+   This shows what resources will be created without actually deploying them.
+
+3. **Deploy the infrastructure:**
+   ```bash
+   terraform apply
+   ```
+
+   The script will display the application URL when complete.
+
+### Step 5: Access Sonatype IQ Server
+
+1. **Wait for service to be ready:**
+   - Initial startup can take 10-15 minutes
+   - All instances must complete database migrations and clustering setup
+
+2. **Access the web UI:**
+
+   Use the application URL displayed at the end of the deployment.
+
+   Example: `http://<load-balancer-ip>`
+
+3. **Login credentials:**
+   - **Username:** `admin`
+   - **Password:** `admin123` (change immediately!)
+
+---
+
+## Teardown / Cleanup
+
+**WARNING: This will delete ALL infrastructure and data!**
+
+1. **Destroy all resources:**
+   ```bash
+   terraform destroy
+   ```
+
+   > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+
+---
 
 ## Configuration
 
-### 1. Review Variables in terraform.tfvars
+### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
-# General Configuration
+# GCP Project Configuration
 gcp_project_id = "your-gcp-project-id"
 gcp_region     = "us-central1"
+
+# Availability zones for multi-zone deployment
+availability_zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
+
+# Environment
+environment = "prod"
 
 # Network Configuration
 vpc_cidr               = "10.200.0.0/16"
@@ -110,479 +157,148 @@ public_subnet_cidr     = "10.200.1.0/24"
 private_subnet_cidrs   = ["10.200.10.0/24", "10.200.11.0/24", "10.200.12.0/24"]
 db_subnet_cidr         = "10.200.20.0/24"
 
-# Compute Engine Configuration (Sonatype HA benchmark specs)
-instance_machine_type = "n2-standard-8"   # 8 vCPU, 32 GB RAM per instance
-iq_min_instances      = 2                 # Minimum instances for HA
-iq_max_instances      = 6                 # Maximum auto scaling capacity
-iq_target_instances   = 2                 # Initial instance count
+# Sonatype IQ Server Configuration
+iq_docker_image = "sonatype/nexus-iq-server:latest"
 
-# Auto Scaling Configuration
-cpu_target_utilization     = 0.7          # 70% CPU utilization target
-scale_in_cooldown_seconds  = 300          # 5 minutes
-scale_out_cooldown_seconds = 60           # 1 minute
+# Compute Engine Instance Configuration
+instance_machine_type = "e2-standard-2"  # 2 vCPU, 8GB RAM
 
-# Database Configuration (Sonatype HA benchmark specs)
-db_name                      = "nexusiq"
-db_username                  = "nexusiq"
-db_password                  = "YourSecurePassword123!"  # Change this!
-postgres_version            = "POSTGRES_15"
-db_instance_tier            = "db-custom-8-30720"       # 8 vCPU, 30GB RAM
-db_availability_type        = "REGIONAL"                 # REGIONAL for HA
-db_max_connections          = "400"
-enable_read_replica         = true
+# High Availability Configuration
+iq_min_instances    = 2  # Minimum for HA
+iq_max_instances    = 6  # Maximum for scaling
+iq_target_instances = 2  # Initial target
+
+# Database Configuration
+db_name     = "nexusiq"
+db_username = "nexusiq"
+db_password = "your-secure-database-password"  # Change this!
+
+# Database settings
+postgres_version       = "POSTGRES_15"
+db_instance_tier      = "db-custom-2-7680"  # 2 vCPU, 7.5GB RAM
+db_availability_type  = "REGIONAL"          # REGIONAL for HA
+db_disk_size          = 100
+db_max_disk_size      = 1000
+db_max_connections    = "200"
+db_backup_retention_count  = 7
+db_deletion_protection     = true
+
+# Enable read replica for load distribution
+enable_read_replica = true
 
 # Cloud Filestore Configuration
-filestore_zone        = "us-central1-a"                  # Same region as instances
-filestore_tier        = "BASIC_SSD"                      # Higher performance
-filestore_capacity_gb = 2560                             # Minimum for BASIC_SSD (2.5TB)
+filestore_zone        = "us-central1-a"
+filestore_tier        = "BASIC_SSD"
+filestore_capacity_gb = 2560  # 2.5 TB minimum for BASIC_SSD
 
-# Java Configuration (Sonatype HA benchmark: -Xms24g -Xmx24g for 32GB RAM)
-java_opts = "-Xms24g -Xmx24g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# Load Balancer and SSL Configuration
+enable_ssl  = false  # Set to true and provide domain_name for HTTPS
+domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 
-# SSL/TLS Configuration
-enable_ssl  = false                                      # Set true for production
-domain_name = ""                                         # e.g., "nexus-iq.example.com"
+# Auto Scaling Configuration
+cpu_target_utilization      = 0.7   # 70% CPU utilization target
+scale_in_cooldown_seconds   = 300   # 5 minutes
+scale_out_cooldown_seconds  = 60    # 1 minute
+
+# Java Configuration
+java_opts = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 
-### 2. Important HA Settings
-
-- **`iq_min_instances = 2`** - Minimum instances for HA (2-6 supported)
+**Important Settings:**
+- **`iq_min_instances = 2`** - Minimum instances for HA (2-6 supported, requires HA license)
 - **`iq_max_instances = 6`** - Maximum auto scaling capacity
-- **`cpu_target_utilization = 0.7`** - CPU threshold for auto scaling
+- **`iq_target_instances = 2`** - Initial number of instances
 - **`db_availability_type = "REGIONAL"`** - Multi-AZ database with automatic failover
 - **`enable_read_replica = true`** - Database read replica for load distribution
-- **`db_password`** - Use a strong, unique password
-- **Resource Names** - All GCP resources are prefixed with "ref-arch-iq-ha" (e.g., "ref-arch-iq-ha-mig")
+- **`filestore_capacity_gb = 2560`** - Minimum for BASIC_SSD tier (2.5 TB)
+- **`gcp_project_id`** - Your GCP project ID (required)
+- **`db_password`** - Use a strong, unique password (required change)
+- **`db_deletion_protection = true`** - Set to `false` only for testing to allow database deletion
+- **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`)
+
+### Docker Container Deployment
+
+This deployment uses Docker containers on Compute Engine for easier version management:
+
+- **Official Image**: `sonatype/nexus-iq-server` from Docker Hub
+- **Automated Startup**: Startup script installs Docker, mounts NFS, and launches container
+- **Volume Mounts**: `/sonatype-work` and `/var/log/nexus-iq-server` mounted from Cloud Filestore
+- **Database Configuration**: Generated dynamically from environment variables
+- **Automatic Restart**: Container configured with `--restart always`
+
+### Clustering Solution
+
+This deployment uses Managed Instance Groups for IQ Server clustering:
+
+- **Instance Distribution**: MIG spreads instances across multiple availability zones (us-central1-a and us-central1-b)
+- **Unique Work Directories**: Each instance gets isolated `/sonatype-work/clm-server-${HOSTNAME}` directory on Cloud Filestore
+- **Shared Cluster Directory**: Coordination through `/sonatype-work/clm-cluster` on Cloud Filestore
+- **Database Sharing**: All instances connect to the shared regional Cloud SQL cluster via Kubernetes secrets
+- **Auto Scaling**: MIG autoscaler scales from 2-6 instances based on CPU utilization (70%) and load balancer utilization (80%)
+
+**Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
 ## Security Features
 
-- **VPC Isolation**: Application runs in private subnets across multiple zones
-- **Database Security**: Cloud SQL in isolated subnets with Private IP and Multi-AZ deployment
+- **VPC Isolation**: Application runs in private subnets across multiple availability zones
+- **Database Security**: Regional Cloud SQL in isolated database subnet with private DNS and Multi-AZ deployment
 - **Secrets Management**: Database credentials stored in Google Secret Manager
 - **Encryption**:
-  - Cloud Filestore encrypted at rest and in transit
-  - Cloud SQL encrypted at rest with customer-managed or Google-managed keys
-  - Load balancer with optional SSL/TLS termination
-- **Firewall Rules**: Least-privilege network access with Cloud Armor protection
+  - Cloud Filestore encrypted at rest
+  - Cloud SQL encrypted at rest and in transit (ENCRYPTED_ONLY mode)
+  - HTTPS support with managed SSL certificates (requires domain name configuration)
+- **Firewall Rules**: Least-privilege network access
+- **Service Account**: GCE instances use service account with minimal permissions
 - **Work Directory Isolation**: Unique work directories per instance prevent clustering conflicts
 
-## High Availability Features
+## Reliability and Backup
 
-- **Multi-Zone Deployment**: Instances distributed across multiple availability zones
-- **Auto Scaling**: MIG scales from 2-6 instances based on CPU utilization
-- **Cloud SQL Regional**: Multi-AZ database deployment with automatic failover
+This is a **High Availability** deployment with comprehensive reliability features:
+
+- **Multi-Zone Deployment**: MIG distributes instances across 2 availability zones (us-central1-a and us-central1-b)
+- **Auto Scaling**: MIG autoscaler scales from 2-6 instances based on CPU utilization and load balancer utilization
+- **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
+- **Read Replica**: Optional read replica for load distribution
+- **Automatic Restart**: Docker container automatically restarts on failure
+- **Instance Auto-Healing**: MIG recreates failed instances automatically (15-minute initial delay for startup)
 - **Load Balancing**: Global load balancer distributes traffic across healthy instances
-- **Rolling Updates**: Zero-downtime updates with controlled rollout
-- **Cloud Filestore Clustering**: Shared NFS storage with unique work directories and cluster coordination
-- **Health Checks**: Automatic instance replacement on failure
-
-## Docker-Based Deployment
-
-This deployment uses Docker containers on Compute Engine instances:
-
-- **Container Image**: `sonatype/nexus-iq-server:latest`
-- **Container Runtime**: Docker on Container-Optimized OS is NOT used, instead Ubuntu 22.04 LTS is used
-- **Custom Entrypoint**: Matches AWS/Azure pattern with explicit binary execution
-- **Work Directory Management**: Each container gets unique `/sonatype-work/clm-server-${HOSTNAME}` directory
-- **Cluster Coordination**: Shared `/sonatype-work/clm-cluster` directory on Cloud Filestore
-- **Configuration**: Dynamic `config.yml` generation per instance with proper database configuration
-
-## Custom Clustering Solution
-
-This deployment solves critical IQ Server clustering challenges:
-
-- **Work Directory Conflicts**: Each instance gets unique `/sonatype-work/clm-server-${HOSTNAME}` directory on NFS
-- **Database Sharing**: Custom config.yml generation ensures all instances connect to shared Cloud SQL cluster
-- **Cluster Coordination**: Shared `/sonatype-work/clm-cluster` directory on Cloud Filestore for coordination
-- **Dynamic Configuration**: config.yml generated per instance with proper database configuration
-- **Hostname Stability**: Managed Instance Group provides stable instance names for clustering
+- **Rolling Updates**: Zero-downtime updates with controlled rollout (max surge: 3, max unavailable: 0)
+- **Database Backups**: Automated Cloud SQL backups with 7-day retention (configurable)
+- **File Store Persistence**: Application data stored on Cloud Filestore survives instance restarts
 
 ## Monitoring and Logging
 
-This deployment includes **production-grade logging** with Cloud Operations Suite:
-
-### Cloud Logging Integration
-- **Cloud Ops Agent**: Collects logs from Docker containers and file system
-- **5 Separate Log Types**: Application, request, audit, policy-violation, and container stderr
-- **Centralized Log Bucket**: All logs stored in dedicated Cloud Logging bucket
+- **Cloud Logging**: Container logs automatically sent to Cloud Logging with structured logging
+- **Log Buckets**: Dedicated log bucket with configurable retention (30 days default)
 - **Log-Based Metrics**: Automatic error and warning counters
-- **Structured Logging**: Logs include instance identifiers and timestamps
-
-### Cloud Logging Components
-- **Log Bucket**: `nexus-iq-ha-logs-{suffix}` with configurable retention
-- **Log Sink**: Captures Docker container logs from all instances
-- **Log View**: Filtered view for easy log querying
-- **Log-Based Metrics**:
-  - `nexus-iq-ha-error-count` - Count of ERROR level logs
-  - `nexus-iq-ha-warning-count` - Count of WARNING level logs
-
-### Alert Policies
-- **Container Restart**: Alerts when Docker containers restart
-- **NFS Mount Failure**: Alerts on Cloud Filestore mount failures
-- **High Error Rate**: Alerts on elevated error log counts (optional, enable after deployment)
-
-### Viewing Logs
-
-**Cloud Logging Console**:
-Navigate to Cloud Logging in GCP Console and filter by:
-- Resource type: `gce_instance`
-- Instance name pattern: `nexus-iq-ha-*`
-
-**Command Line**:
-```bash
-# View all IQ Server logs
-gcloud logging read 'resource.type="gce_instance" AND labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha-.*"' \
-  --limit=50 --format=json
-
-# View application logs from Filestore
-gcloud compute ssh nexus-iq-ha-XXXX --zone=us-central1-a \
-  --command="sudo tail -f /mnt/filestore/clm-server-*/logs/clm-server.log"
-
-# View Docker container logs
-gcloud compute ssh nexus-iq-ha-XXXX --zone=us-central1-a \
-  --command="sudo docker logs nexus-iq-server --tail 50"
-```
-
-### Additional Monitoring
-- **Cloud Monitoring**: Automatic dashboards for MIG, Cloud SQL, and Load Balancer
+- **Cloud Monitoring**: Automatic dashboards for MIG, Cloud SQL, and Global Load Balancer
 - **Cloud SQL Insights**: Query performance monitoring
 - **Load Balancer Metrics**: Request rate, latency, and error rates
 - **Auto Scaling Metrics**: CPU utilization and instance count tracking
+- **Health Checks**: Load balancer performs health checks on `/ping` endpoint
 
 ## Persistent Storage
 
-- **Cloud Filestore**: Shared NFS storage (2.5TB minimum for BASIC_SSD tier)
-- **Cloud SQL**: PostgreSQL database with continuous backups
-- **Auto-scaling Storage**: Cloud SQL storage scales automatically
-- **Backup Configuration**: 
-  - Database backups retained for 7 days
-  - Transaction logs for point-in-time recovery
-  - Optional custom backup schedules
-
-## Cost Optimization
-
-- **Compute Engine**: Pay-per-use with auto scaling (scales down to save costs)
-- **Cloud SQL**: Right-sized instance with storage auto-scaling
-- **Sustained Use Discounts**: Automatic discounts for long-running instances
-- **Committed Use Discounts**: Optional for predictable workloads
-- **Resource Tagging**: All resources tagged for cost allocation
-- **Auto Scaling**: Dynamically adjusts capacity based on demand
-
-**Estimated Monthly Costs** (us-central1, 24/7 operation):
-- Compute Engine (2x n2-standard-8): ~$500-600
-- Cloud SQL Regional (db-custom-8-30720): ~$1,200
-- Cloud SQL Read Replica: ~$600
-- Cloud Filestore (2.5TB BASIC_SSD): ~$640
-- Load Balancer: ~$18-25
-- **Total**: ~$2,960-3,065/month
-
-*Note: Costs vary by region and usage. Use [GCP Pricing Calculator](https://cloud.google.com/products/calculator) for accurate estimates.*
+- **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (2.5 TB minimum for BASIC_SSD tier)
+- **Database**: Cloud SQL PostgreSQL 15 for application data
+- **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
+- **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 
 ## Networking
 
 ### Subnets
 - **Public Subnet**: Load balancer and Cloud NAT
-- **Private Subnets**: Compute Engine instances across multiple zones (no direct internet)
-- **Database Subnet**: Cloud SQL instances (Private IP, no internet access)
+- **Private Subnets**: GCE instances across multiple zones (no external IP by default)
+- **Database Subnet**: Cloud SQL instance
 
 ### Firewall Rules
-- **Load Balancer**: Allows HTTP (80) and HTTPS (443) from internet
-- **Health Checks**: Allows health check traffic from Google ranges
-- **Instances**: Allows traffic from load balancer on port 8070
-- **NFS**: Allows NFS traffic (2049) to Cloud Filestore
-- **Cloud SQL**: Allows PostgreSQL (5432) from instances only
+- **Load Balancer**: Allows HTTP (80), HTTPS (443) from internet
+- **Health Checks**: Allows health check traffic from Google ranges (130.211.0.0/22, 35.191.0.0/16)
+- **GCE Instances**: Allows traffic from load balancer on port 8070 and inter-instance communication
+- **Cloud SQL**: Allows PostgreSQL (5432) from private subnets only
 
-### Cloud Armor
-- **DDoS Protection**: Rate limiting and geographic restrictions
-- **WAF Rules**: OWASP ModSecurity Core Rule Set support
-- **Custom Rules**: Configurable IP allow/deny lists
+## Important: Admin Port 8071 Not Exposed
 
-## Automated Deployment Scripts
+The admin port 8071 is configured within the IQ Server container but **not exposed externally** through the Global Load Balancer. Only the main application port 8070 is accessible via port 80.
 
-This infrastructure includes convenient scripts for deployment:
-
-### Available Scripts
-
-- **`./gcp-ha-plan.sh`** - Preview infrastructure changes with validation
-- **`./gcp-ha-apply.sh`** - Deploy infrastructure with automated planning
-- **`./gcp-ha-destroy.sh`** - Destroy infrastructure with automatic cleanup
-
-### How the Scripts Work
-
-1. **Automated planning** - Creates timestamped plan files
-2. **Validation** - Checks prerequisites and configuration
-3. **Progress tracking** - Real-time deployment progress
-4. **Health checks** - Post-deployment validation
-5. **Backup management** - State backups before changes
-
-### Manual Terraform Commands (Alternative)
-
-If you prefer to run Terraform commands manually:
-
-```bash
-# Initialize Terraform
-terraform init
-
-# Plan deployment
-terraform plan -out=tfplan
-
-# Apply configuration
-terraform apply tfplan
-
-# Show outputs
-terraform output
-
-# Destroy infrastructure
-terraform destroy
-```
-
-## Accessing the Application
-
-### 1. Get Deployment Information
-
-```bash
-terraform output
-```
-
-Example output:
-```
-load_balancer_url = "http://34.8.109.34"
-load_balancer_ip  = "34.8.109.34"
-database_connection_name = "project-id:us-central1:nexus-iq-ha-db-xxxxxxxx"
-instance_group_manager_name = "ref-arch-iq-ha-mig"
-```
-
-### 2. Access the Application
-
-1. **Wait for services to be ready** (10-15 minutes after deployment)
-2. **Open the application URL** from terraform output
-3. **Default credentials**: `admin` / `admin123`
-4. **Complete setup wizard** on first access
-
-### 3. Monitor Deployment Status
-
-Check MIG status:
-```bash
-gcloud compute instance-groups managed list-instances ref-arch-iq-ha-mig \
-  --region=us-central1 \
-  --project=your-project-id
-```
-
-Check backend health:
-```bash
-gcloud compute backend-services get-health ref-arch-iq-ha-backend \
-  --global \
-  --project=your-project-id
-```
-
-View application logs:
-```bash
-gcloud logging read \
-  'resource.type="gce_instance" AND labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha-.*"' \
-  --limit=50 \
-  --project=your-project-id
-```
-
-## GCP Console Access
-
-Monitor your HA infrastructure in the GCP Console:
-
-- **Compute Engine MIG**: Compute Engine → Instance groups → `ref-arch-iq-ha-mig`
-- **Instances**: Compute Engine → VM instances (filter: `nexus-iq-ha-*`)
-- **Database**: SQL → Instances → `nexus-iq-ha-db-*`
-- **Load Balancer**: Network Services → Load balancing → `ref-arch-iq-ha-lb`
-- **Logs**: Logging → Logs Explorer (filter by instance name)
-- **Monitoring**: Monitoring → Dashboards
-- **VPC**: VPC Network → VPC networks → `ref-arch-iq-ha-vpc`
-- **Filestore**: Filestore → Instances → `nexus-iq-ha-filestore-*`
-
-## File Structure
-
-```
-infra-gcp-ha/
-├── main.tf                  # Main Terraform configuration and required providers
-├── network.tf               # VPC, subnets, Cloud NAT, and networking
-├── compute.tf               # Managed Instance Group, instance template, auto scaling
-├── database.tf              # Cloud SQL PostgreSQL regional cluster and read replica
-├── load_balancer.tf         # Global HTTP(S) Load Balancer and SSL configuration
-├── storage.tf               # Cloud Filestore NFS shared storage
-├── security.tf              # Firewall rules, Cloud Armor, IAM roles
-├── logging.tf               # Cloud Logging, log-based metrics, and alert policies
-├── variables.tf             # Input variable definitions
-├── outputs.tf               # Output value definitions
-├── terraform.tfvars         # Infrastructure configuration (customize this)
-├── scripts/
-│   └── startup.sh           # Docker-based IQ Server installation script
-├── gcp-ha-apply.sh          # Deployment script with validation
-├── gcp-ha-plan.sh           # Planning script with validation
-├── gcp-ha-destroy.sh        # Destruction script with cleanup
-└── README.md                # This file
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Instances Not Starting**
-   ```bash
-   # Check startup script logs
-   gcloud compute instances get-serial-port-output nexus-iq-ha-XXXX \
-     --zone=us-central1-a --port=1
-   
-   # Check Docker container logs
-   gcloud compute ssh nexus-iq-ha-XXXX --zone=us-central1-a \
-     --command="sudo docker logs nexus-iq-server --tail 100"
-   ```
-   - **NFS mount failures**: Check Cloud Filestore status and network connectivity
-   - **Docker issues**: Verify Docker daemon is running
-   - **Database connection**: Check Cloud SQL status and Secret Manager credentials
-
-2. **Application Not Accessible**
-   - Wait 10-15 minutes for Docker containers to fully start
-   - Check load balancer backend health in GCP Console
-   - Verify firewall rules allow traffic on port 8070
-   - Ensure at least 2 healthy backends are registered
-
-3. **Database Connection Issues**
-   - Verify Cloud SQL status in GCP Console
-   - Check database credentials in Secret Manager
-   - Ensure instances can reach Cloud SQL private IP
-   - Verify config.yml includes correct database configuration
-
-4. **Auto Scaling Not Working**
-   - Ensure IQ Server cluster directory is set and shared among nodes
-   - Ensure IQ Server workspace directory is unique per node (not shared)
-   - Ensure IQ Server clustering license compliance
-
-   ```bash
-   # Check auto scaler status
-   gcloud compute instance-groups managed describe ref-arch-iq-ha-mig \
-     --region=us-central1
-
-   # Check auto scaler target CPU
-   gcloud compute region-autoscalers describe ref-arch-iq-ha-autoscaler \
-     --region=us-central1
-   ```
-
-5. **Clustering Issues**
-   ```bash
-   # Verify unique work directories
-   gcloud logging read \
-     'resource.type="gce_instance" AND textPayload=~"Creating work directories"' \
-     --limit=10
-
-   # Check for work directory conflicts (should be empty)
-   gcloud logging read \
-     'resource.type="gce_instance" AND textPayload=~"Permission denied.*lock"' \
-     --limit=10
-
-   # Verify PostgreSQL connections
-   gcloud logging read \
-     'resource.type="gce_instance" AND textPayload=~"postgresql"' \
-     --limit=10
-   ```
-
-6. **Cloud Filestore Mount Issues**
-   ```bash
-   # Check Filestore status
-   gcloud filestore instances describe nexus-iq-ha-filestore-XXXXXX \
-     --location=us-central1-a
-
-   # Test NFS connectivity from instance
-   gcloud compute ssh nexus-iq-ha-XXXX --zone=us-central1-a \
-     --command="showmount -e FILESTORE_IP"
-   ```
-
-7. **Load Balancer Errors**
-   ```bash
-   # Check backend service health
-   gcloud compute backend-services get-health ref-arch-iq-ha-backend --global
-
-   # View load balancer logs
-   gcloud logging read \
-     'resource.type="http_load_balancer"' \
-     --limit=50
-   ```
-
-### Resource Limits
-
-- **MIG**: Scales from 2-6 instances based on CPU demand
-- **Cloud SQL**: Uses db-custom-8-30720 (8 vCPU, 30GB RAM)
-- **Cloud Filestore**: 2.5TB minimum for BASIC_SSD tier
-- **Concurrent Connections**: Database configured for 400 max connections
-
-## Cleanup
-
-### Complete Infrastructure Removal
-
-Remove all GCP resources:
-```bash
-./gcp-ha-destroy.sh
-```
-
-This will:
-- Prompt for confirmation (type 'YES')
-- Create backup of terraform state
-- Destroy all resources in stages
-- Handle database user cleanup automatically
-- Remove Cloud Filestore and Cloud SQL
-
-### Partial Cleanup
-
-Stop only the MIG (keeps data):
-```bash
-terraform destroy -target=google_compute_region_instance_group_manager.iq_mig
-```
-
-**Warning**: Complete cleanup will permanently delete all data including the Cloud SQL database. Ensure you have backups if needed.
-
-## Security Features
-
-- **Network Isolation**: Private subnets for instances and Cloud SQL
-- **Encryption**: Cloud SQL and Filestore encryption at rest and in transit
-- **Secrets Management**: Database credentials stored in Secret Manager
-- **IAM**: Least-privilege service accounts with specific resource access
-- **Firewall Rules**: Minimal required network access with Cloud Armor
-- **VPC**: Isolated network environment with Multi-Zone deployment
-- **Private IP**: Cloud SQL accessible only via private IP
-
-## Production Considerations
-
-For production HA deployments, consider:
-
-1. **SSL/TLS Certificate**: Enable SSL and configure managed certificates
-2. **Domain Name**: Configure Cloud DNS for custom domain
-3. **Backup Strategy**: Review Cloud SQL and Filestore backup settings
-4. **Monitoring**: Configure Cloud Monitoring alert notification channels
-5. **High Availability Tier**: Use ENTERPRISE Filestore tier for mission-critical workloads
-6. **Resource Sizing**: Adjust instance types and auto scaling based on usage
-7. **Network Security**: Restrict load balancer access with Cloud Armor rules
-8. **Database Protection**: Set `db_deletion_protection = true`
-9. **Disaster Recovery**: Consider multi-region deployment strategy
-10. **License Management**: Ensure IQ Server clustering license compliance
-
-## Reference Architecture
-
-This HA infrastructure serves as a **Reference Architecture for Enterprise Cloud Deployments** demonstrating:
-
-- **High availability patterns**: Multi-zone deployment, auto scaling, automatic failover
-- **Cloud-native clustering**: Custom IQ Server clustering with shared NFS storage
-- **Security best practices**: Network isolation, encryption, secrets management
-- **Operational excellence**: Centralized logging, monitoring, automation
-- **Cost optimization**: Auto scaling, right-sized resources, efficient resource usage
-- **Reliability**: Multi-zone deployment, automated backups, health checks
-
-## Support
-
-For issues with this HA infrastructure:
-1. Check the troubleshooting section above
-2. Review Cloud Logging for error messages
-3. Verify GCP permissions and quotas
-4. Check MIG and auto scaler configuration
-5. Consult the [Nexus IQ Server documentation](https://help.sonatype.com/iqserver)
-6. Review [Sonatype Reference Architectures](https://sonatype.atlassian.net/wiki/spaces/~557058a12ee8e6d68d43169ecf1b324b233b2a/pages/1632206850)
-
-For Terraform-specific issues:
-- Review the [Terraform Google Provider documentation](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
-- Check [GCP service documentation](https://cloud.google.com/docs) for specific services
-- Verify [Compute Engine Auto Scaling](https://cloud.google.com/compute/docs/autoscaler) configuration
+**Admin port access** is available through SSH to the GCE instances and Docker exec if needed for troubleshooting.

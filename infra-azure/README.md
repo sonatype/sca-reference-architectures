@@ -1,120 +1,129 @@
-# Nexus IQ Server Azure Infrastructure
+# Sonatype IQ Reference Architecture - Azure Container Apps (Single Instance)
 
-This directory contains Terraform configuration for deploying Nexus IQ Server on Azure using Container Apps as part of a **Reference Architecture for Native Cloud Deployments**.
+This directory contains Terraform configuration for deploying a **single-instance** Sonatype IQ Server on Azure using Container Apps with Workload Profiles.
 
-## Architecture Overview
+## Deployment Guide
 
-This infrastructure deploys a complete, production-ready Nexus IQ Server environment including:
+### Step 1: Prerequisites
 
-- **Azure Container Apps (Workload Profiles)** - Containerized Nexus IQ Server with dedicated capacity
-- **Application Gateway** - HTTP load balancer with health checks and SSL termination
-- **PostgreSQL Flexible Server** - Managed database with encryption and automated backups
-- **Azure File Share** - Shared persistent storage for Nexus IQ data with proper access controls
-- **Virtual Network & Networking** - Complete network infrastructure with public/private subnets
-- **Network Security Groups** - Least-privilege network access controls
-- **Managed Identity** - Service-specific permissions following Azure best practices
-- **Log Analytics** - Centralized logging for monitoring and troubleshooting
-- **Key Vault** - Secure database credential storage
+#### Required Tools
+Install these tools on your local machine:
 
-### Why Workload Profiles?
+| Tool | Version | Installation | Purpose |
+|------|---------|--------------|---------|
+| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Azure CLI** | >= 2.0 | [Install Guide](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) | Azure API access |
 
-This deployment uses **Azure Container Apps with Workload Profiles**:
-
-**Benefits:**
-- ✅ **Higher Resource Limits**: Up to 4.0 vCPU / 8.0 Gi per container
-- ✅ **Better Performance**: Dedicated capacity ensures consistent performance
-- ✅ **Cost-Effective for 24/7 Workloads**: More economical for always-on services like IQ Server
-- ✅ **Production-Ready**: Designed for production workloads with predictable capacity
-
-Workload profiles provide the dedicated resources and performance characteristics required for production Nexus IQ Server deployments.
-
-```
-Internet
-    ↓
-Application Gateway (Public Subnet)
-    ↓
-Container Apps (Private Subnet) ←→ Azure File Share (Persistent Storage)
-    ↓
-PostgreSQL Flexible Server (Database Subnet)
-```
-
-## Prerequisites
-
-### Required Tools
-- **Terraform** >= 1.0
-- **Azure CLI** >= 2.0
-
-### Azure Account Requirements
+#### Azure Account Requirements
 - Azure subscription with Contributor access
-- Ability to create resource groups and resources
+- Ability to create: Resource Groups, Virtual Networks, Container Apps, PostgreSQL, Application Gateway
 - Key Vault access for secrets management
 
-## Azure Configuration Setup
+#### Required Azure Permissions
+Your Azure account needs permissions for these services:
+- **Resource Groups**: Create and manage resource groups
+- **Compute**: Container Apps, Container App Environments, Container App Environment Storage
+- **Networking**: Virtual Networks, subnets, Network Security Groups, Application Gateways, Public IPs, Private DNS Zones
+- **Database**: Azure Database for PostgreSQL Flexible Server, databases, firewall rules
+- **Storage**: Storage Accounts, File Shares
+- **Security**: Key Vault, Key Vault access policies, Managed Identities (system-assigned)
+- **Monitoring**: Log Analytics workspaces, Application Insights
 
-### 1. Azure CLI Authentication
+### Step 2: Configure Azure Credentials
 
-Ensure you're authenticated with Azure CLI:
+**The provided scripts use Azure CLI for authentication.**
 
-```bash
-# Login to Azure
-az login
+1. **Login to Azure:**
+   ```bash
+   az login
+   ```
 
-# Verify your subscription
-az account show
-```
+2. **Verify your subscription:**
+   ```bash
+   az account show
+   ```
 
-### 2. Verify Access
+3. **Set subscription (if you have multiple):**
+   ```bash
+   az account set --subscription "<subscription-id-or-name>"
+   ```
 
-Test your Azure access:
-```bash
-az account list-locations --query "[?name=='East US']"
-```
+### Step 3: Configure Terraform Variables
 
-This should return location information for East US region.
-
-## Quick Start
-
-1. **Navigate to the infrastructure directory**:
+1. **Copy the example configuration:**
    ```bash
    cd /path/to/sca-example-terraform/infra-azure
-   ```
-
-2. **Review and customize variables**:
-   ```bash
-   # Copy and edit terraform.tfvars with your specific values
    cp terraform.tfvars.example terraform.tfvars
-   vim terraform.tfvars
    ```
 
-3. **Initialize Terraform**:
+2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+   ```bash
+   vi terraform.tfvars
+   ```
+
+### Step 4: Deploy Infrastructure
+
+1. **Initialize Terraform:**
    ```bash
    terraform init
    ```
 
-4. **Plan the deployment**:
+   This downloads required providers (Azure, etc.)
+
+2. **Review the deployment plan:**
    ```bash
    ./tf-plan.sh
    ```
 
-5. **Deploy the infrastructure**:
+   This shows what resources will be created without actually deploying them.
+
+3. **Deploy the infrastructure:**
    ```bash
    ./tf-apply.sh
    ```
 
-6. **Access your Nexus IQ Server**:
-   - Get the application URL: `terraform output`
-   - Wait 5-10 minutes for service to be ready
-   - Default credentials: `admin` / `admin123`
+   The script will display the application URL when complete.
+
+### Step 5: Access Sonatype IQ Server
+
+1. **Wait for service to be ready:**
+   - Initial startup can take 5-10 minutes
+   - Database migrations, if needed, run on first boot
+
+2. **Access the web UI:**
+
+   Use the application URL displayed at the end of the deployment.
+
+   Example: `http://ref-arch-iq-abc123.westus2.cloudapp.azure.com`
+
+3. **Login credentials:**
+   - **Username:** `admin`
+   - **Password:** `admin123` (change immediately!)
+
+---
+
+## Teardown / Cleanup
+
+**WARNING: This will delete ALL infrastructure and data!**
+
+1. **Destroy all resources:**
+   ```bash
+   ./tf-destroy.sh
+   ```
+
+   > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+
+---
 
 ## Configuration
 
-### 1. Review Variables in terraform.tfvars
+### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-azure_region = "East US"
+azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
 
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
@@ -123,28 +132,44 @@ private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
-container_cpu      = 4.0           # 4.0 vCPU
-container_memory   = "8Gi"         # 8GB RAM
-iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+container_cpu    = 4.0           # 4.0 vCPU
+container_memory = "8Gi"         # 8GB RAM
+iq_docker_image  = "sonatype/nexus-iq-server:latest"
+java_opts        = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "YourSecurePassword123!"  # Change this!
+postgres_version                 = "15"
 db_sku_name                      = "MO_Standard_E16s_v3"  # Memory Optimized (16 vCores, 128GB RAM)
 db_storage_mb                    = 524288                 # 512GB storage
-postgres_version                 = "15"
+db_auto_grow_enabled             = true
+db_backup_retention_days         = 7
+db_geo_redundant_backup_enabled  = false
+db_high_availability_enabled     = false
+
+# Application Gateway Configuration
+app_gateway_sku_name = "Standard_v2"
+app_gateway_sku_tier = "Standard_v2"
+app_gateway_capacity = 2
+
+# Storage Configuration
+storage_account_tier             = "Standard"
+storage_account_replication_type = "LRS"
+file_share_quota                 = 500
+
+# Monitoring Configuration
+log_retention_days = 30
+enable_monitoring  = true
 ```
 
-### 2. Important Settings
-
-- **Single Instance** - Container App configured for exactly 1 replica (hardcoded for Nexus IQ requirements)
-- **`db_password`** - Use a strong, unique password
-- **Docker Image** - Updated to use official `sonatype/nexus-iq-server:latest` with proper config.yml database configuration
-- **Configuration Method** - Uses EmptyDir volume mounting for `/etc/nexus-iq-server/config.yml` write permissions
+**Important Settings:**
+- **Single Instance** - Container App configured for exactly 1 replica (Sonatype IQ single instance requirement)
+- **`db_password`** - Use a strong, unique password (required change)
+- **`db_high_availability_enabled = false`** - Set to `true` for production to enable zone-redundant database
+- **`db_geo_redundant_backup_enabled = false`** - Set to `true` for production for geo-redundant backups
 - **Resource Names** - All Azure resources follow naming conventions (e.g., "rg-ref-arch-iq")
-- **`environment`** - Used as suffix for all resource names
 
 ## Security Features
 
@@ -154,23 +179,26 @@ postgres_version                 = "15"
 - **Encryption**:
   - Azure File Share encrypted at rest
   - PostgreSQL encrypted at rest
-  - Application Gateway SSL termination
+  - Application Gateway SSL termination support
 - **Network Security Groups**: Least-privilege network access
-- **Managed Identity**: Container Apps use system-assigned identity
+- **Managed Identity**: Container Apps use system-assigned identity for secure access
 
-## High Availability
+## Reliability and Backup
 
-- **Zone Redundancy**: Resources can be deployed across availability zones
-- **Auto Scaling**: Container Apps can scale based on demand (single instance for IQ)
-- **Database Backup**: Automated backups with configurable retention
-- **Load Balancing**: Application Gateway distributes traffic with health probes
+This is a **single instance** deployment.
+- **Single Instance**: One Container App replica running Sonatype IQ Server (runs in one zone at a time)
+- **Single Zone Database**: PostgreSQL Flexible Server runs in one availability zone (unless HA enabled)
+- **Zone Redundancy Available**: Infrastructure can be made zone-redundant (Application Gateway, database HA)
+- **Automatic Restart**: Container Apps automatically restarts the container if it fails (may restart in different zone, causing brief downtime)
+- **Database Backups**: Automated PostgreSQL backups with 7-day retention (configurable)
+- **File Share Persistence**: Application data stored on Azure File Share survives container restarts
 
 ## Monitoring and Logging
 
 - **Log Analytics**: Application logs centralized in Log Analytics workspace
-- **Application Insights**: Optional APM monitoring for performance metrics
-- **Container App logs**: Application and system logs with structured logging
-- **Application Gateway logs**: Access logs and diagnostic information
+- **Container App Logs**: Application and system logs with structured logging
+- **Application Gateway Logs**: Access logs and diagnostic information
+- **Azure Monitor**: Optional monitoring and alerting
 
 ## Persistent Storage
 
@@ -178,269 +206,21 @@ postgres_version                 = "15"
 - **Database**: PostgreSQL Flexible Server for application data
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
-## Cost Optimization
-
-- **Container Apps**: Pay-per-use serverless container compute
-- **PostgreSQL**: Right-sized instance with storage auto-scaling
-- **Storage Account**: LRS replication for cost efficiency
-- **Resource Tagging**: All resources tagged for cost allocation
-
 ## Networking
 
 ### Subnets
 - **Public Subnet**: Application Gateway
-- **Private Subnet**: Container Apps (delegated)
-- **Database Subnet**: PostgreSQL Flexible Server (delegated)
+- **Private Subnet**: Container Apps (delegated to Container Apps infrastructure)
+- **Database Subnet**: PostgreSQL Flexible Server (delegated to PostgreSQL)
 
-### Network Security Groups
-- **Public NSG**: Allows HTTP (80), HTTPS (443) from internet, management traffic
+### Security Groups
+- **Public NSG**: Allows HTTP (80), HTTPS (443) from internet
 - **Private NSG**: Allows HTTP/HTTPS traffic and Azure Load Balancer health probes
-- **Database NSG**: Allows PostgreSQL (5432) from private subnet
+- **Database NSG**: Allows PostgreSQL (5432) from private subnet only
 
-## Automated Deployment Scripts
+## Important: Admin Port 8071 Not Exposed
 
-This infrastructure includes convenient scripts that handle Azure authentication automatically:
+The admin port 8071 is configured within the IQ Server container but **not exposed externally** through the Application Gateway. Only the main application port 8070 is accessible via port 80.
 
-### Available Scripts
+**Admin port access** is available through Container App console/exec sessions if needed for troubleshooting.
 
-- **`./tf-plan.sh`** - Preview infrastructure changes with Azure CLI authentication
-- **`./tf-apply.sh`** - Deploy infrastructure with Azure CLI authentication
-- **`./tf-destroy.sh`** - Destroy infrastructure with automatic cleanup
-
-### How the Scripts Work
-
-1. **Use Azure CLI** for authentication
-2. **Handle credentials automatically** - use current Azure CLI session
-3. **Include safety features** - validation checks and confirmations
-4. **Provide operational guidance** - post-deployment commands and monitoring
-
-### Manual Terraform Commands (Alternative)
-
-If you prefer to run Terraform commands manually:
-
-```bash
-# Initialize Terraform
-terraform init
-
-# Plan deployment
-terraform plan
-
-# Apply configuration
-terraform apply
-
-# Show outputs
-terraform output
-
-# Destroy infrastructure
-terraform destroy
-```
-
-## Accessing the Application
-
-### 1. Get Deployment Information
-
-```bash
-terraform output
-```
-
-Example output:
-```
-application_url = "http://ref-arch-iq-abc123.eastus.cloudapp.azure.com"
-resource_group_name = "rg-ref-arch-iq"
-application_gateway_fqdn = "ref-arch-iq-abc123.eastus.cloudapp.azure.com"
-db_server_name = "psql-ref-arch-iq"
-```
-
-### 2. Access the Application
-
-1. **Wait for service to be ready** (5-10 minutes after deployment)
-2. **Open the application URL** from terraform output
-3. **Default credentials**: `admin` / `admin123`
-4. **Complete setup wizard** on first access
-
-### 3. Monitor Deployment Status
-
-Check Container App status:
-```bash
-az containerapp show \
-  --name ca-ref-arch-iq \
-  --resource-group rg-ref-arch-iq
-```
-
-View application logs:
-```bash
-az containerapp logs show \
-  --name ca-ref-arch-iq \
-  --resource-group rg-ref-arch-iq \
-  --follow
-```
-
-## Azure Portal Access
-
-Monitor your infrastructure in the Azure Portal:
-
-- **Container App**: Container Apps → `ca-ref-arch-iq`
-- **Database**: Azure Database for PostgreSQL → `psql-ref-arch-iq`
-- **Application Gateway**: Application Gateways → `appgw-ref-arch-iq`
-- **Logs**: Log Analytics workspaces → `log-ref-arch-iq`
-- **Virtual Network**: Virtual networks → `vnet-ref-arch-iq`
-- **Storage**: Storage accounts → Search for `strefarchiq`
-
-## File Structure
-
-```
-infra-azure/
-├── main.tf                  # VNet, networking, and core infrastructure
-├── container_app.tf         # Container App Environment and Container App
-├── database.tf              # PostgreSQL Flexible Server and configuration
-├── application_gateway.tf   # Application Gateway and Public IP
-├── storage.tf               # Storage Account and File Share
-├── key_vault.tf             # Key Vault for secrets management
-├── variables.tf             # Input variable definitions
-├── outputs.tf               # Output value definitions
-├── terraform.tfvars.example # Infrastructure configuration template
-├── tf-apply.sh              # Deployment script with Azure CLI support
-├── tf-plan.sh               # Planning script with Azure CLI support
-├── tf-destroy.sh            # Cleanup script with Azure CLI support
-└── README.md                # This file
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Azure CLI Authentication Fails**
-   ```bash
-   # Re-authenticate with Azure
-   az login
-
-   # Verify your subscription
-   az account show
-   ```
-
-2. **Container App Not Starting**
-   ```bash
-   # Check container logs
-   az containerapp logs show \
-     --name ca-ref-arch-iq \
-     --resource-group rg-ref-arch-iq \
-     --follow
-   ```
-   - **Database connection errors**: Check Key Vault secrets and network connectivity
-   - **File share mount errors**: Verify storage account access and file share permissions
-
-3. **Application Not Accessible**
-   - Wait 5-10 minutes for Container App to fully start
-   - Check Application Gateway backend health in Azure Portal
-   - Verify Network Security Group rules allow HTTP traffic
-
-4. **Database Connection Issues**
-   - Verify database credentials in Key Vault
-   - Check PostgreSQL server status in Azure Portal
-   - Ensure Container App can reach database subnet
-
-5. **Resource Naming Conflicts**
-   ```bash
-   # If you get "name already exists" errors:
-   # Key Vault and Storage Account names must be globally unique
-   # Adjust the random suffixes or change environment name
-   ```
-
-### Resource Limits
-
-#### Azure Container Apps Platform Limits
-
-- **Maximum per container**: 4.0 vCPUs / 8.0 Gi memory
-- **Reference**: [Azure Container Apps Containers Documentation](https://learn.microsoft.com/en-us/azure/container-apps/containers)
-
-#### Deployment Limits
-
-- **Container App**: Limited to 1 replica (Nexus IQ single instance requirement)
-- **Container Resources**: 4.0 vCPU / 8.0 Gi RAM (workload profiles maximum)
-- **Database**: Uses MO_Standard_E16s_v3 SKU (Memory Optimized: 16 vCores, 128GB RAM)
-- **Storage**: Azure File Share provides 500GB scalable storage
-
-## Cleanup
-
-### Complete Infrastructure Removal
-
-Remove all Azure resources:
-```bash
-./tf-destroy.sh
-```
-
-This will:
-- Prompt for confirmation with safety checks
-- Automatically clean up Key Vault secrets
-- Destroy all Terraform-managed resources
-- Provide manual cleanup commands if needed
-
-### Partial Cleanup
-
-Stop only the Container App (keeps data):
-```bash
-terraform destroy -target=azurerm_container_app.iq_app
-```
-
-**Warning**: Complete cleanup will permanently delete all data including the database. Ensure you have backups if needed.
-
-## Azure Container Apps Port Limitation
-
-### **Important: Admin Port 8071 Limitation**
-
-**Azure Container Apps ingress has specific port exposure limitations:**
-
-- **Primary Port**: Container Apps ingress exposes one primary external port (currently port 8070 via port 80)
-- **Additional Ports**: While Azure supports up to 5 additional TCP ports, these have significant restrictions:
-  - Only work with VNET-integrated environments
-  - Must be unique across the entire Container Apps environment
-  - Limited to basic TCP (no HTTP features like health probes)
-  - Require CLI extension and special configuration
-
-**Current Configuration Impact:**
-- ✅ **Main application access**: Works perfectly via Application Gateway port 80 with full HTTP support
-- ❌ **Admin port 8071 health checks**: **NOT possible** - additional ports don't support Application Gateway HTTP health probes
-- ❌ **Admin port external access**: Would require complex additional port configuration with limited functionality
-
-**Admin port 8071 is accessible:**
-- Within the container itself (internal communication)
-- Via Container App exec/debug sessions
-- **NOT recommended for external access** due to Azure Container Apps additional port limitations
-
-**Reference**: [Azure Container Apps Ingress Documentation](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview)
-
-## Production Considerations
-
-For production deployments, consider:
-
-1. **SSL/TLS Certificate**: Add SSL certificate for HTTPS
-2. **Custom Domain**: Configure DNS for custom domain name
-3. **Backup Strategy**: Review PostgreSQL backup settings
-4. **Monitoring**: Add Azure Monitor alerts and dashboards
-5. **High Availability**: Consider zone redundancy for database
-6. **Resource Sizing**: Adjust CPU/memory based on usage patterns
-7. **Network Security**: Restrict Application Gateway access to specific IP ranges
-8. **Database Protection**: Enable high availability and geo-redundant backups
-9. **Admin Access**: Plan alternative admin access methods (Container App exec, logs analysis)
-
-## Reference Architecture
-
-This infrastructure serves as a **Reference Architecture for Native Cloud Deployments** demonstrating:
-
-- **Cloud-native patterns**: Serverless containers, managed services
-- **Security best practices**: Network isolation, encryption, secrets management
-- **Operational excellence**: Centralized logging, monitoring, automation
-- **Cost optimization**: Right-sized resources, efficient scaling
-- **Reliability**: Health probes, automated backups, zone redundancy
-
-## Support
-
-For issues with this infrastructure:
-1. Check the troubleshooting section above
-2. Review Azure Monitor logs and metrics
-3. Verify Azure CLI authentication and permissions
-4. Consult the [Nexus IQ Server documentation](https://help.sonatype.com/iqserver)
-
-For Terraform-specific issues:
-- Review the [Terraform AzureRM Provider documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
-- Check [Azure service documentation](https://docs.microsoft.com/en-us/azure/) for specific services
