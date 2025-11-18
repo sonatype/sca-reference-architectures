@@ -1,414 +1,295 @@
-# Nexus IQ Server GCP GKE Infrastructure (High Availability)
+# Sonatype IQ Reference Architecture - GCP GKE with Helm (High Availability)
 
-This directory contains Terraform configuration for deploying Nexus IQ Server on GCP using GKE (Google Kubernetes Engine) with Helm in a **High Availability configuration** as part of a **Reference Architecture for Kubernetes Cloud Deployments**.
+This directory contains Terraform configuration for deploying Sonatype IQ Server on GCP using GKE (Google Kubernetes Engine) with Helm in a **High Availability configuration** with auto-scaling and multi-zone deployment.
 
-## Architecture Overview
+## Deployment Guide
 
-This infrastructure deploys a complete, production-ready Nexus IQ Server High Availability environment including:
+### Step 1: Prerequisites
 
-- **GKE Cluster** - Multi-zone managed Kubernetes service with autoscaling node pools
-- **Cloud SQL PostgreSQL Regional** - High-availability database with automatic failover across zones
-- **Filestore** - Shared NFS persistent storage (2.5TB BASIC_SSD) for clustering
-- **Cloud Load Balancer** - L7 HTTP(S) load balancer via GKE Ingress with Cloud Armor
-- **VPC & Networking** - Complete network infrastructure with private cluster configuration
-- **Workload Identity** - Secure service account access (GCP's IRSA equivalent)
-- **Cloud Logging** - Fluentd aggregator pattern for centralized logging
-- **Helm Chart Deployment** - Official Sonatype Nexus IQ Server HA chart
+#### Required Tools
+Install these tools on your local machine:
 
-```
-Internet
-    ↓
-Cloud Load Balancer (L7 with Cloud Armor)
-    ↓
-GKE Cluster (Private, Multi-Zone)
-├── Nexus IQ Server HA (2-5 replicas) ←→ Filestore (Shared NFS)
-├── Fluentd Aggregator (Cloud Logging)
-└── Horizontal Pod Autoscaler
-    ↓
-Cloud SQL PostgreSQL Regional (Multi-Zone with Automatic Failover)
-```
+| Tool | Version | Installation | Purpose |
+|------|---------|--------------|---------  |
+| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **gcloud CLI** | Latest | [Install Guide](https://cloud.google.com/sdk/docs/install) | GCP API access |
+| **kubectl** | Latest | [Install Guide](https://kubernetes.io/docs/tasks/tools/) | Kubernetes cluster management |
+| **Helm** | >= 3.9.3 | [Install Guide](https://helm.sh/docs/intro/install/) | Application deployment |
 
-## Prerequisites
+#### GCP Account Requirements
+- GCP account with appropriate permissions
+- GCP Project with billing enabled
+- Ability to create: GKE, Cloud SQL, Cloud Filestore, Cloud Load Balancer
+- Sufficient vCPU quota (48+ vCPUs required for production HA setup)
+- Zone-redundant resource support in target region (default: us-central1)
 
-### Required Tools
-- **Terraform** >= 1.0
-- **Google Cloud SDK** >= 400.0
-- **kubectl** for Kubernetes cluster management
-- **Helm** >= 3.9.3 for application deployment
-- **gcloud** authentication completed
+#### Required GCP Permissions
+Your GCP account needs permissions for these services:
+- **Compute Engine**: Routers, security policies (Cloud Armor)
+- **Networking**: VPC, subnets, firewall rules, Cloud NAT, global addresses
+- **Kubernetes Engine**: GKE clusters, node pools, cluster addons (HTTP load balancing, HPA, network policy, GCE persistent disk CSI driver), workload identity configurations
+- **Database**: Cloud SQL instances (including read replicas), databases, users, SSL certificates
+- **Storage**: Cloud Filestore instances, NFS shares
+- **Security**: Secret Manager secrets and secret versions, IAM bindings for secrets (secretAccessor)
+- **IAM**: Service accounts, project-level IAM policy bindings (roles assignment), service account IAM bindings (Workload Identity user)
+- **Service Networking**: Private service connections, VPC peering for Cloud SQL
+- **Logging**: Log buckets, log sinks, log-based metrics
+- **Monitoring**: Alert policies, notification channels
 
-### GCP Account Requirements
-- GCP project with billing enabled
-- Authenticated gcloud CLI
-- Sufficient IAM permissions to create resources
-- APIs enabled (script will enable automatically)
+#### Required GCP APIs
+Enable these APIs in your project:
+- Compute Engine API (compute.googleapis.com)
+- Cloud SQL Admin API (sqladmin.googleapis.com)
+- Cloud Filestore API (file.googleapis.com)
+- Secret Manager API (secretmanager.googleapis.com)
+- Cloud Logging API (logging.googleapis.com)
+- Cloud Monitoring API (monitoring.googleapis.com)
+- Cloud Resource Manager API (cloudresourcemanager.googleapis.com)
+- IAM API (iam.googleapis.com)
+- Service Networking API (servicenetworking.googleapis.com)
+- Kubernetes Engine API (container.googleapis.com)
 
-## GCP Configuration Setup
+### Step 2: Configure GCP Credentials
 
-### 1. GCloud CLI Configuration
+**The provided scripts use gcloud CLI for authentication.**
 
-Authenticate with Google Cloud:
+1. **Login to GCP:**
+   ```bash
+   gcloud auth login
+   ```
 
-```bash
-gcloud auth login
+2. **Set your project:**
+   ```bash
+   gcloud config set project YOUR_PROJECT_ID
+   ```
 
-gcloud config set project your-project-id
+3. **Enable required APIs:**
+   ```bash
+   gcloud services enable compute.googleapis.com sqladmin.googleapis.com file.googleapis.com secretmanager.googleapis.com logging.googleapis.com monitoring.googleapis.com cloudresourcemanager.googleapis.com iam.googleapis.com servicenetworking.googleapis.com container.googleapis.com
+   ```
 
-gcloud auth application-default login
-```
+### Step 3: Configure Terraform Variables
 
-### 2. Verify Configuration
-
-Test your GCP configuration:
-```bash
-gcloud config list
-gcloud projects list
-```
-
-## Quick Start
-
-1. **Navigate to the infrastructure directory**:
+1. **Copy the example configuration:**
    ```bash
    cd /path/to/sca-example-terraform/infra-gcp-ha-k8s-helm
-   ```
-
-2. **Review and customize variables**:
-   ```bash
    cp terraform.tfvars.example terraform.tfvars
-   vim terraform.tfvars
    ```
 
-3. **Plan the deployment**:
+2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+   ```bash
+   vi terraform.tfvars
+   ```
+
+### Step 4: Deploy Infrastructure and Application
+
+1. **Initialize Terraform:**
+   ```bash
+   terraform init
+   ```
+
+   This downloads required providers (Google Cloud, Kubernetes, Helm, etc.)
+
+2. **Review the deployment plan:**
    ```bash
    ./tf-plan.sh
    ```
 
-4. **Deploy the infrastructure**:
+   This shows what resources will be created without actually deploying them.
+
+3. **Deploy the infrastructure:**
    ```bash
    ./tf-apply.sh
    ```
 
-5. **Add the cluster license** (required for HA):
-   ```bash
-   kubectl create secret generic nexus-iq-license --from-file=node-cluster.lic -n nexus-iq
-   ```
+   This creates the GKE cluster, PostgreSQL database, Cloud Filestore, and networking.
 
-6. **Deploy Nexus IQ Server**:
+4. **Install IQ Server using Helm:**
    ```bash
    ./helm-install.sh
    ```
 
-7. **Access your Nexus IQ Server**:
-   - Get the ingress IP: `kubectl get ingress -n nexus-iq`
-   - Wait 10-15 minutes for service to be ready
-   - Default credentials: `admin` / `admin123`
+   This script:
+   - Configures kubectl to access the GKE cluster
+   - Retrieves database credentials
+   - Installs the official Sonatype Helm chart
+   - Configures ingress and load balancer
+
+### Step 5: Access Sonatype IQ Server
+
+1. **Wait for service to be ready:**
+   - Initial startup can take 10-15 minutes
+   - All pods must complete database migrations and clustering setup
+
+2. **Access the web UI:**
+
+   Use the application URL displayed at the end of the Helm deployment.
+
+   Example: `http://nexus-iq-ha-<ip>.nip.io`
+
+3. **Login credentials:**
+   - **Username:** `admin`
+   - **Password:** `admin123` (change immediately!)
+
+---
+
+## Teardown / Cleanup
+
+**WARNING: This will delete ALL infrastructure and data!**
+
+1. **Uninstall the Helm deployment:**
+   ```bash
+   ./helm-uninstall.sh
+   ```
+
+2. **Destroy all infrastructure:**
+   ```bash
+   ./tf-destroy.sh
+   ```
+
+   > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+
+---
 
 ## Configuration
 
-### 1. Review Variables in terraform.tfvars
+### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
+# GCP Configuration
 gcp_project_id = "your-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "prod"
 cluster_name   = "nexus-iq-ha"
 
+# Network Configuration
 public_subnet_cidr   = "10.100.1.0/24"
 private_subnet_cidrs = ["10.100.10.0/24", "10.100.11.0/24", "10.100.12.0/24"]
 gke_pods_cidr        = "10.101.0.0/16"
 gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
+# GKE Configuration
 kubernetes_version           = "1.27"
-node_instance_type           = "n2-standard-8"
+node_instance_type           = "n2-standard-8"  # 8 vCPU, 32GB RAM
 node_group_min_size          = 2
 node_group_max_size          = 5
 node_group_desired_size      = 3
 node_disk_size               = 100
 gke_maintenance_window_start = "03:00"
 
+# PostgreSQL Configuration (Regional HA)
 postgres_version                   = "POSTGRES_15"
-db_instance_tier                   = "db-custom-8-30720"
+db_instance_tier                   = "db-custom-8-30720"  # 8 vCPU, 30GB RAM
 db_availability_type               = "REGIONAL"
 db_disk_size                       = 100
 db_max_disk_size                   = 1000
 db_max_connections                 = "400"
-db_backup_start_time               = "03:00"
-db_transaction_log_retention_days  = 7
 db_backup_retention_count          = 7
-db_maintenance_window_day          = 7
-db_maintenance_window_hour         = 3
 db_deletion_protection             = false
 enable_read_replica                = true
 db_name                            = "nexusiq"
 db_username                        = "nexusiq"
-db_password                        = "YourSecurePassword123!"
+db_password                        = "YourSecurePassword123!"  # Change this!
 
+# Cloud Filestore Configuration (Shared Storage)
 filestore_zone        = "us-central1-a"
 filestore_tier        = "BASIC_SSD"
-filestore_capacity_gb = 2560
+filestore_capacity_gb = 2560  # 2.5 TB minimum for BASIC_SSD
 
-log_retention_days               = 7
-enable_monitoring_alerts         = true
-cloud_armor_rate_limit_threshold = 1000
-
+# Sonatype IQ Server HA Configuration
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
 java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 
-### 2. Important HA Settings
-
-- **`node_group_min_size = 2`** - Minimum nodes for HA
-- **`node_group_max_size = 5`** - Maximum auto scaling capacity
-- **`db_availability_type = "REGIONAL"`** - Multi-zone database with automatic failover
+**Important Settings:**
+- **`node_group_min_size = 2`** - Minimum AKS node capacity
+- **`node_group_max_size = 5`** - Maximum AKS node capacity
+- **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended, requires HA license)
+- **`db_availability_type = "REGIONAL"`** - Regional database with automatic failover
 - **`enable_read_replica = true`** - Database read replica for load distribution
-- **`filestore_tier = "BASIC_SSD"`** - High-performance NFS storage
-- **`nexus_iq_replica_count = 3`** - Minimum 2 for HA (requires HA license)
+- **`filestore_capacity_gb = 2560`** - 2.5 TB minimum for BASIC_SSD tier
+- **`gcp_project_id`** - Your GCP project ID (required)
+- **`db_password`** - Use a strong, unique password (required change)
+- **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
+- **Resource Names** - Controlled by `cluster_name` variable
 
-### 3. Cluster License Requirement
+### Clustering Solution
 
-For HA deployments with multiple replicas, you must add a cluster license before deploying:
+This deployment leverages Kubernetes and Helm for IQ Server clustering:
 
-```bash
-kubectl create secret generic nexus-iq-license --from-file=node-cluster.lic -n nexus-iq
-```
+- **Pod Distribution**: Kubernetes pod anti-affinity ensures replicas run on different nodes across availability zones
+- **Shared Storage**: Cloud Filestore (BASIC_SSD) provides consistent storage across all replicas with ReadWriteMany access
+- **Database Sharing**: All replicas connect to the shared regional Cloud SQL cluster via Kubernetes secrets
+- **Service Discovery**: Kubernetes service provides stable DNS and load balancing
+- **Horizontal Pod Autoscaler**: Pods scale from 3 based on CPU/memory utilization
 
-This secret must be created before running `./helm-install.sh`.
-
-## High Availability Features
-
-### Multi-Zone Deployment
-- **GKE Node Pools**: Automatically distributed across zones
-- **Cloud SQL Regional**: Multi-zone with automatic failover
-- **Filestore**: Zone-redundant shared storage
-
-### Auto-Scaling & Load Balancing
-- **Horizontal Pod Autoscaler**: CPU (70%) and memory (80%) based scaling (2-5 pods)
-- **Cluster Autoscaler**: Node-level scaling (2-5 nodes)
-- **Cloud Load Balancer**: L7 load balancing with health checks
-- **Rolling Updates**: Zero-downtime deployments with Pod Disruption Budgets
-
-### Data Protection
-- **Database**: Regional Cloud SQL with automatic failover
-- **Storage**: Filestore with shared NFS for clustering
-- **Secrets**: Secret Manager with Workload Identity
-- **Monitoring**: Cloud Logging and Cloud Monitoring
-
-### Clustering Support
-- **Shared Storage**: Filestore provides consistent storage across all replicas
-- **Work Directory**: All pods share `/sonatype-work/clm-server` (requires HA license)
-- **Cluster Directory**: Coordination through `/sonatype-work/clm-cluster`
-- **Database Sharing**: All pods connect to shared Cloud SQL cluster
-- **Pod Anti-Affinity**: Ensures pods run on different nodes
-- **Pod Disruption Budget**: Maintains minAvailable: 1 during updates
+**Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
 ## Security Features
 
 - **Private GKE Cluster**: Nodes in private subnets with no public IPs
-- **Workload Identity**: Secure service account access without keys
-- **Encrypted Storage**: Cloud SQL and Filestore encrypted at rest and in transit
-- **Secret Manager**: Database credentials stored securely
-- **Cloud Armor**: DDoS protection and rate limiting
-- **Network Security**: Firewall rules and private networking
-- **SSL/TLS**: Optional HTTPS with managed certificates
+- **Workload Identity**: Secure service account access without keys (GCP's equivalent to AWS IRSA)
+- **Database Security**: Regional Cloud SQL in isolated database subnet with private DNS
+- **Secrets Management**: Database credentials stored in Kubernetes secrets
+- **Encryption**:
+  - Cloud Filestore encrypted at rest
+  - Cloud SQL encrypted at rest and in transit (ENCRYPTED_ONLY mode)
+  - Cloud Load Balancer SSL termination support
+- **Network Security Groups**: Least-privilege network access
+- **RBAC**: Kubernetes role-based access control
+- **Managed Identity**: GKE uses system-assigned identity for secure access
 
-## Monitoring and Operations
+## Reliability and Backup
 
-### Cloud Logging
+This is a **High Availability** deployment with comprehensive reliability features:
 
-This deployment uses **production-grade logging** with a unified Cloud Logging approach via Fluentd:
+- **Multi-Zone Deployment**: GKE nodes, pods, and database distributed across multiple availability zones
+- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 3 based on CPU/memory utilization
+- **Cluster Autoscaler**: GKE nodes scale from 2-5 based on pod resource requests
+- **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
+- **Read Replica**: Optional read replica for load distribution
+- **Automatic Restart**: Kubernetes automatically restarts failed pods
+- **Pod Disruption Budgets**: Maintains availability during updates and node maintenance
+- **Rolling Updates**: Zero-downtime updates with controlled rollout
+- **Database Backups**: Automated Cloud SQL backups with 7-day retention (configurable)
+- **Cloud Filestore**: Provides 99.9999999999% durability for persistent storage
 
-#### Fluentd Aggregator Pattern
-- **Fluentd Sidecars**: Lightweight log forwarders in each IQ Server pod
-- **Fluentd Aggregator**: Central aggregator pod receives logs from sidecars
-- **Unified Log Stream**: All logs sent to Cloud Logging
-- **Workload Identity**: Fluentd uses Workload Identity for secure authentication
+## Monitoring and Logging
 
-#### Viewing Cloud Logs
+- **Cloud Logging**: Application logs centralized in Cloud Logging via Fluentd
+- **Fluentd Aggregator Pattern**: Lightweight log forwarders in each pod with central aggregator
+- **Kubernetes Metrics**: Pod CPU/memory usage via `kubectl top`
+- **HPA Metrics**: Horizontal Pod Autoscaler metrics
+- **Cloud Monitoring**: GKE cluster monitoring with node and pod metrics
+- **Cloud Load Balancer Logs**: Access logs and diagnostic information
+- **Log-Based Metrics**: Automatic error and warning counters
 
-```bash
-gcloud logging read 'resource.type="k8s_container" AND resource.labels.namespace_name="nexus-iq"' --limit=50
+## Persistent Storage
 
-gcloud logging read 'resource.type="k8s_container" AND resource.labels.namespace_name="nexus-iq" AND severity>=ERROR' --limit=20
-```
+- **Cloud Filestore (BASIC_SSD)**: Shared storage for `/sonatype-work` directory (2.5 TB minimum)
+- **Database**: Cloud SQL PostgreSQL 15 (regional) for application data
+- **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
+- **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 
-### Check Deployment Status
+## Networking
 
-```bash
-kubectl get pods -n nexus-iq
+### Subnets
+- **Public Subnet**: Cloud Load Balancer
+- **Private Subnets**: GKE worker nodes and pods (delegated to GKE) across multiple zones
+- **Database Subnet**: Cloud SQL instance (delegated to Cloud SQL)
 
-kubectl get svc -n nexus-iq
+### Security Groups
+- **Public Firewall Rules**: Allows HTTP (80), HTTPS (443) from internet
+- **GKE Firewall Rules**: Allows traffic from Cloud Load Balancer, inter-node communication
+- **Database Firewall Rules**: Allows PostgreSQL (5432) from GKE subnets only
 
-kubectl get ingress -n nexus-iq
+## Important: Admin Port 8071 Not Exposed
 
-kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n nexus-iq
-```
+The admin port 8071 is configured within the IQ Server container but **not exposed externally** through the Cloud Load Balancer. Only the main application port 8070 is accessible via port 80.
 
-### Scaling Operations
-
-```bash
-kubectl scale deployment nexus-iq-server-ha --replicas=5 -n nexus-iq
-
-kubectl get hpa -n nexus-iq
-
-kubectl top pods -n nexus-iq
-```
-
-## Automated Deployment Scripts
-
-This infrastructure includes convenient scripts for deployment:
-
-### Available Scripts
-
-- **`./tf-plan.sh`** - Preview infrastructure changes
-- **`./tf-apply.sh`** - Deploy infrastructure
-- **`./tf-destroy.sh`** - Destroy infrastructure with cleanup
-- **`./helm-install.sh`** - Install Nexus IQ Server HA using Helm
-- **`./helm-upgrade.sh`** - Upgrade existing Helm deployment
-- **`./helm-uninstall.sh`** - Uninstall Helm deployment
-
-## GCP Console Access
-
-Monitor your infrastructure in the GCP Console:
-
-- **GKE Cluster**: Kubernetes Engine → Clusters → `nexus-iq-ha`
-- **Database**: SQL → Instances → `nexus-iq-ha-db-*`
-- **Load Balancer**: Network Services → Load balancing
-- **Logs**: Logging → Logs Explorer (filter by namespace: nexus-iq)
-- **VPC**: VPC Network → VPC networks → `nexus-iq-ha-vpc`
-- **Filestore**: Filestore → Instances → `nexus-iq-ha-filestore-*`
-
-## File Structure
-
-```
-infra-gcp-ha-k8s-helm/
-├── main.tf                      # VPC, networking, provider config
-├── gke.tf                       # GKE cluster, node pools, Workload Identity
-├── database.tf                  # Cloud SQL PostgreSQL Regional
-├── storage.tf                   # Filestore NFS
-├── logging.tf                   # Cloud Logging, metrics, alerts
-├── security.tf                  # Firewall rules, Cloud Armor
-├── variables.tf                 # Input variable definitions
-├── outputs.tf                   # Output value definitions
-├── terraform.tfvars.example     # Example configuration
-├── helm-values.yaml             # Helm chart values
-├── nexus-iq-namespace.yaml      # Kubernetes namespace
-├── filestore-pv.yaml            # Filestore PersistentVolume
-├── filestore-pvc.yaml           # PersistentVolumeClaim
-├── tf-plan.sh                   # Planning script
-├── tf-apply.sh                  # Deployment script
-├── tf-destroy.sh                # Cleanup script
-├── helm-install.sh              # Helm install script
-├── helm-upgrade.sh              # Helm upgrade script
-├── helm-uninstall.sh            # Helm uninstall script
-└── README.md                    # This file
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Pods stuck in Pending state**
-   ```bash
-   kubectl describe pod <pod-name> -n nexus-iq
-   ```
-
-2. **Database connection issues**
-   ```bash
-   gcloud sql instances describe nexus-iq-ha-db-* --project your-project-id
-   ```
-
-3. **Filestore mount issues**
-   ```bash
-   gcloud filestore instances list --project your-project-id
-   kubectl describe pv nexus-iq-filestore-pv
-   ```
-
-4. **Load Balancer not accessible**
-   ```bash
-   kubectl get ingress -n nexus-iq
-   kubectl describe ingress nexus-iq-server-ha -n nexus-iq
-   ```
-
-5. **View logs from all pods**
-   ```bash
-   kubectl logs -f -l app.kubernetes.io/name=nexus-iq-server-ha -n nexus-iq --all-containers=true
-   ```
-
-## Cleanup
-
-### Remove Application Only
-
-```bash
-./helm-uninstall.sh
-```
-
-### Remove All Infrastructure
-
-```bash
-./tf-destroy.sh
-```
-
-**Warning**: Complete cleanup will permanently delete all data including the Cloud SQL database and Filestore. Ensure you have backups if needed.
-
-## Production Considerations
-
-For production HA deployments, consider:
-
-1. **SSL/TLS Certificate**: Configure managed certificates for HTTPS
-2. **Custom Domain**: Set up Cloud DNS for custom domain
-3. **Backup Strategy**: Review Cloud SQL and Filestore backup settings
-4. **Monitoring**: Add Cloud Monitoring alert notification channels
-5. **Resource Sizing**: Adjust instance types and auto scaling based on usage
-6. **Network Security**: Restrict ingress access with Cloud Armor rules
-7. **License Management**: Ensure HA license compliance (minimum 2 replicas)
-8. **Disaster Recovery**: Consider multi-region deployment strategy
-9. **Cost Optimization**: Use committed use discounts for predictable workloads
-10. **Security Hardening**: Enable Binary Authorization, Pod Security Policies
-
-## Cost Optimization
-
-- **GKE**: Pay for nodes with Cluster Autoscaler (scales down to save costs)
-- **Cloud SQL**: Right-sized instance with storage auto-scaling
-- **Filestore**: BASIC_SSD tier balances performance and cost
-- **Committed Use Discounts**: Optional for predictable workloads
-- **Auto Scaling**: Dynamically adjusts capacity based on demand
-
-**Estimated Monthly Costs** (us-central1, 24/7 operation):
-- GKE Nodes (3x n2-standard-8): ~$750-900
-- Cloud SQL Regional (db-custom-8-30720): ~$1,200
-- Cloud SQL Read Replica: ~$600
-- Filestore (2.5TB BASIC_SSD): ~$640
-- Load Balancer: ~$18-25
-- **Total**: ~$3,210-3,365/month
-
-*Note: Costs vary by region and usage. Use [GCP Pricing Calculator](https://cloud.google.com/products/calculator) for accurate estimates.*
-
-## Reference Architecture
-
-This HA infrastructure serves as a **Reference Architecture for Kubernetes Cloud Deployments** demonstrating:
-
-- **Cloud-native patterns**: Managed Kubernetes, containerized deployments
-- **High availability**: Multi-zone deployment, auto-scaling, shared storage
-- **Security best practices**: Workload Identity, encryption, private networking
-- **Operational excellence**: Centralized logging, monitoring, automation
-- **Cost optimization**: Right-sized resources, auto-scaling
-- **Reliability**: Multi-zone deployment, automated backups, health checks
-
-## Support
-
-For issues with this HA infrastructure:
-1. Check the troubleshooting section above
-2. Review Cloud Logging and GKE logs
-3. Verify GCP permissions and quotas
-4. Consult the [Nexus IQ Server documentation](https://help.sonatype.com/iqserver)
-5. Review [GKE documentation](https://cloud.google.com/kubernetes-engine/docs)
-6. Check [Cloud SQL documentation](https://cloud.google.com/sql/docs)
-
-For Terraform-specific issues:
-- Review the [Terraform Google Provider documentation](https://registry.terraform.io/providers/hashicorp/google/latest/docs)
-- Check [GCP service documentation](https://cloud.google.com/docs)
+**Admin port access** is available through Kubernetes exec sessions if needed for troubleshooting.
