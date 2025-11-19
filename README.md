@@ -62,8 +62,8 @@ Each deployment directory contains its own comprehensive README with step-by-ste
 2. **Install prerequisites**: Terraform, cloud CLI (aws/az/gcloud), kubectl (for K8s), Helm (for K8s)
 3. **Configure credentials**: Authenticate with your cloud provider
 4. **Customize variables**: Copy and edit `terraform.tfvars.example`
-5. **Deploy infrastructure**: Run `terraform init`, `terraform plan`, `terraform apply`
-6. **Deploy application** (K8s only): Run the provided Helm install script
+5. **Deploy infrastructure**: Run `terraform init`, then use the provided deployment scripts (`./tf-plan.sh` and `./tf-apply.sh`)
+6. **Deploy application** (K8s only): Run the provided Helm install script (`./helm-install.sh`)
 7. **Access IQ Server**: Use the load balancer URL provided in outputs
 
 ## Security Considerations
