@@ -66,38 +66,10 @@ Each deployment directory contains its own comprehensive README with step-by-ste
 6. **Deploy application** (K8s only): Run the provided Helm install script (`./helm-install.sh`)
 7. **Access IQ Server**: Use the load balancer URL provided in outputs
 
-## Security Considerations
-
-All deployments implement security best practices:
-- **Private subnets** for application and database resources
-- **Encryption at rest** for databases and storage
-- **Encryption in transit** with TLS/SSL support
-- **Least-privilege IAM** roles and service accounts
-- **Secrets management** using cloud-native solutions
-- **Network isolation** with VPC/VNet and security groups
-- **No public database access** - databases in private subnets only
-
-## Cost Considerations
-
-Deployment costs vary significantly by:
-- **Cloud provider** and region
-- **Deployment pattern** (single instance vs HA)
-- **Instance/node sizes** and auto-scaling configuration
-- **Database tier** and storage configuration
-- **Data transfer** and load balancer usage
-
-**Cost Optimization Tips:**
-- Start with single instance deployments for non-production
-- Use auto-scaling to reduce costs during low-usage periods
-- Review and right-size compute resources based on usage
-- Use committed use discounts for predictable workloads
-- Enable storage auto-scaling with appropriate limits
-
 ## Support and Documentation
 
 ### Sonatype Resources
 - **IQ Server Documentation**: [help.sonatype.com/iqserver](https://help.sonatype.com/iqserver)
-- **Sonatype Support**: [support.sonatype.com](https://support.sonatype.com)
 
 ### Cloud Provider Documentation
 - **AWS**: [docs.aws.amazon.com](https://docs.aws.amazon.com)
@@ -110,14 +82,6 @@ Deployment costs vary significantly by:
 - **Azure Provider**: [registry.terraform.io/providers/hashicorp/azurerm](https://registry.terraform.io/providers/hashicorp/azurerm)
 - **GCP Provider**: [registry.terraform.io/providers/hashicorp/google](https://registry.terraform.io/providers/hashicorp/google)
 
-## Contributing
-
-When contributing to this repository:
-1. Maintain consistency with existing deployment patterns
-2. Follow the established README structure for each deployment
-3. Verify all Terraform configurations with `terraform validate` and `terraform plan`
-4. Test deployments in a non-production environment
-5. Update documentation to reflect any configuration changes
 
 ## Disclaimer
 
