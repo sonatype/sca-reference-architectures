@@ -24,6 +24,10 @@ resource "google_sql_database_instance" "iq_db" {
       value = var.db_max_connections
     }
 
+    database_flags {
+      name  = "synchronous_commit"
+      value = "off"
+    }
 
     backup_configuration {
       enabled                        = true
