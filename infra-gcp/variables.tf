@@ -54,9 +54,9 @@ variable "allowed_ssh_cidrs" {
 
 # GCE Variables
 variable "gce_machine_type" {
-  description = "GCE machine type for Nexus IQ Server"
+  description = "GCE machine type for Nexus IQ Server (n4a-highmem-8 = 8 vCPU, 64GB RAM)"
   type        = string
-  default     = "e2-standard-8"
+  default     = "n4a-highmem-8"
 }
 
 variable "gce_boot_image" {
@@ -230,5 +230,5 @@ variable "domain_name" {
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }

@@ -61,9 +61,9 @@ variable "allowed_ssh_cidrs" {
 
 # Compute Engine Variables
 variable "instance_machine_type" {
-  description = "Machine type for Compute Engine instances (n2-standard-8 = 8 vCPU, 32GB RAM)"
+  description = "Machine type for Compute Engine instances (n4a-highmem-8 = 8 vCPU, 64GB RAM)"
   type        = string
-  default     = "n2-standard-8"
+  default     = "n4a-highmem-8"
 }
 
 variable "iq_min_instances" {
@@ -242,9 +242,9 @@ variable "log_retention_days" {
 
 # Java Options
 variable "java_opts" {
-  description = "Java options for Nexus IQ Server (Sonatype HA benchmark: -Xms24g -Xmx24g)"
+  description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xms24g -Xmx24g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Storage Variables
