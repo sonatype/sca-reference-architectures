@@ -1,39 +1,93 @@
-# Copy this file to terraform.tfvars and update the values                                                                                                                                                                                                                  
+# Copy this file to terraform.tfvars and update the values
 # cp terraform.tfvars.example terraform.tfvars
- 
-# General Configuration
-aws_region  = "us-east-1"
- 
-# Network Configuration
+
+# ================================
+# GENERAL CONFIGURATION
+# ================================
+aws_region   = "us-east-1"
+cluster_name = "ref-arch-iq-cluster"
+
+# ================================
+# NETWORK CONFIGURATION
+# ================================
 vpc_cidr               = "10.0.0.0/16"
 public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
- 
-# ECS Configuration
-ecs_cpu           = 8192  # 8 vCPU
-ecs_memory        = 32768 # 32 GB
-iq_desired_count  = 1 # Single instance (recommended)
-iq_docker_image   = "sonatype/nexus-iq-server:latest"
-java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
- 
-# Database Configuration
+
+# ================================
+# ECS CONFIGURATION - L Customer Profile
+# ================================
+# L Profile: 8 vCPU ARM (Graviton), 64 GB RAM
+ecs_cpu                 = 8192   # 8 vCPU
+ecs_memory              = 65536  # 64 GB
+ecs_memory_reservation  = 49152  # 48 GB soft limit
+
+# IQ Server Configuration
+iq_desired_count        = 1  # Single instance (for pilot/dev; use HA config for production)
+iq_docker_image         = "sonatype/nexus-iq-server:latest"
+
+# Java options for L profile: 48GB heap (75% of 64GB RAM)
+# AlwaysPreTouch: Pre-faults heap pages for consistent GC performance
+# CrashOnOutOfMemoryError: Ensures clean crash for easier troubleshooting
+# insight.threads.monitor=10: Enables monitoring thread pool
+java_opts = "-Xms48g -Xmx48g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Dinsight.threads.monitor=10"
+
+# ================================
+# DATABASE CONFIGURATION
+# ================================
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
-db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class           = "db.r6g.4xlarge"
+db_password                 = "YourSecurePassword123!"  # CHANGE THIS!
+db_instance_class           = "db.r6g.2xlarge"  # 8 vCPU, 64 GB RAM, ARM Graviton
 db_allocated_storage        = 500
-db_max_allocated_storage    = 1000
+db_max_allocated_storage    = 2000
 postgres_version            = "15.10"
-db_backup_retention_period  = 7 
-db_backup_window           = "03:00-04:00"
-db_maintenance_window      = "sun:04:00-sun:05:00"
-db_skip_final_snapshot     = true
-db_deletion_protection     = false
- 
-# Load Balancer Configuration
+db_backup_retention_period  = 7
+db_backup_window            = "03:00-04:00"
+db_maintenance_window       = "sun:04:00-sun:05:00"
+db_skip_final_snapshot      = true
+db_deletion_protection      = false
+
+# ================================
+# LOAD BALANCER CONFIGURATION
+# ================================
+# Uncomment and provide SSL certificate ARN for HTTPS
 # ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
 alb_deletion_protection = false
- 
-# Logging Configuration
-log_retention_days = 30
+alb_idle_timeout        = 180
+
+# ================================
+# MONITORING CONFIGURATION
+# ================================
+enable_container_insights = true
+log_retention_days        = 30
+
+# ================================
+# COMMON TAGS
+# ================================
+common_tags = {
+  Project     = "nexus-iq-server"
+  Environment = "production"
+  Terraform   = "true"
+  Owner       = "platform-team"
+  CostCenter  = "engineering"
+}
+
+# ================================
+# SECURITY NOTES
+# ================================
+# 1. Change the db_password to a strong, unique password
+# 2. Consider using AWS Secrets Manager rotation for the database password
+# 3. Provide an SSL certificate ARN for HTTPS termination
+# 4. Enable deletion protection for production resources
+
+# ================================
+# L CUSTOMER PROFILE NOTES
+# ================================
+# This configuration is optimized for large-scale deployments:
+# - 8 vCPU ARM Graviton (cost-optimized)
+# - 64 GB RAM with 48 GB Java heap for policy evaluation workloads
+# - Suitable for ~15,000 applications with continuous monitoring
+# - Database: 64 GB RAM, 500 GB storage, up to 2000 GB auto-scale
+# - LB idle timeout 180 seconds
