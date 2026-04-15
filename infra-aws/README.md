@@ -155,18 +155,25 @@ public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 
-# ECS Configuration
-ecs_cpu           = 8192  # 8 vCPU
-ecs_memory        = 32768 # 32 GB
-iq_desired_count  = 1 # Single instance
-iq_docker_image   = "sonatype/nexus-iq-server:latest"
-java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# ECS Configuration - L Customer Profile
+# L Profile: 8 vCPU ARM (Graviton), 64 GB RAM
+ecs_cpu                = 8192   # 8 vCPU
+ecs_memory             = 65536  # 64 GB
+ecs_memory_reservation = 49152  # 48 GB soft limit
+iq_desired_count       = 1  # Single instance
+iq_docker_image        = "sonatype/nexus-iq-server:latest"
+
+# Java options for L profile: 48GB heap (75% of 64GB RAM)
+# AlwaysPreTouch: Pre-faults heap pages for consistent GC performance
+# CrashOnOutOfMemoryError: Ensures clean crash for easier troubleshooting
+# insight.threads.monitor=10: Enables monitoring thread pool
+java_opts = "-Xms48g -Xmx48g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Dinsight.threads.monitor=10"
 
 # Database Configuration
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
-db_instance_class           = "db.r6g.4xlarge"
+db_instance_class           = "db.r6g.2xlarge"  # 8 vCPU, 64 GB RAM, ARM Graviton
 db_allocated_storage        = 500
 db_max_allocated_storage    = 1000
 postgres_version            = "15.10"
@@ -179,6 +186,7 @@ db_deletion_protection     = false
 # Load Balancer Configuration
 # ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
 alb_deletion_protection = false
+alb_idle_timeout        = 180  # 3 minutes
 
 # Logging Configuration
 log_retention_days = 30
