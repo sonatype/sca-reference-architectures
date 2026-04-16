@@ -65,18 +65,6 @@ variable "ecs_memory_reservation" {
   default     = 49152  # 48 GB soft limit
 }
 
-variable "ecs_runtime_platform" {
-  description = "ECS runtime platform configuration for ARM (Graviton)"
-  type        = object({
-    cpu_architecture        = string
-    operating_system_family = string
-  })
-  default = {
-    cpu_architecture        = "ARM64"
-    operating_system_family = "LINUX"
-  }
-}
-
 variable "enable_container_insights" {
   description = "Enable CloudWatch Container Insights for ECS"
   type        = bool
@@ -138,7 +126,7 @@ variable "java_opts" {
   # Can increase to 55GB (86%) if needed for peak continuous monitoring loads
   # AlwaysPreTouch: Pre-faults all heap pages during startup for consistent GC performance
   # CrashOnOutOfMemoryError: Ensures clean crash for easier troubleshooting
-  # insight.threads.monitor=10: Enables monitoring thread pool for continuous monitoring
+  # insight.threads.monitor=10: Enables monitoring thread pool with 10 threads
 }
 
 # Database Configuration (Aurora PostgreSQL)

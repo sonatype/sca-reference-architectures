@@ -179,7 +179,7 @@ iq_docker_image        = "sonatype/nexus-iq-server:latest"
 # Java options for L profile: 48GB heap (75% of 64GB RAM)
 # AlwaysPreTouch: Pre-faults heap pages for consistent GC performance
 # CrashOnOutOfMemoryError: Ensures clean crash for easier troubleshooting
-# insight.threads.monitor=10: Enables monitoring thread pool
+# insight.threads.monitor=10: Enables monitoring thread pool with 10 threads
 java_opts = "-Xms48g -Xmx48g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Dinsight.threads.monitor=10"
 
 # Database Configuration (Aurora PostgreSQL)
