@@ -1,12 +1,13 @@
 
 resource "aws_lb" "iq_alb" {
-  name               = "ref-arch-iq-alb"
+  name               = "${var.cluster_name}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public_subnets[*].id
 
   enable_deletion_protection = var.alb_deletion_protection
+  idle_timeout               = var.alb_idle_timeout
 
   access_logs {
     bucket  = aws_s3_bucket.alb_logs.bucket
@@ -14,14 +15,14 @@ resource "aws_lb" "iq_alb" {
     enabled = true
   }
 
-  tags = {
-    Name        = "ref-arch-iq-alb"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-alb"
+  })
 }
 
 
 resource "aws_lb_target_group" "iq_tg" {
-  name        = "ref-arch-iq-tg"
+  name        = "${var.cluster_name}-iq-tg"
   port        = 8070
   protocol    = "HTTP"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -40,14 +41,14 @@ resource "aws_lb_target_group" "iq_tg" {
     unhealthy_threshold = 3
   }
 
-  tags = {
-    Name        = "ref-arch-iq-target-group"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-iq-target-group"
+  })
 }
 
 
 resource "aws_lb_target_group" "iq_admin_tg" {
-  name        = "ref-arch-iq-admin-tg"
+  name        = "${var.cluster_name}-iq-admin-tg"
   port        = 8071
   protocol    = "HTTP"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -65,9 +66,9 @@ resource "aws_lb_target_group" "iq_admin_tg" {
     unhealthy_threshold = 3
   }
 
-  tags = {
-    Name        = "ref-arch-iq-admin-target-group"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-iq-admin-target-group"
+  })
 }
 
 
@@ -86,12 +87,12 @@ resource "aws_lb_listener" "iq_listener" {
 
 
 resource "aws_s3_bucket" "alb_logs" {
-  bucket        = "ref-arch-iq-alb-logs-${random_string.bucket_suffix.result}"
+  bucket        = "${var.cluster_name}-alb-logs-${random_string.bucket_suffix.result}"
   force_destroy = true
 
-  tags = {
-    Name        = "ref-arch-iq-alb-logs"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-alb-logs"
+  })
 }
 
 resource "aws_s3_bucket_versioning" "alb_logs" {

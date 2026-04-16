@@ -24,19 +24,18 @@ resource "aws_vpc" "iq_vpc" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = {
-    Name        = "ref-arch-iq-vpc"
-    Project     = "nexus-iq-server"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-vpc"
+  })
 }
 
 
 resource "aws_internet_gateway" "iq_igw" {
   vpc_id = aws_vpc.iq_vpc.id
 
-  tags = {
-    Name        = "ref-arch-iq-igw"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-igw"
+  })
 }
 
 
@@ -48,10 +47,10 @@ resource "aws_subnet" "public_subnets" {
 
   map_public_ip_on_launch = true
 
-  tags = {
-    Name        = "ref-arch-public-subnet-${count.index + 1}"
-    Type        = "Public"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-public-subnet-${count.index + 1}"
+    Type = "Public"
+  })
 }
 
 
@@ -61,10 +60,10 @@ resource "aws_subnet" "private_subnets" {
   cidr_block        = var.private_subnet_cidrs[count.index]
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
-  tags = {
-    Name        = "ref-arch-private-subnet-${count.index + 1}"
-    Type        = "Private"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-private-subnet-${count.index + 1}"
+    Type = "Private"
+  })
 }
 
 
@@ -74,10 +73,10 @@ resource "aws_subnet" "db_subnets" {
   cidr_block        = var.db_subnet_cidrs[count.index]
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
-  tags = {
-    Name        = "ref-arch-db-subnet-${count.index + 1}"
-    Type        = "Database"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-db-subnet-${count.index + 1}"
+    Type = "Database"
+  })
 }
 
 
@@ -89,9 +88,9 @@ resource "aws_route_table" "public_rt" {
     gateway_id = aws_internet_gateway.iq_igw.id
   }
 
-  tags = {
-    Name        = "ref-arch-public-route-table"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-public-route-table"
+  })
 }
 
 
@@ -105,18 +104,18 @@ resource "aws_route_table_association" "public_rta" {
 resource "aws_eip" "nat_eip" {
   domain = "vpc"
 
-  tags = {
-    Name        = "ref-arch-nat-eip"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-nat-eip"
+  })
 }
 
 resource "aws_nat_gateway" "nat_gw" {
   allocation_id = aws_eip.nat_eip.id
   subnet_id     = aws_subnet.public_subnets[0].id
 
-  tags = {
-    Name        = "ref-arch-nat-gateway"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-nat-gateway"
+  })
 
   depends_on = [aws_internet_gateway.iq_igw]
 }
@@ -130,9 +129,9 @@ resource "aws_route_table" "private_rt" {
     nat_gateway_id = aws_nat_gateway.nat_gw.id
   }
 
-  tags = {
-    Name        = "ref-arch-private-route-table"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-private-route-table"
+  })
 }
 
 
@@ -146,9 +145,9 @@ resource "aws_route_table_association" "private_rta" {
 resource "aws_route_table" "db_rt" {
   vpc_id = aws_vpc.iq_vpc.id
 
-  tags = {
-    Name        = "ref-arch-db-route-table"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-db-route-table"
+  })
 }
 
 
