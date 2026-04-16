@@ -162,26 +162,32 @@ private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"]
 db_subnet_cidrs        = ["10.0.40.0/24", "10.0.50.0/24", "10.0.60.0/24"]
 enable_nat_gateway     = true
 
-# ECS Configuration
+# ECS Configuration - L Customer Profile
+# L Profile: 8 vCPU ARM (Graviton), 64 GB RAM
 ecs_cpu                 = 8192   # 8 vCPU
-ecs_memory              = 32768  # 32 GB
-ecs_memory_reservation  = 24576  # 24 GB soft limit
+ecs_memory              = 65536  # 64 GB
+ecs_memory_reservation  = 49152  # 48 GB soft limit
 
 # IQ Server Configuration
-iq_desired_count        = 3
+iq_desired_count        = 2  # Minimum 2 for HA
 iq_min_count           = 2
 iq_max_count           = 5
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
 iq_memory_target_value = 80  # Memory target for auto scaling (%)
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+# Java options for L profile: 48GB heap (75% of 64GB RAM)
+# AlwaysPreTouch: Pre-faults heap pages for consistent GC performance
+# CrashOnOutOfMemoryError: Ensures clean crash for easier troubleshooting
+# insight.threads.monitor=10: Enables monitoring thread pool with 10 threads
+java_opts = "-Xms48g -Xmx48g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Dinsight.threads.monitor=10"
 
 # Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "YourSecurePassword123!"  # Change this!
 aurora_engine_version       = "15.10"
-aurora_instance_class       = "db.r6g.4xlarge"
+aurora_instance_class       = "db.r6g.2xlarge"  # 8 vCPU, 64 GB RAM, ARM Graviton
 aurora_instances            = 2
 db_backup_retention_period  = 7
 db_backup_window           = "03:00-04:00"
@@ -192,6 +198,7 @@ db_deletion_protection     = false
 # Load Balancer Configuration
 # ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
 alb_deletion_protection = false
+alb_idle_timeout        = 180  # 3 minutes
 
 # EFS Configuration
 efs_throughput_mode                  = "provisioned"

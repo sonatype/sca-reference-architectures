@@ -1,20 +1,20 @@
 
 resource "aws_ecs_cluster" "iq_cluster" {
-  name = "ref-arch-iq-cluster"
+  name = var.cluster_name
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = var.enable_container_insights ? "enabled" : "disabled"
   }
 
-  tags = {
-    Name        = "ref-arch-iq-cluster"
-  }
+  tags = merge(var.common_tags, {
+    Name = var.cluster_name
+  })
 }
 
 
 resource "aws_ecs_task_definition" "iq_task" {
-  family                   = "ref-arch-nexus-iq-server"
+  family                   = "${var.cluster_name}-nexus-iq-server"
   network_mode             = "awsvpc"
   cpu                      = var.ecs_cpu
   memory                   = var.ecs_memory
@@ -202,6 +202,8 @@ CONFIGEOF
           readOnly      = false
         }
       ]
+
+      memoryReservation = var.ecs_memory_reservation
     }
   ],
 
@@ -255,7 +257,7 @@ CONFIGEOF
       },
       {
         name  = "CLUSTER_NAME"
-        value = "ref-arch-iq-cluster"
+        value = var.cluster_name
       }
     ]
 
@@ -324,14 +326,14 @@ CONFIGEOF
     }
   }
 
-  tags = {
-    Name        = "ref-arch-iq-task-definition"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-iq-task-definition"
+  })
 }
 
 
 resource "aws_ecs_service" "iq_service" {
-  name            = "ref-arch-nexus-iq-service"
+  name            = "${var.cluster_name}-nexus-iq-service"
   cluster         = aws_ecs_cluster.iq_cluster.id
   task_definition = aws_ecs_task_definition.iq_task.arn
   desired_count   = var.iq_desired_count
@@ -358,23 +360,23 @@ resource "aws_ecs_service" "iq_service" {
     aws_iam_role_policy_attachment.ecs_execution_role_policy
   ]
 
-  tags = {
-    Name        = "ref-arch-iq-service"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-iq-service"
+  })
 }
 
 
 resource "aws_efs_file_system" "iq_efs" {
-  creation_token = "ref-arch-iq-efs"
+  creation_token = "${var.cluster_name}-efs"
   encrypted      = true
 
   performance_mode = "generalPurpose"
   throughput_mode  = "provisioned"
   provisioned_throughput_in_mibps = 100
 
-  tags = {
-    Name        = "ref-arch-iq-efs"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-efs"
+  })
 }
 
 
@@ -403,9 +405,9 @@ resource "aws_efs_access_point" "iq_access_point" {
     }
   }
 
-  tags = {
-    Name        = "ref-arch-iq-efs-access-point"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-efs-access-point"
+  })
 }
 
 
@@ -426,8 +428,8 @@ resource "aws_efs_access_point" "iq_logs_access_point" {
     }
   }
 
-  tags = {
-    Name        = "ref-arch-iq-efs-logs-access-point"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-efs-logs-access-point"
+  })
 }
 

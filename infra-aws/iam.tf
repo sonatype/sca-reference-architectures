@@ -1,6 +1,6 @@
 
 resource "aws_iam_role" "ecs_execution_role" {
-  name = "ref-arch-ecs-execution-role"
+  name = "${var.cluster_name}-ecs-execution-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -15,9 +15,9 @@ resource "aws_iam_role" "ecs_execution_role" {
     ]
   })
 
-  tags = {
-    Name        = "ref-arch-ecs-execution-role"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-ecs-execution-role"
+  })
 }
 
 
@@ -28,7 +28,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
 
 
 resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
-  name = "ref-arch-ecs-execution-secrets-policy"
+  name = "${var.cluster_name}-ecs-execution-secrets-policy"
   role = aws_iam_role.ecs_execution_role.id
 
   policy = jsonencode({
@@ -50,7 +50,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
           "ssm:GetParameter"
         ]
         Resource = [
-          "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/ref-arch-nexus-iq-server/*"
+          "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/${var.cluster_name}/nexus-iq-server/*"
         ]
       }
     ]
@@ -59,7 +59,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
 
 
 resource "aws_iam_role" "ecs_task_role" {
-  name = "ref-arch-ecs-task-role"
+  name = "${var.cluster_name}-ecs-task-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -74,14 +74,14 @@ resource "aws_iam_role" "ecs_task_role" {
     ]
   })
 
-  tags = {
-    Name        = "ref-arch-ecs-task-role"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-ecs-task-role"
+  })
 }
 
 
 resource "aws_iam_role_policy" "ecs_task_policy" {
-  name = "ref-arch-ecs-task-policy"
+  name = "${var.cluster_name}-ecs-task-policy"
   role = aws_iam_role.ecs_task_role.id
 
   policy = jsonencode({
@@ -113,7 +113,7 @@ resource "aws_iam_role_policy" "ecs_task_policy" {
           "ssm:GetParameter"
         ]
         Resource = [
-          "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/ref-arch-nexus-iq-server/fluent-bit-*"
+          "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-*"
         ]
       }
     ],

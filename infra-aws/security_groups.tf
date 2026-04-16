@@ -1,6 +1,6 @@
 
 resource "aws_security_group" "alb" {
-  name_prefix = "ref-arch-alb-"
+  name_prefix = "${var.cluster_name}-alb-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -34,9 +34,9 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "ref-arch-alb-security-group"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-alb-sg"
+  })
 
   lifecycle {
     create_before_destroy = true
@@ -45,7 +45,7 @@ resource "aws_security_group" "alb" {
 
 
 resource "aws_security_group" "ecs_tasks" {
-  name_prefix = "ref-arch-ecs-tasks-"
+  name_prefix = "${var.cluster_name}-ecs-tasks-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -80,9 +80,9 @@ resource "aws_security_group" "ecs_tasks" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "ref-arch-ecs-tasks-security-group"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-ecs-tasks-sg"
+  })
 
   lifecycle {
     create_before_destroy = true
@@ -91,7 +91,7 @@ resource "aws_security_group" "ecs_tasks" {
 
 
 resource "aws_security_group" "rds" {
-  name_prefix = "ref-arch-rds-"
+  name_prefix = "${var.cluster_name}-rds-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -110,9 +110,9 @@ resource "aws_security_group" "rds" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "ref-arch-rds-security-group"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-rds-sg"
+  })
 
   lifecycle {
     create_before_destroy = true
@@ -121,7 +121,7 @@ resource "aws_security_group" "rds" {
 
 
 resource "aws_security_group" "efs" {
-  name_prefix = "ref-arch-efs-"
+  name_prefix = "${var.cluster_name}-efs-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -140,9 +140,9 @@ resource "aws_security_group" "efs" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    Name        = "ref-arch-efs-security-group"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-efs-sg"
+  })
 
   lifecycle {
     create_before_destroy = true
