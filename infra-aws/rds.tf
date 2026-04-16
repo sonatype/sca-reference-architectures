@@ -1,22 +1,22 @@
 
 resource "aws_db_subnet_group" "iq_db_subnet_group" {
-  name       = "ref-arch-iq-db-subnet-group"
+  name       = "${var.cluster_name}-db-subnet-group"
   subnet_ids = aws_subnet.db_subnets[*].id
 
-  tags = {
-    Name        = "ref-arch-iq-db-subnet-group"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-db-subnet-group"
+  })
 }
 
 
 resource "aws_secretsmanager_secret" "db_credentials" {
-  name                    = "ref-arch-iq-db-credentials"
+  name                    = "${var.cluster_name}-db-credentials"
   description             = "Database credentials for Nexus IQ Server"
   recovery_window_in_days = 7
 
-  tags = {
-    Name        = "ref-arch-iq-db-credentials"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-db-credentials"
+  })
 }
 
 resource "aws_secretsmanager_secret_version" "db_credentials" {
@@ -29,7 +29,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 
 
 resource "aws_db_instance" "iq_db" {
-  identifier     = "ref-arch-iq-database"
+  identifier     = "${var.cluster_name}-database"
   engine         = "postgres"
   engine_version = var.postgres_version
   instance_class = var.db_instance_class
@@ -59,14 +59,14 @@ resource "aws_db_instance" "iq_db" {
 
   auto_minor_version_upgrade = true
 
-  tags = {
-    Name        = "ref-arch-iq-database"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-database"
+  })
 }
 
 
 resource "aws_iam_role" "rds_enhanced_monitoring" {
-  name = "ref-arch-rds-enhanced-monitoring"
+  name = "${var.cluster_name}-rds-enhanced-monitoring"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -81,9 +81,9 @@ resource "aws_iam_role" "rds_enhanced_monitoring" {
     ]
   })
 
-  tags = {
-    Name        = "ref-arch-rds-enhanced-monitoring"
-  }
+  tags = merge(var.common_tags, {
+    Name = "${var.cluster_name}-rds-enhanced-monitoring"
+  })
 }
 
 resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
