@@ -198,9 +198,9 @@ variable "filestore_zone" {
 }
 
 variable "filestore_tier" {
-  description = "Filestore tier (BASIC_HDD, BASIC_SSD, HIGH_SCALE_SSD)"
+  description = "Filestore tier. BASIC_HDD is recommended — provides sufficient IOPS for IQ Server (1,000 write IOPS at 1-10 TiB, 5,000 at 10+ TiB) at significantly lower cost than BASIC_SSD."
   type        = string
-  default     = "BASIC_SSD"
+  default     = "BASIC_HDD"
 
   validation {
     condition     = contains(["BASIC_HDD", "BASIC_SSD", "HIGH_SCALE_SSD"], var.filestore_tier)

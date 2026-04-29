@@ -255,9 +255,9 @@ variable "filestore_zone" {
 }
 
 variable "filestore_tier" {
-  description = "Filestore tier (BASIC_HDD, BASIC_SSD, HIGH_SCALE_SSD)"
+  description = "Filestore tier. BASIC_HDD is recommended — provides sufficient IOPS for IQ Server (1,000 write IOPS at 1-10 TiB, 5,000 at 10+ TiB) at significantly lower cost than BASIC_SSD. For XL deployments (20k+ apps), provision at 10+ TiB to unlock the higher IOPS tier."
   type        = string
-  default     = "BASIC_SSD"
+  default     = "BASIC_HDD"
 
   validation {
     condition     = contains(["BASIC_HDD", "BASIC_SSD", "HIGH_SCALE_SSD"], var.filestore_tier)
@@ -266,13 +266,13 @@ variable "filestore_tier" {
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB (minimum 2560 for HA deployments with BASIC_SSD)"
+  description = "Filestore capacity in GB. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. For XL deployments, use 10240 (10 TiB) to unlock BASIC_HDD's higher IOPS tier (5,000 write IOPS)."
   type        = number
-  default     = 2560
+  default     = 1024
 
   validation {
-    condition     = var.filestore_capacity_gb >= 2560
-    error_message = "Filestore capacity must be at least 2560 GB for HA deployments with BASIC_SSD tier."
+    condition     = var.filestore_capacity_gb >= 1024
+    error_message = "Filestore capacity must be at least 1024 GB (1 TiB) for BASIC_HDD or 2560 GB (2.5 TiB) for BASIC_SSD."
   }
 }
 
