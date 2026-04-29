@@ -141,7 +141,7 @@ variable "db_geo_redundant_backup_enabled" {
 
 
 variable "storage_account_tier" {
-  description = "Storage account tier (Premium for Azure Files Premium)"
+  description = "Storage account tier. Premium is required for this deployment because NFS protocol requires Premium FileStorage. For SMB-based deployments (infra-azure-ha), Standard HDD is sufficient and cheaper."
   type        = string
   default     = "Premium"
 }

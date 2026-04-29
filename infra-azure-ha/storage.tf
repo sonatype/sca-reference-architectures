@@ -5,7 +5,7 @@ resource "azurerm_storage_account" "iq_storage_ha" {
   location                 = azurerm_resource_group.iq_rg.location
   account_tier             = var.storage_account_tier
   account_replication_type = var.storage_account_replication_type
-  account_kind             = "FileStorage"
+  account_kind             = var.storage_account_tier == "Premium" ? "FileStorage" : "StorageV2"
 
 
   network_rules {

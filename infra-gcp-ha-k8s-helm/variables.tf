@@ -196,15 +196,15 @@ variable "filestore_zone" {
 }
 
 variable "filestore_tier" {
-  description = "Filestore tier (BASIC_HDD, BASIC_SSD, HIGH_SCALE_SSD, ENTERPRISE)"
+  description = "Filestore tier. BASIC_HDD is recommended — provides sufficient IOPS for IQ Server (1,000 write IOPS at 1-10 TiB, 5,000 at 10+ TiB) at significantly lower cost than BASIC_SSD. For XL deployments (20k+ apps), provision at 10+ TiB to unlock the higher IOPS tier."
   type        = string
-  default     = "BASIC_SSD"
+  default     = "BASIC_HDD"
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB (minimum 2560 for BASIC_SSD)"
+  description = "Filestore capacity in GB. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. For XL deployments, use 10240 (10 TiB) to unlock BASIC_HDD's higher IOPS tier (5,000 write IOPS)."
   type        = number
-  default     = 2560
+  default     = 1024
 }
 
 variable "log_retention_days" {
