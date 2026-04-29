@@ -178,9 +178,9 @@ variable "app_gateway_zones" {
 
 
 variable "storage_account_tier" {
-  description = "Storage account performance tier (Premium required for zone redundancy)"
+  description = "Storage account performance tier. Standard (HDD) is recommended — provides up to 20,000 IOPS at account level, well above IQ Server's observed peak of ~1,212 write ops/sec, at significantly lower cost than Premium SSD."
   type        = string
-  default     = "Premium"
+  default     = "Standard"
 }
 
 variable "storage_account_replication_type" {

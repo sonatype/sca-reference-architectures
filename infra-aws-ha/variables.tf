@@ -207,13 +207,13 @@ variable "alb_deletion_protection" {
 
 
 variable "efs_throughput_mode" {
-  description = "EFS throughput mode"
+  description = "EFS throughput mode. Elastic is recommended — you only pay for throughput actually used, and it auto-scales up to 250,000 read / 50,000 write IOPS."
   type        = string
-  default     = "provisioned"
+  default     = "elastic"
 
   validation {
-    condition     = contains(["bursting", "provisioned"], var.efs_throughput_mode)
-    error_message = "EFS throughput mode must be either 'bursting' or 'provisioned'."
+    condition     = contains(["bursting", "provisioned", "elastic"], var.efs_throughput_mode)
+    error_message = "EFS throughput mode must be one of: 'bursting', 'provisioned', or 'elastic'."
   }
 }
 
