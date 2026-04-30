@@ -86,9 +86,9 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "SKU name for PostgreSQL Flexible Server"
+  description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
   type        = string
-  default     = "MO_Standard_E16s_v3"
+  default     = "GP_Standard_D8s_v3"
 }
 
 variable "db_high_availability_mode" {
@@ -141,7 +141,7 @@ variable "db_geo_redundant_backup_enabled" {
 
 
 variable "storage_account_tier" {
-  description = "Storage account tier. Premium is required for this deployment because NFS protocol requires Premium FileStorage. For SMB-based deployments (infra-azure-ha), Standard HDD is sufficient and cheaper."
+  description = "Storage account tier. Premium is required for NFS protocol (used in this Kubernetes deployment)."
   type        = string
   default     = "Premium"
 }

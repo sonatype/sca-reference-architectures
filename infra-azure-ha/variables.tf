@@ -123,9 +123,9 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "Database SKU name for zone-redundant HA deployment"
+  description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
   type        = string
-  default     = "MO_Standard_E16s_v3"
+  default     = "GP_Standard_D8s_v3"
 }
 
 variable "db_backup_retention_days" {
@@ -178,7 +178,7 @@ variable "app_gateway_zones" {
 
 
 variable "storage_account_tier" {
-  description = "Storage account performance tier. Standard (HDD) is recommended — provides up to 20,000 IOPS at account level, well above IQ Server's observed peak of ~1,212 write ops/sec, at significantly lower cost than Premium SSD."
+  description = "Storage account performance tier. Standard (HDD) is recommended for cost efficiency. Use Premium if NFS protocol is required."
   type        = string
   default     = "Standard"
 }
