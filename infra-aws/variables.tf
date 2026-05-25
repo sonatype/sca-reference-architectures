@@ -82,9 +82,9 @@ variable "db_password" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance class"
+  description = "RDS instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
   type        = string
-  default     = "db.r6g.4xlarge"
+  default     = "db.r6g.2xlarge"
 }
 
 variable "db_allocated_storage" {

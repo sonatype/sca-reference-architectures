@@ -146,9 +146,9 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class"
+  description = "Aurora instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
   type        = string
-  default     = "db.r6g.4xlarge"
+  default     = "db.r6g.2xlarge"
 }
 
 variable "aurora_instances" {
@@ -207,7 +207,7 @@ variable "alb_deletion_protection" {
 
 
 variable "efs_throughput_mode" {
-  description = "EFS throughput mode. Elastic is recommended — you only pay for throughput actually used, and it auto-scales up to 250,000 read / 50,000 write IOPS."
+  description = "EFS throughput mode. Elastic is recommended for pay-per-use pricing with automatic scaling."
   type        = string
   default     = "elastic"
 
