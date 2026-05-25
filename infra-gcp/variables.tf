@@ -109,15 +109,15 @@ variable "postgres_version" {
 }
 
 variable "db_instance_tier" {
-  description = "Database instance tier (use db-perf-optimized-N-8 for ENTERPRISE_PLUS or db-custom-16-65536 for ENTERPRISE)"
+  description = "Cloud SQL instance tier. Scale with number of IQ nodes: 8 vCPU for 1-3 nodes, 16 vCPU for 3-4 nodes."
   type        = string
-  default     = "db-perf-optimized-N-8"
+  default     = "db-custom-8-30720"
 }
 
 variable "db_edition" {
-  description = "Database edition (ENTERPRISE or ENTERPRISE_PLUS)"
+  description = "Cloud SQL edition. Enterprise is sufficient for IQ Server workloads."
   type        = string
-  default     = "ENTERPRISE_PLUS"
+  default     = "ENTERPRISE"
 
   validation {
     condition     = contains(["ENTERPRISE", "ENTERPRISE_PLUS"], var.db_edition)
@@ -198,7 +198,7 @@ variable "filestore_zone" {
 }
 
 variable "filestore_tier" {
-  description = "Filestore tier. BASIC_HDD is recommended — provides sufficient IOPS for IQ Server (1,000 write IOPS at 1-10 TiB, 5,000 at 10+ TiB) at significantly lower cost than BASIC_SSD."
+  description = "Filestore tier. BASIC_HDD is recommended for cost efficiency. For higher IOPS, provision 10+ TiB to unlock the higher performance tier, or use BASIC_SSD."
   type        = string
   default     = "BASIC_HDD"
 
