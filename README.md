@@ -303,6 +303,298 @@ The following tables provide equivalent instance types across cloud providers fo
 
 ---
 
+### Detailed Specifications
+
+Each size below shows the key Terraform variables you need to configure. Copy the block for your chosen size into your `terraform.tfvars` file and adjust for your environment.
+
+#### Size XS — Extra Small (< 500 applications) ¹
+
+Single instance for development, testing, or very small production environments.
+
+**AWS (ECS Fargate):**
+```hcl
+# infra-aws/terraform.tfvars — Size XS
+ecs_cpu              = 2048                # 2 vCPU
+ecs_memory           = 16384               # 16 GB
+iq_desired_count     = 1                   # Single instance
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.t4g.medium"     # 2 vCPU, 4 GB (burstable)
+db_allocated_storage = 50                  # GB
+```
+
+**Azure (Container Apps):**
+```hcl
+# infra-azure/terraform.tfvars — Size XS
+container_cpu        = 2.0                 # 2 vCPU
+container_memory     = "16Gi"              # 16 GB
+container_min_replicas = 1                 # Single instance
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
+db_storage_mb        = 51200               # 50 GB
+```
+
+**GCP (GCE Docker):**
+```hcl
+# infra-gcp/terraform.tfvars — Size XS
+machine_type         = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier              = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
+db_disk_size         = 50                  # GB
+```
+
+> ¹ Projected sizing estimate — not yet validated through performance testing.
+
+---
+
+#### Size S — Small (500 – 2,000 applications) ¹
+
+Single instance for small production environments with moderate evaluation volume.
+
+**AWS (ECS Fargate):**
+```hcl
+# infra-aws/terraform.tfvars — Size S
+ecs_cpu              = 4096                # 4 vCPU
+ecs_memory           = 32768              # 32 GB
+iq_desired_count     = 1                   # Single instance
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.r6g.large"      # 2 vCPU, 16 GB
+db_allocated_storage = 100                 # GB
+```
+
+**Azure (Container Apps):**
+```hcl
+# infra-azure/terraform.tfvars — Size S
+container_cpu        = 4.0                 # 4 vCPU
+container_memory     = "32Gi"              # 32 GB
+container_min_replicas = 1                 # Single instance
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
+db_storage_mb        = 102400              # 100 GB
+```
+
+**GCP (GCE Docker):**
+```hcl
+# infra-gcp/terraform.tfvars — Size S
+machine_type         = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier              = "db-custom-2-13312" # 2 vCPU, 13 GB
+db_disk_size         = 100                 # GB
+```
+
+> ¹ Projected sizing estimate — not yet validated through performance testing.
+
+---
+
+#### Size M — Medium (2,000 – 10,000 applications)
+
+Production deployment supporting 5,000-10,000 evaluations/day. Single instance or HA (1-2 nodes).
+
+**AWS (ECS Fargate — Single Instance):**
+```hcl
+# infra-aws/terraform.tfvars — Size M
+ecs_cpu              = 8192                # 8 vCPU
+ecs_memory           = 65536              # 64 GB
+iq_desired_count     = 1                   # Single instance (or 2 for HA)
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
+db_allocated_storage = 100                 # GB, auto-scales to 500 GB
+```
+
+**AWS (ECS Fargate — High Availability):**
+```hcl
+# infra-aws-ha/terraform.tfvars — Size M
+ecs_cpu              = 8192                # 8 vCPU
+ecs_memory           = 65536              # 64 GB
+iq_desired_count     = 2                   # 2 nodes for HA
+iq_min_count         = 2                   # Minimum instances
+iq_max_count         = 3                   # Maximum instances
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+aurora_instances      = 2                  # Multi-AZ
+```
+
+**Azure (Container Apps):**
+```hcl
+# infra-azure/terraform.tfvars — Size M (Single Instance)
+# infra-azure-ha/terraform.tfvars — Size M (HA: set min_replicas = 2)
+container_cpu        = 8.0                 # 8 vCPU
+container_memory     = "64Gi"              # 64 GB
+container_min_replicas = 1                 # 1 for single, 2 for HA
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_storage_mb        = 102400              # 100 GB
+```
+
+**GCP (GCE Docker):**
+```hcl
+# infra-gcp/terraform.tfvars — Size M (Single Instance)
+# infra-gcp-ha/terraform.tfvars — Size M (HA: set target_size = 2)
+machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_disk_size         = 100                 # GB, auto-resize enabled
+filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
+filestore_capacity_gb = 1024               # 1 TiB minimum
+```
+
+---
+
+#### Size L — Large (10,000 – 20,000 applications)
+
+High-availability production deployment supporting 10,000-20,000 evaluations/day. Requires 2-3 nodes.
+
+**AWS (ECS Fargate HA):**
+```hcl
+# infra-aws-ha/terraform.tfvars — Size L
+ecs_cpu              = 8192                # 8 vCPU
+ecs_memory           = 65536              # 64 GB
+iq_desired_count     = 3                   # 3 nodes recommended
+iq_min_count         = 2                   # Minimum instances
+iq_max_count         = 4                   # Maximum instances
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+aurora_instances      = 2                  # Multi-AZ with failover
+```
+
+**AWS (EKS + Helm):**
+```hcl
+# infra-aws-ha-k8s-helm/terraform.tfvars — Size L
+node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_group_desired_size = 3                # 3 nodes
+node_group_min_size     = 2
+node_group_max_size     = 5
+nexus_iq_replica_count  = 3                # 3 IQ pods
+nexus_iq_memory_request = "48Gi"
+nexus_iq_memory_limit   = "56Gi"
+nexus_iq_cpu_request    = "6"
+nexus_iq_cpu_limit      = "8"
+aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_count   = 2
+```
+
+**Azure (Container Apps HA):**
+```hcl
+# infra-azure-ha/terraform.tfvars — Size L
+container_cpu        = 8.0                 # 8 vCPU
+container_memory     = "64Gi"              # 64 GB
+container_min_replicas = 2                 # Minimum 2 for HA
+container_max_replicas = 4                 # Scale up to 4
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_ha_mode           = "ZoneRedundant"     # Required for L
+```
+
+**GCP (MIG HA):**
+```hcl
+# infra-gcp-ha/terraform.tfvars — Size L
+machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
+target_size          = 3                   # 3 instances across zones
+min_replicas         = 2
+max_replicas         = 4
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_availability_type = "REGIONAL"          # Required for L
+filestore_tier       = "BASIC_HDD"         # 2.5 TiB
+filestore_capacity_gb = 2560               # 2.5 TiB
+```
+
+---
+
+#### Size XL — Extra Large (20,000 – 80,000 applications)
+
+Enterprise-scale HA deployment supporting 20,000+ evaluations/day. Requires 3-4 nodes with larger instances.
+
+**AWS (ECS Fargate HA):**
+```hcl
+# infra-aws-ha/terraform.tfvars — Size XL
+ecs_cpu              = 16384               # 16 vCPU
+ecs_memory           = 131072             # 128 GB
+iq_desired_count     = 4                   # 4 nodes for XL
+iq_min_count         = 3                   # Minimum instances
+iq_max_count         = 5                   # Maximum instances
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r6g.4xlarge"   # 16 vCPU, 128 GB
+aurora_instances      = 2                  # Multi-AZ with automatic failover
+```
+
+**AWS (EKS + Helm):**
+```hcl
+# infra-aws-ha-k8s-helm/terraform.tfvars — Size XL
+node_instance_type      = "r6g.4xlarge"    # 16 vCPU, 128 GB (ARM)
+node_group_desired_size = 4                # 4 nodes
+node_group_min_size     = 3
+node_group_max_size     = 6
+nexus_iq_replica_count  = 4                # 4 IQ pods
+nexus_iq_memory_request = "96Gi"
+nexus_iq_memory_limit   = "112Gi"
+nexus_iq_cpu_request    = "12"
+nexus_iq_cpu_limit      = "16"
+aurora_instance_class   = "db.r6g.4xlarge" # 16 vCPU, 128 GB
+aurora_instance_count   = 2
+```
+
+**Azure (AKS — recommended for XL):**
+```hcl
+# infra-azure-ha-k8s-helm/terraform.tfvars — Size XL
+node_pool_vm_size    = "Standard_E16ps_v6" # 16 vCPU, 128 GB (ARM)
+node_pool_min_count  = 3
+node_pool_max_count  = 5
+node_pool_node_count = 4                   # 4 nodes
+nexus_iq_replica_count = 4                 # 4 IQ pods
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
+db_ha_mode           = "ZoneRedundant"     # Required
+storage_account_tier = "Premium"           # Required for NFS with AKS
+```
+
+**GCP (MIG HA):**
+```hcl
+# infra-gcp-ha/terraform.tfvars — Size XL
+machine_type         = "n4a-highmem-16"    # 16 vCPU, 128 GB (ARM)
+target_size          = 4                   # 4 instances across zones
+min_replicas         = 3
+max_replicas         = 5
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier              = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_availability_type = "REGIONAL"          # Required with automatic failover
+filestore_tier       = "BASIC_HDD"         # 10 TiB (1,000 read / 5,000 write IOPS)
+filestore_capacity_gb = 10240              # 10 TiB
+```
+
+**GCP (GKE + Helm):**
+```hcl
+# infra-gcp-ha-k8s-helm/terraform.tfvars — Size XL
+machine_type            = "n4a-highmem-16" # 16 vCPU, 128 GB (ARM)
+node_pool_min_count     = 3
+node_pool_max_count     = 5
+node_pool_initial_count = 4                # 4 nodes
+nexus_iq_replica_count  = 4                # 4 IQ pods
+iq_docker_image         = "sonatype/nexus-iq-server:latest"
+java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier                 = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_availability_type    = "REGIONAL"
+filestore_tier          = "BASIC_HDD"
+filestore_capacity_gb   = 10240            # 10 TiB
+```
+
+---
+
 ### JVM Configuration
 
 Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPTS` are recommended for all deployment sizes:
