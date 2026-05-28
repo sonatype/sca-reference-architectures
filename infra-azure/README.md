@@ -2,6 +2,76 @@
 
 This directory contains Terraform configuration for deploying a **single-instance** Sonatype IQ Server on Azure using Container Apps with Workload Profiles.
 
+---
+
+## Sizing Guide
+
+This single-instance architecture supports sizes **XS**, **S**, and **M**. Choose your size based on application count and daily evaluation volume:
+
+| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
+|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
+| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Container Apps (2.0 CPU / 16Gi) |
+| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Container Apps (4.0 CPU / 32Gi) |
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | Container Apps (8.0 CPU / 64Gi) |
+
+> ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
+
+> **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
+
+### Recommended `terraform.tfvars` by Size
+
+<details>
+<summary><strong>Size XS</strong> — Extra Small (< 500 applications)</summary>
+
+```hcl
+container_cpu        = 2.0                 # 2 vCPU
+container_memory     = "16Gi"              # 16 GB
+container_min_replicas = 1
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
+db_storage_mb        = 51200               # 50 GB
+```
+</details>
+
+<details>
+<summary><strong>Size S</strong> — Small (500 – 2,000 applications)</summary>
+
+```hcl
+container_cpu        = 4.0                 # 4 vCPU
+container_memory     = "32Gi"              # 32 GB
+container_min_replicas = 1
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
+db_storage_mb        = 102400              # 100 GB
+```
+</details>
+
+<details>
+<summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications)</summary>
+
+```hcl
+container_cpu        = 8.0                 # 8 vCPU
+container_memory     = "64Gi"              # 64 GB
+container_min_replicas = 1
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_storage_mb        = 102400              # 100 GB
+```
+</details>
+
+### Database Sizing
+
+| Size | DB SKU | vCores | Memory | Storage |
+|------|:-------|:------:|:------:|:-------:|
+| **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 50 GB |
+| **S** | GP_Standard_D2s_v3 | 2 | 8 GB | 100 GB |
+| **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow enabled) |
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites

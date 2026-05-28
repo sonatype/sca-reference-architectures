@@ -2,6 +2,100 @@
 
 This directory contains Terraform configuration for deploying Sonatype IQ Server on GCP using GKE (Google Kubernetes Engine) with Helm in a **High Availability configuration** with auto-scaling and multi-zone deployment.
 
+---
+
+## Sizing Guide
+
+This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
+
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Machine Type |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:------------:|
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
+| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
+| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) |
+
+> All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+> **GCP was the primary test platform** — all performance data was validated on GCP ARM-based instances (Ampere Altra).
+
+> **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
+
+### Recommended `terraform.tfvars` by Size
+
+<details>
+<summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
+
+```hcl
+machine_type            = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
+node_pool_min_count     = 2
+node_pool_max_count     = 3
+node_pool_initial_count = 2
+nexus_iq_replica_count  = 2                # 2 IQ pods
+iq_docker_image         = "sonatype/nexus-iq-server:latest"
+java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier                 = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_availability_type    = "REGIONAL"
+filestore_tier          = "BASIC_HDD"
+filestore_capacity_gb   = 1024             # 1 TiB
+```
+</details>
+
+<details>
+<summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
+
+```hcl
+machine_type            = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
+node_pool_min_count     = 2
+node_pool_max_count     = 5
+node_pool_initial_count = 3
+nexus_iq_replica_count  = 3                # 3 IQ pods
+iq_docker_image         = "sonatype/nexus-iq-server:latest"
+java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier                 = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_availability_type    = "REGIONAL"
+filestore_tier          = "BASIC_HDD"
+filestore_capacity_gb   = 2560             # 2.5 TiB
+```
+</details>
+
+<details>
+<summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
+
+```hcl
+machine_type            = "n4a-highmem-16" # 16 vCPU, 128 GB (ARM)
+node_pool_min_count     = 3
+node_pool_max_count     = 5
+node_pool_initial_count = 4
+nexus_iq_replica_count  = 4                # 4 IQ pods
+iq_docker_image         = "sonatype/nexus-iq-server:latest"
+java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_tier                 = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_availability_type    = "REGIONAL"
+filestore_tier          = "BASIC_HDD"
+filestore_capacity_gb   = 10240            # 10 TiB
+```
+</details>
+
+### Database Sizing (Cloud SQL PostgreSQL)
+
+| Size | DB Tier | vCPU | Memory | Storage | Availability |
+|------|:--------|:----:|:------:|:-------:|:------------:|
+| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 100 GB (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 200 GB – 1 TB (auto-resize) | Regional |
+| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 500 GB – 2 TB (auto-resize) | Regional |
+
+### Shared Storage (Cloud Filestore)
+
+| Size | Tier | Capacity | Read IOPS | Write IOPS |
+|------|:-----|:--------:|:---------:|:----------:|
+| **M** | BASIC_HDD | 1 TiB | 600 | 1,000 |
+| **L** | BASIC_HDD | 2.5 TiB | 600 | 1,000 |
+| **XL** | BASIC_HDD | 10 TiB | 1,000 | 5,000 |
+
+> BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS (4x observed peak of ~1,212 ops/sec) at roughly the same cost as 2.5 TiB SSD. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites
