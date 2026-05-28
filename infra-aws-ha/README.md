@@ -2,6 +2,90 @@
 
 This directory contains Terraform configuration for deploying Sonatype IQ Server on AWS using ECS Fargate in a **High Availability configuration** with auto-scaling and multi-AZ deployment.
 
+---
+
+## Sizing Guide
+
+This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
+
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
+| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
+| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Fargate (16384 CPU / 131072 MEM) |
+
+> All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+> **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
+
+### Recommended `terraform.tfvars` by Size
+
+<details>
+<summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
+
+```hcl
+ecs_cpu              = 8192                # 8 vCPU
+ecs_memory           = 65536               # 64 GB
+iq_desired_count     = 2                   # 2 nodes for HA
+iq_min_count         = 2
+iq_max_count         = 3
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+aurora_instances      = 2                  # Multi-AZ
+```
+</details>
+
+<details>
+<summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
+
+```hcl
+ecs_cpu              = 8192                # 8 vCPU
+ecs_memory           = 65536               # 64 GB
+iq_desired_count     = 3                   # 3 nodes recommended
+iq_min_count         = 2
+iq_max_count         = 4
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+aurora_instances      = 2                  # Multi-AZ with failover
+```
+</details>
+
+<details>
+<summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
+
+```hcl
+ecs_cpu              = 16384               # 16 vCPU
+ecs_memory           = 131072              # 128 GB
+iq_desired_count     = 4                   # 4 nodes for XL
+iq_min_count         = 3
+iq_max_count         = 5
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r6g.4xlarge"   # 16 vCPU, 128 GB
+aurora_instances      = 2                  # Multi-AZ with automatic failover
+```
+</details>
+
+### Database Sizing
+
+| Size | Aurora Instance Class | vCPU | Memory | Storage |
+|------|:--------------------|:----:|:------:|:-------:|
+| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+| **L** | db.r6g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
+| **XL** | db.r6g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+
+### Shared Storage (EFS)
+
+| Size | Throughput Mode | Estimated Capacity | Cost Optimization |
+|------|:---------------|:------------------:|:-----------------|
+| **M** | Elastic | 200 GB – 500 GB | Lifecycle policies: 30-day move to IA |
+| **L** | Elastic | 500 GB – 1.5 TB | Lifecycle policies: 30-day move to IA |
+| **XL** | Elastic | 1.5 TB – 4 TB | Lifecycle policies: 30-day move to IA |
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites
