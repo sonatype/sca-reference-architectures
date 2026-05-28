@@ -2,6 +2,95 @@
 
 This directory contains Terraform configuration for deploying Sonatype IQ Server on Azure using Container Apps in a **High Availability configuration** with auto-scaling and multi-zone deployment.
 
+---
+
+## Sizing Guide
+
+This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
+
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) |
+| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) |
+| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Standard_E16ps_v6 (ARM) |
+
+> All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+> **Note:** For XL scale, [AKS](../infra-azure-ha-k8s-helm/) is recommended over Container Apps.
+
+> **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
+
+### Recommended `terraform.tfvars` by Size
+
+<details>
+<summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
+
+```hcl
+container_cpu        = 8.0                 # 8 vCPU
+container_memory     = "64Gi"              # 64 GB
+iq_min_replicas      = 2                   # 2 replicas for HA
+iq_max_replicas      = 3
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_high_availability_mode = "ZoneRedundant"
+```
+</details>
+
+<details>
+<summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
+
+```hcl
+container_cpu        = 8.0                 # 8 vCPU
+container_memory     = "64Gi"              # 64 GB
+iq_min_replicas      = 2
+iq_max_replicas      = 4
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_high_availability_mode = "ZoneRedundant"
+storage_account_tier             = "Standard"
+storage_account_replication_type = "ZRS"
+```
+</details>
+
+<details>
+<summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
+
+```hcl
+container_cpu        = 16.0                # 16 vCPU
+container_memory     = "128Gi"             # 128 GB
+iq_min_replicas      = 3
+iq_max_replicas      = 5
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
+db_high_availability_mode = "ZoneRedundant"
+storage_account_tier             = "Premium"  # Required for NFS with AKS
+storage_account_replication_type = "ZRS"
+```
+</details>
+
+### Database Sizing
+
+| Size | DB SKU | vCores | Memory | Storage |
+|------|:-------|:------:|:------:|:-------:|
+| **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow) |
+| **L** | GP_Standard_D8s_v3 | 8 | 32 GB | 200 GB – 1 TB (auto-grow) |
+| **XL** | MO_Standard_E16s_v3 | 16 | 128 GB | 500 GB – 2 TB (auto-grow) |
+
+### Shared Storage (Azure Files)
+
+| Size | Tier | Protocol | Redundancy | Estimated Capacity |
+|------|:-----|:--------:|:----------:|:------------------:|
+| **M** | Standard HDD | SMB 3.0 | ZRS | 100 GB initial |
+| **L** | Standard HDD | SMB 3.0 | ZRS | 500 GB – 1.5 TB |
+| **XL** | Premium SSD | SMB/NFS | ZRS | 1.5 TB – 4 TB |
+
+> Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites

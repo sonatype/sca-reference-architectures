@@ -95,13 +95,13 @@ Choose your deployment size based on your application count and daily evaluation
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-----------:|
 | **XS** ¹ | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No |
 | **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 1 – 2 | 8 vCPU / 64 GB | 48 GB | Recommended |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 2 – 3 | 8 vCPU / 64 GB | 48 GB | Required |
-| **XL** | 20,000 – 80,000 | 20,000+ | 3 – 4 | 16 vCPU / 128 GB | 96 GB | Required |
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended |
+| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required |
+| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required |
 
 > ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing.
 
-> **Note:** M and L use the same instance specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes, not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
+> **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
 ### Step 1: Choose Your Reference Architecture
 
@@ -176,7 +176,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
-| **Number of IQ Server nodes** | 1 – 2 | 2 – 3 | 3 – 4 |
+| **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
@@ -207,7 +207,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
-| **Number of IQ Server nodes** | 1 – 2 | 2 – 3 | 3 – 4 |
+| **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
@@ -239,7 +239,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
-| **Number of IQ Server nodes** | 1 – 2 | 2 – 3 | 3 – 4 |
+| **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
@@ -293,11 +293,11 @@ The following tables provide equivalent instance types across cloud providers fo
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (1–2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **L** (2–3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **XL** (3–4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r6g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
+| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
+| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
+| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r6g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
 
-> **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 3–4 nodes (~560 peak connections), not query complexity.
+> **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
 > **ARM instances recommended.** ARM-based instances (GCP n4a, AWS r6g, Azure Eps_v6) offer 20-30% better price-performance. If using x86_64 instances, verify performance characteristics are similar.
 
@@ -393,7 +393,7 @@ db_disk_size         = 100                 # GB
 
 #### Size M — Medium (2,000 – 10,000 applications)
 
-Production deployment supporting 5,000-10,000 evaluations/day. Single instance or HA (1-2 nodes).
+Production deployment supporting 5,000-10,000 evaluations/day. Single instance or HA (2 nodes).
 
 **AWS (ECS Fargate — Single Instance):**
 ```hcl
@@ -451,7 +451,7 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 
 #### Size L — Large (10,000 – 20,000 applications)
 
-High-availability production deployment supporting 10,000-20,000 evaluations/day. Requires 2-3 nodes.
+High-availability production deployment supporting 10,000-20,000 evaluations/day. Requires 3 nodes.
 
 **AWS (ECS Fargate HA):**
 ```hcl
@@ -515,7 +515,7 @@ filestore_capacity_gb = 2560               # 2.5 TiB
 
 #### Size XL — Extra Large (20,000 – 80,000 applications)
 
-Enterprise-scale HA deployment supporting 20,000+ evaluations/day. Requires 3-4 nodes with larger instances.
+Enterprise-scale HA deployment supporting 20,000+ evaluations/day. Requires 4 nodes with larger instances.
 
 **AWS (ECS Fargate HA):**
 ```hcl

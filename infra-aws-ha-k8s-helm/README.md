@@ -2,6 +2,103 @@
 
 This directory contains Terraform configuration for deploying Sonatype IQ Server on AWS using EKS (Elastic Kubernetes Service) with Helm in a **High Availability configuration** with auto-scaling and multi-AZ deployment.
 
+---
+
+## Sizing Guide
+
+This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
+
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r6g.2xlarge (ARM) |
+| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r6g.2xlarge (ARM) |
+| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r6g.4xlarge (ARM) |
+
+> All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+> **ARM instances recommended.** r6g (Graviton2) instances offer 20-30% better price-performance than x86 equivalents (r5).
+
+> **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
+
+### Recommended `terraform.tfvars` by Size
+
+<details>
+<summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
+
+```hcl
+node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_group_desired_size = 2
+node_group_min_size     = 2
+node_group_max_size     = 3
+nexus_iq_replica_count  = 2                # 2 IQ pods
+nexus_iq_memory_request = "48Gi"
+nexus_iq_memory_limit   = "56Gi"
+nexus_iq_cpu_request    = "6"
+nexus_iq_cpu_limit      = "8"
+aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_count   = 2
+java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
+</details>
+
+<details>
+<summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
+
+```hcl
+node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_group_desired_size = 3
+node_group_min_size     = 2
+node_group_max_size     = 5
+nexus_iq_replica_count  = 3                # 3 IQ pods
+nexus_iq_memory_request = "48Gi"
+nexus_iq_memory_limit   = "56Gi"
+nexus_iq_cpu_request    = "6"
+nexus_iq_cpu_limit      = "8"
+aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_count   = 2
+java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
+</details>
+
+<details>
+<summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
+
+```hcl
+node_instance_type      = "r6g.4xlarge"    # 16 vCPU, 128 GB (ARM)
+node_group_desired_size = 4
+node_group_min_size     = 3
+node_group_max_size     = 6
+nexus_iq_replica_count  = 4                # 4 IQ pods
+nexus_iq_memory_request = "96Gi"
+nexus_iq_memory_limit   = "112Gi"
+nexus_iq_cpu_request    = "12"
+nexus_iq_cpu_limit      = "16"
+aurora_instance_class   = "db.r6g.4xlarge" # 16 vCPU, 128 GB
+aurora_instance_count   = 2
+java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
+</details>
+
+### Database Sizing (Aurora PostgreSQL)
+
+| Size | Aurora Instance Class | vCPU | Memory | Storage |
+|------|:--------------------|:----:|:------:|:-------:|
+| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+| **L** | db.r6g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
+| **XL** | db.r6g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+
+### Shared Storage (EFS)
+
+All sizes use Amazon EFS with Elastic throughput mode. Enable lifecycle policies to move files older than 30 days to Infrequent Access (IA) for ~92% storage savings.
+
+| Size | Estimated Capacity |
+|------|:------------------:|
+| **M** | 200 GB – 500 GB |
+| **L** | 500 GB – 1.5 TB |
+| **XL** | 1.5 TB – 4 TB |
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites

@@ -2,6 +2,76 @@
 
 This directory contains Terraform configuration for deploying a **single-instance** Sonatype IQ Server on AWS using ECS Fargate.
 
+---
+
+## Sizing Guide
+
+This single-instance architecture supports sizes **XS**, **S**, and **M**. Choose your size based on application count and daily evaluation volume:
+
+| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
+|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
+| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
+| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) |
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
+
+> ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
+
+> **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
+
+### Recommended `terraform.tfvars` by Size
+
+<details>
+<summary><strong>Size XS</strong> — Extra Small (< 500 applications)</summary>
+
+```hcl
+ecs_cpu              = 2048                # 2 vCPU
+ecs_memory           = 16384               # 16 GB
+iq_desired_count     = 1
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.t4g.medium"     # 2 vCPU, 4 GB (burstable)
+db_allocated_storage = 50
+```
+</details>
+
+<details>
+<summary><strong>Size S</strong> — Small (500 – 2,000 applications)</summary>
+
+```hcl
+ecs_cpu              = 4096                # 4 vCPU
+ecs_memory           = 32768               # 32 GB
+iq_desired_count     = 1
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.r6g.large"      # 2 vCPU, 16 GB
+db_allocated_storage = 100
+```
+</details>
+
+<details>
+<summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications)</summary>
+
+```hcl
+ecs_cpu              = 8192                # 8 vCPU
+ecs_memory           = 65536               # 64 GB
+iq_desired_count     = 1
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
+db_allocated_storage = 100                 # auto-scales to 500 GB
+```
+</details>
+
+### Database Sizing
+
+| Size | DB Instance Class | vCPU | Memory | Storage |
+|------|:-----------------|:----:|:------:|:-------:|
+| **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 50 GB |
+| **S** | db.r6g.large | 2 | 16 GB | 100 GB |
+| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites
