@@ -379,7 +379,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
 - **Auto Scaling Metrics**: CPU and memory utilization tracking
 - **ALB Access Logs**: Load balancer access logs stored in S3
-- **VPC Flow Logs** (`enable_vpc_flow_logs`): optional, sent to a dedicated CloudWatch log group (`/aws/vpc-flow-logs/${cluster_name}`). Defaults to tracking `vpn_only` (auto-enabled once the environment is VPN-only, since flow logs are the most reliable way to reconstruct which client reached which backend during a security incident) — set explicitly to override.
+- **VPC Flow Logs** (`enable_vpc_flow_logs`): optional, sent to a dedicated CloudWatch log group (`/aws/vpc-flow-logs/${cluster_name}`). Defaults to tracking `vpn_only` (auto-enabled once the environment is VPN-only, since flow logs are the most reliable way to reconstruct which client reached which backend during a security incident) — set explicitly to override. `traffic_type = "ALL"` captures every accepted/rejected flow for the whole VPC, which can be a nontrivial recurring CloudWatch Logs ingestion/storage cost on a busy cluster — set `enable_vpc_flow_logs = false` if that's not acceptable, or consider an S3 destination instead of CloudWatch if full-fidelity capture isn't required for your use case (not implemented here, but a straightforward `log_destination_type = "s3"` swap in `flow_logs.tf`).
 
 ## Persistent Storage
 

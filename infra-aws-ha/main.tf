@@ -1,7 +1,9 @@
 terraform {
-  # >= 1.9 for cross-variable references in variable "validation" blocks
-  # (used by the vpn_only / enable_nat_gateway validation below).
-  required_version = ">= 1.9"
+  # >= 1.2 for the lifecycle precondition on aws_lb.iq_alb in load_balancer.tf
+  # (the vpn_only / enable_nat_gateway guard) — kept intentionally low rather
+  # than requiring >= 1.9 for variable-level cross-variable validation, since
+  # this floor applies to every user of this folder, not just vpn_only=true.
+  required_version = ">= 1.2"
   required_providers {
     aws = {
       source  = "hashicorp/aws"

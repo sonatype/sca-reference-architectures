@@ -46,19 +46,20 @@ resource "aws_iam_role_policy" "vpc_flow_logs" {
   name  = "${var.cluster_name}-vpc-flow-logs-policy"
   role  = aws_iam_role.vpc_flow_logs[0].id
 
+  # Scoped to the one log group this role delivers to (Terraform creates and
+  # manages that group, so the role itself never needs logs:CreateLogGroup or
+  # account-wide Describe* — only write access to its own log streams).
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents",
-          "logs:DescribeLogGroups",
           "logs:DescribeLogStreams"
         ]
-        Resource = "*"
+        Resource = "${aws_cloudwatch_log_group.vpc_flow_logs[0].arn}:*"
       }
     ]
   })

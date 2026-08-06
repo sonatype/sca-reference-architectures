@@ -37,14 +37,9 @@ variable "db_subnet_cidrs" {
 }
 
 variable "enable_nat_gateway" {
-  description = "Enable NAT Gateway for private subnets"
+  description = "Enable NAT Gateway for private subnets. When vpn_only = true, this must stay true — the ALB and ECS tasks move into private subnets and need outbound egress (ECR pulls, etc). Enforced via a lifecycle precondition on aws_lb.iq_alb in load_balancer.tf rather than a variable validation block, to avoid raising this module's required_version floor (variable-level cross-variable validation needs Terraform >= 1.9; lifecycle preconditions have worked since 1.2)."
   type        = bool
   default     = true
-
-  validation {
-    condition     = var.vpn_only ? var.enable_nat_gateway : true
-    error_message = "vpn_only = true requires enable_nat_gateway = true (private-subnet workloads need outbound egress via NAT)."
-  }
 }
 
 

@@ -9,7 +9,7 @@ aws_region              = "us-east-1"                                  # must ma
 vpc_id                  = "vpc-REPLACE_ME"                             # infra-aws-ha output: vpc_id
 vpc_cidr                = "10.0.0.0/16"                                # infra-aws-ha output: vpc_cidr_block
 public_subnet_ids       = ["subnet-REPLACE_ME_1", "subnet-REPLACE_ME_2", "subnet-REPLACE_ME_3"]  # infra-aws-ha output: public_subnets
-private_route_table_ids = { "private-0" = "rtb-REPLACE_ME_1", "private-1" = "rtb-REPLACE_ME_2" } # infra-aws-ha output: private_route_table_ids
+private_route_table_ids = { "private-0" = "rtb-REPLACE_ME_1", "private-1" = "rtb-REPLACE_ME_2", "private-2" = "rtb-REPLACE_ME_3" } # infra-aws-ha output: private_route_table_ids (one entry per private subnet — 3 by default)
 alb_dns_name             = "ref-arch-iq-ha-cluster-alb-REPLACE_ME.us-east-1.elb.amazonaws.com"    # infra-aws-ha output: alb_dns_name
 ssl_enabled              = false                                       # true if infra-aws-ha's ssl_certificate_arn is set
 

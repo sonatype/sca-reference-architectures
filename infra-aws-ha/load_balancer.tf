@@ -19,6 +19,13 @@ resource "aws_lb" "iq_alb" {
     enabled = true
   }
 
+  lifecycle {
+    precondition {
+      condition     = var.vpn_only ? var.enable_nat_gateway : true
+      error_message = "vpn_only = true requires enable_nat_gateway = true (private-subnet workloads need outbound egress via NAT)."
+    }
+  }
+
   tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-alb"
   })
