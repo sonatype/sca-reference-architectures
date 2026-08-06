@@ -126,33 +126,13 @@ output "target_group_arn" {
 
 output "application_url" {
   description = "URL to access Nexus IQ Server"
-  value       = var.ssl_certificate_arn != "" ? "https://${aws_lb.iq_alb.dns_name}" : "http://${aws_lb.iq_alb.dns_name}"
+  value = var.ssl_certificate_arn != "" ? "https://${aws_lb.iq_alb.dns_name}" : "http://${aws_lb.iq_alb.dns_name}"
 }
 
 
-output "cloudconnexa_network_id" {
-  description = "CloudConnexa VPN network ID. Null unless vpn_only = true."
-  value       = var.vpn_only ? module.cloudconnexa_network[0].network_id : null
-}
-
-output "cloudconnexa_network_name" {
-  description = "CloudConnexa VPN network name. Null unless vpn_only = true."
-  value       = var.vpn_only ? module.cloudconnexa_network[0].network_name : null
-}
-
-output "cloudconnexa_connector_security_group_id" {
-  description = "Security group ID of the CloudConnexa connector instances. Null unless vpn_only = true."
-  value       = var.vpn_only ? module.cloudconnexa_network[0].connector_security_group_id : null
-}
-
-output "cloudconnexa_application_domain" {
-  description = "Domain name routed to the IQ Server ALB via CloudConnexa's domain-based VPN routing. Null unless vpn_only = true."
-  value       = var.vpn_only ? coalesce(var.cloudconnexa_application_domain, aws_lb.iq_alb.dns_name) : null
-}
-
-output "network_access_notice" {
-  description = "Reminder of how this environment is reachable"
-  value       = var.vpn_only ? "This environment is VPN-only. Connect to the Sonatype CloudConnexa VPN before browsing to the application_url output above — there is no public internet path to this environment." : "This environment is reachable from the public internet at the application_url output above. Set vpn_only = true to lock it down to CloudConnexa VPN access instead."
+output "private_route_table_ids" {
+  description = "Map of private route table IDs, keyed by index (private-0, private-1, ...). Consumed by ../vpn-overlay/ so CloudConnexa VPN return routes reach every AZ's private subnet; also useful for any other per-AZ route table wiring."
+  value       = { for idx, rt in aws_route_table.private_rt : "private-${idx}" => rt.id }
 }
 
 
@@ -226,23 +206,23 @@ output "ecs_cluster_info" {
 output "architecture_summary" {
   description = "High-level summary of the deployed architecture"
   value = {
-    deployment_type    = "High Availability"
-    compute_platform   = "Amazon ECS Fargate"
-    database_type      = "Aurora PostgreSQL Cluster"
-    storage_type       = "Amazon EFS"
-    load_balancer      = "Application Load Balancer"
-    ssl_enabled        = var.ssl_certificate_arn != ""
-    waf_enabled        = true
-    backup_enabled     = true
+    deployment_type = "High Availability"
+    compute_platform = "Amazon ECS Fargate"
+    database_type = "Aurora PostgreSQL Cluster"
+    storage_type = "Amazon EFS"
+    load_balancer = "Application Load Balancer"
+    ssl_enabled = var.ssl_certificate_arn != ""
+    waf_enabled = true
+    backup_enabled = true
     monitoring_enabled = var.enable_container_insights
     availability_zones = length(data.aws_availability_zones.available.names)
-    iq_server_tasks    = var.iq_desired_count
-    aurora_instances   = var.aurora_instances
+    iq_server_tasks = var.iq_desired_count
+    aurora_instances = var.aurora_instances
     auto_scaling = {
-      min_tasks     = var.iq_min_count
+      min_tasks = var.iq_min_count
       desired_tasks = var.iq_desired_count
-      max_tasks     = var.iq_max_count
-      cpu_target    = var.iq_cpu_target_value
+      max_tasks = var.iq_max_count
+      cpu_target = var.iq_cpu_target_value
       memory_target = var.iq_memory_target_value
     }
     service_discovery_enabled = true

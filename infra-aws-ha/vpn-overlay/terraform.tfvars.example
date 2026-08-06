@@ -1,0 +1,33 @@
+# Copy this file to terraform.tfvars and fill in the values from
+# ../infra-aws-ha's outputs (see README.md for the exact `terraform output`
+# commands to generate these instead of copy-pasting by hand).
+
+# ================================
+# Chained from ../infra-aws-ha
+# ================================
+aws_region              = "us-east-1"                                  # must match infra-aws-ha's aws_region
+vpc_id                  = "vpc-REPLACE_ME"                             # infra-aws-ha output: vpc_id
+vpc_cidr                = "10.0.0.0/16"                                # infra-aws-ha output: vpc_cidr_block
+public_subnet_ids       = ["subnet-REPLACE_ME_1", "subnet-REPLACE_ME_2", "subnet-REPLACE_ME_3"]  # infra-aws-ha output: public_subnets
+private_route_table_ids = { "private-0" = "rtb-REPLACE_ME_1", "private-1" = "rtb-REPLACE_ME_2" } # infra-aws-ha output: private_route_table_ids
+alb_dns_name             = "ref-arch-iq-ha-cluster-alb-REPLACE_ME.us-east-1.elb.amazonaws.com"    # infra-aws-ha output: alb_dns_name
+ssl_enabled              = false                                       # true if infra-aws-ha's ssl_certificate_arn is set
+
+cluster_name = "ref-arch-iq-ha-cluster"  # must match infra-aws-ha's cluster_name
+common_tags = {
+  Project     = "nexus-iq-server-ha"
+  Environment = "production"
+  Terraform   = "true"
+}
+
+# ================================
+# CloudConnexa configuration (Sonatype-internal only, see README.md)
+# ================================
+cloudconnexa_owner = "your-team@sonatype.com"  # required, no default
+
+# cloudconnexa_base_url          = "https://sonatype.api.openvpn.com"
+# cloudconnexa_connector_count   = 2
+# cloudconnexa_connector_version = "1"
+# cloudconnexa_segment           = "iq-server"
+# cloudconnexa_product           = "iq-server-ha"
+# cloudconnexa_application_domain = "iq.internal.example.com"  # required if ssl_enabled = true

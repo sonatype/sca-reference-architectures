@@ -321,11 +321,18 @@ This deployment solves critical IQ Server clustering challenges:
 - **Security Groups**: Least-privilege network access
 - **Work Directory Isolation**: Unique work directories per task prevent clustering conflicts
 
-### VPN-Only Access (optional)
+### VPN-Only Access (optional, two-step)
 
-By default the ALB is internet-facing (public subnets, security group open on 80/443). Set `vpn_only = true` in your `terraform.tfvars` to lock the environment down to Sonatype CloudConnexa VPN access instead — the ALB moves into the private subnets, its security group only accepts `cloudconnexa_client_cidr_blocks`, and a CloudConnexa VPN network + application (see `cloudconnexa.tf`) are created to route VPN client traffic to it. There is no public internet path once enabled.
+By default the ALB is internet-facing (public subnets, security group open on 80/443). Locking that down instead is a two-step process split across two directories:
 
-Requires `CLOUDCONNEXA_CLIENT_ID`/`CLOUDCONNEXA_CLIENT_SECRET` environment variables and access to Sonatype's private Terraform Cloud module registry (`app.terraform.io/Sonatype-Cloud/...`). See the `cloudconnexa_*` variables in `variables.tf` for the rest of the configuration (owner tag, connector count, client CIDR blocks, etc).
+1. **This folder — `vpn_only = true`.** Set it in your `terraform.tfvars` and apply. The ALB moves into the private subnets, its security group only accepts `cloudconnexa_client_cidr_blocks` (defaults to this VPC's actual CIDR — see the `cloudconnexa_client_cidr_blocks` variable), and `enable_vpc_flow_logs` auto-enables (see [Monitoring and Logging](#monitoring-and-logging)). This step alone is plain AWS resources with no extra provider dependency — it does **not** create any VPN, it just removes the public path and prepares the environment for one.
+2. **[`../vpn-overlay/`](../vpn-overlay/README.md) — apply separately.** This is a distinct root module that actually wires up Sonatype CloudConnexa VPN access, using this folder's outputs (`vpc_id`, `vpc_cidr_block`, `public_subnets`, `private_route_table_ids`, `alb_dns_name`) as its inputs. Keeping the CloudConnexa provider and modules out of this folder entirely is intentional: Terraform resolves provider configuration statically, independent of `count`/`for_each`, so declaring that provider here — even behind `count = var.vpn_only ? 1 : 0` — would require every user of this folder to have CloudConnexa credentials on every plan/apply, VPN or not. **`vpn-overlay/` is Sonatype-internal-only** (private Terraform Cloud registry + a real Sonatype CloudConnexa tenant) — see its README for details and for the exact `terraform output` → `-var` chaining commands.
+
+If you only complete step 1, the environment is simply unreachable from the public internet with no VPN path yet configured — apply the overlay to actually restore access.
+
+#### Switching modes on an existing deployment
+
+Toggling `vpn_only` on a deployment that's already applied is not a zero-downtime change: `internal` and `subnets` are both `ForceNew` on the ALB, so Terraform replaces it (new DNS name — anything bookmarked or integrated against the old `*.elb.amazonaws.com` name breaks) rather than updating it in place. If `alb_deletion_protection = true`, the apply aborts partway through because the old ALB can't be destroyed — disable deletion protection first if you intend to toggle `vpn_only` on a live environment. Where possible, prefer standing up a fresh environment with the desired `vpn_only` value instead of flipping it in place.
 
 ## Reliability and Backup
 
@@ -372,6 +379,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
 - **Auto Scaling Metrics**: CPU and memory utilization tracking
 - **ALB Access Logs**: Load balancer access logs stored in S3
+- **VPC Flow Logs** (`enable_vpc_flow_logs`): optional, sent to a dedicated CloudWatch log group (`/aws/vpc-flow-logs/${cluster_name}`). Defaults to tracking `vpn_only` (auto-enabled once the environment is VPN-only, since flow logs are the most reliable way to reconstruct which client reached which backend during a security incident) — set explicitly to override.
 
 ## Persistent Storage
 
@@ -386,6 +394,8 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **Public Subnets**: Load balancer and NAT gateways across multiple AZs
 - **Private Subnets**: ECS Fargate tasks across multiple AZs
 - **Database Subnets**: Aurora cluster instances (no internet access)
+
+The `private_route_table_ids` output (one entry per AZ) exists specifically so [`../vpn-overlay/`](../vpn-overlay/README.md) can wire VPN return routes to every AZ's private subnet without this folder needing any CloudConnexa-specific knowledge itself.
 
 ### Security Groups
 - **ALB**: Allows HTTP (80) and HTTPS (443) from internet

@@ -69,6 +69,9 @@ efs_provisioned_throughput_in_mibps = 100
 enable_container_insights = true
 enable_prometheus        = true
 log_retention_days       = 30
+# enable_vpc_flow_logs defaults to null, which tracks vpn_only below (auto-on
+# once this environment is VPN-only). Uncomment to force it on/off explicitly.
+# enable_vpc_flow_logs = true
  
 # ================================
 # COMMON TAGS
@@ -82,16 +85,23 @@ common_tags = {
 }
  
 # ================================
-# VPN-ONLY ACCESS (optional)
+# VPN-ONLY ACCESS (optional, two-step)
 # ================================
-# Uncomment to lock this environment down to CloudConnexa VPN access instead
-# of the public internet. Requires CLOUDCONNEXA_CLIENT_ID and
-# CLOUDCONNEXA_CLIENT_SECRET environment variables, and access to Sonatype's
-# private Terraform Cloud module registry. See variables.tf for the other
-# cloudconnexa_* variables you may want to override (owner, client CIDRs,
-# connector count, etc).
+# Step 1 (this folder): uncomment to move the ALB into private subnets and
+# restrict its security group to cloudconnexa_client_cidr_blocks. This alone
+# does not create any VPN — it only prepares this environment to have one
+# attached.
 #
 # vpn_only = true
+# cloudconnexa_client_cidr_blocks = ["10.0.0.0/16"]  # defaults to this VPC's actual CIDR if left unset
+#
+# Step 2 (separate, Sonatype-internal only): apply ../vpn-overlay/ using this
+# folder's outputs (vpc_id, vpc_cidr_block, public_subnets,
+# private_route_table_ids, alb_dns_name) to actually wire up Sonatype
+# CloudConnexa VPN access. See vpn-overlay/README.md — it requires
+# CLOUDCONNEXA_CLIENT_ID/CLOUDCONNEXA_CLIENT_SECRET and access to Sonatype's
+# private Terraform Cloud module registry, so external customers copying this
+# reference architecture cannot use this step.
 
 # ================================
 # SECURITY NOTES

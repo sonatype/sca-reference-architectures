@@ -1,17 +1,11 @@
 terraform {
-  required_version = ">= 1.0"
+  # >= 1.9 for cross-variable references in variable "validation" blocks
+  # (used by the vpn_only / enable_nat_gateway validation below).
+  required_version = ">= 1.9"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
-    }
-    # A module may only have one required_providers block, so the
-    # cloudconnexa provider requirement is declared here even though its
-    # provider "cloudconnexa" {} configuration block lives in cloudconnexa.tf.
-    # Only actually used when var.vpn_only = true.
-    cloudconnexa = {
-      source  = "OpenVPN/cloudconnexa"
-      version = "~> 1.0"
     }
   }
 }

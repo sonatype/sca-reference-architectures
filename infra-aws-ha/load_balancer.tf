@@ -1,4 +1,9 @@
 
+# `internal` and `subnets` are both ForceNew on aws_lb, so toggling vpn_only
+# on an existing deployment always replaces this ALB (new DNS name,
+# availability gap) rather than updating it in place. See the "Switching
+# modes on an existing deployment" callout in README.md for the operational
+# impact and recommended approach.
 resource "aws_lb" "iq_alb" {
   name               = "${var.cluster_name}-alb"
   internal           = var.vpn_only
