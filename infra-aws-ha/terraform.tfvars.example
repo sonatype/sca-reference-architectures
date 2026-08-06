@@ -82,6 +82,18 @@ common_tags = {
 }
  
 # ================================
+# VPN-ONLY ACCESS (optional)
+# ================================
+# Uncomment to lock this environment down to CloudConnexa VPN access instead
+# of the public internet. Requires CLOUDCONNEXA_CLIENT_ID and
+# CLOUDCONNEXA_CLIENT_SECRET environment variables, and access to Sonatype's
+# private Terraform Cloud module registry. See variables.tf for the other
+# cloudconnexa_* variables you may want to override (owner, client CIDRs,
+# connector count, etc).
+#
+# vpn_only = true
+
+# ================================
 # SECURITY NOTES
 # ================================
 # 1. Change the db_password to a strong, unique password

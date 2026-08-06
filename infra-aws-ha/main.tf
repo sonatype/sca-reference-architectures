@@ -5,6 +5,14 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    # A module may only have one required_providers block, so the
+    # cloudconnexa provider requirement is declared here even though its
+    # provider "cloudconnexa" {} configuration block lives in cloudconnexa.tf.
+    # Only actually used when var.vpn_only = true.
+    cloudconnexa = {
+      source  = "OpenVPN/cloudconnexa"
+      version = "~> 1.0"
+    }
   }
 }
 

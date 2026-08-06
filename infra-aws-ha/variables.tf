@@ -265,3 +265,71 @@ variable "common_tags" {
     Terraform   = "true"
   }
 }
+
+
+# =============================================================================
+# VPN-ONLY ACCESS (CloudConnexa)
+# =============================================================================
+# By default this reference architecture is reachable from the public
+# internet (ALB in the public subnets, security group open to 0.0.0.0/0).
+# Set vpn_only = true to lock it down instead: the ALB moves into the private
+# subnets, its security group only accepts traffic from
+# cloudconnexa_client_cidr_blocks, and cloudconnexa.tf stands up a Sonatype
+# CloudConnexa VPN network + application routing so the only way to reach the
+# environment is over that VPN. This mirrors the pattern used by
+# sonatype/terraform-sca-cloud (src/infrastructure/aws/global/main.tf,
+# control_plane_cloudconnexa_network / _application module invocations).
+
+variable "vpn_only" {
+  description = "Make this environment reachable only via the Sonatype CloudConnexa VPN instead of the public internet. When true: the ALB is internal (private subnets, no public IP path) and its security group only accepts cloudconnexa_client_cidr_blocks; a CloudConnexa VPN network and application are created to route VPN client traffic to it. Requires CLOUDCONNEXA_CLIENT_ID and CLOUDCONNEXA_CLIENT_SECRET environment variables when true. Defaults to false, preserving this reference architecture's existing public-internet behavior."
+  type        = bool
+  default     = false
+}
+
+variable "cloudconnexa_base_url" {
+  description = "CloudConnexa API base URL. Only used when vpn_only = true."
+  type        = string
+  default     = "https://sonatype.api.openvpn.com"
+}
+
+variable "cloudconnexa_connector_count" {
+  description = "Number of CloudConnexa VPN connector instances. 2+ recommended for connector redundancy, consistent with this architecture's HA design. Only used when vpn_only = true."
+  type        = number
+  default     = 2
+}
+
+variable "cloudconnexa_connector_version" {
+  description = "Change this value to trigger recreation of CloudConnexa connector instances (e.g., to apply user_data changes). Only used when vpn_only = true."
+  type        = string
+  default     = "1"
+}
+
+variable "cloudconnexa_segment" {
+  description = "CloudConnexa network segment tag (mirrors the 'segment' input on terraform-sca-cloud's cloudconnexa-network module invocation). Only used when vpn_only = true."
+  type        = string
+  default     = "iq-server"
+}
+
+variable "cloudconnexa_product" {
+  description = "CloudConnexa network product tag (mirrors the 'product' input on terraform-sca-cloud's cloudconnexa-network module invocation). Only used when vpn_only = true."
+  type        = string
+  default     = "iq-server-ha"
+}
+
+variable "cloudconnexa_owner" {
+  description = "Owner (team or email) for CloudConnexa network ownership tagging. Set this to your team's identifier before applying. Only used when vpn_only = true."
+  type        = string
+  default     = ""
+}
+
+variable "cloudconnexa_application_domain" {
+  description = "Domain name CloudConnexa VPN clients use to reach the IQ Server ALB, via CloudConnexa's domain-based routing. Defaults to null, which falls back to the ALB's own AWS-generated DNS name (aws_lb.iq_alb.dns_name). Override with a custom Route53 record aliased to the internal ALB for a friendlier URL. Only used when vpn_only = true."
+  type        = string
+  default     = null
+}
+
+variable "cloudconnexa_client_cidr_blocks" {
+  description = "CIDR block(s) permitted to reach the ALB security group on 80/443 when vpn_only = true. Should cover only the VPC CIDR and/or the CloudConnexa VPN client IP pool CIDR, so that only traffic arriving via the CloudConnexa VPN connector (or from other resources already inside the VPC) can reach the application. Defaults to the VPC CIDR (covers the common case where the CloudConnexa connector NATs client traffic to a VPC-internal address) — verify against your CloudConnexa network's actual configured client/route CIDR before applying, since this depends on details of the cloudconnexa-network module that are not visible from this reference architecture alone. Only used when vpn_only = true."
+  type        = list(string)
+  default     = ["10.0.0.0/16"]
+}

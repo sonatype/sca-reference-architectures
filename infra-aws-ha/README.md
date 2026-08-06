@@ -321,6 +321,12 @@ This deployment solves critical IQ Server clustering challenges:
 - **Security Groups**: Least-privilege network access
 - **Work Directory Isolation**: Unique work directories per task prevent clustering conflicts
 
+### VPN-Only Access (optional)
+
+By default the ALB is internet-facing (public subnets, security group open on 80/443). Set `vpn_only = true` in your `terraform.tfvars` to lock the environment down to Sonatype CloudConnexa VPN access instead — the ALB moves into the private subnets, its security group only accepts `cloudconnexa_client_cidr_blocks`, and a CloudConnexa VPN network + application (see `cloudconnexa.tf`) are created to route VPN client traffic to it. There is no public internet path once enabled.
+
+Requires `CLOUDCONNEXA_CLIENT_ID`/`CLOUDCONNEXA_CLIENT_SECRET` environment variables and access to Sonatype's private Terraform Cloud module registry (`app.terraform.io/Sonatype-Cloud/...`). See the `cloudconnexa_*` variables in `variables.tf` for the rest of the configuration (owner tag, connector count, client CIDR blocks, etc).
+
 ## Reliability and Backup
 
 This is a **High Availability** deployment with comprehensive reliability features:

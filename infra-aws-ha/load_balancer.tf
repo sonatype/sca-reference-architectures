@@ -1,10 +1,10 @@
 
 resource "aws_lb" "iq_alb" {
   name               = "${var.cluster_name}-alb"
-  internal           = false
+  internal           = var.vpn_only
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = aws_subnet.public_subnets[*].id
+  subnets            = var.vpn_only ? aws_subnet.private_subnets[*].id : aws_subnet.public_subnets[*].id
 
   enable_deletion_protection = var.alb_deletion_protection
 
