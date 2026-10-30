@@ -13,10 +13,17 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 | **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
 | **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) |
 | **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
+| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
+|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
+| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) | Required ² |
+| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) | Required ² |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) | Required ² |
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing, which ran on a GCP ARM instance at 8 vCPU and 64 GB with a 48 GB heap rather than on a Fargate task. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
 
 > **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Raising it back to 48 GB removes most of that margin.
+
+> ² OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
 
@@ -71,6 +78,86 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 | **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 50 GB |
 | **S** | db.r6g.large | 2 | 16 GB | 100 GB |
 | **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index, and **it is
+required at every size this architecture supports.** One cluster serves both features, through a single
+`search:` block in IQ Server's `config.yml`: one endpoint, one set of credentials, and no second switch
+to turn on.
+
+On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
+SigV4 signed by the ECS task role, so there is no password to store. The task role needs the
+`es:ESHttpGet`, `es:ESHttpPost`, `es:ESHttpPut`, `es:ESHttpHead` and `es:ESHttpDelete` actions on the
+domain.
+
+**This architecture does not create the domain.** It takes an endpoint and points IQ Server at it, so
+the domain's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
+domain has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
+index.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
+(`application`, `violation`, `waiver`, `component`, `vulnerability`, and `entity`, which holds the
+organization, application category, component label, policy, user, and license threat group lookups
+together) and one for Advanced Search.
+
+Each Nexus One index is created with **one primary shard**, which is the recommendation at every
+published size. The `component`, `violation`, and `vulnerability` indices can be raised per tenant
+through the configuration API, up to a ceiling of 12; the other three have no such setting. **A shard
+count applies only when an index is created**, so raising one has to be followed by a rebuild.
+
+**The Advanced Search index is the one IQ Server does not size.** It sends no shard count and no
+replica count for that index, so it gets whatever your domain's default, or a matching index template,
+gives it. On a managed AWS domain that default is AWS's, and nothing in IQ Server reports what the
+index actually got. Read it off the live index with `GET <index>/_settings`.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node survivable.
+**IQ Server's own default is 0**, so an architecture that omits `search.nexusOneIndexReplicas` gets no
+replica rather than a sensible default. This architecture sets the value explicitly:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **XS** | 1 | `0` |
+| **S** | 1 | `0` |
+| **M** | more than 1 | Not published yet |
+
+**`0` at XS and S is a decision, not an omission.** A one-node cluster has nowhere to place a replica,
+so asking for one leaves the index permanently yellow for no benefit. That is not a failure state: a
+yellow index is created, opens, takes writes, and returns correct reads, because yellow means every
+primary is assigned and a replica is not, and primaries serve every read and take every write. IQ
+Server never reads cluster health, so no OpenSearch color is reported as an error. What it does cost
+you is plain: with one data node and no replica, **losing that node means rebuilding the index.**
+
+Give the Advanced Search index the same replica count through a domain-level index template, so both
+halves of search survive losing a data node or neither does.
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild builds a complete new set of indices and moves the aliases onto it when every
+pass has succeeded, then keeps the old set for **30 minutes** after the cutover. So during a rebuild,
+and for half an hour afterwards, the domain holds twice the Nexus One shards and twice the Nexus One
+disk, plus the Advanced Search index. **Judge free storage against the doubled figure, not the steady
+state.** A replica is a separate doubling that applies at the same time.
+
+A rebuild is also not a backup: search is stale or absent while one runs. A managed domain takes its own
+snapshots.
+
+#### Per-size cluster specification
+
+**Not published yet.** The data node count, node instance size, JVM heap, and storage for each size are
+awaiting a per-size measurement, as is the M replica count above. What is settled is the shape: XS and
+S run one data node and M runs more than one, which is what decides whether a replica can be placed.
+
+<!-- TO BE ADDED (CLM-55937): the per-size OpenSearch specification, from CLM-55930, plus the M replica
+     count. Needs measurements that do not exist. The only OpenSearch sizing data today is one estate of
+     about 105,700 applications, above XL's 80,000 ceiling, taken at zero replicas, so it is not
+     evidence for a number at any published size. Do not derive these values. -->
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -404,6 +491,8 @@ Your IAM user/role needs these AWS service permissions:
    ```
 
    > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+
+   > **Your OpenSearch domain is not part of this.** This architecture never creates the domain, so `./tf-destroy.sh` does not delete it or its indices. Remove it separately when you no longer need it.
 
 ---
 
