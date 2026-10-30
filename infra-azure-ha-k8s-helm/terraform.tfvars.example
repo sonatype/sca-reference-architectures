@@ -90,3 +90,19 @@ search_engine = "lucene"
 # opensearch_index_replicas = 0
 # opensearch_allowed_cidrs  = ["10.1.30.0/24"]
 
+# Tags
+# Merged on top of the four tags this root sets itself: project, Environment,
+# ManagedBy and Purpose. A key below with the same name replaces that one.
+# Replace every placeholder with your own values. terraform.tfvars is
+# gitignored and this example file is not, so nothing naming a person or an
+# account belongs here.
+#
+# Azure treats tag names as case-insensitive, so do not add a key that differs
+# from one of those four only in capitalization.
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}

@@ -294,6 +294,15 @@ helm_namespace     = "nexus-iq"
 # Search Backend (optional) - see "Advanced Search with OpenSearch" below
 search_engine = "lucene"
 
+# Tags merged on top of the four this root sets itself
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}
+
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:

@@ -52,12 +52,12 @@ locals {
   resource_group_name = "rg-${var.cluster_name}"
   availability_zones  = ["1", "2", "3"]
 
-  common_tags = {
-    Project     = "nexus-iq-server-ha"
+  common_tags = merge({
+    project     = "nexus-iq-server-ha"
     Environment = var.environment
     ManagedBy   = "Terraform"
     Purpose     = "kubernetes-ha-deployment"
-  }
+  }, var.common_tags)
 }
 
 
