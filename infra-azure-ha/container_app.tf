@@ -1,33 +1,33 @@
 
 resource "azurerm_log_analytics_workspace" "iq_logs_ha" {
-  name                = "log-ref-arch-iq-ha"
+  name                = "log-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
 
   tags = merge(var.common_tags, {
-    Name = "log-ref-arch-iq-ha"
+    Name = "log-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_application_insights" "iq_insights_ha" {
   count               = var.enable_monitoring ? 1 : 0
-  name                = "appi-ref-arch-iq-ha"
+  name                = "appi-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   workspace_id        = azurerm_log_analytics_workspace.iq_logs_ha.id
   application_type    = "web"
 
   tags = merge(var.common_tags, {
-    Name = "appi-ref-arch-iq-ha"
+    Name = "appi-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_container_app_environment" "iq_env_ha" {
-  name                       = "cae-ref-arch-iq-ha"
+  name                       = "cae-${var.cluster_name}"
   location                   = azurerm_resource_group.iq_rg.location
   resource_group_name        = azurerm_resource_group.iq_rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs_ha.id
@@ -44,13 +44,13 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "cae-ref-arch-iq-ha"
+    Name = "cae-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_container_app" "iq_app_ha" {
-  name                         = "ca-ref-arch-iq-ha"
+  name                         = "ca-${var.cluster_name}"
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
@@ -340,7 +340,7 @@ CONFIGEOF
   }
 
   tags = merge(var.common_tags, {
-    Name = "ca-ref-arch-iq-ha"
+    Name = "ca-${var.cluster_name}"
   })
 
   depends_on = [

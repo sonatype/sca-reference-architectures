@@ -23,7 +23,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
 
 
 resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
-  name                   = "psqlfs-ref-arch-iq-ha"
+  name                   = "psqlfs-${var.cluster_name}"
   resource_group_name    = azurerm_resource_group.iq_rg.name
   location               = azurerm_resource_group.iq_rg.location
   version                = var.postgres_version
@@ -64,7 +64,7 @@ resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "psqlfs-ref-arch-iq-ha"
+    Name = "psqlfs-${var.cluster_name}"
   })
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]

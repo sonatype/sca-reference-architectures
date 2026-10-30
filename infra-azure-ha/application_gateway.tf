@@ -7,24 +7,24 @@ resource "random_string" "dns_suffix" {
 
 
 resource "azurerm_public_ip" "app_gw_pip_ha" {
-  name                = "pip-ref-arch-iq-ha"
+  name                = "pip-${var.cluster_name}"
   resource_group_name = azurerm_resource_group.iq_rg.name
   location            = azurerm_resource_group.iq_rg.location
   allocation_method   = "Static"
   sku                 = "Standard"
-  domain_name_label   = "ref-arch-iq-ha-${random_string.dns_suffix.result}"
+  domain_name_label   = "${var.cluster_name}-${random_string.dns_suffix.result}"
 
 
   zones = var.app_gateway_zones
 
   tags = merge(var.common_tags, {
-    Name = "pip-ref-arch-iq-ha"
+    Name = "pip-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_application_gateway" "iq_app_gw_ha" {
-  name                = "agw-ref-arch-iq-ha"
+  name                = "agw-${var.cluster_name}"
   resource_group_name = azurerm_resource_group.iq_rg.name
   location            = azurerm_resource_group.iq_rg.location
 
@@ -158,7 +158,7 @@ resource "azurerm_application_gateway" "iq_app_gw_ha" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "agw-ref-arch-iq-ha"
+    Name = "agw-${var.cluster_name}"
   })
 }
 
@@ -175,7 +175,7 @@ resource "azurerm_application_gateway" "iq_app_gw_ha" {
 
 resource "azurerm_monitor_diagnostic_setting" "app_gw_diagnostics" {
   count                      = var.enable_monitoring ? 1 : 0
-  name                       = "agw-ref-arch-iq-ha-diagnostics"
+  name                       = "agw-${var.cluster_name}-diagnostics"
   target_resource_id         = azurerm_application_gateway.iq_app_gw_ha.id
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs_ha.id
 

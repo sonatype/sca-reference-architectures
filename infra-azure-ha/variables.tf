@@ -6,9 +6,19 @@ variable "azure_region" {
 }
 
 variable "cluster_name" {
-  description = "Name prefix for the HA cluster resources"
+  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. The default reproduces the names this configuration has always used, so leaving it alone changes nothing. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, public IP and its DNS label, Application Gateway and its diagnostics, Key Vault, storage account, backup vault and policy, and PostgreSQL Flexible Server all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the longest names built from it are the storage account and the Key Vault, both of which strip the hyphens and add 8 random characters, and Azure caps each at 24."
   type        = string
   default     = "ref-arch-iq-ha"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.cluster_name))
+    error_message = "cluster_name must be lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit. The storage account and Key Vault names strip the hyphens and Azure allows only lowercase alphanumerics there."
+  }
+
+  validation {
+    condition     = length(var.cluster_name) >= 3 && length(var.cluster_name) <= 14
+    error_message = "cluster_name must be 3 to 14 characters. The storage account and Key Vault names are built as st<cluster_name without hyphens><8 random characters> and kv<cluster_name without hyphens><8 random characters>, which Azure caps at 24."
+  }
 }
 
 

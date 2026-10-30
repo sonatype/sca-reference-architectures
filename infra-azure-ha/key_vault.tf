@@ -1,6 +1,6 @@
 
 resource "azurerm_key_vault" "iq_kv_ha" {
-  name                = "kvrefarchiqha${random_string.kv_suffix.result}"
+  name                = "kv${replace(lower(var.cluster_name), "-", "")}${random_string.kv_suffix.result}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   tenant_id           = data.azurerm_client_config.current.tenant_id
@@ -20,7 +20,7 @@ resource "azurerm_key_vault" "iq_kv_ha" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "kvrefarchiqha"
+    Name = "kv${replace(lower(var.cluster_name), "-", "")}"
   })
 }
 

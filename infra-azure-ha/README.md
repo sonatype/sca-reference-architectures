@@ -365,6 +365,35 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Private NSG**: Allows HTTP/HTTPS traffic and Azure Load Balancer health probes
 - **Database NSG**: Allows PostgreSQL (5432) from private subnets only
 
+### Running several sizes in one subscription
+
+Every resource name is built from `cluster_name`, so two deployments coexist in one Azure
+subscription as long as they use different values:
+
+```hcl
+cluster_name = "iq-m-ha"   # one deployment
+cluster_name = "iq-l-ha"   # another, in the same subscription
+```
+
+**The default reproduces the names this configuration has always used**, so a customer who sets
+nothing sees no change.
+
+Two Azure limits constrain the value, and the variable rejects a value that would break either:
+
+- **A storage account name is globally unique across Azure**, lowercase alphanumeric only, and capped
+  at 24 characters. The hyphens in `cluster_name` are stripped when it is built.
+- **A Key Vault name is globally unique and capped at 24 characters.**
+
+Both carry an 8-character random suffix, so the global uniqueness is handled already and only the
+length matters. That is why the variable is capped at 14 characters rather than at Azure's 24.
+
+**Some names do not move with `cluster_name`, and none of them needs to.** The subnet names
+(`snet-public-N`, `snet-private-N`, `snet-database`), the network security group names and the
+private DNS zone link are scoped inside the virtual network and the resource group, which do move, so
+they cannot collide across deployments. The private DNS zone
+`privatelink.postgres.database.azure.com` is Azure's own fixed name for that zone and is shared by
+design.
+
 ## Advanced Search with OpenSearch
 
 Sonatype IQ Server can keep its Advanced Search index in OpenSearch instead of the embedded Lucene
