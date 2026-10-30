@@ -59,6 +59,11 @@ REGION=$(terraform output -raw region 2>/dev/null || echo "")
 WORKLOAD_IDENTITY=$(terraform output -raw workload_identity_email 2>/dev/null || echo "")
 FLUENTD_IDENTITY=$(terraform output -raw fluentd_workload_identity_email 2>/dev/null || echo "")
 INGRESS_IP_NAME=$(terraform output -raw ingress_ip_name 2>/dev/null || echo "")
+SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "lucene")
+OPENSEARCH_URI=$(terraform output -raw opensearch_uri 2>/dev/null || echo "")
+OPENSEARCH_USERNAME=$(terraform output -raw opensearch_username 2>/dev/null || echo "")
+OPENSEARCH_PASSWORD=$(terraform output -raw opensearch_password 2>/dev/null || echo "")
+OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_nexus_one_index_replicas 2>/dev/null || echo "0")
 
 echo "• Database: $DB_HOST"
 echo "• Filestore: $FILESTORE_IP"
@@ -147,6 +152,29 @@ sed -i.bak "s|kubernetes.io/ingress.global-static-ip-name: \"\"|kubernetes.io/in
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
+
+if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
+    if [[ -z "$OPENSEARCH_URI" || -z "$OPENSEARCH_USERNAME" || -z "$OPENSEARCH_PASSWORD" ]]; then
+        echo -e "${RED}❌ Error: search_engine is \"opensearch\" but the endpoint, user name or password is empty${NC}"
+        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+        exit 1
+    fi
+    sed -i.bak "s|OPENSEARCH_URI_PLACEHOLDER|${OPENSEARCH_URI}|g" "$TEMP_VALUES_FILE"
+    sed -i.bak "s|OPENSEARCH_USERNAME_PLACEHOLDER|${OPENSEARCH_USERNAME}|g" "$TEMP_VALUES_FILE"
+    sed -i.bak "s|OPENSEARCH_PASSWORD_PLACEHOLDER|${OPENSEARCH_PASSWORD}|g" "$TEMP_VALUES_FILE"
+    sed -i.bak "s|OPENSEARCH_REPLICAS_PLACEHOLDER|${OPENSEARCH_REPLICAS}|g" "$TEMP_VALUES_FILE"
+else
+    # Remove the whole search block, markers and all, so the deployment uses the built-in index.
+    sed -i.bak "/# search-block-begin/,/# search-block-end/d" "$TEMP_VALUES_FILE"
+fi
+
+# A placeholder left behind means a substitution did not run, and Nexus IQ Server would read the
+# literal text as a host name or a password.
+if grep -q "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
+    echo -e "${RED}❌ Error: a search placeholder survived substitution in ${TEMP_VALUES_FILE}${NC}"
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
 
 rm -f "${TEMP_VALUES_FILE}.bak"
 

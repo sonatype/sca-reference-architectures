@@ -63,6 +63,25 @@ iq_server:
     clusterDirectory: "/sonatype-work/clm-cluster"
     createSampleData: true
 
+    # Search backend. This block is the one Nexus IQ Server reads to decide whether to use the
+    # built-in index or an OpenSearch cluster, and it is what turns the Nexus One index on.
+    #
+    # helm-install.sh fills the four placeholders below when search_engine is "opensearch" in
+    # terraform.tfvars, and deletes everything between the two markers otherwise, so the default
+    # deployment has no search block at all. The markers are what make that deletion safe: do not
+    # remove them, and do not add anything between them that is not part of the block.
+    #
+    # See README.md, "Search Backend".
+    # search-block-begin
+    search:
+      type: http
+      mode: OPENSEARCH
+      uri: OPENSEARCH_URI_PLACEHOLDER
+      username: OPENSEARCH_USERNAME_PLACEHOLDER
+      password: OPENSEARCH_PASSWORD_PLACEHOLDER
+      nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
+    # search-block-end
+
     server:
       applicationConnectors:
         - type: http

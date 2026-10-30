@@ -7,12 +7,22 @@ echo "GCP GKE HA - Force Cleanup Script"
 echo "=============================================="
 echo ""
 echo "This script will:"
-echo "1. Find and delete Cloud SQL instances with 'nexus-iq-ha' prefix"
+echo "1. Find and delete Cloud SQL instances belonging to this deployment"
 echo "2. Wait for deletion to complete"
 echo "3. Run terraform destroy to clean up remaining resources"
 echo ""
 
 PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || gcloud config get-value project)
+
+# Match on this deployment's own cluster_name, not a fixed prefix. Several sizes of this
+# architecture can share one project, and a fixed prefix would match all of them.
+CLUSTER_NAME=$(terraform output -raw gke_cluster_name 2>/dev/null || echo "")
+
+if [ -z "$CLUSTER_NAME" ]; then
+    echo "Error: could not read gke_cluster_name from Terraform outputs."
+    echo "Without it this script cannot tell this deployment's resources from another size's."
+    exit 1
+fi
 
 if [ -z "$PROJECT_ID" ]; then
     echo "Error: Could not determine GCP project ID"
@@ -20,6 +30,7 @@ if [ -z "$PROJECT_ID" ]; then
 fi
 
 echo "Project: $PROJECT_ID"
+echo "Cluster: $CLUSTER_NAME"
 echo ""
 
 read -p "Do you want to proceed with cleanup? (yes/no): " CONFIRM
@@ -30,7 +41,7 @@ fi
 
 echo ""
 echo "Step 1: Finding Cloud SQL instances..."
-INSTANCES=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "nexus-iq-ha" || true)
+INSTANCES=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "^$CLUSTER_NAME-db" || true)
 
 if [ -n "$INSTANCES" ]; then
     echo "Found instances to delete:"
@@ -50,7 +61,7 @@ if [ -n "$INSTANCES" ]; then
     
     # Wait for all instances to be deleted
     for i in {1..60}; do
-        REMAINING=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "nexus-iq-ha" || true)
+        REMAINING=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "^$CLUSTER_NAME-db" || true)
         if [ -z "$REMAINING" ]; then
             echo "✅ All Cloud SQL instances deleted"
             break
@@ -59,12 +70,12 @@ if [ -n "$INSTANCES" ]; then
         sleep 10
     done
 else
-    echo "No Cloud SQL instances with 'nexus-iq-ha' prefix found"
+    echo "No Cloud SQL instances found for $CLUSTER_NAME"
 fi
 
 echo ""
 echo "Step 2: Checking for Filestore instances..."
-FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "nexus-iq-ha" || true)
+FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$CLUSTER_NAME-filestore" || true)
 
 if [ -n "$FILESTORE" ]; then
     echo "Found Filestore instances:"

@@ -291,6 +291,16 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
+# Search Backend
+# "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
+# see "Search Backend" below.
+search_engine = "lucene"
+# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_port                     = 9200
+# opensearch_use_tls                  = true
+# opensearch_username                 = "nexusiq"
+# opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_nexus_one_index_replicas = 0
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
@@ -331,6 +341,337 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 - **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
+
+## Running Several Sizes in One Project
+
+Every resource name that has to be unique inside a Google Cloud project already derived from
+`cluster_name` in this root, which is why it needed no renaming work: the GKE cluster, the VPC, all
+four subnets, the router, the Cloud NAT, every firewall rule, the Cloud Armor policy, the ingress
+address, the node pool, both Workload Identity service accounts, both Cloud SQL instances,
+Filestore, both Secret Manager secrets, the log bucket, sink and metrics. Measured with a plan: 25
+of the 27 named attributes moved when `cluster_name` changed.
+
+```hcl
+cluster_name = "iq-l"   # a distinct value per deployment
+```
+
+Two things were added. `cluster_name` is now validated against what a Google Cloud resource name
+accepts, so a bad value fails at plan rather than at apply. And `force-cleanup.sh` now matches on
+this deployment's own `cluster_name` rather than the fixed string `nexus-iq-ha`: with several sizes
+in one project, a fixed prefix matched all of them, so the script could have deleted another size's
+Cloud SQL and Filestore instances.
+
+What does not move, and does not need to: the database name and the database user, which are
+scoped to the Cloud SQL instance rather than to the project, and the Filestore share name, which
+is scoped to the Filestore instance. The Kubernetes namespace and Helm release name are also
+fixed, which is correct because each deployment has its own cluster.
+
+### What a name may contain, and what cannot be reused
+
+**`cluster_name` is validated at plan time** against the narrower of the limits that apply:
+lowercase letters, numbers and hyphens, starting with a letter and ending with a letter or number,
+1 to 19 characters. A resource name itself allows 63, but a service account id allows only 30 and
+the longest suffix added to this prefix is 11 characters, so 19 is what keeps every derived name
+legal. A value that breaks the rule fails at plan rather than part way through an apply.
+
+**One name genuinely cannot be reused, and it is not the one usually warned about.**
+
+| Name | Reuse after deletion |
+|---|---|
+| Cloud SQL instance, and its replica | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
+| Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
+| Everything else here | Immediate |
+
+So the thing to plan around when a size is torn down and rebuilt is **the service accounts**, not
+the database. Both Workload Identity accounts are recreated by the next apply and both have their
+roles and their Kubernetes bindings granted by the same apply, so a normal destroy and rebuild is
+fine. What is not fine is deleting an account by hand and expecting to undelete it afterwards:
+creating the replacement first makes the original unrecoverable.
+
+**A Cloud SQL instance name carries a random suffix anyway**, `<cluster_name>-db-<suffix>`, and the
+suffix is regenerated on every fresh apply because the `random_string` resource has no `keepers`.
+That predates this change and made the old reuse window a non-issue; it still means a rebuilt
+environment's database has a different name from the one before it.
+
+## Search Backend
+
+Nexus IQ Server ships with a built-in search index and needs nothing else running. Pointing it at
+OpenSearch instead moves the index off the pods, which is what the Nexus One features read. On this
+architecture it also gives every replica one shared index rather than a copy each.
+
+**Google Cloud has no managed OpenSearch service**, so there is no first-party cluster for this
+configuration to create. You run OpenSearch yourself, and this configuration takes the endpoint of
+a cluster you have already built. That keeps the cluster, and the index data in it, independent of
+Terraform runs here: switching `search_engine` back and forth never destroys an index.
+
+### Turning it on
+
+```hcl
+search_engine                       = "opensearch"
+opensearch_endpoint                 = "opensearch.internal.example.com"  # host only, no scheme
+opensearch_port                     = 9200
+opensearch_use_tls                  = true
+opensearch_username                 = "nexusiq"
+opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+opensearch_nexus_one_index_replicas = 0
+```
+
+All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
+`search_engine` is `"opensearch"`, and the plan fails naming whichever is missing.
+
+**Terraform alone does not apply this.** The `search:` block lives in the Helm values, so run
+`terraform apply` and then `./helm-install.sh`, or `./helm-upgrade.sh` on an existing release.
+
+### What this writes into `config.yml`
+
+`helm-values.yaml` carries the block with placeholders between two markers,
+`# search-block-begin` and `# search-block-end`. `helm-install.sh` fills them from Terraform
+outputs, and the Helm chart renders the result as `config.yml` in every pod:
+
+```yaml
+    search:
+      type: http
+      mode: OPENSEARCH
+      uri: https://opensearch.internal.example.com:9200
+      username: nexusiq
+      password: <filled by helm-install.sh>
+      nexusOneIndexReplicas: 0
+```
+
+Three things about that block are deliberate:
+
+- **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
+  name and password are how the pods authenticate.
+- **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
+  writes every batch to the built-in index as well. That costs indexing time and cannot roll an
+  index generation back.
+- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default is 0,
+  and stating it keeps the value visible next to the cluster it describes.
+
+**Keep the two markers.** With `search_engine = "lucene"`, `helm-install.sh` deletes everything
+between them so the deployment has no `search:` block at all, which is how the built-in index stays
+the default. The script then checks that no placeholder survived and refuses to install if one did,
+because a literal `OPENSEARCH_URI_PLACEHOLDER` would be read as a host name.
+
+### How the password reaches the pods
+
+`opensearch_password` is read by `helm-install.sh` from a Terraform output and written into
+`helm-values-runtime.yaml`, which is gitignored. That is the same route the database password
+already takes on this architecture, and it is a different route from the two Compute Engine roots,
+which read a Secret Manager secret at boot. The reason is the chart: it renders `config.yml` itself,
+so a value has to be in the Helm values rather than fetched by a startup script.
+
+Two consequences worth knowing:
+
+- **`helm-values-runtime.yaml` holds the password in clear while it exists.** The script deletes it
+  after a successful install. Delete it by hand if an install fails part way.
+- **The password is in Terraform state**, because `opensearch_password` is an input variable. Keep
+  the state backend private.
+
+To rotate the password, change it in `terraform.tfvars`, then:
+
+```bash
+terraform apply
+./helm-install.sh    # or ./helm-upgrade.sh, which reuses the generated values file
+```
+
+`helm-upgrade.sh` reads the existing `helm-values-runtime.yaml` rather than regenerating it, so
+after a rotation run `helm-install.sh` instead, or regenerate the file first.
+
+### Firewall
+
+Google Cloud denies all ingress that no rule allows. This root declares no egress rule, so egress
+needs nothing added and only ingress to the cluster does:
+
+- **Ingress.** `search.tf` adds a rule letting the pod range and the node subnet reach instances
+  tagged `nexus-iq-opensearch` on `opensearch_port`. **Tag each OpenSearch node
+  `nexus-iq-opensearch`** or the cluster is unreachable from the pods.
+- **Both source ranges are needed.** This GKE cluster is VPC-native, so a pod's own alias address
+  from `gke_pods_cidr` is the source of traffic it sends, while anything running on the node itself
+  uses the node's address from the node subnet.
+
+A cluster outside this VPC is reached over whatever path you have built to it, and this rule has no
+effect on it.
+
+### The cluster to build
+
+Verified against the OpenSearch source at tags `2.19.0` and `3.2.0`.
+
+| | What to run |
+|---|---|
+| OpenSearch version | 2.19 or later. The 2.19 line is the long-term support release |
+| Cluster managers | Three dedicated cluster manager nodes, so losing one leaves a quorum. This architecture is the HA one, and a single cluster manager undoes that |
+| Data nodes | At least two, spread across zones, with `opensearch_nexus_one_index_replicas` at 1 or more so a lost node does not lose a shard |
+| Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
+| Disk | SSD persistent disk. The index is write-heavy during a rebuild |
+| Network | Private IP addresses in this VPC, or a VPC you have peered to it. No public address |
+| Security | The OpenSearch security plugin, with a user for Nexus IQ Server that can create, read and write indices |
+| Snapshots | The `repository-gcs` plugin, on every node |
+
+**Running OpenSearch inside this GKE cluster is a third option** and this configuration does not do
+it. It would put the search cluster and the application on the same nodes, so a busy index rebuild
+and a busy evaluation queue would compete for the same CPU and the same page cache. Separate node
+pools fix that, and at that point the nodes may as well be their own instances. If you do run it in
+the cluster, use the OpenSearch Kubernetes operator and its own node pool, and the endpoint here
+becomes the operator's service name.
+
+The machine shape per size is not published yet. The one measured OpenSearch sizing study ran above
+this architecture's ceiling and on a different cloud, so a shape read off it would be a guess rather
+than a measurement.
+
+`opensearch_nexus_one_index_replicas` by size:
+
+| Size | `opensearch_nexus_one_index_replicas` |
+|------|:--------------------------------------|
+| **M** | `0` for now. **Placeholder**: the figure for a multi-node cluster is being measured and is not published yet |
+| **L** | `0` for now. **Placeholder**, same reason |
+| **XL** | `0` for now. **Placeholder**, same reason |
+
+`0` leaves the index with no redundancy, so a lost data node loses a shard until the index is
+rebuilt. Set it to at least 1 once the cluster has more than one data node, which is what this
+architecture asks for.
+
+### Trusting a private certificate authority
+
+With `opensearch_use_tls = true`, the JVM in every pod has to trust the cluster's certificate. A
+certificate from a public authority already works and needs nothing below.
+
+A certificate from a private authority needs that authority added to the JVM trust store, and
+Nexus IQ Server has no per-connection trust setting, so the whole JVM is affected. **Copy the trust
+store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
+calls to the Sonatype data service**, which rely on the public authorities already in it.
+
+Pods are replaced often here, so build the copy once and mount it, rather than editing a running
+pod:
+
+```bash
+# 1. Take the JVM's own trust store out of a running pod.
+POD=$(kubectl get pod -n nexus-iq -l name=nexus-iq-server-ha-iq-server -o jsonpath='{.items[0].metadata.name}')
+kubectl cp "nexus-iq/$POD:/opt/java/openjdk/lib/security/cacerts" ./cacerts
+# The path differs between base images. Find it with:
+#   kubectl exec -n nexus-iq "$POD" -- sh -c 'find / -name cacerts -type f 2>/dev/null'
+
+# 2. Add your certificate authority to the copy. The default password is "changeit".
+keytool -importcert -noprompt \
+  -keystore ./cacerts -storepass changeit \
+  -alias opensearch-ca -file /path/to/ca.pem
+
+# 3. Confirm the authority is in the copy, and that the public ones are still there.
+keytool -list -keystore ./cacerts -storepass changeit | grep -c 'trustedCertEntry'
+keytool -list -keystore ./cacerts -storepass changeit -alias opensearch-ca
+
+# 4. Put the copy in a secret every pod can mount.
+kubectl create secret generic nexus-iq-truststore --from-file=cacerts=./cacerts -n nexus-iq
+rm -f ./cacerts
+```
+
+Then mount the secret and name the copy, by adding to `helm-values.yaml`:
+
+```yaml
+iq_server:
+  extraVolumes:
+    - name: truststore
+      secret:
+        secretName: nexus-iq-truststore
+  extraVolumeMounts:
+    - name: truststore
+      mountPath: /etc/nexus-iq-server/truststore
+      readOnly: true
+```
+
+and to `java_opts` in `terraform.tfvars`:
+
+```
+-Djavax.net.ssl.trustStore=/etc/nexus-iq-server/truststore/cacerts -Djavax.net.ssl.trustStorePassword=changeit
+```
+
+Check the chart version in `helm_chart_version` accepts `extraVolumes` and `extraVolumeMounts`
+under `iq_server` before relying on those key names, with
+`helm show values sonatype/nexus-iq-server-ha --version <your version>`.
+
+**`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
+takes either one. The cost is that the basic auth password is sent unencrypted on every request.
+**Use `https`.** The secret above is a one-time step, and a password on the wire is permanent.
+`http` is reasonable only for a short evaluation on a private network you control.
+
+### Snapshots, and the credential they need
+
+**A snapshot repository on Cloud Storage needs no service account JSON key.** The
+`repository-gcs` plugin falls back to application default credentials when no `credentials_file` is
+in the OpenSearch keystore. On Compute Engine that resolves to the service account attached to the
+instance; in GKE, to the Workload Identity service account bound to the pod's Kubernetes service
+account.
+
+**Do not add a key back.** Several widely read third-party guides state the opposite, that
+application default credentials are "not supported out of the box" and a key file is mandatory.
+They are wrong for this plugin, and the source says so. The cost of believing them is a credential
+that never expires, sits on every data node, and can write to every backup.
+
+The evidence, read in the OpenSearch source at tags `2.19.0` and `3.2.0`, which are identical here:
+
+- `GoogleCloudStorageClientSettings.loadCredential` returns `null` when
+  `gcs.client.<name>.credentials_file` is absent, with its own comment saying this is deliberate so
+  that "the default credential can be loaded later when creating the Storage client".
+- `GoogleCloudStorageService.createStorageOptions` then calls
+  `GoogleApplicationDefaultCredentials.get()`, which calls
+  `GoogleCredentials.getApplicationDefault()`.
+
+**Confirm it on your own cluster by reading the node log.** The plugin logs this line, at INFO, the
+first time it builds a client for the repository:
+
+```
+"Application Default Credentials" will be in use
+```
+
+Seeing that line means no key was read. Not seeing it means a `credentials_file` is set in the
+keystore, so check with `./bin/opensearch-keystore list | grep credentials_file`.
+
+**No key does not mean no permission.** The identity still has to be granted access to the bucket,
+or a snapshot fails with a 403 that looks like an authentication problem and is not:
+
+```bash
+gcloud storage buckets add-iam-policy-binding gs://your-snapshot-bucket \
+  --member="serviceAccount:OPENSEARCH_NODE_SERVICE_ACCOUNT" \
+  --role="roles/storage.objectAdmin"
+```
+
+`roles/storage.objectAdmin` on the bucket alone, not on the project: a snapshot writes, reads,
+lists and deletes objects, which `objectViewer` and `objectCreator` each cover only part of.
+
+Then install the plugin and register the repository with no client credentials at all:
+
+```bash
+./bin/opensearch-plugin install repository-gcs   # on every node, then restart
+
+curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Type: application/json' -d '
+{
+  "type": "gcs",
+  "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
+}'
+```
+
+The node log records `"Application Default Credentials" will be in use` when the fallback is taken,
+which is how to confirm no key is being read.
+
+### What running the cluster yourself costs you
+
+None of this is handled by this configuration, and all of it has to be handled by someone:
+
+- **Upgrades.** Rolling restarts, version by version, with the cluster kept green between steps.
+- **Snapshots and restore drills.** A snapshot nobody has restored is not a backup.
+- **Capacity.** Disk watermarks block writes before they fill the disk, and a blocked write is how
+  an index rebuild stalls.
+- **Certificate renewal.** Both the cluster's certificate and the secret above.
+- **Monitoring.** Cluster status, unassigned shards, JVM heap pressure, rejected write threads.
+- **The password.** Rotating it and reinstalling the release.
+- **Keeping the cluster manager quorum.** Three managers, and never two.
+
+### Rebuilding the index
+
+Switching `search_engine` to `"opensearch"` points the pods at an empty cluster. The index is built
+from the Nexus IQ Server administration pages, not by Terraform and not by Helm, and the build reads
+the whole database, so run it when the deployment is otherwise quiet. One pod performs the build and
+the rest read the result.
 
 ## Security Features
 
