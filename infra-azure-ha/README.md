@@ -8,13 +8,20 @@ This directory contains Terraform configuration for deploying Sonatype IQ Server
 
 This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
-|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Standard_E16ps_v6 (ARM) |
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type | OpenSearch |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Standard_E16ps_v6 (ARM) | Required ¹ |
 
-> All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> All sizes validated through performance testing. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+<!-- TO BE UPDATED (CLM-55937): the ~310 and ~405 evals/hour figures above are awaiting a
+     re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
+     continuous monitoring running was added so a reader does not take them as general evaluation
+     throughput. -->
+
+> ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
 > **Note:** For XL scale, [AKS](../infra-azure-ha-k8s-helm/) is recommended over Container Apps.
 
@@ -88,6 +95,109 @@ storage_account_replication_type = "ZRS"
 | **XL** | Premium SSD | SMB/NFS | ZRS | 1.5 TB – 4 TB |
 
 > Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a single `search:` block in IQ Server's
+`config.yml`: one endpoint, one set of credentials, and no second switch to turn on.
+
+Azure has no first-party managed OpenSearch service, so the cluster is **self-managed OpenSearch on
+Azure virtual machines** and IQ Server authenticates with a username and password. That means you also
+choose the OpenSearch server version and own upgrades, snapshots, and node replacement. Use `https` on
+the cluster's REST layer: with no IAM to sign with, that password is the only thing protecting the
+index, and on plain `http` it crosses the network in clear text on every request.
+
+**This architecture does not create the cluster.** It takes an endpoint and points IQ Server at it, so
+the cluster's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
+cluster has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
+index.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
+and one for Advanced Search.
+
+| Index | What it holds |
+|-------|---------------|
+| `application` | Applications |
+| `violation` | Policy violations |
+| `waiver` | Policy waivers |
+| `component` | Components |
+| `vulnerability` | Vulnerabilities |
+| `entity` | Organizations, application categories, component labels, policies, users, and license threat groups, which share one index |
+| Advanced Search | The Advanced Search index, named from your own index configuration |
+
+Each Nexus One index is created with **one primary shard**, which is the recommendation at every
+published size. The `component`, `violation`, and `vulnerability` indices can be raised per tenant
+through the configuration API, up to a ceiling of 12; `application`, `entity`, and `waiver` have no such
+setting. **A shard count applies only when an index is created**, because OpenSearch fixes the primary
+shard count at creation and an index cannot be resharded, so raising one has to be followed by a
+rebuild.
+
+**The Advanced Search index is the one IQ Server does not size.** It sends no shard count and no replica
+count for that index, so the index gets whatever your cluster's default, or a matching index template,
+gives it. On a self-managed cluster that default is **yours to choose**, which makes it a setting to pick on
+purpose rather than one to inherit, and nothing in IQ Server reports what the index actually got. Read it off the live index with
+`GET <index>/_settings`, never off `config.yml`.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node survivable. It
+costs the disk and the indexing work of that second copy.
+
+**IQ Server's own default replica count is 0**, so an architecture that omits
+`search.nexusOneIndexReplicas` gets no replica rather than a sensible default. This architecture sets
+the value itself:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **M** | more than 1 | Not published yet |
+| **L** | more than 1 | Not published yet |
+| **XL** | more than 1 | Not published yet |
+
+**A single-node cluster would set `0`**, because one data node has nowhere to place a replica and
+asking for one leaves the index permanently yellow for no benefit. This architecture runs more than one
+data node at every size it supports, so a replica is placeable here; what it costs at each size is the
+measurement below. A yellow index is not a failure state in any case: it is created, opens, takes
+writes, and returns correct reads, and IQ Server never reads cluster health, so no OpenSearch color is
+reported as an error.
+
+A replica can be added to a live index with `PUT <index>/_settings`, so a first choice is not binding.
+Give the Advanced Search index the same replica count through an index template, so both halves of
+search survive losing a data node or neither does.
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild does not write into the index that is serving. It builds a complete new set of
+indices and moves the aliases onto it once every pass has succeeded, then keeps the old set for
+**30 minutes** after the cutover so a search already running against it is not destroyed underneath it.
+That window is a fixed value in IQ Server with no setting.
+
+So during a rebuild, and for half an hour afterwards, the cluster holds twice the Nexus One shards and
+twice the Nexus One disk, plus the Advanced Search index. **Judge free storage against the doubled
+figure, not the steady state.** A cluster that fits the index with 40% free is full during its own
+rebuild, and a replica is a separate doubling that applies at the same time.
+
+Reading the index size during a rebuild, or in the half hour after it, also gives you the doubled
+number rather than what is really serving.
+
+**A rebuild is not a backup.** A full rebuild of a large estate has been measured at about an hour and a
+half, with search stale or absent throughout. A self-managed cluster takes whatever snapshots you schedule.
+
+#### Per-size cluster specification
+
+**Not published yet.** The data node count, node size, JVM heap, and storage for each size are awaiting
+a per-size measurement. What is settled is the shape of the requirement: every size this architecture supports runs more than one data node, so
+a replica is placeable at all of them.
+
+<!-- TO BE ADDED (CLM-55937): the per-size specification and the replica counts above are CLM-55930's to publish.
+     They need measurements that do not exist. The only OpenSearch sizing data today is one estate of
+     about 105,700 applications, above XL's 80,000 ceiling, all taken at zero replicas, so it is not
+     evidence for a number at any published size. Do not derive these values. -->
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -194,6 +304,8 @@ Your Azure account needs permissions for these services:
 ---
 
 ## Teardown / Cleanup
+
+> **Your OpenSearch cluster is not part of this.** This architecture never creates the cluster, so `./tf-destroy.sh` does not delete it or its indices. Remove it separately when you no longer need it.
 
 **WARNING: This will delete ALL infrastructure and data!**
 
