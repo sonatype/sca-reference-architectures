@@ -286,7 +286,7 @@ db_deletion_protection             = false
 enable_read_replica                = true
 db_name                            = "nexusiq"
 db_username                        = "nexusiq"
-db_password                        = "YourSecurePassword123!"  # Change this!
+db_password                        = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 
 # Cloud Filestore Configuration (Shared Storage)
 filestore_zone        = "us-central1-a"

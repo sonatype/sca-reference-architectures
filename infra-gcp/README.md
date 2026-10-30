@@ -230,7 +230,7 @@ java_opts          = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/
 # Database Configuration
 db_name                             = "nexusiq"
 db_username                         = "nexusiq"
-db_password                         = "YourSecurePassword123!"  # Change this!
+db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version                    = "POSTGRES_17"
 db_instance_tier                    = "db-perf-optimized-N-8"  # 8 vCPU, optimized
 db_edition                          = "ENTERPRISE_PLUS"
