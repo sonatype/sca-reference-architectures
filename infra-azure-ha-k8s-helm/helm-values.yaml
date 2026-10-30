@@ -21,6 +21,16 @@ iq_server:
 
 
   config:
+    # Advanced Search backend. No search key is committed here: helm-install.sh
+    # appends one to helm-values-runtime.yaml when search_engine is
+    # "opensearch" in terraform.tfvars, and appends nothing when it is
+    # "lucene".
+    #
+    # It is generated rather than committed because this file is rewritten by
+    # an unanchored sed that replaces every empty password value with the
+    # database password, so a committed OpenSearch password key would receive
+    # it. The generated block carries type, mode, uri, username, password and
+    # nexusOneIndexReplicas. README.md shows it in full.
     sonatypeWork: "/sonatype-work/clm-server"
     clusterDirectory: "/sonatype-work/clm-cluster"
 

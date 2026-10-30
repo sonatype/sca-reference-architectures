@@ -295,3 +295,103 @@ variable "ingress_tls_enabled" {
   type        = bool
   default     = false
 }
+
+
+# =============================================================================
+# SEARCH BACKEND (Lucene or self-managed OpenSearch)
+# =============================================================================
+# search_engine selects which engine IQ Server's config.yml should use. On this
+# root IQ Server's configuration comes from helm-values.yaml rather than from
+# Terraform, so these values are read out of terraform.tfvars by
+# helm-install.sh and substituted into helm-values-runtime.yaml, which is the
+# same route the database password already takes. Terraform itself only
+# validates them and adds the outbound network rule.
+#
+# Azure has no first-party managed OpenSearch, so "opensearch" means a cluster
+# you run yourself on Azure Virtual Machines and reach over basic auth. This
+# configuration does not provision that cluster: you supply its endpoint, so
+# switching engines never destroys a cluster or its indexed data. README.md has
+# the cluster specification and the build steps.
+#
+# These are read by helm-install.sh with grep, which sees only what is written
+# in terraform.tfvars and never a default, so set every one of them there when
+# search_engine is "opensearch".
+
+variable "search_engine" {
+  description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."
+  type        = string
+  default     = "lucene"
+
+  validation {
+    condition     = contains(["lucene", "opensearch"], var.search_engine)
+    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+  }
+}
+
+variable "opensearch_endpoint" {
+  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
+    error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+  }
+}
+
+variable "opensearch_port" {
+  description = "TCP port the OpenSearch cluster listens on. 9200 is the OpenSearch default."
+  type        = number
+  default     = 9200
+
+  validation {
+    condition     = var.opensearch_port > 0 && var.opensearch_port <= 65535
+    error_message = "opensearch_port must be between 1 and 65535."
+  }
+}
+
+variable "opensearch_use_tls" {
+  description = "Whether IQ Server reaches OpenSearch over HTTPS. True builds an https:// URI and is the recommendation, because the basic-auth password is sent on every request. False builds http://, which IQ Server accepts and which sends that password in clear text, so use it only inside a private subnet you control. A private certificate authority needs its certificate added to a copy of the JVM trust store: see README.md."
+  type        = bool
+  default     = true
+}
+
+variable "opensearch_username" {
+  description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+    error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+  }
+}
+
+variable "opensearch_password" {
+  description = "Password for opensearch_username. This root has no Key Vault, so helm-install.sh reads this out of terraform.tfvars and writes it into helm-values-runtime.yaml, which that root's .gitignore excludes. That is the same route database_password already takes. Keep it in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
+    error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+  }
+}
+
+variable "opensearch_index_replicas" {
+  description = "Replicas per Nexus One index shard, written as search.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
+    error_message = "opensearch_index_replicas must be between 0 and 10."
+  }
+}
+
+variable "opensearch_allowed_cidrs" {
+  description = "CIDRs the AKS subnet may reach on opensearch_port, added as an outbound rule on the AKS network security group. Azure's own default rules already allow outbound traffic inside the VNet and to the internet, so this is an explicit statement of intent that keeps working if you replace those defaults. Empty adds no rule."
+  type        = list(string)
+  default     = []
+}

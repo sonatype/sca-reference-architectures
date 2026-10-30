@@ -227,6 +227,25 @@ resource "azurerm_network_security_group" "aks_nsg" {
     destination_address_prefix = "*"
   }
 
+  # Outbound reach to a self-managed OpenSearch cluster. These groups declare
+  # their rules inline, and the provider treats an inline set as authoritative,
+  # so a standalone azurerm_network_security_rule would be stripped on the next
+  # apply. A nested dynamic block is the only form that survives.
+  dynamic "security_rule" {
+    for_each = var.search_engine == "opensearch" && length(var.opensearch_allowed_cidrs) > 0 ? [1] : []
+    content {
+      name                         = "AllowOpenSearchOutbound"
+      priority                     = 1010
+      direction                    = "Outbound"
+      access                       = "Allow"
+      protocol                     = "Tcp"
+      source_port_range            = "*"
+      destination_port_range       = tostring(var.opensearch_port)
+      source_address_prefix        = "*"
+      destination_address_prefixes = var.opensearch_allowed_cidrs
+    }
+  }
+
   tags = merge(local.common_tags, {
     Name = "nsg-aks-${var.cluster_name}"
   })
