@@ -22,6 +22,18 @@ provider "google-beta" {
   region  = var.gcp_region
 }
 
+locals {
+  # Every name that has to be unique inside a Google Cloud project derives from cluster_name.
+  #
+  # Two prefixes rather than one, because the names this architecture has always published use
+  # two: the network layer is "ref-arch-iq" and everything else is "nexus-iq". Leaving
+  # cluster_name empty reproduces both exactly, so an existing deployment is not renamed and
+  # therefore not replaced. Setting it collapses both onto the value you give, which is what lets
+  # several sizes of this architecture live in one project.
+  infra_name = var.cluster_name != "" ? var.cluster_name : "ref-arch-iq"
+  app_name   = var.cluster_name != "" ? var.cluster_name : "nexus-iq"
+}
+
 # Enable required APIs
 resource "google_project_service" "required_apis" {
   for_each = toset([
@@ -44,7 +56,7 @@ resource "google_project_service" "required_apis" {
 
 # Custom VPC Network
 resource "google_compute_network" "iq_vpc" {
-  name                    = "ref-arch-iq-vpc"
+  name                    = "${local.infra_name}-vpc"
   auto_create_subnetworks = false
   mtu                     = 1460
 
@@ -53,7 +65,7 @@ resource "google_compute_network" "iq_vpc" {
 
 # Public subnet for load balancer
 resource "google_compute_subnetwork" "public_subnet" {
-  name          = "ref-arch-iq-public-subnet"
+  name          = "${local.infra_name}-public-subnet"
   ip_cidr_range = var.public_subnet_cidr
   network       = google_compute_network.iq_vpc.id
   region        = var.gcp_region
@@ -62,7 +74,7 @@ resource "google_compute_subnetwork" "public_subnet" {
 
 # Private subnet for GCE instances
 resource "google_compute_subnetwork" "iq_private_subnet" {
-  name                     = "ref-arch-iq-private-subnet"
+  name                     = "${local.infra_name}-private-subnet"
   ip_cidr_range            = var.private_subnet_cidr
   network                  = google_compute_network.iq_vpc.id
   region                   = var.gcp_region
@@ -71,7 +83,7 @@ resource "google_compute_subnetwork" "iq_private_subnet" {
 
 # Database subnet for Cloud SQL
 resource "google_compute_subnetwork" "db_subnet" {
-  name          = "ref-arch-iq-db-subnet"
+  name          = "${local.infra_name}-db-subnet"
   ip_cidr_range = var.db_subnet_cidr
   network       = google_compute_network.iq_vpc.id
   region        = var.gcp_region
@@ -81,13 +93,13 @@ resource "google_compute_subnetwork" "db_subnet" {
 
 # Cloud NAT for private subnet internet access
 resource "google_compute_router" "iq_router" {
-  name    = "ref-arch-iq-router"
+  name    = "${local.infra_name}-router"
   network = google_compute_network.iq_vpc.id
   region  = var.gcp_region
 }
 
 resource "google_compute_router_nat" "iq_nat" {
-  name                               = "ref-arch-iq-nat"
+  name                               = "${local.infra_name}-nat"
   router                             = google_compute_router.iq_router.name
   region                             = var.gcp_region
   nat_ip_allocate_option             = "AUTO_ONLY"
@@ -101,7 +113,7 @@ resource "google_compute_router_nat" "iq_nat" {
 
 # Private Service Connection for Cloud SQL
 resource "google_compute_global_address" "private_ip_address" {
-  name          = "ref-arch-iq-private-ip-address"
+  name          = "${local.infra_name}-private-ip-address"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16

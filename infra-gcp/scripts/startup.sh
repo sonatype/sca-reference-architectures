@@ -25,6 +25,19 @@ cat >> /etc/fstab << FSTAB_EOF
 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work nfs defaults,_netdev 0 0
 FSTAB_EOF
 
+%{ if search_engine == "opensearch" ~}
+echo "=== Reading the OpenSearch password from Secret Manager ==="
+OPENSEARCH_PASSWORD=$(gcloud secrets versions access latest \
+  --secret="${opensearch_password_secret}" \
+  --project="${gcp_project_id}")
+
+if [ -z "$OPENSEARCH_PASSWORD" ]; then
+  echo "FATAL: could not read the OpenSearch password from Secret Manager"
+  exit 1
+fi
+echo "OpenSearch password read successfully"
+
+%{ endif ~}
 echo "=== Creating Docker entrypoint script ==="
 cat > /opt/docker-entrypoint.sh << 'ENTRYPOINT_EOF'
 #!/bin/sh
@@ -89,6 +102,16 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
     archivedFileCount: 50
 
+%{ if search_engine == "opensearch" ~}
+search:
+  type: http
+  mode: OPENSEARCH
+  uri: ${opensearch_uri}
+  username: ${opensearch_username}
+  password: $OPENSEARCH_PASSWORD
+  nexusOneIndexReplicas: ${opensearch_nexus_one_index_replicas}
+
+%{ endif ~}
 createSampleData: true
 CONFIGEOF
 
@@ -97,6 +120,9 @@ sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+%{ if search_engine == "opensearch" ~}
+sed -i "s|\$OPENSEARCH_PASSWORD|$OPENSEARCH_PASSWORD|g" /etc/nexus-iq-server/config.yml
+%{ endif ~}
 
 echo "Successfully created config.yml with database configuration"
 echo "Generated config file contents:"
@@ -124,6 +150,9 @@ docker run -d \
   -e DB_PASSWORD="${db_password}" \
   -e JAVA_OPTS="${java_opts}" \
   -e NEXUS_SECURITY_RANDOMPASSWORD="false" \
+%{ if search_engine == "opensearch" ~}
+  -e OPENSEARCH_PASSWORD="$OPENSEARCH_PASSWORD" \
+%{ endif ~}
   -v /mnt/sonatype-work/sonatype-work:/sonatype-work \
   -v /mnt/sonatype-work/logs:/var/log/nexus-iq-server \
   -v /opt/docker-entrypoint.sh:/docker-entrypoint.sh \

@@ -2,7 +2,7 @@
 
 # Allow internal communication within VPC
 resource "google_compute_firewall" "allow_internal" {
-  name    = "allow-internal-nexus-iq"
+  name    = "allow-internal-${local.app_name}"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id
 
@@ -31,7 +31,7 @@ resource "google_compute_firewall" "allow_internal" {
 
 # Allow SSH access from specific IP ranges (for maintenance)
 resource "google_compute_firewall" "allow_ssh" {
-  name    = "allow-ssh-nexus-iq"
+  name    = "allow-ssh-${local.app_name}"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id
 
@@ -48,7 +48,7 @@ resource "google_compute_firewall" "allow_ssh" {
 
 # Allow HTTPS/HTTP from internet to Load Balancer
 resource "google_compute_firewall" "allow_http_https" {
-  name    = "allow-http-https-nexus-iq"
+  name    = "allow-http-https-${local.app_name}"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id
 
@@ -65,7 +65,7 @@ resource "google_compute_firewall" "allow_http_https" {
 
 # Allow egress from GCE instances for external API calls
 resource "google_compute_firewall" "allow_egress_gce" {
-  name      = "allow-egress-gce"
+  name      = "allow-egress-gce-${local.app_name}"
   network   = google_compute_network.iq_vpc.name
   project   = var.gcp_project_id
   direction = "EGRESS"
@@ -73,6 +73,17 @@ resource "google_compute_firewall" "allow_egress_gce" {
   allow {
     protocol = "tcp"
     ports    = ["80", "443", "587", "25"] # HTTP, HTTPS, SMTP
+  }
+
+  # Reaching a self-managed OpenSearch cluster on its own port. Google Cloud allows all egress
+  # unless a deny rule says otherwise, so this states the intent and keeps working if you add
+  # an egress deny rule of your own.
+  dynamic "allow" {
+    for_each = local.opensearch_enabled ? [1] : []
+    content {
+      protocol = "tcp"
+      ports    = [tostring(var.opensearch_port)]
+    }
   }
 
   allow {
@@ -88,7 +99,7 @@ resource "google_compute_firewall" "allow_egress_gce" {
 
 # Allow access to Google APIs through private Google access
 resource "google_compute_firewall" "allow_google_apis" {
-  name      = "allow-google-apis"
+  name      = "allow-google-apis-${local.app_name}"
   network   = google_compute_network.iq_vpc.name
   project   = var.gcp_project_id
   direction = "EGRESS"

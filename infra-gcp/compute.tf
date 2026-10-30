@@ -1,6 +1,6 @@
 # GCE Instance for Nexus IQ Server (Single Instance)
 resource "google_compute_instance" "iq_server" {
-  name         = "nexus-iq-server"
+  name         = "${local.app_name}-server"
   machine_type = var.gce_machine_type
   zone         = var.gcp_zone
   project      = var.gcp_project_id
@@ -33,6 +33,13 @@ resource "google_compute_instance" "iq_server" {
     docker_image = var.iq_docker_image
     java_opts    = var.java_opts
     filestore_ip = google_filestore_instance.iq_filestore.networks[0].ip_addresses[0]
+
+    gcp_project_id                      = var.gcp_project_id
+    search_engine                       = var.search_engine
+    opensearch_uri                      = local.opensearch_enabled ? local.opensearch_uri : ""
+    opensearch_username                 = var.opensearch_username
+    opensearch_password_secret          = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
+    opensearch_nexus_one_index_replicas = var.opensearch_nexus_one_index_replicas
   })
 
   service_account {
@@ -53,7 +60,7 @@ resource "google_compute_instance" "iq_server" {
 
 # Unmanaged Instance Group for Load Balancer
 resource "google_compute_instance_group" "iq_group" {
-  name        = "nexus-iq-instance-group"
+  name        = "${local.app_name}-instance-group"
   description = "Instance group for Nexus IQ Server"
   zone        = var.gcp_zone
   project     = var.gcp_project_id
@@ -70,7 +77,7 @@ resource "google_compute_instance_group" "iq_group" {
 
 # Firewall rule to allow health checks
 resource "google_compute_firewall" "allow_health_check" {
-  name    = "nexus-iq-allow-health-check"
+  name    = "${local.app_name}-allow-health-check"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id
 
@@ -85,7 +92,7 @@ resource "google_compute_firewall" "allow_health_check" {
 
 # Firewall rule to allow load balancer traffic
 resource "google_compute_firewall" "allow_lb_to_instances" {
-  name    = "nexus-iq-allow-lb"
+  name    = "${local.app_name}-allow-lb"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id
 

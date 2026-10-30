@@ -1,6 +1,6 @@
 # Service Account for GCE Nexus IQ Service (equivalent to AWS EC2 instance role)
 resource "google_service_account" "iq_service" {
-  account_id   = "nexus-iq-service"
+  account_id   = "${local.app_name}-service"
   display_name = "Nexus IQ Server Service Account"
   description  = "Service account for Nexus IQ Server GCE instances"
   project      = var.gcp_project_id
@@ -8,7 +8,7 @@ resource "google_service_account" "iq_service" {
 
 # Service Account for Database Operations (equivalent to AWS RDS enhanced monitoring role)
 resource "google_service_account" "iq_database" {
-  account_id   = "nexus-iq-database"
+  account_id   = "${local.app_name}-database"
   display_name = "Nexus IQ Database Service Account"
   description  = "Service account for database operations and monitoring"
   project      = var.gcp_project_id
