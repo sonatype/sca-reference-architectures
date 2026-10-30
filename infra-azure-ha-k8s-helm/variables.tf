@@ -11,9 +11,19 @@ variable "environment" {
 }
 
 variable "cluster_name" {
-  description = "Name of the AKS cluster and resource prefix"
+  description = "Name of the AKS cluster and the prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. The default reproduces the names this configuration has always used, so leaving it alone changes nothing. Lowercase letters, digits and hyphens only, starting with a letter, and at most 18 characters once the hyphens are removed: the storage account name is built as st<cluster_name without hyphens>iqha, which Azure caps at 24. That name carries no random suffix, and a storage account name is globally unique across Azure, so a value nobody else has used is needed rather than merely one this subscription has not."
   type        = string
   default     = "nexus-iq-ha"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.cluster_name))
+    error_message = "cluster_name must be lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit. The storage account name strips the hyphens and Azure allows only lowercase alphanumerics there."
+  }
+
+  validation {
+    condition     = length(replace(var.cluster_name, "-", "")) >= 3 && length(replace(var.cluster_name, "-", "")) <= 18
+    error_message = "cluster_name must be 3 to 18 characters once its hyphens are removed. The storage account name is built as st<cluster_name without hyphens>iqha, which Azure caps at 24."
+  }
 }
 
 
@@ -395,6 +405,7 @@ variable "opensearch_allowed_cidrs" {
   type        = list(string)
   default     = []
 }
+
 
 variable "common_tags" {
   description = "Extra tags merged into every resource this root creates, on top of the four it sets itself: project, Environment, ManagedBy and Purpose. A key you supply overrides the one of those it matches, which is why project is lowercase here: Azure treats tag names as case-insensitive, so a map holding both Project and project would send one name twice. Put the values in terraform.tfvars, which is gitignored, rather than in terraform.tfvars.example."

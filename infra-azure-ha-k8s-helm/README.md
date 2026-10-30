@@ -302,7 +302,6 @@ common_tags = {
   department = "CHANGE_ME_DEPARTMENT"
   team       = "CHANGE_ME_TEAM"
 }
-
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
@@ -396,6 +395,34 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Public NSG**: Allows HTTP (80), HTTPS (443) from internet
 - **AKS NSG**: Allows traffic from Application Gateway, inter-node communication
 - **Database NSG**: Allows PostgreSQL (5432) from AKS subnet only
+
+### Running several sizes in one subscription
+
+Every resource name is built from `cluster_name`, so two deployments coexist in one Azure
+subscription as long as they use different values:
+
+```hcl
+cluster_name = "iq-m-aks"   # one deployment
+cluster_name = "iq-l-aks"   # another, in the same subscription
+```
+
+**The default reproduces the names this configuration has always used**, so a customer who sets
+nothing sees no change.
+
+One Azure limit constrains the value, and the variable rejects a value that would break it:
+
+**A storage account name is globally unique across Azure**, lowercase alphanumeric only, and capped
+at 24 characters. This root builds it as `st<cluster_name without hyphens>iqha`, so the variable is
+capped at 18 characters once its hyphens are removed.
+
+**That name carries no random suffix**, unlike the two Container Apps roots, so the value has to be
+one nobody else on Azure has used rather than merely one this subscription has not. An apply fails
+with `StorageAccountAlreadyTaken` if it is taken. This root creates no Key Vault.
+
+**The subnet names (`snet-public`, `snet-aks`, `snet-database`) do not move with `cluster_name`, and
+do not need to**, because they are scoped inside the virtual network, which does move. The private
+DNS zone `privatelink.postgres.database.azure.com` is Azure's own fixed name for that zone and is
+shared by design.
 
 ## Advanced Search with OpenSearch
 
