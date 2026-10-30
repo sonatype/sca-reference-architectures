@@ -108,3 +108,34 @@ resource "azurerm_key_vault_secret" "db_name" {
     Name = "db-name"
   })
 }
+
+
+# The OpenSearch credentials follow the four database secrets above, so the
+# vault stays the record of every credential this deployment holds. Both are
+# created only when search_engine is "opensearch".
+
+resource "azurerm_key_vault_secret" "opensearch_username" {
+  count        = var.search_engine == "opensearch" ? 1 : 0
+  name         = "opensearch-username"
+  value        = var.opensearch_username
+  key_vault_id = azurerm_key_vault.iq_kv_ha.id
+
+  depends_on = [azurerm_key_vault_access_policy.current_user]
+
+  tags = merge(var.common_tags, {
+    Name = "opensearch-username"
+  })
+}
+
+resource "azurerm_key_vault_secret" "opensearch_password" {
+  count        = var.search_engine == "opensearch" ? 1 : 0
+  name         = "opensearch-password"
+  value        = var.opensearch_password
+  key_vault_id = azurerm_key_vault.iq_kv_ha.id
+
+  depends_on = [azurerm_key_vault_access_policy.current_user]
+
+  tags = merge(var.common_tags, {
+    Name = "opensearch-password"
+  })
+}

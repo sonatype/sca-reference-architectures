@@ -272,6 +272,9 @@ enable_container_insights = true
 
 # Backup Configuration
 enable_backup = true
+
+# Search Backend (optional) - see "Advanced Search with OpenSearch" below
+search_engine = "lucene"
 ```
 
 **Important Settings:**
@@ -347,6 +350,150 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Public NSG**: Allows HTTP (80), HTTPS (443) from internet
 - **Private NSG**: Allows HTTP/HTTPS traffic and Azure Load Balancer health probes
 - **Database NSG**: Allows PostgreSQL (5432) from private subnets only
+
+## Advanced Search with OpenSearch
+
+Sonatype IQ Server can keep its Advanced Search index in OpenSearch instead of the embedded Lucene
+index. Pointing it at OpenSearch is what turns the Nexus One index on: the `search:` block alone does
+it, and no other configuration key is involved.
+
+Azure has no first-party managed OpenSearch service, so **OpenSearch here is a cluster you run
+yourself on Azure Virtual Machines**. This configuration does not build that cluster. You build it,
+then supply its endpoint and credentials, which keeps the cluster's lifecycle and its indexed data
+independent of Terraform runs here.
+
+### Turning it on
+
+Set these in `terraform.tfvars`:
+
+```hcl
+search_engine             = "opensearch"
+opensearch_endpoint       = "opensearch.internal.example.com"
+opensearch_port           = 9200
+opensearch_use_tls        = true
+opensearch_username       = "iq-server"
+opensearch_password       = "<strong password>"
+opensearch_index_replicas = 0
+opensearch_allowed_cidrs  = ["10.0.50.0/24"]
+```
+
+| Variable | Default | What it does |
+|---|---|---|
+| `search_engine` | `lucene` | `lucene` writes no `search:` block at all. `opensearch` writes one and creates the credential secrets |
+| `opensearch_endpoint` | `""` | Host name or IP of the cluster's client endpoint, no scheme and no port. Required when `search_engine` is `opensearch` |
+| `opensearch_port` | `9200` | The port the cluster listens on |
+| `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
+| `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
+| `opensearch_password` | `""` | That user's password. Goes to Key Vault and to a container app secret, never into a plain environment variable |
+| `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_allowed_cidrs` | `[]` | CIDRs the IQ Server subnet may reach on `opensearch_port`, added as an outbound network security rule |
+
+Leave `search_engine` at `lucene` and nothing changes: no secrets are created, no network rule is
+added, and `config.yml` is byte-identical to a deployment that never knew about this section.
+
+### What reaches `config.yml`
+
+```yaml
+search:
+  type: http
+  mode: OPENSEARCH
+  uri: https://opensearch.internal.example.com:9200
+  username: iq-server
+  password: <from the container app secret>
+  nexusOneIndexReplicas: 0
+```
+
+Three things about that block are deliberate:
+
+- **`type: http` with basic auth.** The `aws` connection type signs each request with an AWS
+  credential, and Azure has nothing to sign with, so the HTTP type with a user name and a password is
+  the only option. Both fields are mandatory and IQ Server refuses to start without them.
+- **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
+  every batch to the embedded Lucene index as well and cannot revert an index generation.
+- **No `nexusOne` block.** None is needed. The `search:` block is the switch.
+
+### Specifying the cluster
+
+The one measured sizing study ran about 105,700 applications on three AWS OpenSearch data nodes of
+8 vCPU and 32 GB each, at zero replicas, and rebuilt 68.3 million documents in about 1 hour 30
+minutes. That is above this guide's XL ceiling of 80,000 applications, and it was measured on AWS
+rather than on Azure Virtual Machines, so treat the row below as a starting point and not as a
+tested figure.
+
+This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
+validated at two or more, so their rows are in the single-instance root's README instead.
+
+| Size | Data nodes | Per-node starting point | `opensearch_index_replicas` |
+|---|---|---|---|
+| M | 3 | `Standard_D8s_v5`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
+| L | 3 | `Standard_D8s_v5`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
+| XL | 3 | `Standard_D8s_v5`, 8 vCPU, 32 GB, 2 TB Premium SSD | **not yet published** |
+
+**The replica count is being measured and is not published yet.** Pick `0` to run without redundancy
+or `1` to pay one extra copy of the index for it, and expect this table to name a figure later. `0`
+is the only workable value on a single data node, because that node cannot place a replica: the shard
+stays unassigned and the cluster sits yellow for ever.
+
+Other things the cluster needs, none of which this configuration sets for you:
+
+- **OpenSearch 2.x**, with the security plugin on, so basic auth and a password-protected user exist.
+- **A user IQ Server owns**, with permission to create and write its own indices. Do not reuse the
+  bootstrap admin.
+- **Heap at half of RAM and no more than about 31 GB**, set in `jvm.options`, which is the standard
+  OpenSearch guidance and the reason the per-node memory above is not larger.
+- **One node per availability zone** at M and above, so a zone outage costs one node rather than the
+  cluster.
+- **A private subnet**, reachable from the subnet IQ Server runs in and from nowhere else. Put its
+  CIDR in `opensearch_allowed_cidrs`.
+- **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
+  index up, and a lost index means a full rebuild at the cost quoted above.
+
+### TLS, and the JVM trust store
+
+**IQ Server has no per-connection trust setting.** A certificate signed by a private certificate
+authority is trusted only if that authority is in the trust store the JVM loads, and the way to name
+one is the `javax.net.ssl.trustStore` system property.
+
+**Copy the JVM's own trust store and add to the copy. Never replace it.** The same store serves IQ
+Server's calls to the Sonatype data service, so a store holding only your private authority breaks
+policy and vulnerability data while fixing OpenSearch.
+
+The steps, run against a copy of the container image or in a build that produces one:
+
+```bash
+# 1. Copy the JVM's trust store out of the image.
+cp "$JAVA_HOME/lib/security/cacerts" /sonatype-work/iq-truststore.jks
+
+# 2. Add your certificate authority to the copy. The default password is "changeit".
+keytool -importcert -noprompt \
+  -keystore /sonatype-work/iq-truststore.jks -storepass changeit \
+  -alias opensearch-ca -file /path/to/ca.crt
+
+# 3. Confirm it is there, and that the public authorities still are.
+keytool -list -keystore /sonatype-work/iq-truststore.jks -storepass changeit | grep -c 'trustedCertEntry'
+```
+
+Then name the copy in `java_opts`, which this configuration passes to the container as `JAVA_OPTS`:
+
+```hcl
+java_opts = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/sonatype-work/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+```
+
+`/sonatype-work` is the Azure Files share, so the store survives a revision replacing the container.
+
+**A certificate from a public authority needs none of this**, because the JVM already trusts it. That
+is the cheapest answer if your cluster can carry one.
+
+**IQ Server also accepts a plain `http://` URI**, so a cluster in a private subnet can skip TLS
+entirely by setting `opensearch_use_tls = false`. That sends the basic-auth password in clear text on
+every request, and anything able to read traffic inside that subnet can read it.
+
+**The recommendation is TLS with a private certificate authority and a copied trust store.** The cost
+is one `keytool` command and one extra JVM argument, paid once. Plaintext puts a long-lived
+credential on the wire on every request, and a subnet is not a confidentiality boundary: a
+misconfigured peering, a diagnostic VM, or a later change to the network makes that traffic readable
+by something nobody intended. Use `opensearch_use_tls = false` only to get a proof of concept
+running, and treat it as a thing to undo.
 
 ## Important: Admin Port 8071 Not Exposed
 

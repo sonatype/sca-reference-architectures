@@ -169,6 +169,16 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
     archivedFileCount: 50
 
+%{if var.search_engine == "opensearch"}
+search:
+  type: http
+  mode: OPENSEARCH
+  uri: ${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}
+  username: $OPENSEARCH_USERNAME
+  password: $OPENSEARCH_PASSWORD
+  nexusOneIndexReplicas: ${var.opensearch_index_replicas}
+
+%{endif}
 createSampleData: true
 CONFIGEOF
 
@@ -180,6 +190,10 @@ CONFIGEOF
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+%{if var.search_engine == "opensearch"}
+          sed -i "s|\$OPENSEARCH_USERNAME|$OPENSEARCH_USERNAME|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$OPENSEARCH_PASSWORD|$OPENSEARCH_PASSWORD|g" /etc/nexus-iq-server/config.yml
+%{endif}
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
 
           echo "Successfully created HA config.yml for replica: $HOSTNAME at /etc/nexus-iq-server/config.yml"
@@ -248,6 +262,22 @@ CONFIGEOF
         value = "/sonatype-work/clm-cluster"
       }
 
+      dynamic "env" {
+        for_each = var.search_engine == "opensearch" ? [1] : []
+        content {
+          name        = "OPENSEARCH_USERNAME"
+          secret_name = "opensearch-username"
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.search_engine == "opensearch" ? [1] : []
+        content {
+          name        = "OPENSEARCH_PASSWORD"
+          secret_name = "opensearch-password"
+        }
+      }
+
 
       volume_mounts {
         name = "iq-data-ha"
@@ -271,6 +301,22 @@ CONFIGEOF
   secret {
     name  = "db-password"
     value = var.db_password
+  }
+
+  dynamic "secret" {
+    for_each = var.search_engine == "opensearch" ? [1] : []
+    content {
+      name  = "opensearch-username"
+      value = var.opensearch_username
+    }
+  }
+
+  dynamic "secret" {
+    for_each = var.search_engine == "opensearch" ? [1] : []
+    content {
+      name  = "opensearch-password"
+      value = var.opensearch_password
+    }
   }
 
 
