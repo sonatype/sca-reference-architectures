@@ -23,9 +23,9 @@ resource "azurerm_resource_group" "iq_rg" {
   name     = "rg-ref-arch-iq"
   location = var.azure_region
 
-  tags = {
-    Project = "nexus-iq-server"
-  }
+  tags = merge(var.common_tags, {
+    project = "nexus-iq-server"
+  })
 }
 
 
@@ -35,10 +35,10 @@ resource "azurerm_virtual_network" "iq_vnet" {
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name    = "vnet-ref-arch-iq"
-    Project = "nexus-iq-server"
-  }
+    project = "nexus-iq-server"
+  })
 }
 
 
@@ -125,9 +125,9 @@ resource "azurerm_network_security_group" "public_nsg" {
     destination_address_prefix = "*"
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "nsg-public"
-  }
+  })
 }
 
 
@@ -192,9 +192,9 @@ resource "azurerm_network_security_group" "private_nsg" {
     }
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "nsg-private"
-  }
+  })
 }
 
 
@@ -215,9 +215,9 @@ resource "azurerm_network_security_group" "db_nsg" {
     destination_address_prefix = "*"
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "nsg-database"
-  }
+  })
 }
 
 

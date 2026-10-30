@@ -7,9 +7,9 @@ resource "azurerm_public_ip" "app_gateway_pip" {
   sku                 = "Standard"
   domain_name_label   = "ref-arch-iq-${random_string.dns_suffix.result}"
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "pip-ref-arch-iq-appgw"
-  }
+  })
 }
 
 
@@ -170,9 +170,9 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     }
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "appgw-ref-arch-iq"
-  }
+  })
 
   depends_on = [
     azurerm_container_app.iq_app,

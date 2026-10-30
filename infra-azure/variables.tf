@@ -278,3 +278,9 @@ variable "opensearch_allowed_cidrs" {
   type        = list(string)
   default     = []
 }
+
+variable "common_tags" {
+  description = "Tags merged into every resource this root creates, on top of the Name and project tags it sets itself. A key you supply with one of those names replaces it, which is why project is lowercase: Azure treats tag names as case-insensitive, so a map holding both Project and project would send one name twice. Put the values in terraform.tfvars, which is gitignored, rather than in terraform.tfvars.example."
+  type        = map(string)
+  default     = {}
+}

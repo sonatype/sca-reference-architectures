@@ -65,3 +65,19 @@ search_engine = "lucene"
 # opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 0
 # opensearch_allowed_cidrs  = ["10.0.40.0/24"]
+
+# Tags
+# Merged into every resource, on top of the Name and project tags this root
+# sets itself. A key with one of those names replaces it. Replace every
+# placeholder with your own values. terraform.tfvars is gitignored and this
+# example file is not, so nothing naming a person or an account belongs here.
+#
+# Azure treats tag names as case-insensitive, so do not add a key that differs
+# from one of these only in capitalization.
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}

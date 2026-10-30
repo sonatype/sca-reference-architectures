@@ -16,9 +16,9 @@ resource "azurerm_storage_account" "iq_storage" {
     bypass         = ["AzureServices", "Logging", "Metrics"]
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "st-ref-arch-iq"
-  }
+  })
 }
 
 

@@ -6,9 +6,9 @@ resource "azurerm_log_analytics_workspace" "iq_logs" {
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "log-ref-arch-iq"
-  }
+  })
 }
 
 
@@ -20,9 +20,9 @@ resource "azurerm_application_insights" "iq_insights" {
   workspace_id        = azurerm_log_analytics_workspace.iq_logs.id
   application_type    = "web"
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "appi-ref-arch-iq"
-  }
+  })
 }
 
 
@@ -41,9 +41,9 @@ resource "azurerm_container_app_environment" "iq_env" {
     maximum_count         = 1
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "cae-ref-arch-iq"
-  }
+  })
 }
 
 
@@ -294,9 +294,9 @@ CONFIGEOF
     ]
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "ca-ref-arch-iq"
-  }
+  })
 
   depends_on = [
     azurerm_postgresql_flexible_server.iq_db,

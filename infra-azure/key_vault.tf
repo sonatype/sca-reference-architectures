@@ -15,9 +15,9 @@ resource "azurerm_key_vault" "iq_kv" {
     default_action = "Allow"
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "kv-ref-arch-iq"
-  }
+  })
 }
 
 
@@ -72,9 +72,9 @@ resource "azurerm_key_vault_secret" "opensearch_username" {
 
   depends_on = [azurerm_key_vault_access_policy.current_user]
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "opensearch-username"
-  }
+  })
 }
 
 resource "azurerm_key_vault_secret" "opensearch_password" {
@@ -85,9 +85,9 @@ resource "azurerm_key_vault_secret" "opensearch_password" {
 
   depends_on = [azurerm_key_vault_access_policy.current_user]
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "opensearch-password"
-  }
+  })
 }
 
 

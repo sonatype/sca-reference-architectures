@@ -232,6 +232,15 @@ enable_monitoring  = true
 
 # Search Backend (optional) - see "Advanced Search with OpenSearch" below
 search_engine = "lucene"
+
+# Tags merged into every resource
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}
 ```
 
 **Important Settings:**
