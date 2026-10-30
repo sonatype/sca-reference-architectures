@@ -39,7 +39,7 @@ java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoo
 # ================================
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
-db_password                 = "YourSecurePassword123!"  # CHANGE THIS!
+db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # CHANGE THIS!
 aurora_engine_version       = "15.10"
 aurora_instance_class       = "db.r6g.4xlarge"
 aurora_instances            = 2  # Minimum 2 for HA
