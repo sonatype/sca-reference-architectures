@@ -6,14 +6,14 @@ resource "google_logging_project_bucket_config" "iq_ha_logs" {
   project        = var.gcp_project_id
   location       = "global"
   retention_days = var.log_retention_days
-  bucket_id      = "nexus-iq-ha-logs-${random_string.suffix.result}"
+  bucket_id      = "${local.app_name}-logs-${random_string.suffix.result}"
 
   description = "Centralized log bucket for Nexus IQ HA application logs"
 }
 
 # Log sink for Docker container logs (stderr/stdout)
 resource "google_logging_project_sink" "iq_ha_container_logs" {
-  name        = "nexus-iq-ha-container-logs-${random_string.suffix.result}"
+  name        = "${local.app_name}-container-logs-${random_string.suffix.result}"
   project     = var.gcp_project_id
   destination = "logging.googleapis.com/${google_logging_project_bucket_config.iq_ha_logs.id}"
 
@@ -32,7 +32,7 @@ resource "google_logging_project_sink" "iq_ha_container_logs" {
 
 # Log-based metric: Error count
 resource "google_logging_metric" "iq_ha_error_count" {
-  name        = "nexus-iq-ha-error-count"
+  name        = "${local.app_name}-error-count"
   project     = var.gcp_project_id
   description = "Count of ERROR level logs from Nexus IQ HA instances"
 
@@ -61,7 +61,7 @@ resource "google_logging_metric" "iq_ha_error_count" {
 
 # Log-based metric: Warning count
 resource "google_logging_metric" "iq_ha_warning_count" {
-  name        = "nexus-iq-ha-warning-count"
+  name        = "${local.app_name}-warning-count"
   project     = var.gcp_project_id
   description = "Count of WARNING level logs from Nexus IQ HA instances"
 
@@ -133,7 +133,7 @@ resource "google_logging_metric" "iq_ha_warning_count" {
 # Alert policy: Container restart
 resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
   project      = var.gcp_project_id
-  display_name = "Nexus IQ HA - Container Restart Detected"
+  display_name = "${local.app_name} - Container Restart Detected"
   combiner     = "OR"
 
   conditions {
@@ -168,7 +168,7 @@ resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
 # Alert policy: NFS mount failure
 resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
   project      = var.gcp_project_id
-  display_name = "Nexus IQ HA - NFS Mount Failure"
+  display_name = "${local.app_name} - NFS Mount Failure"
   combiner     = "OR"
 
   conditions {
@@ -202,7 +202,7 @@ resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
 
 # Log view for easy filtering of IQ Server logs
 resource "google_logging_log_view" "iq_ha_view" {
-  name        = "nexus-iq-ha-view"
+  name        = "${local.app_name}-view"
   bucket      = google_logging_project_bucket_config.iq_ha_logs.id
   description = "Filtered view of Nexus IQ HA application logs"
 

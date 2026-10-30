@@ -13,6 +13,9 @@ DB_PASSWORD_SECRET="${db_password_secret}"
 JAVA_OPTS="${java_opts}"
 PROJECT_ID="${gcp_project_id}"
 FILESTORE_IP="${filestore_ip}"
+%{ if search_engine == "opensearch" ~}
+OPENSEARCH_PASSWORD_SECRET="${opensearch_password_secret}"
+%{ endif ~}
 
 # Logging function
 log() {
@@ -153,7 +156,19 @@ if [ -z "$DB_PASSWORD" ]; then
 fi
 log "Database password retrieved successfully"
 
-# ============================================
+%{ if search_engine == "opensearch" ~}
+log "Retrieving OpenSearch password from Secret Manager..."
+OPENSEARCH_PASSWORD=$(gcloud secrets versions access latest \
+  --secret="$${OPENSEARCH_PASSWORD_SECRET}" \
+  --project="$${PROJECT_ID}")
+
+if [ -z "$OPENSEARCH_PASSWORD" ]; then
+  log "FATAL: Failed to retrieve OpenSearch password from Secret Manager"
+  exit 1
+fi
+log "OpenSearch password retrieved successfully"
+
+%{ endif ~}# ============================================
 # SECTION 6: Generate config.yml
 # ============================================
 # CRITICAL: Use CONTAINER PATHS (not host paths)
@@ -220,6 +235,16 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - INSTANCE:$INSTANCE_HOSTNAME %msg%n"
     archivedFileCount: 50
 
+%{ if search_engine == "opensearch" ~}
+search:
+  type: http
+  mode: OPENSEARCH
+  uri: ${opensearch_uri}
+  username: ${opensearch_username}
+  password: $OPENSEARCH_PASSWORD
+  nexusOneIndexReplicas: ${opensearch_nexus_one_index_replicas}
+
+%{ endif ~}
 createSampleData: true
 CONFIGEOF
 
@@ -232,6 +257,9 @@ sed -i "s|\$DB_NAME|$${DB_NAME}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_USER|$${DB_USER}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$${DB_PASSWORD}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/config.yml
+%{ if search_engine == "opensearch" ~}
+sed -i "s|\$OPENSEARCH_PASSWORD|$${OPENSEARCH_PASSWORD}|g" /etc/nexus-iq-server/config.yml
+%{ endif ~}
 
 log "Configuration file created at: /etc/nexus-iq-server/config.yml"
 

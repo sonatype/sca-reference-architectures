@@ -175,6 +175,22 @@ output "project_id" {
   value       = var.gcp_project_id
 }
 
+# Search backend outputs
+output "search_engine" {
+  description = "Search backend Nexus IQ Server is configured to use"
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "URI Nexus IQ Server uses to reach OpenSearch, or null when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? local.opensearch_uri : null
+}
+
+output "opensearch_password_secret_name" {
+  description = "Secret Manager secret holding the OpenSearch password, or null when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? google_secret_manager_secret.opensearch_password[0].secret_id : null
+}
+
 # Summary information
 output "deployment_summary" {
   description = "Summary of the HA deployment"
@@ -185,6 +201,7 @@ output "deployment_summary" {
     max_instances        = var.iq_max_instances
     database_type        = "PostgreSQL ${var.postgres_version}"
     database_ha          = var.db_availability_type
+    search_backend       = var.search_engine
     ssl_enabled          = var.enable_ssl
     monitoring_enabled   = true
     auto_scaling_enabled = true

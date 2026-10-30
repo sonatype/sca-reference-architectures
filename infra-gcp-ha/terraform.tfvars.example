@@ -8,6 +8,12 @@ availability_zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
 # Environment
 environment = "prod"
 
+# Resource Naming
+# Every name that has to be unique inside a Google Cloud project derives from this. Leave it empty
+# to reproduce the names this architecture has always published. Set it to a distinct value per
+# deployment when several sizes share one project, for example "iq-m".
+cluster_name = ""
+
 # Network Configuration
 # This root creates subnets inside an auto-created VPC, so there is no
 # VPC-wide CIDR variable. Set the three subnet ranges instead.
@@ -75,13 +81,34 @@ java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+Always
 log_retention_days = 30
 
 # Common Tags/Labels
+# Google Cloud labels take lowercase letters, numbers, hyphens and underscores only, up to 63
+# characters, so an email address is written with underscores in place of @ and . and a ticket key
+# is lowercased. Replace every value below: real values name an individual and a project, and this
+# file is committed while terraform.tfvars is not.
 common_tags = {
+  owner       = "first_last_example_com"
+  project     = "your-project-key"
+  subproject  = "your-ticket-key"
+  department  = "your-department"
+  team        = "your-team"
   environment = "prod"
   component   = "nexus-iq-ha"
   managed-by  = "terraform"
-  team        = "platform"
-  cost-center = "engineering"
 }
+
+# Search Backend
+# "lucene" (default) uses the built-in index and needs nothing else running.
+# "opensearch" points Nexus IQ Server at an OpenSearch cluster you run yourself. Google Cloud has
+# no managed OpenSearch service, so this configuration does not create one: build the cluster to
+# the specification in README.md, "Search Backend", and name its host here.
+search_engine = "lucene"
+
+# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_port                     = 9200
+# opensearch_use_tls                  = true
+# opensearch_username                 = "nexusiq"
+# opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_nexus_one_index_replicas = 0
 
 # The values above are Size L. The two blocks below are the other sizes this
 # root supports. See the README Sizing Guide for application and evaluation

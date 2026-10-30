@@ -1,6 +1,6 @@
 # Service account for Compute Engine instances
 resource "google_service_account" "iq_compute_service" {
-  account_id   = "nexus-iq-ha-compute-sa"
+  account_id   = "${local.app_name}-compute-sa"
   display_name = "Nexus IQ HA Compute Service Account"
   description  = "Service account for Nexus IQ HA Compute Engine instances"
   project      = var.gcp_project_id
@@ -63,7 +63,7 @@ resource "google_project_iam_member" "iq_compute_storage_admin" {
 
 # Service account for load balancer health checks
 resource "google_service_account" "iq_load_balancer" {
-  account_id   = "nexus-iq-ha-lb-sa"
+  account_id   = "${local.app_name}-lb-sa"
   display_name = "Nexus IQ HA Load Balancer Service Account"
   description  = "Service account for Nexus IQ HA Load Balancer health checks"
   project      = var.gcp_project_id

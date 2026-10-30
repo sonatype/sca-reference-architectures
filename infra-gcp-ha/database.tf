@@ -1,6 +1,6 @@
 # Cloud SQL PostgreSQL Database Instance (Regional HA)
 resource "google_sql_database_instance" "iq_ha_db" {
-  name             = "nexus-iq-ha-db-${random_string.suffix.result}"
+  name             = "${local.app_name}-db-${random_string.suffix.result}"
   database_version = var.postgres_version
   region           = var.gcp_region
   project          = var.gcp_project_id
@@ -85,7 +85,7 @@ resource "google_sql_user" "iq_ha_db_user" {
 # Read replica for load distribution (optional)
 resource "google_sql_database_instance" "iq_ha_db_replica" {
   count                = var.enable_read_replica ? 1 : 0
-  name                 = "nexus-iq-ha-db-replica-${random_string.suffix.result}"
+  name                 = "${local.app_name}-db-replica-${random_string.suffix.result}"
   database_version     = var.postgres_version
   region               = var.gcp_region
   project              = var.gcp_project_id
@@ -140,7 +140,7 @@ resource "google_sql_database_instance" "iq_ha_db_replica" {
 
 # Secret Manager for database credentials
 resource "google_secret_manager_secret" "db_credentials" {
-  secret_id = "nexus-iq-ha-db-credentials-${random_string.suffix.result}"
+  secret_id = "${local.app_name}-db-credentials-${random_string.suffix.result}"
   project   = var.gcp_project_id
 
   replication {
@@ -167,7 +167,7 @@ resource "google_secret_manager_secret_version" "db_credentials" {
 
 # Store just the password for easier access in startup script
 resource "google_secret_manager_secret" "db_password" {
-  secret_id = "nexus-iq-ha-db-password-${random_string.suffix.result}"
+  secret_id = "${local.app_name}-db-password-${random_string.suffix.result}"
   project   = var.gcp_project_id
 
   replication {
@@ -188,7 +188,7 @@ resource "google_secret_manager_secret_version" "db_password" {
 
 # SSL Certificate for Cloud SQL
 resource "google_sql_ssl_cert" "iq_ha_client_cert" {
-  common_name = "nexus-iq-ha-client-cert"
+  common_name = "${local.app_name}-client-cert"
   instance    = google_sql_database_instance.iq_ha_db.name
   project     = var.gcp_project_id
 }
