@@ -25,3 +25,18 @@ terraform.tfstate*
 *tfvars.backup
 tfplan
 *.tfplan
+
+# Terraform plans, state exports and backups (may contain secrets)
+*tfplan*
+*terraform-state*.json
+*.tfstate.json
+pre-destroy-backup-*/
+*.log
+
+# Editor / sed -i backup artifacts (e.g. macOS `sed -i -e` creates `file-e`)
+*-e
+*.bak
+*.orig
+
+# Generated runtime values (rendered with real credentials)
+helm-values-runtime.yaml*

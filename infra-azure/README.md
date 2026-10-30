@@ -210,7 +210,7 @@ java_opts        = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/java
 # Database Configuration
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
-db_password                      = "YourSecurePassword123!"  # Change this!
+db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version                 = "15"
 db_sku_name                      = "MO_Standard_E16s_v3"  # Memory Optimized (16 vCores, 128GB RAM)
 db_storage_mb                    = 524288                 # 512GB storage

@@ -27,7 +27,7 @@ scale_rule_concurrent_requests = 100  # Concurrent requests threshold
 # Zone-Redundant Database Configuration (HA)
 db_name                         = "nexusiq"
 db_username                     = "nexusiq"
-db_password                     = "YourSecurePassword123!"  # Change this!
+db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version               = "15"
 db_sku_name                    = "MO_Standard_E16s_v3"     # Memory Optimized: 16 vCores, 128GB RAM
 db_backup_retention_days       = 7

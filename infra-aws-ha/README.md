@@ -263,7 +263,7 @@ java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoo
 # Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
-db_password                 = "YourSecurePassword123!"  # Change this!
+db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 aurora_engine_version       = "15.10"
 aurora_instance_class       = "db.r6g.4xlarge"
 aurora_instances            = 2
