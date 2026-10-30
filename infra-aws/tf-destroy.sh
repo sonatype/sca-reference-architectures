@@ -89,8 +89,11 @@ echo "• Secrets will be force-deleted (no recovery)"
 echo "• This action CANNOT be undone"
 echo ""
 
+CLUSTER_NAME=$(grep '^cluster_name' terraform.tfvars | cut -d'"' -f2 || echo "ref-arch")
+CLUSTER_NAME=${CLUSTER_NAME:-ref-arch}
+
 aws-vault exec "$AWS_PROFILE" -- aws secretsmanager delete-secret \
-  --secret-id "ref-arch-iq-db-credentials" \
+  --secret-id "${CLUSTER_NAME}-iq-db-credentials" \
   --force-delete-without-recovery \
   --region $AWS_REGION 2>/dev/null || true
 

@@ -69,15 +69,19 @@ echo ""
 echo "🚀 Proceeding with deployment..."
 echo ""
 
+CLUSTER_NAME=$(grep '^cluster_name' terraform.tfvars | cut -d'"' -f2 || echo "ref-arch")
+CLUSTER_NAME=${CLUSTER_NAME:-ref-arch}
+LOG_GROUP_NAME="/ecs/${CLUSTER_NAME}-nexus-iq-server"
+
 LOG_GROUP_EXISTS=$(aws-vault exec "$AWS_PROFILE" -- aws logs describe-log-groups \
-  --log-group-name-prefix "/ecs/ref-arch-nexus-iq-server" \
+  --log-group-name-prefix "$LOG_GROUP_NAME" \
   --region $AWS_REGION \
-  --query 'logGroups[?logGroupName==`/ecs/ref-arch-nexus-iq-server`].logGroupName' \
+  --query "logGroups[?logGroupName=='$LOG_GROUP_NAME'].logGroupName" \
   --output text 2>/dev/null || echo "")
 
 if [[ -n "$LOG_GROUP_EXISTS" ]]; then
   if ! terraform state show aws_cloudwatch_log_group.iq_logs >/dev/null 2>&1; then
-    aws-vault exec "$AWS_PROFILE" -- terraform import aws_cloudwatch_log_group.iq_logs /ecs/ref-arch-nexus-iq-server >/dev/null 2>&1 || true
+    aws-vault exec "$AWS_PROFILE" -- terraform import aws_cloudwatch_log_group.iq_logs "$LOG_GROUP_NAME" >/dev/null 2>&1 || true
   fi
 fi
 

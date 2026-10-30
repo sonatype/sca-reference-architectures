@@ -1,21 +1,21 @@
 
 resource "aws_db_subnet_group" "iq_db_subnet_group" {
-  name       = "ref-arch-iq-db-subnet-group"
+  name       = "${var.cluster_name}-iq-db-subnet-group"
   subnet_ids = aws_subnet.db_subnets[*].id
 
   tags = {
-    Name        = "ref-arch-iq-db-subnet-group"
+    Name = "${var.cluster_name}-iq-db-subnet-group"
   }
 }
 
 
 resource "aws_secretsmanager_secret" "db_credentials" {
-  name                    = "ref-arch-iq-db-credentials"
+  name                    = "${var.cluster_name}-iq-db-credentials"
   description             = "Database credentials for Nexus IQ Server"
   recovery_window_in_days = 7
 
   tags = {
-    Name        = "ref-arch-iq-db-credentials"
+    Name = "${var.cluster_name}-iq-db-credentials"
   }
 }
 
@@ -29,7 +29,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 
 
 resource "aws_db_instance" "iq_db" {
-  identifier     = "ref-arch-iq-database"
+  identifier     = "${var.cluster_name}-iq-database"
   engine         = "postgres"
   engine_version = var.postgres_version
   instance_class = var.db_instance_class
@@ -47,26 +47,26 @@ resource "aws_db_instance" "iq_db" {
   db_subnet_group_name   = aws_db_subnet_group.iq_db_subnet_group.name
 
   backup_retention_period = var.db_backup_retention_period
-  backup_window          = var.db_backup_window
-  maintenance_window     = var.db_maintenance_window
+  backup_window           = var.db_backup_window
+  maintenance_window      = var.db_maintenance_window
 
   skip_final_snapshot = var.db_skip_final_snapshot
   deletion_protection = var.db_deletion_protection
 
   performance_insights_enabled = true
-  monitoring_interval         = 60
-  monitoring_role_arn        = aws_iam_role.rds_enhanced_monitoring.arn
+  monitoring_interval          = 60
+  monitoring_role_arn          = aws_iam_role.rds_enhanced_monitoring.arn
 
   auto_minor_version_upgrade = true
 
   tags = {
-    Name        = "ref-arch-iq-database"
+    Name = "${var.cluster_name}-iq-database"
   }
 }
 
 
 resource "aws_iam_role" "rds_enhanced_monitoring" {
-  name = "ref-arch-rds-enhanced-monitoring"
+  name = "${var.cluster_name}-rds-enhanced-monitoring"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -82,7 +82,7 @@ resource "aws_iam_role" "rds_enhanced_monitoring" {
   })
 
   tags = {
-    Name        = "ref-arch-rds-enhanced-monitoring"
+    Name = "${var.cluster_name}-rds-enhanced-monitoring"
   }
 }
 

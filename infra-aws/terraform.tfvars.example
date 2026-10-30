@@ -4,6 +4,10 @@
 # General Configuration
 aws_region  = "us-east-1"
  
+# Base name for every resource this creates. Give each deployment its own value
+# to run more than one in a single AWS account, one per size for example.
+cluster_name = "ref-arch"
+ 
 # Network Configuration
 vpc_cidr               = "10.0.0.0/16"
 public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
@@ -37,3 +41,14 @@ alb_deletion_protection = false
  
 # Logging Configuration
 log_retention_days = 30
+
+# Search Backend (optional)
+# "lucene" (default) uses the index built into IQ Server and needs nothing else.
+# "opensearch" points IQ Server at an OpenSearch domain that already exists.
+# This configuration does not create the domain, so its lifecycle and its
+# indexed data stay independent of Terraform runs here. See the OpenSearch
+# section of README.md before switching.
+search_engine = "lucene"
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
+# opensearch_index_replicas  = 0

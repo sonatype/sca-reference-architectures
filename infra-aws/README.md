@@ -74,6 +74,90 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 
 ---
 
+## OpenSearch for the Nexus One Index
+
+Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
+domain instead of the index built into the server. Set `search_engine` to
+`opensearch` and give it the domain to use:
+
+```hcl
+search_engine              = "opensearch"
+opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+opensearch_domain_name     = "my-domain"
+opensearch_index_replicas  = 0
+```
+
+`search_engine = "lucene"` is the default and needs none of the other three.
+
+### This configuration does not create the domain
+
+You create the domain, and you give its host name to Terraform. That is
+deliberate. The domain holds the index, so leaving it outside this
+configuration means switching engines, replacing the ECS service or running
+`terraform destroy` here never deletes indexed data, and you can resize,
+upgrade and back the domain up on its own schedule.
+
+Two things the domain needs:
+
+- **It must be reachable from the ECS tasks.** Put it in the same VPC, in the
+  private subnets, and allow inbound 443 from the task security group. A
+  public domain works too, but then its access policy is the only thing
+  keeping it private.
+- **Leave fine-grained access control off.** IQ Server signs its requests with
+  SigV4 using the ECS task role, and Terraform grants that role `es:ESHttp*`
+  on the domain you named. Add the task role ARN to the domain's access
+  policy, which the `ecs_task_role_arn` output gives you.
+
+**Fine-grained access control has to stay off for as long as the domain holds this
+index.** Turning it on gives the domain an internal user database and changes how
+every request is authenticated, so SigV4 alone no longer reaches it and IQ Server's
+`type: aws` configuration stops working. There is no credential to supply instead:
+this architecture authenticates with the ECS task role and nothing else.
+
+### Domain shape per size
+
+**Not published yet.** The node count, node type and storage each size needs
+are being measured under
+[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930), and this section
+is filled in once that reports. Size the domain yourself until then.
+
+What is settled is the replica count:
+
+| Size | `opensearch_index_replicas` | Why |
+|------|:---------------------------:|:----|
+| **XS** | 0 | One data node, which has nowhere to put a replica |
+| **S** | 0 | One data node |
+| **M** | **pending CLM-55930** | More than one data node, so a replica can be placed. Set it from your own availability requirement until the measured value is published |
+
+At 0 replicas a lost node means the index is rebuilt rather than recovered.
+That is the trade XS and S make, and it is part of why both are marked
+projected in the sizing guide above.
+
+### What Terraform writes into `config.yml`
+
+```yaml
+search:
+  type: aws
+  mode: OPENSEARCH
+  domain: https://<opensearch_domain_endpoint>
+  region: <aws_region>
+  nexusOneIndexReplicas: <opensearch_index_replicas>
+```
+
+- **`type: aws`** signs every request with SigV4 through the task role.
+  `type: http` always sends a user name and password, which a domain with
+  fine-grained access control off has no way to check.
+- **`mode: OPENSEARCH`** is written out rather than left to default. The
+  default is `HYBRID`, which also writes every batch to the built-in index.
+- **`nexusOneIndexReplicas`** is always written, because IQ Server's own
+  default is 0 and this configuration states the value rather than inheriting
+  it.
+
+Shard counts are held in IQ Server's database, not in `config.yml`, and a
+shard count only takes effect when an index is created.
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites
@@ -230,6 +314,10 @@ Edit `terraform.tfvars` to customize your deployment:
 # General Configuration
 aws_region  = "us-east-1"
 
+# Base name for every resource this creates. Give each deployment its own value
+# to run more than one in a single AWS account, one per size for example.
+cluster_name = "ref-arch"
+
 # Network Configuration
 vpc_cidr               = "10.0.0.0/16"
 public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
@@ -263,6 +351,15 @@ alb_deletion_protection = false
 
 # Logging Configuration
 log_retention_days = 30
+
+# Search Backend (optional)
+# "lucene" (default) uses the index built into IQ Server. "opensearch" points
+# IQ Server at an OpenSearch domain that already exists, which this
+# configuration does not create. See the OpenSearch section above.
+search_engine = "lucene"
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
+# opensearch_index_replicas  = 0
 ```
 
 **Important Settings:**
@@ -271,7 +368,7 @@ log_retention_days = 30
 - **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
 - **`db_skip_final_snapshot = true`** - Set to `false` for production to create a final backup snapshot before database deletion
 - **`alb_deletion_protection = false`** - Set to `true` for production use
-- **Resource Names** - All AWS resources are prefixed with "ref-arch" (e.g., "ref-arch-iq-cluster")
+- **Resource Names** - Controlled by the `cluster_name` variable, which defaults to `ref-arch`, so the ECS cluster is `ref-arch-iq-cluster` and the log group `/ecs/ref-arch-nexus-iq-server`. **Give each deployment its own value to run more than one in a single AWS account**, since the load balancer, target groups, IAM roles, log group, SSM parameters, Secrets Manager secret and RDS identifier all have to be unique. One value per size, for example `ref-arch-xs` through `ref-arch-m`, is the intended use.
 
 ## Security Features
 

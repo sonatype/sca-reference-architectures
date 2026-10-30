@@ -25,8 +25,8 @@ resource "aws_vpc" "iq_vpc" {
   enable_dns_support   = true
 
   tags = {
-    Name        = "ref-arch-iq-vpc"
-    Project     = "nexus-iq-server"
+    Name    = "${var.cluster_name}-iq-vpc"
+    Project = "nexus-iq-server"
   }
 }
 
@@ -35,7 +35,7 @@ resource "aws_internet_gateway" "iq_igw" {
   vpc_id = aws_vpc.iq_vpc.id
 
   tags = {
-    Name        = "ref-arch-iq-igw"
+    Name = "${var.cluster_name}-iq-igw"
   }
 }
 
@@ -49,8 +49,8 @@ resource "aws_subnet" "public_subnets" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name        = "ref-arch-public-subnet-${count.index + 1}"
-    Type        = "Public"
+    Name = "${var.cluster_name}-public-subnet-${count.index + 1}"
+    Type = "Public"
   }
 }
 
@@ -62,8 +62,8 @@ resource "aws_subnet" "private_subnets" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name        = "ref-arch-private-subnet-${count.index + 1}"
-    Type        = "Private"
+    Name = "${var.cluster_name}-private-subnet-${count.index + 1}"
+    Type = "Private"
   }
 }
 
@@ -75,8 +75,8 @@ resource "aws_subnet" "db_subnets" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name        = "ref-arch-db-subnet-${count.index + 1}"
-    Type        = "Database"
+    Name = "${var.cluster_name}-db-subnet-${count.index + 1}"
+    Type = "Database"
   }
 }
 
@@ -90,7 +90,7 @@ resource "aws_route_table" "public_rt" {
   }
 
   tags = {
-    Name        = "ref-arch-public-route-table"
+    Name = "${var.cluster_name}-public-route-table"
   }
 }
 
@@ -106,7 +106,7 @@ resource "aws_eip" "nat_eip" {
   domain = "vpc"
 
   tags = {
-    Name        = "ref-arch-nat-eip"
+    Name = "${var.cluster_name}-nat-eip"
   }
 }
 
@@ -115,7 +115,7 @@ resource "aws_nat_gateway" "nat_gw" {
   subnet_id     = aws_subnet.public_subnets[0].id
 
   tags = {
-    Name        = "ref-arch-nat-gateway"
+    Name = "${var.cluster_name}-nat-gateway"
   }
 
   depends_on = [aws_internet_gateway.iq_igw]
@@ -126,12 +126,12 @@ resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.iq_vpc.id
 
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat_gw.id
   }
 
   tags = {
-    Name        = "ref-arch-private-route-table"
+    Name = "${var.cluster_name}-private-route-table"
   }
 }
 
@@ -147,7 +147,7 @@ resource "aws_route_table" "db_rt" {
   vpc_id = aws_vpc.iq_vpc.id
 
   tags = {
-    Name        = "ref-arch-db-route-table"
+    Name = "${var.cluster_name}-db-route-table"
   }
 }
 
