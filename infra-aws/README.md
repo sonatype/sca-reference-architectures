@@ -105,7 +105,7 @@ together) and one for Advanced Search.
 
 Each Nexus One index is created with **one primary shard**, which is the recommendation at every
 published size. The `component`, `violation`, and `vulnerability` indices can be raised per tenant
-through the configuration API, up to a ceiling of 12; the other three have no such setting. **A shard
+through the configuration API, up to `nexusOneIndexMaxShards`, which defaults to 12; the other three have no such setting. **A shard
 count applies only when an index is created**, so raising one has to be followed by a rebuild.
 
 **The Advanced Search index is the one IQ Server does not size.** It sends no shard count and no
