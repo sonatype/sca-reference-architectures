@@ -75,11 +75,21 @@ search_engine = "lucene"
 # opensearch_allowed_cidrs  = ["10.0.50.0/24"]
 
 # Tags
+# Replace every placeholder below with your own values. terraform.tfvars is
+# gitignored and this example file is not, so nothing naming a person or an
+# account belongs here.
+#
+# Azure treats tag names as case-insensitive, so do not add a second key that
+# differs from one of these only in capitalization.
 common_tags = {
-  Project         = "nexus-iq-server-ha"
-  Environment     = "production"
-  Terraform       = "true"
-  DeploymentType  = "high-availability"
-  Owner          = "platform-team"
+  Environment    = "production"
+  Terraform      = "true"
+  DeploymentType = "high-availability"
   CostCenter     = "engineering"
+
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
 }

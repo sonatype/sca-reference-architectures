@@ -236,7 +236,7 @@ variable "key_vault_soft_delete_retention_days" {
 
 
 variable "common_tags" {
-  description = "Common tags to apply to all resources"
+  description = "Common tags to apply to all resources. Azure treats tag names as case-insensitive, so do not supply two keys differing only in capitalization. Put per-deployment values in terraform.tfvars, which is gitignored, rather than in terraform.tfvars.example."
   type        = map(string)
   default = {
     Project        = "nexus-iq-server-ha"
