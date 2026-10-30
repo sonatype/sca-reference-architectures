@@ -128,16 +128,36 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
           "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-*"
         ]
       }
-    ],
-    var.enable_log_archive ? [{
-      Effect = "Allow"
-      Action = [
-        "s3:PutObject",
-        "s3:PutObjectAcl"
-      ]
-      Resource = [
-        "${aws_s3_bucket.log_archive[0].arn}/*"
-      ]
+      ],
+      var.enable_log_archive ? [{
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:PutObjectAcl"
+        ]
+        Resource = [
+          "${aws_s3_bucket.log_archive[0].arn}/*"
+        ]
+      }] : [],
+      var.search_engine == "opensearch" ? [{
+        # Lets the task role sign its OpenSearch requests with SigV4, which is what
+        # config.yml's "aws" search type does. A domain with fine-grained access
+        # control turned off keeps no user database, so it cannot check a user name
+        # and password and only accepts signed requests. AWS checks each HTTP verb
+        # against its own action, so all five are granted rather than guessing which
+        # ones IQ Server uses.
+        Effect = "Allow"
+        Action = [
+          "es:ESHttpGet",
+          "es:ESHttpPost",
+          "es:ESHttpPut",
+          "es:ESHttpHead",
+          "es:ESHttpDelete"
+        ]
+        Resource = [
+          "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${var.opensearch_domain_name}",
+          "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${var.opensearch_domain_name}/*"
+        ]
     }] : [])
   })
 }

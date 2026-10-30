@@ -72,6 +72,19 @@ enable_prometheus        = true
 log_retention_days       = 30
  
 # ================================
+# SEARCH BACKEND (optional)
+# ================================
+# "lucene" (default) uses the index built into IQ Server and needs nothing else.
+# "opensearch" points IQ Server at an OpenSearch domain that already exists.
+# This configuration does not create the domain, so its lifecycle and its
+# indexed data stay independent of Terraform runs here. See the OpenSearch
+# section of README.md before switching.
+search_engine = "lucene"
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
+# opensearch_index_replicas  = 1
+ 
+# ================================
 # COMMON TAGS
 # ================================
 common_tags = {

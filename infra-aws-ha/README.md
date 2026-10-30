@@ -88,6 +88,98 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 ---
 
+## OpenSearch for the Nexus One Index
+
+Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
+domain instead of the index built into the server. Set `search_engine` to
+`opensearch` and give it the domain to use:
+
+```hcl
+search_engine              = "opensearch"
+opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+opensearch_domain_name     = "my-domain"
+opensearch_index_replicas  = 1
+```
+
+`search_engine = "lucene"` is the default and needs none of the other three.
+
+**On this architecture OpenSearch is the index that every task shares.** The
+built-in index lives on each task's own storage, so a cluster of tasks keeps a
+copy each and each copy is rebuilt separately. An OpenSearch domain is one
+index all the tasks read and write, which is why it matters more here than on
+the single-instance architecture.
+
+### This configuration does not create the domain
+
+You create the domain, and you give its host name to Terraform. That is
+deliberate. The domain holds the index, so leaving it outside this
+configuration means switching engines, replacing the ECS service or running
+`terraform destroy` here never deletes indexed data, and you can resize,
+upgrade and back the domain up on its own schedule.
+
+Two things the domain needs:
+
+- **It must be reachable from the ECS tasks.** Put it in the same VPC, across
+  the private subnets, and allow inbound 443 from the task security group.
+  Turn zone awareness on so the domain survives losing an Availability Zone,
+  which is the point of this architecture.
+- **Leave fine-grained access control off.** IQ Server signs its requests with
+  SigV4 using the ECS task role, and Terraform grants that role `es:ESHttp*`
+  on the domain you named. Add the task role ARN to the domain's access
+  policy, which the `ecs_task_role_arn` output gives you.
+
+**Fine-grained access control has to stay off for as long as the domain holds this
+index.** Turning it on gives the domain an internal user database and changes how
+every request is authenticated, so SigV4 alone no longer reaches it and IQ Server's
+`type: aws` configuration stops working. There is no credential to supply instead:
+this architecture authenticates with the ECS task role and nothing else.
+
+### Domain shape per size
+
+**Not published yet.** The node count, node type and storage each size needs
+are being measured under
+[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930), and this section
+is filled in once that reports. Size the domain yourself until then.
+
+The replica count is measured on the same ticket:
+
+| Size | `opensearch_index_replicas` |
+|------|:---------------------------:|
+| **M** | **pending CLM-55930** |
+| **L** | **pending CLM-55930** |
+| **XL** | **pending CLM-55930** |
+
+Every size here runs more than one IQ Server task and should run more than one
+data node, so a replica can be placed. Until the measured value is published,
+set it from your own availability requirement: at 0 replicas a lost data node
+means the index is rebuilt rather than recovered, and a rebuild of a large
+index takes over an hour.
+
+### What Terraform writes into `config.yml`
+
+```yaml
+search:
+  type: aws
+  mode: OPENSEARCH
+  domain: https://<opensearch_domain_endpoint>
+  region: <aws_region>
+  nexusOneIndexReplicas: <opensearch_index_replicas>
+```
+
+- **`type: aws`** signs every request with SigV4 through the task role.
+  `type: http` always sends a user name and password, which a domain with
+  fine-grained access control off has no way to check.
+- **`mode: OPENSEARCH`** is written out rather than left to default. The
+  default is `HYBRID`, which also writes every batch to the built-in index.
+- **`nexusOneIndexReplicas`** is always written, because IQ Server's own
+  default is 0 and this configuration states the value rather than inheriting
+  it.
+
+Shard counts are held in IQ Server's database, not in `config.yml`, and a
+shard count only takes effect when an index is created.
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites
@@ -298,6 +390,15 @@ efs_provisioned_throughput_in_mibps = 100
 enable_container_insights = true
 enable_prometheus        = true
 log_retention_days       = 30
+
+# Search Backend (optional)
+# "lucene" (default) uses the index built into IQ Server. "opensearch" points
+# IQ Server at an OpenSearch domain that already exists, which this
+# configuration does not create. See the OpenSearch section above.
+search_engine = "lucene"
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
+# opensearch_index_replicas  = 1
 ```
 
 **Important Settings:**
@@ -309,7 +410,7 @@ log_retention_days       = 30
 - **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
 - **`db_skip_final_snapshot = true`** - Set to `false` for production to create a final backup snapshot before database deletion
 - **`alb_deletion_protection = false`** - Set to `true` for production use
-- **Resource Names** - Controlled by `cluster_name` variable
+- **Resource Names** - Controlled by `cluster_name` variable, which defaults to `ref-arch-iq-ha-cluster`. **Give each deployment its own value to run more than one in a single AWS account**, since the load balancer, target groups, IAM roles, log group, SSM parameters, Secrets Manager secret and Aurora cluster identifier all have to be unique. One value per size, for example `ref-arch-m-cluster` through `ref-arch-xl-cluster`, is the intended use.
 
 ### Custom Clustering Solution
 

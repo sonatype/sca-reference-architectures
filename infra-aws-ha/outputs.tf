@@ -126,7 +126,7 @@ output "target_group_arn" {
 
 output "application_url" {
   description = "URL to access Nexus IQ Server"
-  value = var.ssl_certificate_arn != "" ? "https://${aws_lb.iq_alb.dns_name}" : "http://${aws_lb.iq_alb.dns_name}"
+  value       = var.ssl_certificate_arn != "" ? "https://${aws_lb.iq_alb.dns_name}" : "http://${aws_lb.iq_alb.dns_name}"
 }
 
 
@@ -200,25 +200,41 @@ output "ecs_cluster_info" {
 output "architecture_summary" {
   description = "High-level summary of the deployed architecture"
   value = {
-    deployment_type = "High Availability"
-    compute_platform = "Amazon ECS Fargate"
-    database_type = "Aurora PostgreSQL Cluster"
-    storage_type = "Amazon EFS"
-    load_balancer = "Application Load Balancer"
-    ssl_enabled = var.ssl_certificate_arn != ""
-    waf_enabled = true
-    backup_enabled = true
+    deployment_type    = "High Availability"
+    compute_platform   = "Amazon ECS Fargate"
+    database_type      = "Aurora PostgreSQL Cluster"
+    storage_type       = "Amazon EFS"
+    search_backend     = var.search_engine == "opensearch" ? "AWS-managed OpenSearch, supplied not provisioned" : "Lucene, built into IQ Server"
+    load_balancer      = "Application Load Balancer"
+    ssl_enabled        = var.ssl_certificate_arn != ""
+    waf_enabled        = true
+    backup_enabled     = true
     monitoring_enabled = var.enable_container_insights
     availability_zones = length(data.aws_availability_zones.available.names)
-    iq_server_tasks = var.iq_desired_count
-    aurora_instances = var.aurora_instances
+    iq_server_tasks    = var.iq_desired_count
+    aurora_instances   = var.aurora_instances
     auto_scaling = {
-      min_tasks = var.iq_min_count
+      min_tasks     = var.iq_min_count
       desired_tasks = var.iq_desired_count
-      max_tasks = var.iq_max_count
-      cpu_target = var.iq_cpu_target_value
+      max_tasks     = var.iq_max_count
+      cpu_target    = var.iq_cpu_target_value
       memory_target = var.iq_memory_target_value
     }
     service_discovery_enabled = true
   }
+}
+
+output "search_engine" {
+  description = "Search backend IQ Server's config.yml points at, either lucene or opensearch"
+  value       = var.search_engine
+}
+
+output "opensearch_domain_endpoint" {
+  description = "Host name of the OpenSearch domain IQ Server is configured against. Empty when search_engine is lucene. The domain itself is not created here"
+  value       = var.search_engine == "opensearch" ? var.opensearch_domain_endpoint : ""
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per shard written to config.yml as search.nexusOneIndexReplicas. Null when search_engine is lucene"
+  value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
 }
