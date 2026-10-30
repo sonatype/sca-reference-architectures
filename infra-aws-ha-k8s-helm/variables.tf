@@ -11,9 +11,38 @@ variable "environment" {
 }
 
 variable "cluster_name" {
-  description = "Name of the EKS cluster and resource prefix"
+  description = <<-EOT
+    Base name every resource in this root is named from: the EKS cluster itself, the
+    load balancer, the IAM roles and policies, the log group, the SSM parameters,
+    the Secrets Manager secret, the Aurora cluster, the KMS aliases, and the Name
+    tag on each network resource.
+
+    Change it per deployment so several deployments can share one AWS account. Many
+    of those names have to be unique across an account or a region, so two
+    deployments that leave this at the default collide on the second apply. Running
+    one deployment per size, for example "nexus-iq-m" through "nexus-iq-xl", is what
+    this is for.
+
+    The default reproduces the names this root has always used, so leaving it alone
+    changes nothing.
+  EOT
   type        = string
   default     = "nexus-iq-ha"
+
+  validation {
+    # The longest name built from this that AWS length-limits is the load balancer,
+    # "<cluster_name>-alb", capped at 32 characters. The EKS cluster name itself is
+    # capped at 100, so the load balancer is the binding one. Checked here so a
+    # too-long name fails the plan rather than the apply, after the VPC and Aurora
+    # already exist.
+    condition     = length(var.cluster_name) <= 28
+    error_message = "cluster_name must be 28 characters or fewer, to leave room for the 4-character '-alb' suffix under AWS's 32-character load balancer name limit."
+  }
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]*[a-z0-9]$", var.cluster_name))
+    error_message = "cluster_name must be lowercase letters, numbers and hyphens, and must not start or end with a hyphen, because it is used in load balancer and EKS cluster names."
+  }
 }
 
 variable "vpc_cidr" {
@@ -219,4 +248,84 @@ variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
   default     = 7
+}
+
+# =============================================================================
+# SEARCH BACKEND
+# =============================================================================
+# search_engine picks which search backend IQ Server's config.yml points at. On
+# this architecture config.yml is written by the Helm chart from the
+# iq_server.config block in helm-values.yaml, and helm-install.sh fills in or
+# removes the `search:` block there according to this variable.
+#
+# "opensearch" needs an OpenSearch domain that already exists, named in
+# opensearch_domain_name and reached at opensearch_domain_endpoint. This
+# configuration deliberately does not create the domain. The domain holds the
+# index, so keeping it outside Terraform means switching engines, replacing the
+# node group or destroying this stack never deletes the indexed data, and the
+# domain can be resized, upgraded and backed up on its own schedule.
+#
+# Sizing the domain is a separate exercise. See the OpenSearch section of this
+# directory's README.md for the shape each size needs.
+
+variable "search_engine" {
+  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" points IQ Server at an existing AWS-managed OpenSearch domain."
+  type        = string
+  default     = "lucene"
+
+  validation {
+    condition     = contains(["lucene", "opensearch"], var.search_engine)
+    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+  }
+}
+
+variable "opensearch_domain_endpoint" {
+  description = "Host name of an existing OpenSearch domain, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Required when search_engine is \"opensearch\", ignored otherwise."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.search_engine != "opensearch" || length(var.opensearch_domain_endpoint) > 0
+    error_message = "opensearch_domain_endpoint must be set when search_engine is 'opensearch'."
+  }
+}
+
+variable "opensearch_domain_name" {
+  description = <<-EOT
+    Name of that same OpenSearch domain, for example "my-domain". Used only to
+    build the ARN the IQ Server pods' IAM role is granted data-plane access on, so
+    the grant names one domain rather than every domain in the account. Required
+    when search_engine is "opensearch".
+
+    The domain has to be in this same AWS account and in aws_region, because the
+    ARN is built from aws_region and the calling account. A domain in another
+    account or another region cannot be named this way, and the symptom is a 403
+    from the domain at runtime rather than an error at plan time. Reaching one
+    would need the full ARN supplied instead, plus a matching principal in the
+    domain's own access policy.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.search_engine != "opensearch" || length(var.opensearch_domain_name) > 0
+    error_message = "opensearch_domain_name must be set when search_engine is 'opensearch'."
+  }
+}
+
+variable "opensearch_index_replicas" {
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. A domain with more than one data node should carry at least 1 so losing a node does not mean rebuilding the index."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
+    error_message = "opensearch_index_replicas must be between 0 and 10, the range IQ Server accepts."
+  }
+}
+
+variable "common_tags" {
+  description = "Extra tags merged onto the resources this configuration creates for the search backend. Keep the keys lowercase: AWS treats tag keys as case-insensitive when it checks for duplicates, so a key differing only in case from one already set fails the apply. Values name a deployment or a person, so set them in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  type        = map(string)
+  default     = {}
 }

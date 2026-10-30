@@ -96,6 +96,120 @@ All sizes use Amazon EFS with Elastic throughput mode. Enable lifecycle policies
 
 ---
 
+## OpenSearch for the Nexus One Index
+
+Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
+domain instead of the index built into the server. Set `search_engine` to
+`opensearch` and give it the domain to use:
+
+```hcl
+search_engine              = "opensearch"
+opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+opensearch_domain_name     = "my-domain"
+opensearch_index_replicas  = 1
+```
+
+`search_engine = "lucene"` is the default and needs none of the other three.
+
+**On this architecture OpenSearch is the index that every pod shares.** The
+built-in index lives on each pod's own storage, so a set of replicas keeps a
+copy each and each copy is rebuilt separately. An OpenSearch domain is one
+index all the pods read and write.
+
+### This configuration does not create the domain
+
+You create the domain, and you give its host name to Terraform. That is
+deliberate. The domain holds the index, so leaving it outside this
+configuration means switching engines, replacing the node group or running
+`terraform destroy` here never deletes indexed data, and you can resize,
+upgrade and back the domain up on its own schedule.
+
+Two things the domain needs:
+
+- **It must be reachable from the EKS nodes.** Put it in the same VPC, across
+  the private subnets, and allow inbound 443 from the node security group.
+  Turn zone awareness on so the domain survives losing an Availability Zone.
+- **Leave fine-grained access control off.** IQ Server signs its requests with
+  SigV4, so Terraform creates an IAM role the pods assume through IAM Roles
+  for Service Accounts and grants it `es:ESHttp*` on the domain you named.
+  **Add that role ARN to the domain's access policy**, which the
+  `iq_server_irsa_role_arn` output gives you. Without it the domain returns
+  403 even though the pods are signing correctly.
+
+**Fine-grained access control has to stay off for as long as the domain holds this
+index.** Turning it on gives the domain an internal user database and changes how
+every request is authenticated, so SigV4 alone no longer reaches it and IQ Server's
+`type: aws` configuration stops working. There is no credential to supply instead:
+this architecture authenticates with the pods' IAM role and nothing else.
+
+### How the configuration reaches IQ Server
+
+Terraform does not write `config.yml` here. The Helm chart builds it from the
+`iq_server.config` block in `helm-values.yaml`, and `helm-install.sh` prepares
+that file at install time:
+
+1. It reads the `search_engine`, `opensearch_domain_endpoint` and
+   `opensearch_index_replicas` outputs.
+2. With `opensearch`, it fills in the three placeholders inside the
+   `# BEGIN search backend` block and points the `nexus-iq-sa` service account
+   at `iq_server_irsa_role_arn`.
+3. With `lucene`, it deletes that whole block, so `config.yml` carries no
+   `search:` key at all.
+4. Either way it then fails if any placeholder survived, rather than installing
+   a chart with a literal placeholder in it.
+
+`helm-upgrade.sh` does the same. **Do not rename the keys inside that block.**
+Both scripts substitute `hostname`, `port`, `name`, `username`, `password` and
+`region` across the whole file with no line anchor, for the database and for
+CloudWatch, so a search key called `hostname` would be handed the database
+endpoint.
+
+### Domain shape per size
+
+**Not published yet.** The node count, node type and storage each size needs
+are being measured under
+[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930), and this section
+is filled in once that reports. Size the domain yourself until then.
+
+The replica count is measured on the same ticket:
+
+| Size | `opensearch_index_replicas` |
+|------|:---------------------------:|
+| **M** | **pending CLM-55930** |
+| **L** | **pending CLM-55930** |
+| **XL** | **pending CLM-55930** |
+
+Every size here runs more than one IQ Server pod and should run more than one
+data node, so a replica can be placed. Until the measured value is published,
+set it from your own availability requirement: at 0 replicas a lost data node
+means the index is rebuilt rather than recovered, and a rebuild of a large
+index takes over an hour.
+
+### What ends up in `config.yml`
+
+```yaml
+search:
+  type: aws
+  mode: OPENSEARCH
+  domain: https://<opensearch_domain_endpoint>
+  region: <aws_region>
+  nexusOneIndexReplicas: <opensearch_index_replicas>
+```
+
+- **`type: aws`** signs every request with SigV4 through the pod's role.
+  `type: http` always sends a user name and password, which a domain with
+  fine-grained access control off has no way to check.
+- **`mode: OPENSEARCH`** is written out rather than left to default. The
+  default is `HYBRID`, which also writes every batch to the built-in index.
+- **`nexusOneIndexReplicas`** is always written, because IQ Server's own
+  default is 0 and this configuration states the value rather than inheriting
+  it.
+
+Shard counts are held in IQ Server's database, not in `config.yml`, and a
+shard count only takes effect when an index is created.
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites
@@ -325,6 +439,26 @@ enable_ingress_nginx = true
 ingress_hostname     = "nexus-iq.yourdomain.com"
 ingress_tls_enabled  = false
 acm_certificate_arn  = ""
+
+# Search Backend (optional)
+# "lucene" (default) uses the index built into IQ Server. "opensearch" points
+# IQ Server at an OpenSearch domain that already exists, which this
+# configuration does not create. See the OpenSearch section above.
+search_engine = "lucene"
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
+# opensearch_index_replicas  = 1
+
+# Extra tags merged onto the resources the search backend creates. Keep the
+# keys lowercase, and keep the values in terraform.tfvars rather than in
+# terraform.tfvars.example.
+# common_tags = {
+#   owner      = "REPLACE-ME@example.com"
+#   project    = "REPLACE-ME"
+#   subproject = "REPLACE-ME"
+#   department = "REPLACE-ME"
+#   team       = "REPLACE-ME"
+# }
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
@@ -351,7 +485,7 @@ hpa:
 - **`nexus_iq_license`** - Base64 encoded HA-capable license
 - **`deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
 - **`skip_final_snapshot = true`** - Set to `false` for production to create a final backup snapshot before database deletion
-- **Resource Names** - All AWS resources are prefixed with cluster name
+- **Resource Names** - All AWS resources are prefixed with the `cluster_name` variable, which defaults to `nexus-iq-ha`. **Give each deployment its own value to run more than one in a single AWS account**, since the EKS cluster, load balancer, IAM roles, log group, SSM parameters, Secrets Manager secret and Aurora cluster identifier all have to be unique. One value per size, for example `nexus-iq-m` through `nexus-iq-xl`, is the intended use.
 
 ### Clustering Solution
 

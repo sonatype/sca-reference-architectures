@@ -223,6 +223,9 @@ FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_rol
 # which is tr's and is 0 even when grep matched nothing, so it never fired.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
+SEARCH_ENGINE=$($TERRAFORM_PREFIX terraform output -raw search_engine 2>/dev/null || echo "lucene")
+OPENSEARCH_ENDPOINT=$($TERRAFORM_PREFIX terraform output -raw opensearch_domain_endpoint 2>/dev/null || echo "")
+OPENSEARCH_REPLICAS=$($TERRAFORM_PREFIX terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
@@ -237,6 +240,54 @@ sed -i.bak \
     -e "s|eks.amazonaws.com/role-arn: \"\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
     -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
+
+# The search: block in helm-values.yaml ships with placeholders between a BEGIN
+# and an END marker. Fill them in when the search backend is OpenSearch, and
+# delete the whole block when it is Lucene, which is the default. Done after the
+# database substitutions above so those patterns cannot see these lines.
+if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
+    if [[ -z "$OPENSEARCH_ENDPOINT" ]]; then
+        echo -e "${RED}❌ Error: search_engine is 'opensearch' but no domain endpoint was found${NC}"
+        echo "   Set opensearch_domain_endpoint in terraform.tfvars and re-apply."
+        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+        exit 1
+    fi
+    sed -i.bak2 \
+        -e "s|OPENSEARCH_DOMAIN_PLACEHOLDER|$OPENSEARCH_ENDPOINT|" \
+        -e "s|OPENSEARCH_REGION_PLACEHOLDER|$AWS_REGION|" \
+        -e "s|OPENSEARCH_REPLICAS_PLACEHOLDER|$OPENSEARCH_REPLICAS|" \
+        "$TEMP_VALUES_FILE"
+    # The role-arn substitution above has no line anchor, so it has just put the
+    # Fluentd role on the nexus-iq-sa service account as well. Point that one at
+    # the role that can reach OpenSearch. Anchored to the top-level
+    # serviceAccount: block so the Fluentd aggregator's own annotation, which is
+    # nested deeper, is left alone.
+    IQ_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw iq_server_irsa_role_arn 2>/dev/null || echo "")
+    if [[ -z "$IQ_IRSA_ROLE_ARN" ]]; then
+        echo -e "${RED}❌ Error: no iq_server_irsa_role_arn output found${NC}"
+        echo "   Re-run terraform apply with search_engine = \"opensearch\" set."
+        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" "${TEMP_VALUES_FILE}.bak2"
+        exit 1
+    fi
+    sed -i.bak3 \
+        -e "/^serviceAccount:/,/^[a-z]/s|^\( \{4\}\)eks.amazonaws.com/role-arn: \".*\"|\1eks.amazonaws.com/role-arn: \"$IQ_IRSA_ROLE_ARN\"|" \
+        "$TEMP_VALUES_FILE"
+    rm -f "${TEMP_VALUES_FILE}.bak3"
+    echo "• Search backend: OpenSearch at $OPENSEARCH_ENDPOINT, $OPENSEARCH_REPLICAS replica(s)"
+else
+    sed -i.bak2 \
+        -e "/# BEGIN search backend/,/# END search backend/d" \
+        "$TEMP_VALUES_FILE"
+    echo "• Search backend: Lucene, built into IQ Server"
+fi
+rm -f "${TEMP_VALUES_FILE}.bak2"
+
+if grep -q "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
+    echo -e "${RED}❌ Error: a search placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
+    grep -n "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
 
 sed -i '' \
     -e "/name: DB_HOSTNAME/{n;s/value: \"\"/value: \"$DB_ENDPOINT\"/;}" \

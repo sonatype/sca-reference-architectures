@@ -56,3 +56,28 @@ acm_certificate_arn  = ""
 
 # Pod autoscaling is a Helm chart setting, not a Terraform input.
 # Set hpa.enabled, hpa.minReplicas and hpa.maxReplicas in helm-values.yaml.
+
+# Search Backend (optional)
+# "lucene" (default) uses the index built into IQ Server and needs nothing else.
+# "opensearch" points IQ Server at an OpenSearch domain that already exists.
+# This configuration does not create the domain, so its lifecycle and its
+# indexed data stay independent of Terraform runs here. See the OpenSearch
+# section of README.md before switching.
+search_engine = "lucene"
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
+# opensearch_index_replicas  = 1
+
+# Extra tags merged onto the resources the search backend creates.
+# Keep the keys lowercase: AWS treats tag keys as case-insensitive when it
+# checks for duplicates, so a key differing only in case from one already set
+# fails the apply. Every value below names a deployment or a person, so put the
+# real ones in terraform.tfvars, which is gitignored, and leave this file with
+# placeholders.
+# common_tags = {
+#   owner      = "REPLACE-ME@example.com"
+#   project    = "REPLACE-ME"
+#   subproject = "REPLACE-ME"
+#   department = "REPLACE-ME"
+#   team       = "REPLACE-ME"
+# }

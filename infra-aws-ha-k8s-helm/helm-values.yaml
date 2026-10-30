@@ -60,6 +60,24 @@ iq_server:
     clusterDirectory: "/sonatype-work/clm-cluster"
     createSampleData: true
 
+    # BEGIN search backend
+    # helm-install.sh and helm-upgrade.sh fill the three placeholders below from
+    # Terraform when search_engine is "opensearch", and delete everything between
+    # these two markers when it is "lucene", which is the default. Leave the
+    # markers, the indentation and the placeholder names alone.
+    #
+    # The key names here avoid hostname, port, name, username, password and
+    # region on purpose. Both scripts substitute those names over the whole file
+    # for the database and for CloudWatch, with no line anchor, so a search key
+    # called hostname would be handed the database endpoint instead.
+    search:
+      type: aws
+      mode: OPENSEARCH
+      domain: "https://OPENSEARCH_DOMAIN_PLACEHOLDER"
+      region: "OPENSEARCH_REGION_PLACEHOLDER"
+      nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
+    # END search backend
+
     server:
       applicationConnectors:
         - type: http

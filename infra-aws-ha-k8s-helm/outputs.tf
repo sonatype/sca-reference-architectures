@@ -181,3 +181,23 @@ output "fluentd_irsa_role_arn" {
   description = "IAM Role ARN for Fluentd IRSA (to be annotated on ServiceAccount)"
   value       = aws_iam_role.fluentd_irsa.arn
 }
+
+output "search_engine" {
+  description = "Search backend IQ Server's config.yml points at, either lucene or opensearch. Read by helm-install.sh, which fills in or deletes the search: block in helm-values.yaml"
+  value       = var.search_engine
+}
+
+output "opensearch_domain_endpoint" {
+  description = "Host name of the OpenSearch domain IQ Server is configured against. Empty when search_engine is lucene. The domain itself is not created here"
+  value       = var.search_engine == "opensearch" ? var.opensearch_domain_endpoint : ""
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per shard written to config.yml as search.nexusOneIndexReplicas. Null when search_engine is lucene"
+  value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
+}
+
+output "iq_server_irsa_role_arn" {
+  description = "IAM Role ARN the IQ Server pods assume to reach the OpenSearch domain, annotated by helm-install.sh onto the nexus-iq-sa ServiceAccount. Null when search_engine is lucene. Add this ARN to the domain's access policy"
+  value       = var.search_engine == "opensearch" ? aws_iam_role.iq_server_irsa[0].arn : null
+}
