@@ -1,6 +1,6 @@
 
 resource "azurerm_key_vault" "iq_kv" {
-  name                        = "kv-ref-arch-iq-${random_string.kv_suffix.result}"
+  name                        = "kv-${var.cluster_name}-${random_string.kv_suffix.result}"
   location                    = azurerm_resource_group.iq_rg.location
   resource_group_name         = azurerm_resource_group.iq_rg.name
   enabled_for_disk_encryption = true
@@ -16,7 +16,7 @@ resource "azurerm_key_vault" "iq_kv" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "kv-ref-arch-iq"
+    Name = "kv-${var.cluster_name}"
   })
 }
 

@@ -191,6 +191,7 @@ Edit `terraform.tfvars` to customize your deployment:
 ```hcl
 # General Configuration
 azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
+cluster_name = "ref-arch-iq" # Name prefix for every resource; change it to run several in one subscription
 
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
@@ -296,6 +297,34 @@ This is a **single instance** deployment.
 - **Public NSG**: Allows HTTP (80), HTTPS (443) from internet
 - **Private NSG**: Allows HTTP/HTTPS traffic and Azure Load Balancer health probes
 - **Database NSG**: Allows PostgreSQL (5432) from private subnet only
+
+### Running several sizes in one subscription
+
+Every resource name is built from `cluster_name`, so two deployments coexist in one Azure
+subscription as long as they use different values:
+
+```hcl
+cluster_name = "iq-m"   # one deployment
+cluster_name = "iq-l"   # another, in the same subscription
+```
+
+**The default reproduces the names this configuration has always used**, so a customer who sets
+nothing sees no change.
+
+Two Azure limits constrain the value, and the variable rejects a value that would break either:
+
+- **A storage account name is globally unique across Azure**, lowercase alphanumeric only, and capped
+  at 24 characters. The hyphens in `cluster_name` are stripped when it is built.
+- **A Key Vault name is globally unique and capped at 24 characters.**
+
+Both carry a random suffix, so the global uniqueness is handled already and only the length matters.
+That is why the variable is capped at 14 characters rather than at Azure's 24.
+
+**Two names do not move with `cluster_name`, and neither needs to.** The subnet names
+(`snet-public`, `snet-private`, `snet-database`) and the network security group names are scoped
+inside the virtual network and the resource group, which do move, so they cannot collide across
+deployments. The private DNS zone `privatelink.postgres.database.azure.com` is Azure's own fixed name
+for that zone and is shared by design.
 
 ## Advanced Search with OpenSearch
 

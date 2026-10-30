@@ -4,6 +4,10 @@
 # General Configuration
 azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
 
+# Name prefix for every resource. Change it to run more than one of these in
+# one subscription. Lowercase letters, digits and hyphens, 3 to 14 characters.
+cluster_name = "ref-arch-iq"
+
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
 public_subnet_cidr  = "10.0.1.0/24"

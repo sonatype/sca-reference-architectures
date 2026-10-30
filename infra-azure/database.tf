@@ -10,7 +10,7 @@ resource "azurerm_private_dns_zone" "iq_db_dns" {
 
 
 resource "azurerm_private_dns_zone_virtual_network_link" "iq_db_dns_link" {
-  name                  = "vnetlink-ref-arch-iq-db"
+  name                  = "vnetlink-${var.cluster_name}-db"
   resource_group_name   = azurerm_resource_group.iq_rg.name
   private_dns_zone_name = azurerm_private_dns_zone.iq_db_dns.name
   virtual_network_id    = azurerm_virtual_network.iq_vnet.id
@@ -23,7 +23,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "iq_db_dns_link" {
 
 
 resource "azurerm_postgresql_flexible_server" "iq_db" {
-  name                          = "psql-ref-arch-iq"
+  name                          = "psql-${var.cluster_name}"
   resource_group_name           = azurerm_resource_group.iq_rg.name
   location                      = azurerm_resource_group.iq_rg.location
   version                       = var.postgres_version
@@ -55,7 +55,7 @@ resource "azurerm_postgresql_flexible_server" "iq_db" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "psql-ref-arch-iq"
+    Name = "psql-${var.cluster_name}"
   })
 
   depends_on = [

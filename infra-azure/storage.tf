@@ -1,6 +1,6 @@
 
 resource "azurerm_storage_account" "iq_storage" {
-  name                     = "st${replace(lower("refarchiq"), "-", "")}${random_string.storage_suffix.result}"
+  name                     = "st${replace(lower(var.cluster_name), "-", "")}${random_string.storage_suffix.result}"
   resource_group_name      = azurerm_resource_group.iq_rg.name
   location                 = azurerm_resource_group.iq_rg.location
   account_tier             = var.storage_account_tier
@@ -17,7 +17,7 @@ resource "azurerm_storage_account" "iq_storage" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "st-ref-arch-iq"
+    Name = "st-${var.cluster_name}"
   })
 }
 

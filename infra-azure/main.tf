@@ -20,7 +20,7 @@ data "azurerm_client_config" "current" {}
 
 
 resource "azurerm_resource_group" "iq_rg" {
-  name     = "rg-ref-arch-iq"
+  name     = "rg-${var.cluster_name}"
   location = var.azure_region
 
   tags = merge(var.common_tags, {
@@ -30,13 +30,13 @@ resource "azurerm_resource_group" "iq_rg" {
 
 
 resource "azurerm_virtual_network" "iq_vnet" {
-  name                = "vnet-ref-arch-iq"
+  name                = "vnet-${var.cluster_name}"
   address_space       = [var.vnet_cidr]
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
 
   tags = merge(var.common_tags, {
-    Name    = "vnet-ref-arch-iq"
+    Name    = "vnet-${var.cluster_name}"
     project = "nexus-iq-server"
   })
 }

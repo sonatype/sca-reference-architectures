@@ -1,33 +1,33 @@
 
 resource "azurerm_log_analytics_workspace" "iq_logs" {
-  name                = "log-ref-arch-iq"
+  name                = "log-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
 
   tags = merge(var.common_tags, {
-    Name = "log-ref-arch-iq"
+    Name = "log-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_application_insights" "iq_insights" {
   count               = var.enable_monitoring ? 1 : 0
-  name                = "appi-ref-arch-iq"
+  name                = "appi-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   workspace_id        = azurerm_log_analytics_workspace.iq_logs.id
   application_type    = "web"
 
   tags = merge(var.common_tags, {
-    Name = "appi-ref-arch-iq"
+    Name = "appi-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_container_app_environment" "iq_env" {
-  name                       = "cae-ref-arch-iq"
+  name                       = "cae-${var.cluster_name}"
   location                   = azurerm_resource_group.iq_rg.location
   resource_group_name        = azurerm_resource_group.iq_rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs.id
@@ -42,13 +42,13 @@ resource "azurerm_container_app_environment" "iq_env" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "cae-ref-arch-iq"
+    Name = "cae-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_container_app" "iq_app" {
-  name                         = "ca-ref-arch-iq"
+  name                         = "ca-${var.cluster_name}"
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
@@ -295,7 +295,7 @@ CONFIGEOF
   }
 
   tags = merge(var.common_tags, {
-    Name = "ca-ref-arch-iq"
+    Name = "ca-${var.cluster_name}"
   })
 
   depends_on = [
