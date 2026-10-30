@@ -48,3 +48,20 @@ enable_monitoring  = true
 
 # Security Configuration
 key_vault_sku_name = "standard"
+
+# Search Backend (optional)
+# "lucene" (default) uses IQ Server's embedded index and needs nothing else.
+# "opensearch" points IQ Server at a self-managed OpenSearch cluster you run on
+# Azure Virtual Machines. This configuration does not provision that cluster,
+# so its lifecycle and its indexed data stay independent of Terraform runs
+# here. README.md carries the cluster specification, the build steps and the
+# trust store steps a private certificate authority needs.
+search_engine = "lucene"
+
+# opensearch_endpoint       = "opensearch.internal.example.com"
+# opensearch_port           = 9200
+# opensearch_use_tls        = true
+# opensearch_username       = "iq-server"
+# opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 0
+# opensearch_allowed_cidrs  = ["10.0.40.0/24"]

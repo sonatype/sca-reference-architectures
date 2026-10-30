@@ -60,4 +60,35 @@ resource "azurerm_key_vault_access_policy" "container_app" {
 }
 
 
+# The OpenSearch credentials are kept here so the vault is the record of them,
+# alongside the container app secrets that deliver them to IQ Server. Both are
+# created only when search_engine is "opensearch".
+
+resource "azurerm_key_vault_secret" "opensearch_username" {
+  count        = var.search_engine == "opensearch" ? 1 : 0
+  name         = "opensearch-username"
+  value        = var.opensearch_username
+  key_vault_id = azurerm_key_vault.iq_kv.id
+
+  depends_on = [azurerm_key_vault_access_policy.current_user]
+
+  tags = {
+    Name = "opensearch-username"
+  }
+}
+
+resource "azurerm_key_vault_secret" "opensearch_password" {
+  count        = var.search_engine == "opensearch" ? 1 : 0
+  name         = "opensearch-password"
+  value        = var.opensearch_password
+  key_vault_id = azurerm_key_vault.iq_kv.id
+
+  depends_on = [azurerm_key_vault_access_policy.current_user]
+
+  tags = {
+    Name = "opensearch-password"
+  }
+}
+
+
 
