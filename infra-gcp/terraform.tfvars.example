@@ -68,4 +68,4 @@ search_engine = "lucene"
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_nexus_one_index_replicas = 0  # 0 is correct for one data node
+# opensearch_index_replicas = 0  # 0 is correct for one data node

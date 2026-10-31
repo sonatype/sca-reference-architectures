@@ -108,7 +108,7 @@ search_engine = "lucene"
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_nexus_one_index_replicas = 0
+# opensearch_index_replicas = 0
 
 # The values above are Size L. The two blocks below are the other sizes this
 # root supports. See the README Sizing Guide for application and evaluation

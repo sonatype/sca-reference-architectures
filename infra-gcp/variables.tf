@@ -286,14 +286,14 @@ variable "opensearch_password" {
   sensitive   = true
 }
 
-variable "opensearch_nexus_one_index_replicas" {
+variable "opensearch_index_replicas" {
   description = "Replicas every Nexus One index is created with, written to config.yml as search.nexusOneIndexReplicas. A single data node cannot place a replica, so leave this at 0 unless the cluster has more than one data node. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
   type        = number
   default     = 0
 
   validation {
-    condition     = var.opensearch_nexus_one_index_replicas >= 0 && var.opensearch_nexus_one_index_replicas <= 10
-    error_message = "opensearch_nexus_one_index_replicas must be between 0 and 10, the range Nexus IQ Server accepts."
+    condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
+    error_message = "opensearch_index_replicas must be between 0 and 10, the range Nexus IQ Server accepts."
   }
 }
 

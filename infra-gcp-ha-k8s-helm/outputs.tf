@@ -132,7 +132,7 @@ output "opensearch_password" {
   sensitive   = true
 }
 
-output "opensearch_nexus_one_index_replicas" {
+output "opensearch_index_replicas" {
   description = "Replicas every Nexus One index is created with"
-  value       = var.opensearch_nexus_one_index_replicas
+  value       = var.opensearch_index_replicas
 }

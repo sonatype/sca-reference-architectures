@@ -63,7 +63,7 @@ SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "lucene"
 OPENSEARCH_URI=$(terraform output -raw opensearch_uri 2>/dev/null || echo "")
 OPENSEARCH_USERNAME=$(terraform output -raw opensearch_username 2>/dev/null || echo "")
 OPENSEARCH_PASSWORD=$(terraform output -raw opensearch_password 2>/dev/null || echo "")
-OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_nexus_one_index_replicas 2>/dev/null || echo "0")
+OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
 
 echo "• Database: $DB_HOST"
 echo "• Filestore: $FILESTORE_IP"

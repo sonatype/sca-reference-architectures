@@ -300,7 +300,7 @@ search_engine = "lucene"
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_nexus_one_index_replicas = 0
+# opensearch_index_replicas = 0
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
@@ -413,7 +413,7 @@ opensearch_port                     = 9200
 opensearch_use_tls                  = true
 opensearch_username                 = "nexusiq"
 opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-opensearch_nexus_one_index_replicas = 0
+opensearch_index_replicas = 0
 ```
 
 All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
@@ -501,7 +501,7 @@ Verified against the OpenSearch source at tags `2.19.0` and `3.2.0`.
 |---|---|
 | OpenSearch version | 2.19 or later. The 2.19 line is the long-term support release |
 | Cluster managers | Three dedicated cluster manager nodes, so losing one leaves a quorum. This architecture is the HA one, and a single cluster manager undoes that |
-| Data nodes | At least two, spread across zones, with `opensearch_nexus_one_index_replicas` at 1 or more so a lost node does not lose a shard |
+| Data nodes | At least two, spread across zones, with `opensearch_index_replicas` at 1 or more so a lost node does not lose a shard |
 | Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
 | Disk | SSD persistent disk. The index is write-heavy during a rebuild |
 | Network | Private IP addresses in this VPC, or a VPC you have peered to it. No public address |
@@ -519,9 +519,9 @@ The machine shape per size is not published yet. The one measured OpenSearch siz
 this architecture's ceiling and on a different cloud, so a shape read off it would be a guess rather
 than a measurement.
 
-`opensearch_nexus_one_index_replicas` by size:
+`opensearch_index_replicas` by size:
 
-| Size | `opensearch_nexus_one_index_replicas` |
+| Size | `opensearch_index_replicas` |
 |------|:--------------------------------------|
 | **M** | `0` for now. **Placeholder**: the figure for a multi-node cluster is being measured and is not published yet |
 | **L** | `0` for now. **Placeholder**, same reason |

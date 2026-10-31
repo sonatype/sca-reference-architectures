@@ -242,7 +242,7 @@ search:
   uri: ${opensearch_uri}
   username: ${opensearch_username}
   password: $OPENSEARCH_PASSWORD
-  nexusOneIndexReplicas: ${opensearch_nexus_one_index_replicas}
+  nexusOneIndexReplicas: ${opensearch_index_replicas}
 
 %{ endif ~}
 createSampleData: true
