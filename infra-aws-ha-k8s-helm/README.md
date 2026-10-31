@@ -281,7 +281,7 @@ node_group_desired_size = 3
 node_disk_size          = 50
 
 # RDS Aurora Configuration
-aurora_engine_version   = "15.10"
+aurora_engine_version   = "15.19"
 aurora_instance_class   = "db.r6g.4xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"

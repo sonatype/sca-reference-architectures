@@ -10,9 +10,9 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Fargate (16384 CPU / 131072 MEM) |
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
+| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
+| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) |
 
 > All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
@@ -25,12 +25,12 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 ```hcl
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536               # 64 GB
+ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 2                   # 2 nodes for HA
 iq_min_count         = 2
 iq_max_count         = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
 ```
@@ -41,12 +41,12 @@ aurora_instances      = 2                  # Multi-AZ
 
 ```hcl
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536               # 64 GB
+ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 3                   # 3 nodes recommended
 iq_min_count         = 2
 iq_max_count         = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
 ```
@@ -57,7 +57,7 @@ aurora_instances      = 2                  # Multi-AZ with failover
 
 ```hcl
 ecs_cpu              = 16384               # 16 vCPU
-ecs_memory           = 131072              # 128 GB
+ecs_memory           = 122880              # 120 GB, the maximum at 16 vCPU
 iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3
 iq_max_count         = 5
@@ -264,7 +264,7 @@ java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoo
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-aurora_engine_version       = "15.10"
+aurora_engine_version       = "15.19"
 aurora_instance_class       = "db.r6g.4xlarge"
 aurora_instances            = 2
 db_backup_retention_period  = 7

@@ -183,7 +183,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Instance type | r6g.2xlarge (ARM) or r5.2xlarge (x86) | r6g.2xlarge (ARM) or r5.2xlarge (x86) | r6g.4xlarge (ARM) or r5.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
 | Memory | 64 GB | 64 GB | 128 GB |
-| Java Heap | `-Xms48g -Xmx48g` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
+| Java Heap | `-Xms44g -Xmx44g` | `-Xms44g -Xmx44g` | `-Xms96g -Xmx96g` |
 | **Database** | | | |
 | Service | RDS PostgreSQL 15+ or Aurora PostgreSQL | Aurora PostgreSQL 15+ (recommended) | Aurora PostgreSQL 15+ (strongly recommended) |
 | Instance class | db.r6g.2xlarge (8 vCPU, 64 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | db.r6g.4xlarge (16 vCPU, 128 GB) |
@@ -399,10 +399,10 @@ Production deployment supporting 5,000-10,000 evaluations/day. Single instance o
 ```hcl
 # infra-aws/terraform.tfvars — Size M
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536              # 64 GB
+ecs_memory           = 61440              # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1                   # Single instance (or 2 for HA)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 100                 # GB, auto-scales to 500 GB
 ```
@@ -411,12 +411,12 @@ db_allocated_storage = 100                 # GB, auto-scales to 500 GB
 ```hcl
 # infra-aws-ha/terraform.tfvars — Size M
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536              # 64 GB
+ecs_memory           = 61440              # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 2                   # 2 nodes for HA
 iq_min_count         = 2                   # Minimum instances
 iq_max_count         = 3                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
 ```
@@ -457,12 +457,12 @@ High-availability production deployment supporting 10,000-20,000 evaluations/day
 ```hcl
 # infra-aws-ha/terraform.tfvars — Size L
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536              # 64 GB
+ecs_memory           = 61440              # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 3                   # 3 nodes recommended
 iq_min_count         = 2                   # Minimum instances
 iq_max_count         = 4                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
 ```
@@ -521,7 +521,7 @@ Enterprise-scale HA deployment supporting 20,000+ evaluations/day. Requires 4 no
 ```hcl
 # infra-aws-ha/terraform.tfvars — Size XL
 ecs_cpu              = 16384               # 16 vCPU
-ecs_memory           = 131072             # 128 GB
+ecs_memory           = 122880             # 120 GB, the maximum at 16 vCPU
 iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3                   # Minimum instances
 iq_max_count         = 5                   # Maximum instances

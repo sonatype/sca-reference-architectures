@@ -61,7 +61,7 @@ variable "node_disk_size" {
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version"
   type        = string
-  default     = "15.8"
+  default     = "15.19"
 }
 
 variable "aurora_instance_class" {

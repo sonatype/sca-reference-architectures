@@ -12,7 +12,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
 | **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
 | **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
 
@@ -53,10 +53,10 @@ db_allocated_storage = 100
 
 ```hcl
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536               # 64 GB
+ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 100                 # auto-scales to 500 GB
 ```
@@ -239,7 +239,7 @@ db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 db_instance_class           = "db.r6g.4xlarge"
 db_allocated_storage        = 500
 db_max_allocated_storage    = 1000
-postgres_version            = "15.10"
+postgres_version            = "15.19"
 db_backup_retention_period  = 7
 db_backup_window           = "03:00-04:00"
 db_maintenance_window      = "sun:04:00-sun:05:00"
