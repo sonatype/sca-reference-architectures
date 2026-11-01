@@ -72,11 +72,73 @@ resource "aws_security_group" "opensearch" {
   }
 }
 
+# Domain-side logs, which are the only account of a failure the cluster itself saw. Without these a
+# 5xx returned to IQ Server leaves nothing on the OpenSearch side to read, and a slow search cannot
+# be told apart from a slow query.
+#
+# Audit logs are not here: they need fine-grained access control, which this architecture cannot turn
+# on without breaking SigV4.
+resource "aws_cloudwatch_log_group" "opensearch" {
+  for_each = local.opensearch_create ? toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"]) : toset([])
+
+  name              = "/aws/opensearch/${var.cluster_name}-nexus-one/${lower(each.key)}"
+  retention_in_days = var.opensearch_log_retention_days
+
+  tags = {
+    Name = "${var.cluster_name}-nexus-one-${lower(each.key)}"
+  }
+}
+
+# OpenSearch writes these streams itself, so the service principal needs its own grant on the log
+# groups. The domain's access policy governs requests to the domain and does not cover this.
+resource "aws_cloudwatch_log_resource_policy" "opensearch" {
+  count = local.opensearch_create ? 1 : 0
+
+  policy_name = "${var.cluster_name}-nexus-one-logs"
+
+  policy_document = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = { Service = "es.amazonaws.com" }
+        Action = [
+          "logs:PutLogEvents",
+          "logs:CreateLogStream",
+        ]
+        Resource = [for lg in aws_cloudwatch_log_group.opensearch : "${lg.arn}:*"]
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+          ArnLike = {
+            "aws:SourceArn" = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${var.cluster_name}-nexus-one"
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_opensearch_domain" "nexus_one" {
   count = local.opensearch_create ? 1 : 0
 
   domain_name    = "${var.cluster_name}-nexus-one"
   engine_version = var.opensearch_engine_version
+
+  dynamic "log_publishing_options" {
+    for_each = toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"])
+
+    content {
+      log_type                 = log_publishing_options.key
+      cloudwatch_log_group_arn = aws_cloudwatch_log_group.opensearch[log_publishing_options.key].arn
+      enabled                  = true
+    }
+  }
+
+  # The service-side grant has to exist before the domain tries to publish, or AWS rejects the
+  # log_publishing_options with a validation error rather than creating the domain without logs.
+  depends_on = [aws_cloudwatch_log_resource_policy.opensearch]
 
   cluster_config {
     instance_type  = var.opensearch_instance_type

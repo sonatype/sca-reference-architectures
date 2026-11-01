@@ -357,6 +357,17 @@ variable "opensearch_domain_name" {
   }
 }
 
+variable "opensearch_log_retention_days" {
+  description = "Retention for the created domain's three CloudWatch log groups: the two slow logs and the application log. 30 days covers a rebuild and the weeks after it, which is when a slow query is worth attributing."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.opensearch_log_retention_days)
+    error_message = "opensearch_log_retention_days must be a retention period CloudWatch Logs accepts."
+  }
+}
+
 variable "opensearch_index_replicas" {
   description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. Leave it at 0 on a domain with one data node, which has nowhere to put a replica."
   type        = number
