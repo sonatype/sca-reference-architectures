@@ -215,15 +215,21 @@ variable "log_archive_retention_days" {
 # search_engine picks which search backend IQ Server's config.yml points at. It
 # switches the `search:` block in the config.yml heredoc in ecs.tf on and off.
 #
-# "opensearch" needs an OpenSearch domain that already exists, named in
-# opensearch_domain_name and reached at opensearch_domain_endpoint. This
-# configuration deliberately does not create the domain. The domain holds the
-# index, so keeping it outside Terraform means switching engines, replacing the
-# ECS service or destroying this stack never deletes the indexed data, and the
-# domain can be resized, upgraded and backed up on its own schedule.
+# "opensearch" uses an AWS-managed OpenSearch domain. By default this
+# configuration creates it, in opensearch.tf, sized by the opensearch_*
+# variables below. A customer who already runs a domain names it in
+# opensearch_domain_endpoint and opensearch_domain_name instead, and nothing is
+# created.
 #
-# Sizing the domain is a separate exercise. See the OpenSearch section of this
-# directory's README.md for the shape each size needs.
+# This is the single-instance architecture, so the defaults are one data node
+# with no replica and no dedicated masters. The created domain carries
+# prevent_destroy, because it holds the index: see the note at the top of
+# opensearch.tf.
+#
+# Sizing: the shape each size needs is in the OpenSearch section of this
+# directory's README.md. The defaults are the smallest supported shape rather
+# than any published size, so a value left unset is obviously too small rather
+# than quietly wrong for the estate it holds.
 
 variable "search_engine" {
   description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" points IQ Server at an existing AWS-managed OpenSearch domain."
@@ -236,15 +242,96 @@ variable "search_engine" {
   }
 }
 
-variable "opensearch_domain_endpoint" {
-  description = "Host name of an existing OpenSearch domain, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Required when search_engine is \"opensearch\", ignored otherwise."
+variable "opensearch_engine_version" {
+  description = "OpenSearch engine version for the created domain, as AWS names it. Pinned rather than tracking the newest, so two bring-ups run the same engine and a measurement describes a known version."
   type        = string
-  default     = ""
+  default     = "OpenSearch_3.7"
 
   validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_domain_endpoint) > 0
-    error_message = "opensearch_domain_endpoint must be set when search_engine is 'opensearch'."
+    condition     = can(regex("^OpenSearch_[0-9]+\\.[0-9]+$", var.opensearch_engine_version))
+    error_message = "opensearch_engine_version must look like \"OpenSearch_3.7\"."
   }
+}
+
+variable "opensearch_instance_type" {
+  description = <<-EOT
+    Data node instance type for the created domain.
+
+    The default is the smallest type worth running rather than a published size.
+    Smaller types have been measured failing in ways that read as something
+    else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
+    6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and
+    swaps.
+
+    See the OpenSearch section of this directory's README.md for the type each
+    size needs.
+  EOT
+  type        = string
+  default     = "m8g.large.search"
+
+  validation {
+    condition     = can(regex("\\.search$", var.opensearch_instance_type))
+    error_message = "opensearch_instance_type must be an OpenSearch instance type, ending in \".search\", for example \"m8g.large.search\"."
+  }
+}
+
+variable "opensearch_instance_count" {
+  description = "Data nodes in the created domain. One is the default here, matching this architecture's single IQ Server instance: a one-node domain has nowhere to place a replica and needs no dedicated masters. Raising it above 1 adds three masters and allows a replica."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.opensearch_instance_count >= 1 && var.opensearch_instance_count <= 20
+    error_message = "opensearch_instance_count must be between 1 and 20."
+  }
+}
+
+variable "opensearch_dedicated_master_type" {
+  description = "Instance type for the three dedicated master nodes, created only when the domain has more than one data node. Masters hold cluster state and run no indexing or search, so they are smaller than the data nodes."
+  type        = string
+  default     = "m8g.medium.search"
+
+  validation {
+    condition     = can(regex("\\.search$", var.opensearch_dedicated_master_type))
+    error_message = "opensearch_dedicated_master_type must be an OpenSearch instance type, ending in \".search\"."
+  }
+}
+
+variable "opensearch_volume_size_gb" {
+  description = <<-EOT
+    gp3 storage per data node, in GB.
+
+    The index needs room for more than one copy of itself: a replica doubles it,
+    and a re-index holds a second generation while it runs and for a short while
+    after it cuts over. AWS also reserves 20% of each volume, capped at 20 GiB.
+
+    See the OpenSearch section of this directory's README.md for the size each
+    tier needs.
+  EOT
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.opensearch_volume_size_gb >= 10 && var.opensearch_volume_size_gb <= 3000
+    error_message = "opensearch_volume_size_gb must be between 10 and 3000."
+  }
+}
+
+variable "opensearch_availability_zone_count" {
+  description = "Availability zones the created domain's data nodes spread across. 1 is the default and disables zone awareness, matching this architecture's single instance. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = contains([1, 2, 3], var.opensearch_availability_zone_count)
+    error_message = "opensearch_availability_zone_count must be 1, 2 or 3."
+  }
+}
+
+variable "opensearch_domain_endpoint" {
+  description = "Host name of an OpenSearch domain that already exists, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Setting this means the domain is NOT created here and this one is used instead. Leave empty to have this configuration create the domain."
+  type        = string
+  default     = ""
 }
 
 variable "opensearch_domain_name" {
@@ -265,8 +352,8 @@ variable "opensearch_domain_name" {
   default     = ""
 
   validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_domain_name) > 0
-    error_message = "opensearch_domain_name must be set when search_engine is 'opensearch'."
+    condition     = length(var.opensearch_domain_endpoint) == 0 || length(var.opensearch_domain_name) > 0
+    error_message = "opensearch_domain_name must be set when opensearch_domain_endpoint names an existing domain."
   }
 }
 

@@ -78,35 +78,56 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 
 Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
 domain instead of the index built into the server. Set `search_engine` to
-`opensearch` and give it the domain to use:
+`opensearch` and this configuration creates the domain:
+
+```hcl
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 1
+opensearch_volume_size_gb          = 50
+opensearch_availability_zone_count = 1
+opensearch_index_replicas          = 0
+```
+
+`search_engine = "lucene"` is the default and needs none of the others.
+
+To use a domain you already run, name it instead and nothing is created:
 
 ```hcl
 search_engine              = "opensearch"
 opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
 opensearch_domain_name     = "my-domain"
-opensearch_index_replicas  = 0
 ```
 
-`search_engine = "lucene"` is the default and needs none of the other three.
+### `terraform destroy` will not delete the domain
 
-### This configuration does not create the domain
+The domain carries `prevent_destroy`, because it holds the index and rebuilding
+one takes an hour or more on a large estate. A destroy fails while it is in
+state, so removing it is deliberate:
 
-You create the domain, and you give its host name to Terraform. That is
-deliberate. The domain holds the index, so leaving it outside this
-configuration means switching engines, replacing the ECS service or running
-`terraform destroy` here never deletes indexed data, and you can resize,
-upgrade and back the domain up on its own schedule.
+```bash
+terraform state rm aws_opensearch_domain.nexus_one
+terraform destroy
+```
 
-Two things the domain needs:
+The domain then survives, to be deleted by hand or named through
+`opensearch_domain_endpoint` on the next apply.
 
-- **It must be reachable from the ECS tasks.** Put it in the same VPC, in the
-  private subnets, and allow inbound 443 from the task security group. A
-  public domain works too, but then its access policy is the only thing
-  keeping it private.
-- **Leave fine-grained access control off.** IQ Server signs its requests with
-  SigV4 using the ECS task role, and Terraform grants that role `es:ESHttp*`
-  on the domain you named. Add the task role ARN to the domain's access
-  policy, which the `ecs_task_role_arn` output gives you.
+What the created domain gets, none of which needs configuring:
+
+- **The private subnets of this VPC**, reachable on 443 from the ECS task and
+  from nowhere else.
+- **Encryption at rest and node to node**, and TLS 1.2 enforced.
+- **An access policy naming the ECS task role and no other principal.** IQ
+  Server signs its requests with SigV4 through that role.
+- **No dedicated master nodes at one data node**, since there is no cluster
+  state worth separating. Raising `opensearch_instance_count` above 1 adds
+  three.
+
+**Fine-grained access control stays off**, and that is not a choice this
+configuration leaves open. Turning it on gives the domain an internal user
+database and changes how every request is authenticated, so SigV4 alone no
+longer reaches it and `type: aws` stops working.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
 index.** Turning it on gives the domain an internal user database and changes how
@@ -116,22 +137,30 @@ this architecture authenticates with the ECS task role and nothing else.
 
 ### Domain shape per size
 
-**Not published yet.** The node count, node type and storage each size needs
-are being measured under
-[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930), and this section
-is filled in once that reports. Size the domain yourself until then.
+| Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Replicas |
+|------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|
+| **XS** | < 500 | 1 | `m8g.large.search` | 4 GiB | 50 GB | none | 1 | 0 |
+| **S** | 500 - 2,000 | 1 | `m8g.large.search` | 4 GiB | 50 GB | none | 1 | 0 |
+| **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 50 GB | 3 x `m8g.medium.search` | 3 | 1 |
 
-What is settled is the replica count:
+Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
+not a setting this configuration can change.
 
-| Size | `opensearch_index_replicas` | Why |
-|------|:---------------------------:|:----|
-| **XS** | 0 | One data node, which has nowhere to put a replica |
-| **S** | 0 | One data node |
-| **M** | **pending CLM-55930** | More than one data node, so a replica can be placed. Set it from your own availability requirement until the measured value is published |
+**These are starting points, not measured results.** Sizing per size is being
+measured under
+[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930). Measure your own
+estate until it reports.
 
 At 0 replicas a lost node means the index is rebuilt rather than recovered.
-That is the trade XS and S make, and it is part of why both are marked
-projected in the sizing guide above.
+That is the trade a one-node domain makes, and it is part of why XS and S are
+marked projected in the sizing guide above. **A one-node domain reports yellow
+and that is correct**: the index still takes writes and returns correct reads,
+because yellow means a replica is unassigned rather than that data is missing.
+
+**Storage holds more than one copy of the index.** A replica doubles it, a
+rebuild holds a second generation for the whole run and for 30 minutes after
+cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
+above allow for all three.
 
 ### What Terraform writes into `config.yml`
 
@@ -139,7 +168,7 @@ projected in the sizing guide above.
 search:
   type: aws
   mode: OPENSEARCH
-  domain: https://<opensearch_domain_endpoint>
+  domain: https://<the created domain's endpoint, or opensearch_domain_endpoint>
   region: <aws_region>
   nexusOneIndexReplicas: <opensearch_index_replicas>
 ```
@@ -353,9 +382,9 @@ alb_deletion_protection = false
 log_retention_days = 30
 
 # Search Backend (optional)
-# "lucene" (default) uses the index built into IQ Server. "opensearch" points
-# IQ Server at an OpenSearch domain that already exists, which this
-# configuration does not create. See the OpenSearch section above.
+# "lucene" (default) uses the index built into IQ Server. "opensearch" creates
+# a domain here, or uses one you already run if you set
+# opensearch_domain_endpoint. See the OpenSearch section above.
 search_engine = "lucene"
 # opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
 # opensearch_domain_name     = "my-domain"

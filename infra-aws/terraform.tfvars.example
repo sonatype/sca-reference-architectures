@@ -44,11 +44,30 @@ log_retention_days = 30
 
 # Search Backend (optional)
 # "lucene" (default) uses the index built into IQ Server and needs nothing else.
-# "opensearch" points IQ Server at an OpenSearch domain that already exists.
-# This configuration does not create the domain, so its lifecycle and its
-# indexed data stay independent of Terraform runs here. See the OpenSearch
-# section of README.md before switching.
+# "opensearch" creates an AWS-managed domain here and points IQ Server at it.
+# The domain carries prevent_destroy, so a teardown needs
+# `terraform state rm aws_opensearch_domain.nexus_one` first. See the
+# OpenSearch section of README.md before switching.
 search_engine = "lucene"
+
+# Domain shape, by the size you picked above. Starting points, not measured
+# results: the per-size sizing is CLM-55930.
+#
+# XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters:
+# opensearch_instance_type           = "m8g.large.search"
+# opensearch_instance_count          = 1
+# opensearch_volume_size_gb          = 50
+# opensearch_availability_zone_count = 1
+# opensearch_index_replicas          = 0
+#
+# M (2,000 - 10,000 apps), three data nodes across three zones:
+# opensearch_instance_type           = "m8g.large.search"
+# opensearch_instance_count          = 3
+# opensearch_volume_size_gb          = 50
+# opensearch_availability_zone_count = 3
+# opensearch_index_replicas          = 1
+#
+# To use a domain you already run, set these two instead of the shape above and
+# nothing is created:
 # opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
 # opensearch_domain_name     = "my-domain"
-# opensearch_index_replicas  = 0

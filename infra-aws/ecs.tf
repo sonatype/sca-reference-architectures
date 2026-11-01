@@ -137,7 +137,7 @@ logging:
 search:
   type: aws
   mode: OPENSEARCH
-  domain: https://${var.opensearch_domain_endpoint}
+  domain: https://${local.opensearch_endpoint}
   region: ${var.aws_region}
   nexusOneIndexReplicas: ${var.opensearch_index_replicas}
 %{endif}

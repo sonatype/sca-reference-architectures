@@ -92,16 +92,26 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
 domain instead of the index built into the server. Set `search_engine` to
-`opensearch` and give it the domain to use:
+`opensearch` and this configuration creates the domain:
+
+```hcl
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 50
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
+```
+
+`search_engine = "lucene"` is the default and needs none of the others.
+
+To use a domain you already run, name it instead and nothing is created:
 
 ```hcl
 search_engine              = "opensearch"
 opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
 opensearch_domain_name     = "my-domain"
-opensearch_index_replicas  = 1
 ```
-
-`search_engine = "lucene"` is the default and needs none of the other three.
 
 **On this architecture OpenSearch is the index that every task shares.** The
 built-in index lives on each task's own storage, so a cluster of tasks keeps a
@@ -109,24 +119,34 @@ copy each and each copy is rebuilt separately. An OpenSearch domain is one
 index all the tasks read and write, which is why it matters more here than on
 the single-instance architecture.
 
-### This configuration does not create the domain
+### `terraform destroy` will not delete the domain
 
-You create the domain, and you give its host name to Terraform. That is
-deliberate. The domain holds the index, so leaving it outside this
-configuration means switching engines, replacing the ECS service or running
-`terraform destroy` here never deletes indexed data, and you can resize,
-upgrade and back the domain up on its own schedule.
+The domain carries `prevent_destroy`, because it holds the index and rebuilding
+one takes over an hour on a large estate. A destroy fails while it is in state,
+so removing it is deliberate:
 
-Two things the domain needs:
+```bash
+terraform state rm aws_opensearch_domain.nexus_one
+terraform destroy
+```
 
-- **It must be reachable from the ECS tasks.** Put it in the same VPC, across
-  the private subnets, and allow inbound 443 from the task security group.
-  Turn zone awareness on so the domain survives losing an Availability Zone,
-  which is the point of this architecture.
-- **Leave fine-grained access control off.** IQ Server signs its requests with
-  SigV4 using the ECS task role, and Terraform grants that role `es:ESHttp*`
-  on the domain you named. Add the task role ARN to the domain's access
-  policy, which the `ecs_task_role_arn` output gives you.
+The domain then survives, to be deleted by hand or named through
+`opensearch_domain_endpoint` on the next apply.
+
+What the created domain gets, none of which needs configuring:
+
+- **The private subnets of this VPC**, one per Availability Zone it spreads
+  across, reachable on 443 from the ECS tasks alone and from nowhere else.
+- **Encryption at rest and node to node**, and TLS 1.2 enforced.
+- **An access policy naming the ECS task role and no other principal.** IQ
+  Server signs its requests with SigV4 through that role.
+- **Three dedicated master nodes** whenever there is more than one data node,
+  which keeps cluster state off the nodes serving queries.
+
+**Fine-grained access control stays off**, and that is not a choice this
+configuration leaves open. Turning it on gives the domain an internal user
+database and changes how every request is authenticated, so SigV4 alone no
+longer reaches it and `type: aws` stops working.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
 index.** Turning it on gives the domain an internal user database and changes how
@@ -136,24 +156,28 @@ this architecture authenticates with the ECS task role and nothing else.
 
 ### Domain shape per size
 
-**Not published yet.** The node count, node type and storage each size needs
-are being measured under
-[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930), and this section
-is filled in once that reports. Size the domain yourself until then.
+| Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Replicas |
+|------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|
+| **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 50 GB | 3 x `m8g.medium.search` | 3 | 1 |
+| **L** | 10,000 - 20,000 | 3 | `m8g.xlarge.search` | 8 GiB | 100 GB | 3 x `m8g.medium.search` | 3 | 1 |
+| **XL** | 20,000 - 80,000 | 3 | `m8g.2xlarge.search` | 16 GiB | 100 GB | 3 x `m8g.large.search` | 3 | 1 |
 
-The replica count is measured on the same ticket:
+Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
+not a setting this configuration can change.
 
-| Size | `opensearch_index_replicas` |
-|------|:---------------------------:|
-| **M** | **pending CLM-55930** |
-| **L** | **pending CLM-55930** |
-| **XL** | **pending CLM-55930** |
+**These are starting points, not measured results.** Sizing per size is being
+measured under
+[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930). Measure your own
+estate until it reports.
 
-Every size here runs more than one IQ Server task and should run more than one
-data node, so a replica can be placed. Until the measured value is published,
-set it from your own availability requirement: at 0 replicas a lost data node
-means the index is rebuilt rather than recovered, and a rebuild of a large
-index takes over an hour.
+Three data nodes at every size, because three is the smallest count that both
+places a replica and spreads across three Availability Zones. At 0 replicas a
+lost node means the index is rebuilt rather than recovered.
+
+**Storage holds more than one copy of the index.** A replica doubles it, a
+rebuild holds a second generation for the whole run and for 30 minutes after
+cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
+above allow for all three.
 
 ### What Terraform writes into `config.yml`
 
@@ -161,7 +185,7 @@ index takes over an hour.
 search:
   type: aws
   mode: OPENSEARCH
-  domain: https://<opensearch_domain_endpoint>
+  domain: https://<the created domain's endpoint, or opensearch_domain_endpoint>
   region: <aws_region>
   nexusOneIndexReplicas: <opensearch_index_replicas>
 ```

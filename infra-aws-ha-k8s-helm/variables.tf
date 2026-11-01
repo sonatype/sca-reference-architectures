@@ -313,6 +313,92 @@ variable "opensearch_domain_name" {
   }
 }
 
+variable "opensearch_engine_version" {
+  description = "OpenSearch engine version for the created domain, as AWS names it. Pinned rather than tracking the newest, so two bring-ups run the same engine and a measurement describes a known version."
+  type        = string
+  default     = "OpenSearch_3.7"
+
+  validation {
+    condition     = can(regex("^OpenSearch_[0-9]+\\.[0-9]+$", var.opensearch_engine_version))
+    error_message = "opensearch_engine_version must look like \"OpenSearch_3.7\"."
+  }
+}
+
+variable "opensearch_instance_type" {
+  description = <<-EOT
+    Data node instance type for the created domain.
+
+    The default is the smallest type worth running rather than a published size.
+    Smaller types have been measured failing in ways that read as something
+    else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
+    6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and
+    swaps.
+
+    See the OpenSearch section of this directory's README.md for the type each
+    size needs.
+  EOT
+  type        = string
+  default     = "m8g.large.search"
+
+  validation {
+    condition     = can(regex("\\.search$", var.opensearch_instance_type))
+    error_message = "opensearch_instance_type must be an OpenSearch instance type, ending in \".search\", for example \"m8g.large.search\"."
+  }
+}
+
+variable "opensearch_instance_count" {
+  description = "Data nodes in the created domain. Three is the smallest count that can place a replica and spread across three availability zones."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.opensearch_instance_count >= 1 && var.opensearch_instance_count <= 20
+    error_message = "opensearch_instance_count must be between 1 and 20."
+  }
+}
+
+variable "opensearch_dedicated_master_type" {
+  description = "Instance type for the three dedicated master nodes, created whenever the domain has more than one data node. Masters hold cluster state and run no indexing or search, so they are smaller than the data nodes."
+  type        = string
+  default     = "m8g.medium.search"
+
+  validation {
+    condition     = can(regex("\\.search$", var.opensearch_dedicated_master_type))
+    error_message = "opensearch_dedicated_master_type must be an OpenSearch instance type, ending in \".search\"."
+  }
+}
+
+variable "opensearch_volume_size_gb" {
+  description = <<-EOT
+    gp3 storage per data node, in GB.
+
+    The index needs room for more than one copy of itself: a replica doubles it,
+    and a re-index holds a second generation while it runs and for a short while
+    after it cuts over. AWS also reserves 20% of each volume, capped at 20 GiB.
+
+    See the OpenSearch section of this directory's README.md for the size each
+    tier needs.
+  EOT
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.opensearch_volume_size_gb >= 10 && var.opensearch_volume_size_gb <= 3000
+    error_message = "opensearch_volume_size_gb must be between 10 and 3000."
+  }
+}
+
+variable "opensearch_availability_zone_count" {
+  description = "Availability zones the created domain's data nodes spread across. 1 disables zone awareness. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = contains([1, 2, 3], var.opensearch_availability_zone_count)
+    error_message = "opensearch_availability_zone_count must be 1, 2 or 3."
+  }
+}
+
 variable "opensearch_index_replicas" {
   description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. A domain with more than one data node should carry at least 1 so losing a node does not mean rebuilding the index."
   type        = number
