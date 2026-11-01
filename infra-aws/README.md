@@ -162,6 +162,33 @@ rebuild holds a second generation for the whole run and for 30 minutes after
 cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
 above allow for all three.
 
+### Where the domain's own logs go
+
+Three CloudWatch log groups per domain, written by OpenSearch itself:
+
+| Log group | Holds |
+|---|---|
+| `/aws/opensearch/<cluster_name>-nexus-one/search_slow_logs` | Searches past the index's slow threshold |
+| `/aws/opensearch/<cluster_name>-nexus-one/index_slow_logs` | Writes past the index's slow threshold |
+| `/aws/opensearch/<cluster_name>-nexus-one/es_application_logs` | What the cluster itself saw: rejected writes, cluster state changes, errors behind a 5xx |
+
+Retention is `opensearch_log_retention_days`, 30 days by default.
+
+**The slow logs stay empty until a threshold is set.** OpenSearch ships with
+slow logging off per index, so set a threshold on the index to get any rows:
+
+```bash
+curl -XPUT "https://<endpoint>/<index>/_settings" -H 'Content-Type: application/json' -d '{
+  "index.search.slowlog.threshold.query.warn": "2s",
+  "index.indexing.slowlog.threshold.index.warn": "2s"
+}'
+```
+
+The application log needs nothing and fills on its own.
+
+**Audit logs are not available here.** They need fine-grained access control,
+which this architecture cannot turn on without breaking SigV4.
+
 ### What Terraform writes into `config.yml`
 
 ```yaml
