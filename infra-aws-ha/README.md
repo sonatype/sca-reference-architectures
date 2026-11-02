@@ -105,17 +105,22 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
 One list pages, typeahead, and dashboard, and **it is required at every size this architecture
 supports.** One cluster serves both features, through a single `search:` block in IQ Server's
-`config.yml`: one endpoint, one set of credentials, and no second switch to turn on.
+`config.yml`: one endpoint, one set of credentials, and nothing extra to switch on per feature.
 
 On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
 SigV4 signed by the deployment's own role, so there is no password to store. That role needs the
 `es:ESHttpGet`, `es:ESHttpPost`, `es:ESHttpPut`, `es:ESHttpHead` and `es:ESHttpDelete` actions on the
 domain.
 
-**This architecture does not create the domain.** It takes an endpoint and points IQ Server at it, so
-the domain's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
-domain has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
-index.
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"`. Every variable and its
+default is in [OpenSearch for the Nexus One Index](#opensearch-for-the-nexus-one-index) below.
+
+**This architecture creates the domain unless you name one.** With `search_engine = "opensearch"` and
+`opensearch_domain_endpoint` left empty, the domain is created here. Set that endpoint and
+`opensearch_domain_name` to point at a domain you already run, and nothing is created. A domain created
+here carries `prevent_destroy`, so `terraform destroy` stops rather than deleting your index; a domain
+you named stays independent of this deployment entirely.
 
 #### Seven indices in one shared cluster
 
@@ -156,8 +161,8 @@ a per-size measurement. What is settled is the shape of the requirement: every s
 a replica is placeable at all of them.
 
 <!-- TO BE ADDED (CLM-55930): the per-size specification and the replica counts above are CLM-55930's to publish.
-     They need measurements that do not exist. The only OpenSearch sizing data today is one estate of
-     about 105,700 applications, above XL's 80,000 ceiling, all taken at zero replicas, so it is not
+     They need measurements that do not exist. The only OpenSearch sizing data today is one estate
+     larger than XL's 80,000 application ceiling, all taken at zero replicas, so it is not
      evidence for a number at any published size. Do not derive these values. -->
 
 See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.

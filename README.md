@@ -138,9 +138,9 @@ Then navigate to the corresponding directory:
 
 ### Step 2: Provision an OpenSearch Cluster
 
-OpenSearch is required at every size, and none of these configurations creates it. Build or identify a
-reachable cluster before going further, and keep its endpoint to hand: on AWS an Amazon OpenSearch
-Service domain, on Azure and GCP a self-managed cluster with a username and password. The per-size
+OpenSearch is required at every size. The three AWS architectures can create an Amazon OpenSearch
+Service domain for you; the six Azure and GCP ones cannot, so on those clouds build a reachable
+self-managed cluster first and keep its endpoint, user name, and password to hand. The per-size
 cluster specification is not published yet, so see [OpenSearch](#opensearch) for what is settled and
 what is still being measured.
 
@@ -155,9 +155,9 @@ cd sca-reference-architectures/<your-chosen-architecture>
 # Copy and edit the example variables file
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values (region, instance sizes, passwords, etc.)
-# Point the deployment at your OpenSearch cluster here, where the architecture you
-# chose takes variables for it: the three Azure architectures name theirs under
-# "Advanced Search with OpenSearch" in that architecture's own README.
+# Point the deployment at your OpenSearch cluster here. Every architecture takes
+# variables for it, named in its own README: "OpenSearch for the Nexus One Index"
+# on AWS, "Advanced Search with OpenSearch" on Azure, "Search Backend" on GCP.
 ```
 
 ### Step 4: Deploy
@@ -661,19 +661,23 @@ at a self-managed cluster on that cloud's own virtual machines and authenticate 
 password, which means the customer also chooses the OpenSearch server version and owns upgrades,
 snapshots, and node replacement.
 
-#### These configurations do not build the cluster
+#### Which configurations build the cluster, and which take an endpoint
 
-Each architecture takes an OpenSearch endpoint and points IQ Server at it. **None of them creates the
-cluster.** Two consequences:
+**The three AWS architectures create the domain; the six Azure and GCP ones do not.** With
+`search_engine = "opensearch"` and `opensearch_domain_endpoint` left empty, each AWS root creates the
+domain itself, and naming an existing domain in that variable creates nothing. Azure and GCP have no
+first-party managed OpenSearch service, so those six only take an endpoint and point IQ Server at it.
 
-- **The cluster has to exist before the deployment is useful.** IQ Server configured against an
-  endpoint that answers nothing will not serve search.
-- **`terraform destroy` cannot take the index with it.** The cluster's lifecycle and its indexed data
-  stay independent of the IQ deployment, which is also why an upgrade or a redeployment costs no
-  rebuild.
+- **Nothing turns it on for you.** `search_engine` defaults to `lucene` in all nine roots, so a
+  deployment that wants either search feature sets `search_engine = "opensearch"`.
+- **A cluster you supply has to exist before the deployment is useful.** IQ Server configured against
+  an endpoint that answers nothing will not serve search.
+- **An index on a cluster you supply survives `terraform destroy`.** Its lifecycle stays independent of
+  the IQ deployment, which is also why an upgrade or a redeployment costs no rebuild. A domain the AWS
+  roots created carries `prevent_destroy` instead, so a destroy stops rather than deleting the index.
 
-What the architecture needs from you is the endpoint. What the specification below gives you is what to
-build it against.
+What the architecture needs from you is the endpoint, or on AWS the shape to build the domain at. What
+the specification below gives you is what to size it against.
 
 #### Seven indices in one shared cluster
 
@@ -797,8 +801,8 @@ Two related things worth stating plainly:
 
 <!-- TO BE ADDED (CLM-55930): the per-size OpenSearch specification table. Every row
      of it (data node count, node instance size, JVM heap per node, storage per node) needs
-     measurements that do not exist. The only OpenSearch sizing data today is from an estate of about
-     105,700 applications, above XL's 80,000 ceiling, and all of it was taken at zero replicas, so it
+     measurements that do not exist. The only OpenSearch sizing data today is from one estate larger
+     than XL's 80,000 application ceiling, and all of it was taken at zero replicas, so it
      is not evidence for a number at any published size. Do not derive these values; publish them when
      the measurement lands. The replica counts for M, L and XL in the table above come from the same
      ticket. -->

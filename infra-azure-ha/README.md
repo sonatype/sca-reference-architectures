@@ -101,7 +101,7 @@ storage_account_replication_type = "ZRS"
 IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
 One list pages, typeahead, and dashboard, and **both features need it at every size this architecture
 supports.** One cluster serves both, through a single `search:` block in IQ Server's `config.yml`: one
-endpoint, one set of credentials, and no second switch to turn on.
+endpoint, one set of credentials, and nothing extra to switch on per feature.
 
 **The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
 a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
@@ -158,8 +158,8 @@ a per-size measurement. What is settled is the shape of the requirement: every s
 a replica is placeable at all of them.
 
 <!-- TO BE ADDED (CLM-55930): the per-size specification and the replica counts above are CLM-55930's to publish.
-     They need measurements that do not exist. The only OpenSearch sizing data today is one estate of
-     about 105,700 applications, above XL's 80,000 ceiling, all taken at zero replicas, so it is not
+     They need measurements that do not exist. The only OpenSearch sizing data today is one estate
+     larger than XL's 80,000 application ceiling, all taken at zero replicas, so it is not
      evidence for a number at any published size. Do not derive these values. -->
 
 See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
@@ -539,11 +539,10 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-The one measured sizing study ran about 105,700 applications on three AWS OpenSearch data nodes of
-8 vCPU and 32 GB each, at zero replicas, and rebuilt 68.3 million documents in about 1 hour 30
-minutes. That is above this guide's XL ceiling of 80,000 applications, and it was measured on AWS
-rather than on Azure Virtual Machines, so treat the row below as a starting point and not as a
-tested figure.
+The one measured sizing study ran an estate larger than this guide's XL ceiling of 80,000
+applications, on three AWS OpenSearch data nodes of 8 vCPU and 32 GB each, at zero replicas. It was
+measured on AWS rather than on Azure Virtual Machines, so treat the row below as a starting point
+and not as a tested figure.
 
 This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
 validated at two or more, so their rows are in the single-instance root's README instead.
