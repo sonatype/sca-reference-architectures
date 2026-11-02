@@ -235,16 +235,6 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - INSTANCE:$INSTANCE_HOSTNAME %msg%n"
     archivedFileCount: 50
 
-%{ if search_engine == "opensearch" ~}
-search:
-  type: http
-  mode: OPENSEARCH
-  uri: ${opensearch_uri}
-  username: ${opensearch_username}
-  password: $OPENSEARCH_PASSWORD
-  nexusOneIndexReplicas: ${opensearch_index_replicas}
-
-%{ endif ~}
 createSampleData: true
 CONFIGEOF
 
@@ -258,7 +248,23 @@ sed -i "s|\$DB_USER|$${DB_USER}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$${DB_PASSWORD}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/config.yml
 %{ if search_engine == "opensearch" ~}
-sed -i "s|\$OPENSEARCH_PASSWORD|$${OPENSEARCH_PASSWORD}|g" /etc/nexus-iq-server/config.yml
+
+# The search block is appended here rather than written into the heredoc above, so the password
+# never passes through sed. A sed replacement reads \ and & specially and ends at the | delimiter,
+# so a password containing any of those three is mangled with no error. The password is written as
+# a single-quoted YAML scalar, which takes every character literally with an embedded single quote
+# written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
+# of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
+# good a place as the middle.
+{
+  echo "search:"
+  echo "  type: http"
+  echo "  mode: OPENSEARCH"
+  echo "  uri: ${opensearch_uri}"
+  echo "  username: ${opensearch_username}"
+  printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
+  echo "  nexusOneIndexReplicas: ${opensearch_index_replicas}"
+} >> /etc/nexus-iq-server/config.yml
 %{ endif ~}
 
 log "Configuration file created at: /etc/nexus-iq-server/config.yml"

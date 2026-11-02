@@ -17,11 +17,21 @@ PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || gcloud config get-v
 # Match on this deployment's own cluster_name, not a fixed prefix. Several sizes of this
 # architecture can share one project, and a fixed prefix would match all of them.
 CLUSTER_NAME=$(terraform output -raw gke_cluster_name 2>/dev/null || echo "")
+CLUSTER_NAME_SOURCE="terraform output"
 
+# terraform output needs usable state, and an unusable state is the case this script exists for, so
+# fall back to the value the deployment was applied with. The sed takes the first double-quoted
+# value on the cluster_name line and ignores anything after it, so a trailing comment such as
+# `cluster_name = "iq-m"  # size M` still reads as iq-m.
+if [ -z "$CLUSTER_NAME" ] && [ -f terraform.tfvars ]; then
+    CLUSTER_NAME=$(sed -n 's/^[[:space:]]*cluster_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars | head -1)
+    CLUSTER_NAME_SOURCE="terraform.tfvars"
+fi
+
+# Neither source named one, so the deployment ran on the variable's own default.
 if [ -z "$CLUSTER_NAME" ]; then
-    echo "Error: could not read gke_cluster_name from Terraform outputs."
-    echo "Without it this script cannot tell this deployment's resources from another size's."
-    exit 1
+    CLUSTER_NAME="nexus-iq-ha"
+    CLUSTER_NAME_SOURCE="the cluster_name default"
 fi
 
 if [ -z "$PROJECT_ID" ]; then
@@ -30,7 +40,10 @@ if [ -z "$PROJECT_ID" ]; then
 fi
 
 echo "Project: $PROJECT_ID"
-echo "Cluster: $CLUSTER_NAME"
+echo "Cluster: $CLUSTER_NAME (read from $CLUSTER_NAME_SOURCE)"
+echo ""
+echo "Check that name before answering. Everything matching it is deleted without a further"
+echo "prompt, and a project can hold several sizes of this architecture."
 echo ""
 
 read -p "Do you want to proceed with cleanup? (yes/no): " CONFIRM
@@ -41,7 +54,13 @@ fi
 
 echo ""
 echo "Step 1: Finding Cloud SQL instances..."
-INSTANCES=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "^$CLUSTER_NAME-db" || true)
+# Anchored on the whole instance name, which database.tf builds as
+# "<cluster_name>-db-<8 lowercase alphanumerics>" and "<cluster_name>-db-replica-<same>". A bare
+# "^$CLUSTER_NAME-db" prefix also matches another deployment whose own cluster_name starts with
+# "$CLUSTER_NAME-db", and the delete below passes --quiet. cluster_name is validated to lowercase
+# letters, numbers and hyphens, so it carries no regular expression metacharacter.
+SQL_NAME_PATTERN="^$CLUSTER_NAME-db(-replica)?-[a-z0-9]{8}$"
+INSTANCES=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$SQL_NAME_PATTERN" || true)
 
 if [ -n "$INSTANCES" ]; then
     echo "Found instances to delete:"
@@ -61,7 +80,7 @@ if [ -n "$INSTANCES" ]; then
     
     # Wait for all instances to be deleted
     for i in {1..60}; do
-        REMAINING=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "^$CLUSTER_NAME-db" || true)
+        REMAINING=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$SQL_NAME_PATTERN" || true)
         if [ -z "$REMAINING" ]; then
             echo "✅ All Cloud SQL instances deleted"
             break
@@ -75,7 +94,15 @@ fi
 
 echo ""
 echo "Step 2: Checking for Filestore instances..."
-FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$CLUSTER_NAME-filestore" || true)
+# Anchored on the whole instance name, which storage.tf builds as
+# "<cluster_name>-filestore-<8 lowercase alphanumerics>". An unanchored "$CLUSTER_NAME-filestore"
+# matches that name anywhere in the string, so cluster "iq" also matched another deployment's
+# "prod-iq-filestore-x" and the delete below passes --quiet. The Filestore API returns `name` as
+# the full resource path, so the match allows the "projects/.../instances/" part in front of it:
+# gcloud's own list table renders this column as name.basename() and takes LOCATION from
+# name.segment(3) (command_lib/filestore/instances/flags.py:30-40).
+FILESTORE_NAME_PATTERN="(^|/)$CLUSTER_NAME-filestore-[a-z0-9]{8}$"
+FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$FILESTORE_NAME_PATTERN" || true)
 
 if [ -n "$FILESTORE" ]; then
     echo "Found Filestore instances:"

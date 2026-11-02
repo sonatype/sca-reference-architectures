@@ -253,6 +253,14 @@ variable "helm_chart_version" {
   default     = "195.0.0"
 }
 
+variable "java_opts" {
+  # Nothing in this root passes this into the Helm release. The chart renders the pod spec, so the
+  # value the pods actually read is iq_server.javaOpts in helm-values.yaml, and that is the one to
+  # change. This variable is kept because existing terraform.tfvars files set it.
+  description = "Java options for Nexus IQ Server. Not read on this root: set iq_server.javaOpts in helm-values.yaml instead, which is what the chart puts on the pods."
+  type        = string
+  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+}
 # Search Backend
 #
 # search_engine chooses which engine the `search:` block in config.yml names. "opensearch" needs
@@ -275,6 +283,16 @@ variable "opensearch_endpoint" {
   description = "Host name or IP address of an OpenSearch cluster you already run, with no scheme and no port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\", ignored otherwise."
   type        = string
   default     = ""
+
+  validation {
+    # search.tf builds the URI as "<scheme>://<endpoint>:<port>", so a value carrying its own
+    # scheme or port produces "https://https://host:9200:9200", which is accepted at plan and
+    # apply and only fails once Nexus IQ Server tries to open the connection. Empty passes,
+    # because that is the default and the search.tf precondition is what requires a value when
+    # search_engine is "opensearch".
+    condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
+  }
 }
 
 variable "opensearch_port" {

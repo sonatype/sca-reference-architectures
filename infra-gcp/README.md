@@ -303,7 +303,12 @@ cluster_name = "iq-xs"   # a distinct value per deployment
 ```
 
 **The default is empty, which reproduces the names this architecture has always published**, so a
-customer who sets nothing sees no change and nothing is renamed or replaced. Setting it moves the
+customer who sets nothing sees no change and nothing is renamed or replaced. That includes the two
+firewall rules that have always carried no prefix at all, `allow-egress-gce` and
+`allow-google-apis`: an empty `cluster_name` adds nothing to either, and a set one prefixes them
+like everything else.
+
+Setting it moves the
 VPC, both subnets, the router, the Cloud NAT, the reserved address, every firewall rule, the load
 balancer and its proxies and forwarding rules, the health check, the instance, the instance group,
 Filestore, both service accounts, the Cloud SQL instance, the client certificate and both Secret
@@ -408,6 +413,12 @@ printf '%s' 'NEW_PASSWORD' | gcloud secrets versions add "$SECRET" --data-file=-
 gcloud compute instances reset "$(terraform output -raw instance_name)" --zone <your-zone>
 ```
 
+The reset re-runs `scripts/startup.sh`, which reads the newest secret version and then removes and
+recreates the container, so the new password is the one the container starts with. The removal is
+what makes the rotation take: `docker run --name nexus-iq-server` fails on a name clash, and the
+script runs under `set -e`, so without it the script would stop there and `--restart always` would
+bring the old container back on the old password.
+
 The secret value also lives in Terraform state, because `opensearch_password` is an input variable.
 Keep the state backend private.
 
@@ -418,10 +429,13 @@ otherwise. Two rules follow from that:
 
 - **Ingress.** `search.tf` adds a rule letting instances tagged `nexus-iq-server` reach instances
   tagged `nexus-iq-opensearch` on `opensearch_port`. **Tag each OpenSearch node
-  `nexus-iq-opensearch`** or the cluster is unreachable from the server.
-- **Egress.** `opensearch_port` is added to the `allow-egress-gce-<cluster_name>` rule. That rule
-  is an allow rule, so today it changes nothing on its own, but it states the intent and keeps
-  working if you add an egress deny rule of your own. **This root has no 5432 egress rule**, unlike
+  `nexus-iq-opensearch`** or the cluster is unreachable from the server. The rule matches on the
+  network tag, not on the service account, so **anything in this VPC tagged `nexus-iq-server`
+  reaches the cluster's port**, not only this instance.
+- **Egress.** `opensearch_port` is added to the `allow-egress-gce` rule, which carries no
+  `cluster_name` prefix on the default and `-<cluster_name>` when one is set. That rule is an allow
+  rule, so today it changes nothing on its own, but it states the intent and keeps working if you
+  add an egress deny rule of your own. **This root has no 5432 egress rule**, unlike
   `infra-gcp-ha`, which is the clearest sign that egress here is permissive.
 
 A cluster outside this VPC is reached over whatever path you have built to it, and neither rule
@@ -463,34 +477,36 @@ Nexus IQ Server has no per-connection trust setting, so the whole JVM is affecte
 store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
 calls to the Sonatype data service**, which rely on the public authorities already in it.
 
-On the instance, once the container is running:
+Do this on the instance, once the container is running. **There is no `keytool` on the instance**:
+the startup script installs `docker.io`, `curl` and `nfs-common` only, and no JDK. Every step below
+therefore runs `keytool` from inside the container, which does carry one.
 
 ```bash
-# 1. Take the JVM's own trust store out of the container.
-docker cp nexus-iq-server:/opt/java/openjdk/lib/security/cacerts /mnt/sonatype-work/cacerts
+# 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/sonatype-work
+#    as /sonatype-work, so one copy is reachable from both sides.
+docker exec nexus-iq-server cp /opt/java/openjdk/lib/security/cacerts /sonatype-work/cacerts
 # The path differs between base images. Find it with:
 #   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
 
-# 2. Add your certificate authority to the copy. The default password is "changeit".
-keytool -importcert -noprompt \
-  -keystore /mnt/sonatype-work/cacerts -storepass changeit \
-  -alias opensearch-ca -file /path/to/ca.pem
+# 2. Put your certificate authority where the container can read it, and add it to the copy.
+#    The default trust store password is "changeit".
+docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
+docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -importcert -noprompt \
+  -keystore /sonatype-work/cacerts -storepass changeit \
+  -alias opensearch-ca -file /tmp/ca.pem
 
 # 3. Confirm the authority is in the copy, and that the public ones are still there.
-keytool -list -keystore /mnt/sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
-keytool -list -keystore /mnt/sonatype-work/cacerts -storepass changeit -alias opensearch-ca
+docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+  -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
+docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+  -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
 ```
 
-Then mount the copy and name it, by adding to `scripts/startup.sh`'s `docker run` call:
+The copy is already inside the container at `/sonatype-work/cacerts`, so nothing new has to be
+mounted. Name it in `java_opts` in `terraform.tfvars`:
 
 ```
-  -v /mnt/sonatype-work/cacerts:/etc/nexus-iq-server/cacerts:ro \
-```
-
-and to `java_opts` in `terraform.tfvars`:
-
-```
--Djavax.net.ssl.trustStore=/etc/nexus-iq-server/cacerts -Djavax.net.ssl.trustStorePassword=changeit
+-Djavax.net.ssl.trustStore=/sonatype-work/cacerts -Djavax.net.ssl.trustStorePassword=changeit
 ```
 
 `/mnt/sonatype-work` is Cloud Filestore, so the copy survives the instance being replaced.

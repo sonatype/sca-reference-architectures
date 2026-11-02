@@ -102,16 +102,6 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
     archivedFileCount: 50
 
-%{ if search_engine == "opensearch" ~}
-search:
-  type: http
-  mode: OPENSEARCH
-  uri: ${opensearch_uri}
-  username: ${opensearch_username}
-  password: $OPENSEARCH_PASSWORD
-  nexusOneIndexReplicas: ${opensearch_index_replicas}
-
-%{ endif ~}
 createSampleData: true
 CONFIGEOF
 
@@ -121,12 +111,31 @@ sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 %{ if search_engine == "opensearch" ~}
-sed -i "s|\$OPENSEARCH_PASSWORD|$OPENSEARCH_PASSWORD|g" /etc/nexus-iq-server/config.yml
+
+# The search block is appended here rather than written into the heredoc above, so the password
+# never passes through sed. A sed replacement reads \ and & specially and ends at the | delimiter,
+# so a password containing any of those three is mangled with no error. The password is written as
+# a single-quoted YAML scalar, which takes every character literally with an embedded single quote
+# written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
+# of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
+# good a place as the middle.
+{
+  echo "search:"
+  echo "  type: http"
+  echo "  mode: OPENSEARCH"
+  echo "  uri: ${opensearch_uri}"
+  echo "  username: ${opensearch_username}"
+  printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
+  echo "  nexusOneIndexReplicas: ${opensearch_index_replicas}"
+} >> /etc/nexus-iq-server/config.yml
 %{ endif ~}
 
 echo "Successfully created config.yml with database configuration"
-echo "Generated config file contents:"
-cat /etc/nexus-iq-server/config.yml
+# Every password line is redacted. This is the container's stdout, and scripts/startup.sh reads it
+# back with `docker logs`, so whatever is printed here also reaches the instance serial console and
+# Cloud Logging, where anyone holding roles/logging.viewer on the project could read it.
+echo "Generated config file contents, with passwords redacted:"
+sed 's/^\([[:space:]]*password:\).*/\1 <redacted>/' /etc/nexus-iq-server/config.yml
 
 export JAVA_OPTS
 
@@ -137,6 +146,13 @@ ENTRYPOINT_EOF
 chmod +x /opt/docker-entrypoint.sh
 
 echo "=== Starting Nexus IQ Server Docker Container ==="
+# Replace any container left by an earlier boot. `docker run --name` fails on a name clash, and
+# under `set -e` the script would end right here with the old container still running on its old
+# environment, so a password rotation followed by `gcloud compute instances reset` would not take
+# effect. Removing it first makes every boot build the container from current values.
+docker stop nexus-iq-server 2>/dev/null || true
+docker rm nexus-iq-server 2>/dev/null || true
+
 docker run -d \
   --name nexus-iq-server \
   --restart always \
@@ -162,6 +178,8 @@ docker run -d \
 echo "=== Verifying Docker container status ==="
 sleep 10
 docker ps -a | grep nexus-iq-server
-docker logs nexus-iq-server
+# This output goes to the instance serial console and on to Cloud Logging, so any password line
+# the container happens to print is redacted on the way through.
+docker logs nexus-iq-server 2>&1 | sed 's/^\([[:space:]]*password:\).*/\1 <redacted>/'
 
 echo "=== Nexus IQ Server Docker Installation Complete ==="

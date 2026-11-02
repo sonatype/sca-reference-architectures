@@ -497,7 +497,9 @@ Both ends therefore need a rule:
 
 - **Ingress.** `search.tf` adds a rule letting instances tagged `nexus-iq-ha` reach instances
   tagged `nexus-iq-opensearch` on `opensearch_port`. **Tag each OpenSearch node
-  `nexus-iq-opensearch`** or the cluster is unreachable from the servers.
+  `nexus-iq-opensearch`** or the cluster is unreachable from the servers. The rule matches on the
+  network tag, not on the service account, so **anything in this VPC tagged `nexus-iq-ha` reaches
+  the cluster's port**, not only this instance group.
 - **Egress.** `opensearch_port` is added to the `<cluster_name>-allow-outbound` rule. **This one is
   required**, not merely declarative: that rule is the only egress rule in the root, so without the
   port the servers cannot reach the cluster at all unless it listens on 80 or 443.
@@ -546,23 +548,31 @@ Nexus IQ Server has no per-connection trust setting, so the whole JVM is affecte
 store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
 calls to the Sonatype data service**, which rely on the public authorities already in it.
 
-Prepare the copy once, on Cloud Filestore, so every instance the group creates sees it:
+Prepare the copy once, on Cloud Filestore, so every instance the group creates sees it. **There is
+no `keytool` on the instances**: the startup script installs `docker.io`, `nfs-common`, `jq`,
+`curl` and `wget` only, and no JDK. Every step below therefore runs `keytool` from inside the
+container, which does carry one.
 
 ```bash
 # On any one instance, once the container is running.
-# 1. Take the JVM's own trust store out of the container.
-docker cp nexus-iq-server:/opt/java/openjdk/lib/security/cacerts /mnt/filestore/cacerts
+# 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/filestore as
+#    /sonatype-work, so one copy is reachable from both sides and from every other instance.
+docker exec nexus-iq-server cp /opt/java/openjdk/lib/security/cacerts /sonatype-work/cacerts
 # The path differs between base images. Find it with:
 #   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
 
-# 2. Add your certificate authority to the copy. The default password is "changeit".
-keytool -importcert -noprompt \
-  -keystore /mnt/filestore/cacerts -storepass changeit \
-  -alias opensearch-ca -file /path/to/ca.pem
+# 2. Put your certificate authority where the container can read it, and add it to the copy.
+#    The default trust store password is "changeit".
+docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
+docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -importcert -noprompt \
+  -keystore /sonatype-work/cacerts -storepass changeit \
+  -alias opensearch-ca -file /tmp/ca.pem
 
 # 3. Confirm the authority is in the copy, and that the public ones are still there.
-keytool -list -keystore /mnt/filestore/cacerts -storepass changeit | grep -c 'trustedCertEntry'
-keytool -list -keystore /mnt/filestore/cacerts -storepass changeit -alias opensearch-ca
+docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+  -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
+docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+  -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
 ```
 
 Then make every instance use it. `/mnt/filestore` is already mounted into the container as

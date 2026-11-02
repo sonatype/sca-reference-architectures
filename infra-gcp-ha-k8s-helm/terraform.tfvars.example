@@ -45,8 +45,9 @@ cloud_armor_rate_limit_threshold = 1000
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
-# The Java heap is a Helm chart setting, not a Terraform input.
-# Set iq_server.javaOpts in helm-values.yaml.
+# Not read on this root: the Helm chart renders the pod spec, so set iq_server.javaOpts in
+# helm-values.yaml instead, which is the value the pods get.
+java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Search Backend
 # "lucene" (default) uses the built-in index and needs nothing else running.

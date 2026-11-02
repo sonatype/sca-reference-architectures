@@ -137,6 +137,11 @@ fi
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
+# The generated file carries the database and OpenSearch passwords in clear text, so it is readable
+# only by its owner and is removed however this script ends, including on an error or a Ctrl-C.
+chmod 600 "$TEMP_VALUES_FILE"
+trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE.bak" "$TEMP_VALUES_FILE.new"' EXIT INT TERM
+
 sed -i.bak "s|hostname: \"\"|hostname: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
 sed -i.bak "s|password: \"\"|password: \"${DB_PASSWORD}\"|g" "$TEMP_VALUES_FILE"
 sed -i.bak "s|value: \"\"|value: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
@@ -161,8 +166,28 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     fi
     sed -i.bak "s|OPENSEARCH_URI_PLACEHOLDER|${OPENSEARCH_URI}|g" "$TEMP_VALUES_FILE"
     sed -i.bak "s|OPENSEARCH_USERNAME_PLACEHOLDER|${OPENSEARCH_USERNAME}|g" "$TEMP_VALUES_FILE"
-    sed -i.bak "s|OPENSEARCH_PASSWORD_PLACEHOLDER|${OPENSEARCH_PASSWORD}|g" "$TEMP_VALUES_FILE"
     sed -i.bak "s|OPENSEARCH_REPLICAS_PLACEHOLDER|${OPENSEARCH_REPLICAS}|g" "$TEMP_VALUES_FILE"
+
+    # The password is written as a single-quoted YAML scalar, with an embedded single quote written
+    # twice, and substituted with awk rather than sed. A sed replacement reads \ and & specially
+    # and ends at the | delimiter, so a password containing any of those three is mangled with no
+    # error, and an unquoted scalar containing ": " " #" or a leading indicator character breaks
+    # the YAML. awk reads the value out of the environment, so nothing in it is read as a pattern
+    # or as an escape.
+    OPENSEARCH_PASSWORD_YAML="'$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")'"
+    export OPENSEARCH_PASSWORD_YAML
+    awk '
+      BEGIN { yaml = ENVIRON["OPENSEARCH_PASSWORD_YAML"] }
+      /^[[:space:]]*password: OPENSEARCH_PASSWORD_PLACEHOLDER[[:space:]]*$/ {
+        match($0, /^[[:space:]]*/)
+        print substr($0, 1, RLENGTH) "password: " yaml
+        next
+      }
+      { print }
+    ' "$TEMP_VALUES_FILE" > "${TEMP_VALUES_FILE}.new"
+    mv "${TEMP_VALUES_FILE}.new" "$TEMP_VALUES_FILE"
+    unset OPENSEARCH_PASSWORD_YAML
+    chmod 600 "$TEMP_VALUES_FILE"
 else
     # Remove the whole search block, markers and all, so the deployment uses the built-in index.
     sed -i.bak "/# search-block-begin/,/# search-block-end/d" "$TEMP_VALUES_FILE"

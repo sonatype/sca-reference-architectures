@@ -311,6 +311,16 @@ variable "opensearch_endpoint" {
   description = "Host name or IP address of an OpenSearch cluster you already run, with no scheme and no port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\", ignored otherwise."
   type        = string
   default     = ""
+
+  validation {
+    # search.tf builds the URI as "<scheme>://<endpoint>:<port>", so a value carrying its own
+    # scheme or port produces "https://https://host:9200:9200", which is accepted at plan and
+    # apply and only fails once Nexus IQ Server tries to open the connection. Empty passes,
+    # because that is the default and the search.tf precondition is what requires a value when
+    # search_engine is "opensearch".
+    condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
+  }
 }
 
 variable "opensearch_port" {

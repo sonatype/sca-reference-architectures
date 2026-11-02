@@ -70,6 +70,10 @@ filestore_capacity_gb   = 10240            # 10 TiB
 ```
 </details>
 
+> `java_opts` above is not read on this root. The Helm chart renders the pod spec, so the heap each
+> pod gets is `iq_server.javaOpts` in `helm-values.yaml`: set the per-size value there, in the same
+> shape as the lines above.
+
 ### Database Sizing (Cloud SQL PostgreSQL)
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
@@ -291,6 +295,12 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
+<<<<<<< HEAD
+=======
+# Not read on this root: set iq_server.javaOpts in helm-values.yaml, which the chart puts on the pods.
+java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+>>>>>>> d73f94f (Fix review findings on the GCP OpenSearch change (CLM-55933))
 # Search Backend
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
@@ -579,11 +589,16 @@ iq_server:
       readOnly: true
 ```
 
-and to `java_opts` in `terraform.tfvars`:
+and to `javaOpts` in `helm-values.yaml`:
 
+```yaml
+iq_server:
+  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/etc/nexus-iq-server/truststore/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
 ```
--Djavax.net.ssl.trustStore=/etc/nexus-iq-server/truststore/cacerts -Djavax.net.ssl.trustStorePassword=changeit
-```
+
+**Not to `java_opts` in `terraform.tfvars`.** On this root the Helm chart renders the pod spec, and
+nothing here passes `java_opts` into the release, so `iq_server.javaOpts` in `helm-values.yaml` is
+the only value the pods read.
 
 Check the chart version in `helm_chart_version` accepts `extraVolumes` and `extraVolumeMounts`
 under `iq_server` before relying on those key names, with

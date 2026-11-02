@@ -32,6 +32,12 @@ locals {
   # several sizes of this architecture live in one project.
   infra_name = var.cluster_name != "" ? var.cluster_name : "ref-arch-iq"
   app_name   = var.cluster_name != "" ? var.cluster_name : "nexus-iq"
+
+  # Two firewall rules this architecture has always published carry no prefix at all, where every
+  # other name carries one. A firewall rule name cannot be changed in place, so appending the
+  # prefix to those two would replace both rules on an existing deployment. An empty cluster_name
+  # therefore adds nothing to them, and setting it prefixes them like everything else.
+  bare_rule_suffix = var.cluster_name != "" ? "-${var.cluster_name}" : ""
 }
 
 # Enable required APIs

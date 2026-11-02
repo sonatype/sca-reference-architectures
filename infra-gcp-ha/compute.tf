@@ -41,11 +41,11 @@ resource "google_compute_instance_template" "iq_template" {
     gcp_project_id     = var.gcp_project_id
     filestore_ip       = google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]
 
-    search_engine                       = var.search_engine
-    opensearch_uri                      = local.opensearch_enabled ? local.opensearch_uri : ""
-    opensearch_username                 = var.opensearch_username
-    opensearch_password_secret          = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
-    opensearch_index_replicas = var.opensearch_index_replicas
+    search_engine              = var.search_engine
+    opensearch_uri             = local.opensearch_enabled ? local.opensearch_uri : ""
+    opensearch_username        = var.opensearch_username
+    opensearch_password_secret = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
+    opensearch_index_replicas  = var.opensearch_index_replicas
   })
 
   labels = merge(var.common_tags, {

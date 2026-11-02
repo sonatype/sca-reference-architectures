@@ -19,7 +19,7 @@ resource "google_logging_project_sink" "iq_ha_container_logs" {
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
     logName:"docker"
   EOT
 
@@ -38,7 +38,7 @@ resource "google_logging_metric" "iq_ha_error_count" {
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
     severity="ERROR"
   EOT
 
@@ -67,7 +67,7 @@ resource "google_logging_metric" "iq_ha_warning_count" {
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
     severity="WARNING"
   EOT
 
@@ -95,14 +95,14 @@ resource "google_logging_metric" "iq_ha_warning_count" {
 #
 # resource "google_monitoring_alert_policy" "iq_ha_high_error_rate" {
 #   project      = var.gcp_project_id
-#   display_name = "Nexus IQ HA - High Error Rate"
+#   display_name = "${local.alert_prefix} - High Error Rate"
 #   combiner     = "OR"
 #
 #   conditions {
 #     display_name = "Error count exceeds 50 per minute"
 #
 #     condition_threshold {
-#       filter          = "metric.type=\"logging.googleapis.com/user/nexus-iq-ha-error-count\" resource.type=\"gce_instance\""
+#       filter          = "metric.type=\"logging.googleapis.com/user/${local.app_name}-error-count\" resource.type=\"gce_instance\""
 #       duration        = "300s"
 #       comparison      = "COMPARISON_GT"
 #       threshold_value = 50
@@ -133,7 +133,7 @@ resource "google_logging_metric" "iq_ha_warning_count" {
 # Alert policy: Container restart
 resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
   project      = var.gcp_project_id
-  display_name = "${local.app_name} - Container Restart Detected"
+  display_name = "${local.alert_prefix} - Container Restart Detected"
   combiner     = "OR"
 
   conditions {
@@ -142,7 +142,7 @@ resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
     condition_matched_log {
       filter = <<-EOT
         resource.type="gce_instance"
-        labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+        labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
         textPayload=~"Starting Nexus IQ Server HA Docker Installation"
       EOT
     }
@@ -168,7 +168,7 @@ resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
 # Alert policy: NFS mount failure
 resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
   project      = var.gcp_project_id
-  display_name = "${local.app_name} - NFS Mount Failure"
+  display_name = "${local.alert_prefix} - NFS Mount Failure"
   combiner     = "OR"
 
   conditions {
@@ -177,7 +177,7 @@ resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
     condition_matched_log {
       filter = <<-EOT
         resource.type="gce_instance"
-        labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+        labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
         textPayload=~"FATAL: NFS mount failed after 5 attempts"
       EOT
     }

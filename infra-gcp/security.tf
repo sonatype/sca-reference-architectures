@@ -65,7 +65,7 @@ resource "google_compute_firewall" "allow_http_https" {
 
 # Allow egress from GCE instances for external API calls
 resource "google_compute_firewall" "allow_egress_gce" {
-  name      = "allow-egress-gce-${local.app_name}"
+  name      = "allow-egress-gce${local.bare_rule_suffix}"
   network   = google_compute_network.iq_vpc.name
   project   = var.gcp_project_id
   direction = "EGRESS"
@@ -99,7 +99,7 @@ resource "google_compute_firewall" "allow_egress_gce" {
 
 # Allow access to Google APIs through private Google access
 resource "google_compute_firewall" "allow_google_apis" {
-  name      = "allow-google-apis-${local.app_name}"
+  name      = "allow-google-apis${local.bare_rule_suffix}"
   network   = google_compute_network.iq_vpc.name
   project   = var.gcp_project_id
   direction = "EGRESS"

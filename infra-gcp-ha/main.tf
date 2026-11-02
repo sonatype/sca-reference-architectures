@@ -33,6 +33,11 @@ locals {
   # architecture live in one project.
   infra_name = var.cluster_name != "" ? var.cluster_name : "ref-arch-iq-ha"
   app_name   = var.cluster_name != "" ? var.cluster_name : "nexus-iq-ha"
+
+  # Alert policy display names are read by a person rather than matched by a machine, so the
+  # default keeps the prose title this architecture has always published and only a set
+  # cluster_name replaces it, which is what tells two deployments' alerts apart.
+  alert_prefix = var.cluster_name != "" ? var.cluster_name : "Nexus IQ HA"
 }
 
 # Enable required APIs
