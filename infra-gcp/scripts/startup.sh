@@ -16,14 +16,26 @@ mkdir -p /mnt/iq-logs
 FILESTORE_IP="${filestore_ip}"
 FILESTORE_SHARE="nexus_iq_data"
 
-mount -t nfs -o vers=3 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work
+# The fstab entry below survives a reboot, so on every boot after the first the share may already
+# be mounted here by the time this script runs. Mounting the same share on the same mount point a
+# second time is refused with EBUSY, and this script runs under `set -e`, so an unconditional
+# mount would end the boot here, before the container is recreated. A password rotation depends on
+# that recreation, so the mount has to tolerate a share that is already there.
+if mountpoint -q /mnt/sonatype-work; then
+  echo "/mnt/sonatype-work is already mounted, leaving it as it is"
+else
+  mount -t nfs -o vers=3 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work
+fi
 
 mkdir -p /mnt/sonatype-work/sonatype-work
 mkdir -p /mnt/sonatype-work/logs
 
-cat >> /etc/fstab << FSTAB_EOF
+# Written once. An unconditional append adds another copy of the same entry on every boot.
+if ! grep -qF "$FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work" /etc/fstab; then
+  cat >> /etc/fstab << FSTAB_EOF
 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work nfs defaults,_netdev 0 0
 FSTAB_EOF
+fi
 
 %{ if search_engine == "opensearch" ~}
 echo "=== Reading the OpenSearch password from Secret Manager ==="
@@ -119,12 +131,15 @@ sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 # written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
 # of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
 # good a place as the middle.
+# The user name is written as a single-quoted scalar for the same reason. Its Terraform variable
+# refuses the single quote, double quote, dollar, backtick and backslash characters, which are the
+# five the quoting here cannot absorb, so | & ": " " #" and a leading indicator all survive intact.
 {
   echo "search:"
   echo "  type: http"
   echo "  mode: OPENSEARCH"
   echo "  uri: ${opensearch_uri}"
-  echo "  username: ${opensearch_username}"
+  echo "  username: '${opensearch_username}'"
   printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
   echo "  nexusOneIndexReplicas: ${opensearch_index_replicas}"
 } >> /etc/nexus-iq-server/config.yml

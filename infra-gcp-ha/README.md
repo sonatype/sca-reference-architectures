@@ -439,6 +439,12 @@ opensearch_index_replicas = 0
 All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
 `search_engine` is `"opensearch"`, and the plan fails naming whichever is missing.
 
+`opensearch_username` may not hold a single quote, a double quote, a dollar sign, a
+backtick or a backslash, and the plan refuses one that does. The startup script writes it
+into a single-quoted YAML scalar inside a double-quoted shell string, and those five are the
+only characters that would break one or the other. Everything else is written through
+intact, including `|`, `&`, `: `, ` #` and a leading YAML indicator character.
+
 Changing any of these replaces the instance template, so the managed instance group rolls every
 instance. Plan it as a restart of the whole group.
 
@@ -486,6 +492,12 @@ printf '%s' 'NEW_PASSWORD' | gcloud secrets versions add "$SECRET" --data-file=-
 gcloud compute instance-groups managed rolling-action restart \
   "$(terraform output -raw instance_group_manager_name)" --region <your-region>
 ```
+
+Each replacement instance re-runs `scripts/startup.sh`, which reads the newest secret version. The
+script writes an fstab entry for the Filestore share, so on an instance that has booted before the
+share is usually mounted already by the time the script runs, and mounting it again on the same
+mount point is refused. The mount is therefore skipped when the share is already there; without
+that, the boot would end at the mount, before the container was recreated on the new password.
 
 The secret value also lives in Terraform state, because `opensearch_password` is an input variable.
 Keep the state backend private.
@@ -557,21 +569,24 @@ container, which does carry one.
 # On any one instance, once the container is running.
 # 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/filestore as
 #    /sonatype-work, so one copy is reachable from both sides and from every other instance.
-docker exec nexus-iq-server cp /opt/java/openjdk/lib/security/cacerts /sonatype-work/cacerts
-# The path differs between base images. Find it with:
+docker exec nexus-iq-server cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /sonatype-work/cacerts
+# These paths are the ones the published image uses: its Dockerfile installs the server, and
+# the jlinked runtime that ships inside it, at /opt/sonatype/nexus-iq-server. Confirm them on
+# the image you are running with:
 #   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
+#   docker exec nexus-iq-server sh -c 'find / -name keytool -type f 2>/dev/null'
 
 # 2. Put your certificate authority where the container can read it, and add it to the copy.
 #    The default trust store password is "changeit".
 docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
-docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -importcert -noprompt \
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
   -keystore /sonatype-work/cacerts -storepass changeit \
   -alias opensearch-ca -file /tmp/ca.pem
 
 # 3. Confirm the authority is in the copy, and that the public ones are still there.
-docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
   -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
-docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
   -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
 ```
 

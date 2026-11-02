@@ -52,18 +52,10 @@ echo -e "${BLUE}📊 Retrieving Infrastructure Details${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 DB_HOST=$(terraform output -raw database_private_ip 2>/dev/null || echo "")
-DB_PASSWORD=$(terraform output -raw database_password 2>/dev/null || echo "")
 FILESTORE_IP=$(terraform output -raw filestore_ip 2>/dev/null || echo "")
 PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || echo "")
 REGION=$(terraform output -raw region 2>/dev/null || echo "")
-WORKLOAD_IDENTITY=$(terraform output -raw workload_identity_email 2>/dev/null || echo "")
-FLUENTD_IDENTITY=$(terraform output -raw fluentd_workload_identity_email 2>/dev/null || echo "")
 INGRESS_IP_NAME=$(terraform output -raw ingress_ip_name 2>/dev/null || echo "")
-SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "lucene")
-OPENSEARCH_URI=$(terraform output -raw opensearch_uri 2>/dev/null || echo "")
-OPENSEARCH_USERNAME=$(terraform output -raw opensearch_username 2>/dev/null || echo "")
-OPENSEARCH_PASSWORD=$(terraform output -raw opensearch_password 2>/dev/null || echo "")
-OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
 
 echo "• Database: $DB_HOST"
 echo "• Filestore: $FILESTORE_IP"
@@ -135,77 +127,32 @@ else
 fi
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
-cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-# The generated file carries the database and OpenSearch passwords in clear text, so it is readable
-# only by its owner and is removed however this script ends, including on an error or a Ctrl-C.
-chmod 600 "$TEMP_VALUES_FILE"
+# render-values.sh writes this file, mode 600, from the current Terraform outputs, and
+# helm-upgrade.sh calls the same script. Neither needs the file to survive the run, so the trap
+# removes it however this script ends, including on an error or a Ctrl-C.
 trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE.bak" "$TEMP_VALUES_FILE.new"' EXIT INT TERM
 
-sed -i.bak "s|hostname: \"\"|hostname: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|password: \"\"|password: \"${DB_PASSWORD}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|value: \"\"|value: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|DB_PASSWORD.*|DB_PASSWORD\n      value: \"${DB_PASSWORD}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|iam.gke.io/gcp-service-account: \"\"|iam.gke.io/gcp-service-account: \"${WORKLOAD_IDENTITY}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|projectId: \"\"|projectId: \"${PROJECT_ID}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|kubernetes.io/ingress.global-static-ip-name: \"\"|kubernetes.io/ingress.global-static-ip-name: \"${INGRESS_IP_NAME}\"|g" "$TEMP_VALUES_FILE"
+./render-values.sh "$TEMP_VALUES_FILE"
 
+<<<<<<< HEAD
 # sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
 # pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
 # The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
 # which is tr's and is 0 even when grep matched nothing, so it never fired.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
+=======
+# AFTER render-values.sh, not before: it copies helm-values.yaml over the temp file, so a
+# substitution made first would be overwritten. The chart reads iq_server.replicas, and without
+# this the pod count in terraform.tfvars never reaches it.
+REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
+>>>>>>> 447f42c (Fix the second round of review findings on the GCP OpenSearch change (CLM-55933))
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
-
-if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
-    if [[ -z "$OPENSEARCH_URI" || -z "$OPENSEARCH_USERNAME" || -z "$OPENSEARCH_PASSWORD" ]]; then
-        echo -e "${RED}❌ Error: search_engine is \"opensearch\" but the endpoint, user name or password is empty${NC}"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
-        exit 1
-    fi
-    sed -i.bak "s|OPENSEARCH_URI_PLACEHOLDER|${OPENSEARCH_URI}|g" "$TEMP_VALUES_FILE"
-    sed -i.bak "s|OPENSEARCH_USERNAME_PLACEHOLDER|${OPENSEARCH_USERNAME}|g" "$TEMP_VALUES_FILE"
-    sed -i.bak "s|OPENSEARCH_REPLICAS_PLACEHOLDER|${OPENSEARCH_REPLICAS}|g" "$TEMP_VALUES_FILE"
-
-    # The password is written as a single-quoted YAML scalar, with an embedded single quote written
-    # twice, and substituted with awk rather than sed. A sed replacement reads \ and & specially
-    # and ends at the | delimiter, so a password containing any of those three is mangled with no
-    # error, and an unquoted scalar containing ": " " #" or a leading indicator character breaks
-    # the YAML. awk reads the value out of the environment, so nothing in it is read as a pattern
-    # or as an escape.
-    OPENSEARCH_PASSWORD_YAML="'$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")'"
-    export OPENSEARCH_PASSWORD_YAML
-    awk '
-      BEGIN { yaml = ENVIRON["OPENSEARCH_PASSWORD_YAML"] }
-      /^[[:space:]]*password: OPENSEARCH_PASSWORD_PLACEHOLDER[[:space:]]*$/ {
-        match($0, /^[[:space:]]*/)
-        print substr($0, 1, RLENGTH) "password: " yaml
-        next
-      }
-      { print }
-    ' "$TEMP_VALUES_FILE" > "${TEMP_VALUES_FILE}.new"
-    mv "${TEMP_VALUES_FILE}.new" "$TEMP_VALUES_FILE"
-    unset OPENSEARCH_PASSWORD_YAML
-    chmod 600 "$TEMP_VALUES_FILE"
-else
-    # Remove the whole search block, markers and all, so the deployment uses the built-in index.
-    sed -i.bak "/# search-block-begin/,/# search-block-end/d" "$TEMP_VALUES_FILE"
-fi
-
-# A placeholder left behind means a substitution did not run, and Nexus IQ Server would read the
-# literal text as a host name or a password.
-if grep -q "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
-    echo -e "${RED}❌ Error: a search placeholder survived substitution in ${TEMP_VALUES_FILE}${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
-    exit 1
-fi
-
 rm -f "${TEMP_VALUES_FILE}.bak"
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
-    rm -f "$TEMP_VALUES_FILE"
     exit 1
 fi
 

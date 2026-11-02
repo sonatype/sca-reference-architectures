@@ -429,6 +429,12 @@ opensearch_index_replicas = 0
 All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
 `search_engine` is `"opensearch"`, and the plan fails naming whichever is missing.
 
+`opensearch_username` may not hold a single quote, a double quote, a dollar sign, a
+backtick or a backslash, and the plan refuses one that does. `render-values.sh` writes it
+into a single-quoted YAML scalar in the generated values file, and those five are the only
+characters that would break it. Everything else is written through intact, including `|`,
+`&`, `: `, ` #` and a leading YAML indicator character.
+
 **Terraform alone does not apply this.** The `search:` block lives in the Helm values, so run
 `terraform apply` and then `./helm-install.sh`, or `./helm-upgrade.sh` on an existing release.
 
@@ -473,8 +479,9 @@ so a value has to be in the Helm values rather than fetched by a startup script.
 
 Two consequences worth knowing:
 
-- **`helm-values-runtime.yaml` holds the password in clear while it exists.** The script deletes it
-  after a successful install. Delete it by hand if an install fails part way.
+- **`helm-values-runtime.yaml` holds the password in clear while it exists.** Both
+  `helm-install.sh` and `helm-upgrade.sh` render it from the current Terraform outputs at the start
+  of a run and remove it on exit, however the run ends, so nothing is left behind to delete by hand.
 - **The password is in Terraform state**, because `opensearch_password` is an input variable. Keep
   the state backend private.
 
@@ -482,11 +489,12 @@ To rotate the password, change it in `terraform.tfvars`, then:
 
 ```bash
 terraform apply
-./helm-install.sh    # or ./helm-upgrade.sh, which reuses the generated values file
+./helm-upgrade.sh
 ```
 
-`helm-upgrade.sh` reads the existing `helm-values-runtime.yaml` rather than regenerating it, so
-after a rotation run `helm-install.sh` instead, or regenerate the file first.
+`helm-upgrade.sh` renders the values file itself, so it carries whatever `terraform apply` has just
+put in the state. `helm-install.sh` refuses to run once the release exists, which is why the
+rotation goes through the upgrade.
 
 ### Firewall
 
@@ -557,9 +565,10 @@ pod:
 ```bash
 # 1. Take the JVM's own trust store out of a running pod.
 POD=$(kubectl get pod -n nexus-iq -l name=nexus-iq-server-ha-iq-server -o jsonpath='{.items[0].metadata.name}')
-kubectl cp "nexus-iq/$POD:/opt/java/openjdk/lib/security/cacerts" ./cacerts
+kubectl cp "nexus-iq/$POD:/opt/sonatype/nexus-iq-server/lib/security/cacerts" ./cacerts
 # The path differs between base images. Find it with:
 #   kubectl exec -n nexus-iq "$POD" -- sh -c 'find / -name cacerts -type f 2>/dev/null'
+#   kubectl exec -n nexus-iq "$POD" -- sh -c 'find / -name keytool -type f 2>/dev/null'
 
 # 2. Add your certificate authority to the copy. The default password is "changeit".
 keytool -importcert -noprompt \

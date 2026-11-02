@@ -371,6 +371,12 @@ opensearch_index_replicas = 0
 All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
 `search_engine` is `"opensearch"`, and the plan fails naming whichever is missing.
 
+`opensearch_username` may not hold a single quote, a double quote, a dollar sign, a
+backtick or a backslash, and the plan refuses one that does. The startup script writes it
+into a single-quoted YAML scalar inside a double-quoted shell string, and those five are the
+only characters that would break one or the other. Everything else is written through
+intact, including `|`, `&`, `: `, ` #` and a leading YAML indicator character.
+
 ### What this writes into `config.yml`
 
 `scripts/startup.sh` adds a `search:` block, which is what turns the Nexus One index on:
@@ -414,10 +420,16 @@ gcloud compute instances reset "$(terraform output -raw instance_name)" --zone <
 ```
 
 The reset re-runs `scripts/startup.sh`, which reads the newest secret version and then removes and
-recreates the container, so the new password is the one the container starts with. The removal is
-what makes the rotation take: `docker run --name nexus-iq-server` fails on a name clash, and the
-script runs under `set -e`, so without it the script would stop there and `--restart always` would
-bring the old container back on the old password.
+recreates the container, so the new password is the one the container starts with. Two things in
+that script are what make the rotation take, and both only matter from the second boot onward:
+
+- **The container is removed first.** `docker run --name nexus-iq-server` fails on a name clash, and
+  the script runs under `set -e`, so without the removal the script would stop there and
+  `--restart always` would bring the old container back on the old password.
+- **The Filestore mount tolerates an already-mounted share.** The script writes an fstab entry, so
+  on a later boot systemd has usually mounted the share before the script runs, and mounting it
+  again on the same mount point is refused. Unconditionally, that ended the boot before the
+  container was recreated.
 
 The secret value also lives in Terraform state, because `opensearch_password` is an input variable.
 Keep the state backend private.
@@ -484,21 +496,24 @@ therefore runs `keytool` from inside the container, which does carry one.
 ```bash
 # 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/sonatype-work
 #    as /sonatype-work, so one copy is reachable from both sides.
-docker exec nexus-iq-server cp /opt/java/openjdk/lib/security/cacerts /sonatype-work/cacerts
-# The path differs between base images. Find it with:
+docker exec nexus-iq-server cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /sonatype-work/cacerts
+# These paths are the ones the published image uses: its Dockerfile installs the server, and
+# the jlinked runtime that ships inside it, at /opt/sonatype/nexus-iq-server. Confirm them on
+# the image you are running with:
 #   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
+#   docker exec nexus-iq-server sh -c 'find / -name keytool -type f 2>/dev/null'
 
 # 2. Put your certificate authority where the container can read it, and add it to the copy.
 #    The default trust store password is "changeit".
 docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
-docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -importcert -noprompt \
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
   -keystore /sonatype-work/cacerts -storepass changeit \
   -alias opensearch-ca -file /tmp/ca.pem
 
 # 3. Confirm the authority is in the copy, and that the public ones are still there.
-docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
   -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
-docker exec nexus-iq-server /opt/java/openjdk/bin/keytool -list \
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
   -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
 ```
 

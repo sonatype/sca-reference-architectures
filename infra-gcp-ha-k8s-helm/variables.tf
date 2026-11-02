@@ -316,6 +316,11 @@ variable "opensearch_username" {
   description = "OpenSearch user Nexus IQ Server authenticates as. This user needs to create, read and write the Nexus One indices. Required when search_engine is \"opensearch\"."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("[\\'\"$`\\\\]", var.opensearch_username))
+    error_message = "The OpenSearch user name may not hold a single quote, a double quote, a dollar sign, a backtick or a backslash. render-values.sh writes it into a single-quoted YAML scalar in the generated values file, and those five are the characters that would break it. Everything else, including | & : # and a space, is written through intact."
+  }
 }
 
 variable "opensearch_password" {

@@ -54,6 +54,12 @@ NFS_SHARE="/nexus_iq_ha_data"
 mkdir -p "$${MOUNT_POINT}"
 
 # Mount the NFS share with retries
+# The fstab entry written below survives a reboot, so on a later boot the share may already be
+# mounted here. Mounting the same share on the same mount point again is refused with EBUSY, which
+# this loop would read as five failed attempts and then exit, so check first.
+if mountpoint -q "$${MOUNT_POINT}"; then
+  log "$${MOUNT_POINT} is already mounted, leaving it as it is"
+else
 log "Mounting NFS share from $${FILESTORE_IP}:$${NFS_SHARE} to $${MOUNT_POINT}"
 for attempt in {1..5}; do
   if mount -t nfs -o nfsvers=3,hard,intr,rsize=1048576,wsize=1048576,timeo=600,retrans=2 \
@@ -64,12 +70,13 @@ for attempt in {1..5}; do
     log "NFS mount attempt $${attempt}/5 failed, retrying in 10 seconds..."
     sleep 10
   fi
-  
+
   if [ $attempt -eq 5 ]; then
     log "FATAL: NFS mount failed after 5 attempts"
     exit 1
   fi
 done
+fi
 
 # Verify mount
 if ! mountpoint -q "$${MOUNT_POINT}"; then
@@ -256,12 +263,15 @@ sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/conf
 # written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
 # of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
 # good a place as the middle.
+# The user name is written as a single-quoted scalar for the same reason. Its Terraform variable
+# refuses the single quote, double quote, dollar, backtick and backslash characters, which are the
+# five the quoting here cannot absorb, so | & ": " " #" and a leading indicator all survive intact.
 {
   echo "search:"
   echo "  type: http"
   echo "  mode: OPENSEARCH"
   echo "  uri: ${opensearch_uri}"
-  echo "  username: ${opensearch_username}"
+  echo "  username: '${opensearch_username}'"
   printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
   echo "  nexusOneIndexReplicas: ${opensearch_index_replicas}"
 } >> /etc/nexus-iq-server/config.yml
