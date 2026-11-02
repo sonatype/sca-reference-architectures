@@ -413,13 +413,15 @@ variable "opensearch_create_log_resource_policy" {
 
     A resource policy is account-wide and AWS allows 10 per region, so an account
     already at that quota cannot take another one and the apply fails with
-    LimitExceededException. Setting this to false skips the policy and the
-    domain's three log groups with it, which leaves the domain without its own
-    logs: a 5xx it returned then has no account on the OpenSearch side.
+    LimitExceededException. The answer at the quota is one policy covering every
+    domain's log groups, written once by hand outside this configuration, and
+    this set to false in each deployment.
 
-    The usual answer at the quota is one policy covering every domain's log
-    groups, written once by hand outside this configuration, and this set to
-    false in each deployment.
+    False affects the policy and nothing else. The domain's three log groups and
+    its log_publishing_options are still created, so the shared policy has groups
+    to name and the domain keeps its logs. That also means false without such a
+    policy in the account is not a working configuration: the domain create fails
+    on the log_publishing_options, rather than coming up with no logs.
   EOT
   type        = bool
   default     = true

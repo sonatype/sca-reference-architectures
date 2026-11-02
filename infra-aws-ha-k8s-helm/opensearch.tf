@@ -132,9 +132,10 @@ locals {
     replace(substr(var.cluster_name, 0, min(18, length(var.cluster_name))), "/-+$/", "")
   )
 
-  # The domain's own logs need the account-wide resource policy, so they are on or
-  # off together: three log groups nothing may write to are worse than none.
-  opensearch_logs = local.opensearch_create && var.opensearch_create_log_resource_policy
+  # The log groups are created whenever the domain is, so a shared hand-written
+  # policy has groups to cover. Only the policy itself is behind
+  # opensearch_create_log_resource_policy.
+  opensearch_logs = local.opensearch_create
 
   opensearch_dedicated_master = local.opensearch_create && var.opensearch_instance_count > 1
 
@@ -151,28 +152,32 @@ locals {
   ) : var.opensearch_domain_name
 }
 
-# The service-linked role OpenSearch assumes to put the domain's network
-# interfaces in these subnets. AWS creates it on its own when a VPC domain is
-# created through the console, and the first apply in an account that has never
-# held a VPC domain has no role to assume.
+# THE SERVICE-LINKED ROLE IS AN ACCOUNT-LEVEL PREREQUISITE, NOT A RESOURCE HERE.
+# OpenSearch assumes AWSServiceRoleForAmazonOpenSearchService to put a VPC
+# domain's network interfaces in these subnets, and the role has to exist in the
+# account before the first domain is created. AWS creates it on its own when a
+# VPC domain is created through the console, so an account that has ever held one
+# already has it.
 #
-# One per account is all AWS allows, so this looks for an existing one first and
-# a second deployment finds the first deployment's role rather than failing on
-# InvalidInput. The lookup returns an empty list rather than an error when there
-# is none, which is why it reads roles by prefix rather than by name.
+# It is deliberately not a resource in this configuration. AWS allows one per
+# account, and this root is per deployment, so whichever deployment created it
+# would own an object every other deployment's domain depends on: its teardown
+# would try to delete the role out from under them. Create it once per account
+# instead, before the first apply:
 #
-# The calling identity needs iam:CreateServiceLinkedRole for this, and an account
-# still carrying the legacy AWSServiceRoleForAmazonElasticsearchService role goes
-# on using that one.
-data "aws_iam_roles" "opensearch_service_linked" {
-  path_prefix = "/aws-service-role/opensearchservice.amazonaws.com/"
-}
-
-resource "aws_iam_service_linked_role" "opensearch" {
-  count = local.opensearch_create && length(data.aws_iam_roles.opensearch_service_linked.names) == 0 ? 1 : 0
-
-  aws_service_name = "opensearchservice.amazonaws.com"
-}
+#     aws iam create-service-linked-role \
+#       --aws-service-name opensearchservice.amazonaws.com
+#
+# The command fails when the role is already there, saying the name is taken,
+# which is the one failure that means there is nothing to do. To check first:
+#
+#     aws iam list-roles \
+#       --path-prefix /aws-service-role/opensearchservice.amazonaws.com/ \
+#       --query 'Roles[].RoleName' --output text
+#
+# The calling identity needs iam:CreateServiceLinkedRole. An account still
+# carrying the legacy AWSServiceRoleForAmazonElasticsearchService role goes on
+# using that one and needs nothing.
 
 # In the private subnets with the node group, so the domain is not reachable
 # from the internet and needs no IP allow list. A pod's traffic leaves through
@@ -225,8 +230,15 @@ resource "aws_cloudwatch_log_group" "opensearch" {
 
 # OpenSearch writes these streams itself, so the service principal needs its own grant on the log
 # groups. The domain's access policy governs requests to the domain and does not cover this.
+#
+# A resource policy is account-wide and AWS allows 10 per region, so an account at that quota takes
+# one hand-written policy covering every domain's log groups instead and sets
+# opensearch_create_log_resource_policy to false here. That leaves the log groups and the domain's
+# log_publishing_options in place, so the shared policy has groups to name and the domain keeps its
+# logs. With the toggle false and no such policy in the account, the domain create fails on the
+# log_publishing_options rather than coming up without logs.
 resource "aws_cloudwatch_log_resource_policy" "opensearch" {
-  count = local.opensearch_create && var.opensearch_create_log_resource_policy ? 1 : 0
+  count = local.opensearch_logs && var.opensearch_create_log_resource_policy ? 1 : 0
 
   policy_name = "${local.opensearch_domain_name}-logs"
 
@@ -274,7 +286,6 @@ resource "aws_opensearch_domain" "nexus_one" {
   # log_publishing_options with a validation error rather than creating the domain without logs.
   depends_on = [
     aws_cloudwatch_log_resource_policy.opensearch,
-    aws_iam_service_linked_role.opensearch,
   ]
 
   cluster_config {

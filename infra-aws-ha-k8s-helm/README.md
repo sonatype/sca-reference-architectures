@@ -148,6 +148,34 @@ domain fails on `DependencyViolation`.
 VPC it was built in. A deployment that builds its own network can then name this
 domain through `opensearch_domain_endpoint` and share the index with it.
 
+### One account-level prerequisite before the first domain
+
+A VPC domain needs the OpenSearch service-linked role,
+`AWSServiceRoleForAmazonOpenSearchService`, which is what OpenSearch assumes to
+put the domain's network interfaces in the private subnets. AWS creates it on its
+own when a VPC domain is made through the console, so an account that has ever
+held one already has it. Otherwise, once per account:
+
+```bash
+aws iam create-service-linked-role \
+  --aws-service-name opensearchservice.amazonaws.com
+```
+
+To check first:
+
+```bash
+aws iam list-roles \
+  --path-prefix /aws-service-role/opensearchservice.amazonaws.com/ \
+  --query 'Roles[].RoleName' --output text
+```
+
+The calling identity needs `iam:CreateServiceLinkedRole`. An account still
+carrying the legacy `AWSServiceRoleForAmazonElasticsearchService` role goes on
+using that one and needs nothing. This configuration deliberately does not create
+the role: AWS allows one per account while each deployment of this root is
+separate, so whichever deployment owned it would delete it out from under the
+others at teardown.
+
 What the created domain gets, none of which needs configuring:
 
 - **The private subnets of this VPC**, one per Availability Zone it spreads
@@ -226,6 +254,19 @@ Three CloudWatch log groups per domain, written by OpenSearch itself:
 | `/aws/opensearch/<cluster_name>-nexus-one/es_application_logs` | What the cluster itself saw: rejected writes, cluster state changes, errors behind a 5xx |
 
 Retention is `opensearch_log_retention_days`, 30 days by default.
+
+**An account at 10 CloudWatch Logs resource policies needs one written by
+hand.** OpenSearch writes these streams itself, so the service principal needs a
+resource policy granting it `logs:PutLogEvents` and `logs:CreateLogStream` on the
+groups. A resource policy is account-wide and AWS allows 10 per region, so a
+deployment into an account already at that quota fails with
+`LimitExceededException`. The answer is one policy covering every domain's log
+groups, written once outside Terraform, and `opensearch_create_log_resource_policy
+= false` in each deployment. That toggle skips the policy and nothing else: the
+log groups and the domain's `log_publishing_options` are still created, so the
+shared policy has groups to name. Setting it false with no such policy in the
+account is not a working configuration, the domain create then fails on the
+`log_publishing_options`.
 
 **The slow logs stay empty until a threshold is set.** OpenSearch ships with
 slow logging off per index, so set a threshold on the index to get any rows:
