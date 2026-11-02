@@ -280,36 +280,32 @@ variable "search_engine" {
 }
 
 variable "opensearch_domain_endpoint" {
-  description = "Host name of an existing OpenSearch domain, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Required when search_engine is \"opensearch\", ignored otherwise."
+  description = "Host name of an OpenSearch domain that already exists, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Setting this means the domain is NOT created here and this one is used instead. Leave empty to have this configuration create the domain."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_domain_endpoint) > 0
-    error_message = "opensearch_domain_endpoint must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_domain_name" {
   description = <<-EOT
-    Name of that same OpenSearch domain, for example "my-domain". Used only to
-    build the ARN the IQ Server pods' IAM role is granted data-plane access on, so
-    the grant names one domain rather than every domain in the account. Required
-    when search_engine is "opensearch".
+    Name of that same existing domain, for example "my-domain". Required when
+    opensearch_domain_endpoint is set, and ignored when the domain is created
+    here. Used to build the ARN the IQ Server pods' IAM role is granted
+    data-plane access on, so the grant names one domain rather than every domain
+    in the account.
 
-    The domain has to be in this same AWS account and in aws_region, because the
-    ARN is built from aws_region and the calling account. A domain in another
-    account or another region cannot be named this way, and the symptom is a 403
-    from the domain at runtime rather than an error at plan time. Reaching one
-    would need the full ARN supplied instead, plus a matching principal in the
-    domain's own access policy.
+    An existing domain has to be in this same AWS account and in aws_region,
+    because the ARN is built from aws_region and the calling account. A domain in
+    another account or another region cannot be named this way, and the symptom
+    is a 403 from the domain at runtime rather than an error at plan time.
+    Reaching one would need the full ARN supplied instead, plus a matching
+    principal in the domain's own access policy.
   EOT
   type        = string
   default     = ""
 
   validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_domain_name) > 0
-    error_message = "opensearch_domain_name must be set when search_engine is 'opensearch'."
+    condition     = length(var.opensearch_domain_endpoint) == 0 || length(var.opensearch_domain_name) > 0
+    error_message = "opensearch_domain_name must be set when opensearch_domain_endpoint names an existing domain."
   }
 }
 
@@ -347,9 +343,9 @@ variable "opensearch_instance_type" {
 }
 
 variable "opensearch_instance_count" {
-  description = "Data nodes in the created domain. Three is the smallest count that can place a replica and spread across three availability zones."
+  description = "Data nodes in the created domain. Two is the default, because this root builds two private subnets and AWS spreads data nodes evenly across the zones it is given. Two nodes in two zones with one replica keeps a complete copy of the index in each zone."
   type        = number
-  default     = 3
+  default     = 2
 
   validation {
     condition     = var.opensearch_instance_count >= 1 && var.opensearch_instance_count <= 20
@@ -389,9 +385,9 @@ variable "opensearch_volume_size_gb" {
 }
 
 variable "opensearch_availability_zone_count" {
-  description = "Availability zones the created domain's data nodes spread across. 1 disables zone awareness. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot."
+  description = "Availability zones the created domain's data nodes spread across. 1 disables zone awareness. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot. Two is the default and the most this root supports, because it builds two private subnets and the domain needs one subnet per zone. Three needs a third private subnet in main.tf."
   type        = number
-  default     = 3
+  default     = 2
 
   validation {
     condition     = contains([1, 2, 3], var.opensearch_availability_zone_count)
@@ -410,10 +406,29 @@ variable "opensearch_log_retention_days" {
   }
 }
 
+variable "opensearch_create_log_resource_policy" {
+  description = <<-EOT
+    Whether to create the CloudWatch Logs resource policy that lets OpenSearch
+    write the created domain's slow and application logs.
+
+    A resource policy is account-wide and AWS allows 10 per region, so an account
+    already at that quota cannot take another one and the apply fails with
+    LimitExceededException. Setting this to false skips the policy and the
+    domain's three log groups with it, which leaves the domain without its own
+    logs: a 5xx it returned then has no account on the OpenSearch side.
+
+    The usual answer at the quota is one policy covering every domain's log
+    groups, written once by hand outside this configuration, and this set to
+    false in each deployment.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "opensearch_index_replicas" {
-  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. A domain with more than one data node should carry at least 1 so losing a node does not mean rebuilding the index."
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. One is the default here, matching the default domain's two data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
   type        = number
-  default     = 0
+  default     = 1
 
   validation {
     condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10

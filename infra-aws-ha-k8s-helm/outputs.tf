@@ -188,7 +188,7 @@ output "search_engine" {
 }
 
 output "opensearch_domain_endpoint" {
-  description = "Host name of the OpenSearch domain IQ Server is configured against. Empty when search_engine is lucene. The domain itself is not created here"
+  description = "Host name of the OpenSearch domain IQ Server is configured against. Empty when search_engine is lucene. The domain is created here unless opensearch_domain_endpoint names one that already exists"
   value       = var.search_engine == "opensearch" ? local.opensearch_endpoint : ""
 }
 

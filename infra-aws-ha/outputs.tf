@@ -204,7 +204,7 @@ output "architecture_summary" {
     compute_platform   = "Amazon ECS Fargate"
     database_type      = "Aurora PostgreSQL Cluster"
     storage_type       = "Amazon EFS"
-    search_backend     = var.search_engine == "opensearch" ? "AWS-managed OpenSearch, supplied not provisioned" : "Lucene, built into IQ Server"
+    search_backend     = var.search_engine == "opensearch" ? (local.opensearch_create ? "AWS-managed OpenSearch, created here" : "AWS-managed OpenSearch, named through opensearch_domain_endpoint") : "Lucene, built into IQ Server"
     load_balancer      = "Application Load Balancer"
     ssl_enabled        = var.ssl_certificate_arn != ""
     waf_enabled        = true
@@ -230,7 +230,7 @@ output "search_engine" {
 }
 
 output "opensearch_domain_endpoint" {
-  description = "Host name of the OpenSearch domain IQ Server is configured against. Empty when search_engine is lucene. The domain itself is not created here"
+  description = "Host name of the OpenSearch domain IQ Server is configured against. Empty when search_engine is lucene. The domain is created here unless opensearch_domain_endpoint names one that already exists"
   value       = var.search_engine == "opensearch" ? local.opensearch_endpoint : ""
 }
 

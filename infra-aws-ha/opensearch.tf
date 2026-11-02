@@ -12,19 +12,23 @@
 #
 # The domain holds the index, and rebuilding that index on a large estate is
 # measured in hours, so a `terraform destroy` that takes the domain with it is a
-# real loss. The earlier answer was to leave the domain out of this
-# configuration entirely, which protected the data and left a customer who
-# builds exactly what we publish with no way to turn Nexus One on.
+# real loss. It therefore carries `prevent_destroy`, which makes losing the index
+# a decision rather than a side effect.
 #
-# So the domain is created here and carries `prevent_destroy`. A deliberate
-# teardown removes it from state first:
+# Keeping the domain while destroying everything else is not one of the choices.
+# The domain's network interfaces sit in this VPC's private subnets and hold its
+# security group, so destroying the VPC around a live domain fails on
+# DependencyViolation. A teardown therefore deletes the domain too:
 #
 #     terraform state rm aws_opensearch_domain.nexus_one
+#     aws opensearch delete-domain --domain-name <the domain>
+#     # wait for the domain to finish deleting, which releases its interfaces
 #     terraform destroy
 #
-# and then the domain is deleted by hand, or kept and named through
-# opensearch_domain_endpoint on the next apply. That makes losing the index a
-# decision rather than a side effect.
+# The state rm is what gets past prevent_destroy; the delete is what releases the
+# subnets. To keep the index, keep the VPC with it: leave this deployment
+# standing, and name the domain through opensearch_domain_endpoint from any
+# deployment that builds its own network.
 #
 # SIZING. The shape each size needs is in the OpenSearch section of this
 # directory's README.md. The variables below default to the smallest supported
@@ -38,10 +42,25 @@ locals {
   # an apply that silently prefers one.
   opensearch_create = var.search_engine == "opensearch" && length(var.opensearch_domain_endpoint) == 0
 
+  # AWS caps a domain name at 28 characters, and "-nexus-one" takes 10 of them,
+  # so cluster_name contributes at most 18. cluster_name is allowed to be longer
+  # than that because the names it has to fit elsewhere are longer, so the
+  # prefix is truncated here rather than the deployment being refused. Two
+  # deployments whose cluster_name shares its first 18 characters would ask for
+  # the same domain name, so keep that part distinct.
+  opensearch_domain_name = format(
+    "%s-nexus-one",
+    replace(substr(var.cluster_name, 0, min(18, length(var.cluster_name))), "/-+$/", "")
+  )
+
   # Dedicated master nodes are what keep a multi-node domain's cluster state off
   # the data nodes. AWS requires three for a quorum, so this is on or off rather
   # than a count, and it is off for a single data node where there is no quorum
   # to form and nothing to protect.
+  # The domain's own logs need the account-wide resource policy, so they are on or
+  # off together: three log groups nothing may write to are worse than none.
+  opensearch_logs = local.opensearch_create && var.opensearch_create_log_resource_policy
+
   opensearch_dedicated_master = local.opensearch_create && var.opensearch_instance_count > 1
 
   # Zone awareness spreads shards across availability zones, and needs the data
@@ -58,6 +77,29 @@ locals {
   opensearch_name = local.opensearch_create ? (
     length(aws_opensearch_domain.nexus_one) > 0 ? aws_opensearch_domain.nexus_one[0].domain_name : ""
   ) : var.opensearch_domain_name
+}
+
+# The service-linked role OpenSearch assumes to put the domain's network
+# interfaces in these subnets. AWS creates it on its own when a VPC domain is
+# created through the console, and the first apply in an account that has never
+# held a VPC domain has no role to assume.
+#
+# One per account is all AWS allows, so this looks for an existing one first and
+# a second deployment finds the first deployment's role rather than failing on
+# InvalidInput. The lookup returns an empty list rather than an error when there
+# is none, which is why it reads roles by prefix rather than by name.
+#
+# The calling identity needs iam:CreateServiceLinkedRole for this, and an account
+# still carrying the legacy AWSServiceRoleForAmazonElasticsearchService role goes
+# on using that one.
+data "aws_iam_roles" "opensearch_service_linked" {
+  path_prefix = "/aws-service-role/opensearchservice.amazonaws.com/"
+}
+
+resource "aws_iam_service_linked_role" "opensearch" {
+  count = local.opensearch_create && length(data.aws_iam_roles.opensearch_service_linked.names) == 0 ? 1 : 0
+
+  aws_service_name = "opensearchservice.amazonaws.com"
 }
 
 # The domain sits in the private subnets with the ECS tasks, so it is not
@@ -91,22 +133,22 @@ resource "aws_security_group" "opensearch" {
 # Audit logs are not here: they need fine-grained access control, which this architecture cannot turn
 # on without breaking SigV4.
 resource "aws_cloudwatch_log_group" "opensearch" {
-  for_each = local.opensearch_create ? toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"]) : toset([])
+  for_each = local.opensearch_logs ? toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"]) : toset([])
 
-  name              = "/aws/opensearch/${var.cluster_name}-nexus-one/${lower(each.key)}"
+  name              = "/aws/opensearch/${local.opensearch_domain_name}/${lower(each.key)}"
   retention_in_days = var.opensearch_log_retention_days
 
   tags = merge(var.common_tags, {
-    Name = "${var.cluster_name}-nexus-one-${lower(each.key)}"
+    Name = "${local.opensearch_domain_name}-${lower(each.key)}"
   })
 }
 
 # OpenSearch writes these streams itself, so the service principal needs its own grant on the log
 # groups. The domain's access policy governs requests to the domain and does not cover this.
 resource "aws_cloudwatch_log_resource_policy" "opensearch" {
-  count = local.opensearch_create ? 1 : 0
+  count = local.opensearch_create && var.opensearch_create_log_resource_policy ? 1 : 0
 
-  policy_name = "${var.cluster_name}-nexus-one-logs"
+  policy_name = "${local.opensearch_domain_name}-logs"
 
   policy_document = jsonencode({
     Version = "2012-10-17"
@@ -124,7 +166,7 @@ resource "aws_cloudwatch_log_resource_policy" "opensearch" {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
           ArnLike = {
-            "aws:SourceArn" = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${var.cluster_name}-nexus-one"
+            "aws:SourceArn" = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_domain_name}"
           }
         }
       }
@@ -135,11 +177,11 @@ resource "aws_cloudwatch_log_resource_policy" "opensearch" {
 resource "aws_opensearch_domain" "nexus_one" {
   count = local.opensearch_create ? 1 : 0
 
-  domain_name    = "${var.cluster_name}-nexus-one"
+  domain_name    = local.opensearch_domain_name
   engine_version = var.opensearch_engine_version
 
   dynamic "log_publishing_options" {
-    for_each = toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"])
+    for_each = local.opensearch_logs ? toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"]) : toset([])
 
     content {
       log_type                 = log_publishing_options.key
@@ -150,7 +192,10 @@ resource "aws_opensearch_domain" "nexus_one" {
 
   # The service-side grant has to exist before the domain tries to publish, or AWS rejects the
   # log_publishing_options with a validation error rather than creating the domain without logs.
-  depends_on = [aws_cloudwatch_log_resource_policy.opensearch]
+  depends_on = [
+    aws_cloudwatch_log_resource_policy.opensearch,
+    aws_iam_service_linked_role.opensearch,
+  ]
 
   cluster_config {
     instance_type  = var.opensearch_instance_type
@@ -199,8 +244,10 @@ resource "aws_opensearch_domain" "nexus_one" {
   }
 
   # The IQ Server task role alone, named rather than wildcarded, so only this
-  # deployment's own tasks can reach the index. IQ signs its requests with
-  # SigV4, which is why an IAM principal rather than a user and password.
+  # deployment's own tasks can reach the index. An IAM principal rather than a
+  # user and password, because fine-grained access control is off: the domain
+  # keeps no user database, so a SigV4-signed request is the only kind it can
+  # authenticate.
   access_policies = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -208,7 +255,7 @@ resource "aws_opensearch_domain" "nexus_one" {
         Effect    = "Allow"
         Principal = { AWS = aws_iam_role.ecs_task_role.arn }
         Action    = "es:*"
-        Resource  = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${var.cluster_name}-nexus-one/*"
+        Resource  = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_domain_name}/*"
       }
     ]
   })
@@ -217,6 +264,11 @@ resource "aws_opensearch_domain" "nexus_one" {
     # See the note at the top of this file. The domain holds the index, and
     # rebuilding it is measured in hours, so removing it has to be deliberate.
     prevent_destroy = true
+
+    precondition {
+      condition     = length(local.opensearch_domain_name) <= 28
+      error_message = "The domain name built from cluster_name is longer than the 28 characters AWS allows. opensearch.tf truncates cluster_name to 18 characters for this, so reaching this message means that truncation was changed."
+    }
 
     precondition {
       condition = !local.opensearch_zone_aware || (
@@ -232,6 +284,6 @@ resource "aws_opensearch_domain" "nexus_one" {
   }
 
   tags = {
-    Name = "${var.cluster_name}-nexus-one"
+    Name = local.opensearch_domain_name
   }
 }

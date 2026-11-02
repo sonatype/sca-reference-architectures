@@ -57,9 +57,31 @@ echo ""
 echo -e "${BLUE}🔍 Checking Existing Infrastructure${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy > /dev/null 2>&1
+# `set -e` is on, so a failing plan would end the script before the check below
+# could read its status, and the script would exit non-zero having printed
+# nothing. PLAN_STATUS is assigned on the failure branch rather than read from
+# `$?` after a `|| true`, which would always be 0. The output is kept because a
+# plan fails for two very different reasons and they need different answers.
+PLAN_STATUS=0
+PLAN_OUTPUT=$(aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy 2>&1) || PLAN_STATUS=$?
 
-if [[ $? -ne 0 ]]; then
+if [[ $PLAN_STATUS -ne 0 ]]; then
+    if grep -q "prevent_destroy" <<<"$PLAN_OUTPUT"; then
+        echo -e "${RED}❌ A resource carrying prevent_destroy is in the way${NC}"
+        echo ""
+        echo "The OpenSearch domain holds the Nexus One index, so Terraform refuses to"
+        echo "plan its destruction. Removing it from state gets past that, and the domain"
+        echo "itself then has to be deleted before the VPC can be, because its network"
+        echo "interfaces sit in these subnets:"
+        echo ""
+        echo "  terraform state rm aws_opensearch_domain.nexus_one"
+        echo "  aws opensearch delete-domain --domain-name <the domain>"
+        echo "  # wait for the domain to finish deleting, then re-run this script"
+        echo ""
+        echo "See the OpenSearch section of README.md before doing any of that."
+        exit 1
+    fi
+
     echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
     echo "Nothing to destroy."
     exit 0
@@ -68,7 +90,7 @@ fi
 echo -e "${BLUE}📊 Resources to be Destroyed${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy
+printf '%s\n' "$PLAN_OUTPUT"
 
 echo ""
 echo -e "${RED}⚠️  DANGER: Permanent Destruction${NC}"

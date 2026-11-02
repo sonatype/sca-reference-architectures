@@ -107,11 +107,19 @@ state, so removing it is deliberate:
 
 ```bash
 terraform state rm aws_opensearch_domain.nexus_one
+aws opensearch delete-domain --domain-name <the domain>
+# wait for the domain to finish deleting, which releases its interfaces
 terraform destroy
 ```
 
-The domain then survives, to be deleted by hand or named through
-`opensearch_domain_endpoint` on the next apply.
+The `state rm` is what gets past `prevent_destroy`. The delete is what lets the
+rest of the teardown finish: the domain's network interfaces sit in this VPC's
+private subnets and hold its security group, so destroying the VPC around a live
+domain fails on `DependencyViolation`.
+
+**To keep the index, keep this deployment standing.** A domain cannot outlive the
+VPC it was built in. A deployment that builds its own network can then name this
+domain through `opensearch_domain_endpoint` and share the index with it.
 
 What the created domain gets, none of which needs configuring:
 
@@ -123,11 +131,6 @@ What the created domain gets, none of which needs configuring:
 - **No dedicated master nodes at one data node**, since there is no cluster
   state worth separating. Raising `opensearch_instance_count` above 1 adds
   three.
-
-**Fine-grained access control stays off**, and that is not a choice this
-configuration leaves open. Turning it on gives the domain an internal user
-database and changes how every request is authenticated, so SigV4 alone no
-longer reaches it and `type: aws` stops working.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
 index.** Turning it on gives the domain an internal user database and changes how
@@ -198,6 +201,14 @@ search:
   domain: https://<the created domain's endpoint, or opensearch_domain_endpoint>
   region: <aws_region>
   nexusOneIndexReplicas: <opensearch_index_replicas>
+
+nexusOne:
+  connection:
+    type: aws
+    mode: OPENSEARCH
+    domain: https://<the same endpoint>
+    region: <aws_region>
+    nexusOneIndexReplicas: <opensearch_index_replicas>
 ```
 
 - **`type: aws`** signs every request with SigV4 through the task role.
@@ -208,6 +219,10 @@ search:
 - **`nexusOneIndexReplicas`** is always written, because IQ Server's own
   default is 0 and this configuration states the value rather than inheriting
   it.
+- **`nexusOne.connection` repeats the same fields** because it is the only
+  block the Nexus One index reads. With `search:` set and this one absent, the
+  index store has no transport and turning the feature on is refused. Both name
+  the same domain.
 
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created.

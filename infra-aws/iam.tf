@@ -128,12 +128,9 @@ resource "aws_iam_role_policy" "ecs_task_policy" {
         ]
       }] : [],
       var.search_engine == "opensearch" ? [{
-        # Lets the task role sign its OpenSearch requests with SigV4, which is what
-        # config.yml's "aws" search type does. A domain with fine-grained access
-        # control turned off keeps no user database, so it cannot check a user name
-        # and password and only accepts signed requests. AWS checks each HTTP verb
-        # against its own action, so all five are granted rather than guessing which
-        # ones IQ Server uses.
+        # One action per HTTP verb, because that is how AWS checks a signed
+        # OpenSearch request. The domain's access_policies in opensearch.tf says
+        # why a signed request is the only kind it accepts.
         Effect = "Allow"
         Action = [
           "es:ESHttpGet",

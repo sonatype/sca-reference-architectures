@@ -105,9 +105,9 @@ domain instead of the index built into the server. Set `search_engine` to
 ```hcl
 search_engine                      = "opensearch"
 opensearch_instance_type           = "m8g.large.search"
-opensearch_instance_count          = 3
+opensearch_instance_count          = 2
 opensearch_volume_size_gb          = 50
-opensearch_availability_zone_count = 3
+opensearch_availability_zone_count = 2
 opensearch_index_replicas          = 1
 ```
 
@@ -134,27 +134,30 @@ state, so removing it is deliberate:
 
 ```bash
 terraform state rm aws_opensearch_domain.nexus_one
+aws opensearch delete-domain --domain-name <the domain>
+# wait for the domain to finish deleting, which releases its interfaces
 terraform destroy
 ```
 
-The domain then survives, to be deleted by hand or named through
-`opensearch_domain_endpoint` on the next apply.
+The `state rm` is what gets past `prevent_destroy`. The delete is what lets the
+rest of the teardown finish: the domain's network interfaces sit in this VPC's
+private subnets and hold its security group, so destroying the VPC around a live
+domain fails on `DependencyViolation`.
+
+**To keep the index, keep this deployment standing.** A domain cannot outlive the
+VPC it was built in. A deployment that builds its own network can then name this
+domain through `opensearch_domain_endpoint` and share the index with it.
 
 What the created domain gets, none of which needs configuring:
 
 - **The private subnets of this VPC**, one per Availability Zone it spreads
-  across, reachable on 443 from the EKS nodes alone.
+  across, reachable on 443 from the EKS node security groups alone.
 - **Encryption at rest and node to node**, and TLS 1.2 enforced.
 - **An access policy naming the pods' IRSA role and no other principal**, so
   nothing has to be wired up by hand after the apply. The pods sign with SigV4
   through that role, and `iq_server_irsa_role_arn` outputs it.
 - **Three dedicated master nodes** whenever there is more than one data node,
   which keeps cluster state off the nodes serving queries.
-
-**Fine-grained access control stays off**, and that is not a choice this
-configuration leaves open. Turning it on gives the domain an internal user
-database and changes how every request is authenticated, so SigV4 alone no
-longer reaches it and `type: aws` stops working.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
 index.** Turning it on gives the domain an internal user database and changes how
@@ -188,9 +191,9 @@ endpoint.
 
 | Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Replicas |
 |------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|
-| **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 50 GB | 3 x `m8g.medium.search` | 3 | 1 |
-| **L** | 10,000 - 20,000 | 3 | `m8g.xlarge.search` | 8 GiB | 100 GB | 3 x `m8g.medium.search` | 3 | 1 |
-| **XL** | 20,000 - 80,000 | 3 | `m8g.2xlarge.search` | 16 GiB | 100 GB | 3 x `m8g.large.search` | 3 | 1 |
+| **M** | 2,000 - 10,000 | 2 | `m8g.large.search` | 4 GiB | 50 GB | 3 x `m8g.medium.search` | 2 | 1 |
+| **L** | 10,000 - 20,000 | 2 | `m8g.xlarge.search` | 8 GiB | 100 GB | 3 x `m8g.medium.search` | 2 | 1 |
+| **XL** | 20,000 - 80,000 | 2 | `m8g.2xlarge.search` | 16 GiB | 100 GB | 3 x `m8g.large.search` | 2 | 1 |
 
 Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
 not a setting this configuration can change.
@@ -200,9 +203,12 @@ measured under
 [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930). Measure your own
 estate until it reports.
 
-Three data nodes at every size, because three is the smallest count that both
-places a replica and spreads across three Availability Zones. At 0 replicas a
-lost node means the index is rebuilt rather than recovered.
+**Two zones, because that is what this architecture builds.** `main.tf` creates
+two private subnets, and the domain needs one subnet per zone, so two is the
+most it can spread across. Two nodes with one replica keeps a complete copy of
+the index in each zone, and a node count has to divide evenly by the zone count
+or AWS refuses the domain. Three zones needs a third private subnet in `main.tf`
+first; `opensearch.tf` refuses the plan rather than failing inside `slice()`.
 
 **Storage holds more than one copy of the index.** A replica doubles it, a
 rebuild holds a second generation for the whole run and for 30 minutes after
@@ -245,6 +251,14 @@ search:
   domain: https://<the created domain's endpoint, or opensearch_domain_endpoint>
   region: <aws_region>
   nexusOneIndexReplicas: <opensearch_index_replicas>
+
+nexusOne:
+  connection:
+    type: aws
+    mode: OPENSEARCH
+    domain: https://<the same endpoint>
+    region: <aws_region>
+    nexusOneIndexReplicas: <opensearch_index_replicas>
 ```
 
 - **`type: aws`** signs every request with SigV4 through the pod's role.
@@ -255,6 +269,10 @@ search:
 - **`nexusOneIndexReplicas`** is always written, because IQ Server's own
   default is 0 and this configuration states the value rather than inheriting
   it.
+- **`nexusOne.connection` repeats the same fields** because it is the only
+  block the Nexus One index reads. With `search:` set and this one absent, the
+  index store has no transport and turning the feature on is refused. Both name
+  the same domain.
 
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created.

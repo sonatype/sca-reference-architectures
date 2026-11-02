@@ -85,9 +85,13 @@ search_engine = "lucene"
 # opensearch_dedicated_master_type   = "m8g.large.search"
 #
 # Every size:
-# opensearch_instance_count          = 3
-# opensearch_availability_zone_count = 3
+# opensearch_instance_count          = 2
+# opensearch_availability_zone_count = 2
 # opensearch_index_replicas          = 1
+#
+# Two zones is the most this root supports, because main.tf builds two private
+# subnets and the domain needs one per zone. A node count has to divide evenly
+# by the zone count, so three nodes needs a third private subnet first.
 #
 # To use a domain you already run, set these two instead of the shape above and
 # nothing is created:

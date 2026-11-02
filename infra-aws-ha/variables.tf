@@ -452,10 +452,29 @@ variable "opensearch_log_retention_days" {
   }
 }
 
+variable "opensearch_create_log_resource_policy" {
+  description = <<-EOT
+    Whether to create the CloudWatch Logs resource policy that lets OpenSearch
+    write the created domain's slow and application logs.
+
+    A resource policy is account-wide and AWS allows 10 per region, so an account
+    already at that quota cannot take another one and the apply fails with
+    LimitExceededException. Setting this to false skips the policy and the
+    domain's three log groups with it, which leaves the domain without its own
+    logs: a 5xx it returned then has no account on the OpenSearch side.
+
+    The usual answer at the quota is one policy covering every domain's log
+    groups, written once by hand outside this configuration, and this set to
+    false in each deployment.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "opensearch_index_replicas" {
-  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. A domain with more than one data node should carry at least 1 so losing a node does not mean rebuilding the index."
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. One is the default here, matching the default domain's three data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
   type        = number
-  default     = 0
+  default     = 1
 
   validation {
     condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
