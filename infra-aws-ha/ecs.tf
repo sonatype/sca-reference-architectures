@@ -139,12 +139,27 @@ logging:
     archivedFileCount: 50
 
 %{if var.search_engine == "opensearch"}
+# Advanced Search reads this block.
 search:
   type: aws
   mode: OPENSEARCH
   domain: https://${local.opensearch_endpoint}
   region: ${var.aws_region}
   nexusOneIndexReplicas: ${var.opensearch_index_replicas}
+
+# The Nexus One index reads this one, and only this one. Both name the same domain.
+#
+# Two separate blocks because IQ Server builds the Nexus One index's connection from
+# nexusOne.connection alone: with search: set and this absent, the index store has no transport and
+# enabling the nexus-one feature is refused. The fields are the same, because both bind to the same
+# configuration class.
+nexusOne:
+  connection:
+    type: aws
+    mode: OPENSEARCH
+    domain: https://${local.opensearch_endpoint}
+    region: ${var.aws_region}
+    nexusOneIndexReplicas: ${var.opensearch_index_replicas}
 %{endif}
 
 createSampleData: true

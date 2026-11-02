@@ -70,12 +70,26 @@ iq_server:
     # region on purpose. Both scripts substitute those names over the whole file
     # for the database and for CloudWatch, with no line anchor, so a search key
     # called hostname would be handed the database endpoint instead.
+    # Advanced Search reads this block.
     search:
       type: aws
       mode: OPENSEARCH
       domain: "https://OPENSEARCH_DOMAIN_PLACEHOLDER"
       region: "OPENSEARCH_REGION_PLACEHOLDER"
       nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
+
+    # The Nexus One index reads this one, and only this one. Both name the same domain.
+    #
+    # Two separate blocks because IQ Server builds the Nexus One index's connection from
+    # nexusOne.connection alone: with search: set and this absent, the index store has no
+    # transport and enabling the nexus-one feature is refused.
+    nexusOne:
+      connection:
+        type: aws
+        mode: OPENSEARCH
+        domain: "https://OPENSEARCH_DOMAIN_PLACEHOLDER"
+        region: "OPENSEARCH_REGION_PLACEHOLDER"
+        nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
     # END search backend
 
     server:
