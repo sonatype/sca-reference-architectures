@@ -99,9 +99,11 @@ Choose your deployment size based on your application count and daily evaluation
 | **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required |
 | **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required |
 
-> ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing.
+> ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing, though the memory and heap that testing ran with are not recorded here.
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
+
+> **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
 
 ### Step 1: Choose Your Reference Architecture
 
@@ -182,8 +184,8 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Compute** | | | |
 | Instance type | r6g.2xlarge (ARM) or r5.2xlarge (x86) | r6g.2xlarge (ARM) or r5.2xlarge (x86) | r6g.4xlarge (ARM) or r5.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
-| Memory | 64 GB | 64 GB | 128 GB |
-| Java Heap | `-Xms44g -Xmx44g` | `-Xms44g -Xmx44g` | `-Xms96g -Xmx96g` |
+| Memory | 60 GB Fargate task, or 64 GB per EKS node | 60 GB Fargate task, or 64 GB per EKS node | 120 GB Fargate task, or 128 GB per EKS node |
+| Java Heap | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms96g -Xmx96g` |
 | **Database** | | | |
 | Service | RDS PostgreSQL 15+ or Aurora PostgreSQL | Aurora PostgreSQL 15+ (recommended) | Aurora PostgreSQL 15+ (strongly recommended) |
 | Instance class | db.r6g.2xlarge (8 vCPU, 64 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | db.r6g.4xlarge (16 vCPU, 128 GB) |
@@ -617,6 +619,8 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 | **M** | 64 GB | 48 GB | 8 GB | 10 |
 | **L** | 64 GB | 48 GB | 8 GB | 10 |
 | **XL** | 128 GB | 96 GB | 8 GB | 10 |
+
+> **On AWS Fargate, M and L run a 44 GB heap, not 48 GB.** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps its 96 GB heap, which leaves 16 GB of a 120 GB task.
 
 ---
 

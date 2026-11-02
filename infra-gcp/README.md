@@ -301,7 +301,7 @@ This is a **single instance** deployment.
 ## Persistent Storage
 
 - **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (1 TB minimum)
-- **Database**: Cloud SQL PostgreSQL 17 for application data
+- **Database**: Cloud SQL PostgreSQL 15 for application data
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 
 ## Networking
