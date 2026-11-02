@@ -443,9 +443,9 @@ enable_prometheus        = true
 log_retention_days       = 30
 
 # Search Backend (optional)
-# "lucene" (default) uses the index built into IQ Server. "opensearch" points
-# IQ Server at an OpenSearch domain that already exists, which this
-# configuration does not create. See the OpenSearch section above.
+# "lucene" (default) uses the index built into IQ Server. "opensearch" creates
+# a domain here, or uses one you already run if you set
+# opensearch_domain_endpoint. See the OpenSearch section above.
 search_engine = "lucene"
 # opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
 # opensearch_domain_name     = "my-domain"
@@ -531,6 +531,9 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
 - **Auto Scaling Metrics**: CPU and memory utilization tracking
 - **ALB Access Logs**: Load balancer access logs stored in S3
+- **OpenSearch Metrics**: `ClusterStatus`, `FreeStorageSpace`, `ClusterIndexWritesBlocked` and
+  the rest published to CloudWatch by the service, plus the domain's two slow logs and its
+  application log. No alarms are created; see the OpenSearch section above
 
 ## Persistent Storage
 

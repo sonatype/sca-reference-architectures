@@ -260,7 +260,7 @@ variable "log_retention_days" {
 #
 # "opensearch" needs an OpenSearch domain that already exists, named in
 # opensearch_domain_name and reached at opensearch_domain_endpoint. This
-# configuration deliberately does not create the domain. The domain holds the
+# configuration creates the domain unless you name one. The domain holds the
 # index, so keeping it outside Terraform means switching engines, replacing the
 # node group or destroying this stack never deletes the indexed data, and the
 # domain can be resized, upgraded and backed up on its own schedule.

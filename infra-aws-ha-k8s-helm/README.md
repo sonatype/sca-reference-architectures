@@ -603,6 +603,9 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **HPA Metrics**: Horizontal Pod Autoscaler metrics
 - **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
 - **EKS Control Plane Logs**: Audit, authenticator, controller logs
+- **OpenSearch Metrics**: `ClusterStatus`, `FreeStorageSpace`, `ClusterIndexWritesBlocked` and
+  the rest published to CloudWatch by the service, plus the domain's two slow logs and its
+  application log. No alarms are created; see the OpenSearch section above
 
 ## Persistent Storage
 

@@ -476,6 +476,9 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **Container Insights**: ECS cluster monitoring enabled
 - **RDS Enhanced Monitoring**: Database performance metrics
 - **ALB Access Logs**: Load balancer access logs stored in S3
+- **OpenSearch Metrics**: `ClusterStatus`, `FreeStorageSpace`, `ClusterIndexWritesBlocked` and
+  the rest published to CloudWatch by the service, plus the domain's two slow logs and its
+  application log. No alarms are created; see the OpenSearch section above
 
 ## Persistent Storage
 
