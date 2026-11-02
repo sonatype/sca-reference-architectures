@@ -14,6 +14,13 @@ HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
+# tfvar, load_search_vars and write_search_block. helm-install.sh sources the
+# same file. An upgrade rebuilds helm-values-runtime.yaml from scratch and
+# passes no --reuse-values, so without this the search: block would be absent
+# from the upgraded release and IQ Server would fall back to Lucene.
+# shellcheck source=search-values.sh
+source "$(dirname "$0")/search-values.sh"
+
 echo -e "${BLUE}🔄 Nexus IQ Server HA on AKS - Helm Upgrade${NC}"
 echo "================================================"
 echo ""
@@ -91,13 +98,15 @@ if [[ -f "terraform.tfstate" ]]; then
     echo "• Cluster: $CLUSTER_NAME"
     echo "• Resource Group: $RESOURCE_GROUP"
 else
-    AZURE_REGION=$(grep '^location' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "eastus")
+    AZURE_REGION=$(tfvar location)
+    AZURE_REGION=${AZURE_REGION:-eastus}
 fi
 echo ""
 
 helm repo update >/dev/null 2>&1
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
+CHART_VERSION=$(tfvar helm_chart_version)
+CHART_VERSION=${CHART_VERSION:-latest}
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"
@@ -105,12 +114,11 @@ echo "━━━━━━━━━━━━━━━━━━━"
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
-# sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
-# pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
-# The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
-# which is tr's and is 0 even when grep matched nothing, so it never fired.
-REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+DB_PASSWORD=$(tfvar database_password)
+REPLICA_COUNT=$(tfvar nexus_iq_replica_count)
+# tfvar prints nothing for a key that is not set, and an empty replica count makes the sed below
+# write "replicas:" with no value, which is invalid YAML. 3 is the Size L pod count this root
+# publishes, and is the default the grep form this replaced also used.
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
@@ -119,6 +127,20 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
         -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
         -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
+fi
+
+# Written after that sed, because neither of its two patterns carries a line
+# anchor and a password: key written earlier would take the database password.
+load_search_vars
+if ! write_search_block "$TEMP_VALUES_FILE"; then
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
+if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
+    echo "• Search backend: OpenSearch at $SEARCH_URI"
+else
+    echo "• Search backend: Lucene (embedded)"
 fi
 
 echo "• Chart Version: $CHART_VERSION"

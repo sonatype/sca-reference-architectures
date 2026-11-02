@@ -319,7 +319,7 @@ variable "opensearch_username" {
 }
 
 variable "opensearch_password" {
-  description = "Password for opensearch_username. Stored as a Key Vault secret and passed to the container app as a secret rather than a plain environment variable. Keep it in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  description = "Password for opensearch_username. Delivered to the container app as a secret rather than a plain environment variable, and also written to Key Vault alongside the four database secrets, so the vault is the record of every credential this deployment holds. Nothing reads it back out of the vault. sensitive = true only keeps it out of CLI output: Terraform holds every variable in the state file as plain text, so treat terraform.tfstate as a secret, keep it in a backend that encrypts at rest and restrict who can read it. Keep the value in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
   type        = string
   default     = ""
   sensitive   = true
@@ -341,8 +341,3 @@ variable "opensearch_index_replicas" {
   }
 }
 
-variable "opensearch_allowed_cidrs" {
-  description = "CIDRs the container app subnets may reach on opensearch_port, added as an outbound rule on the private network security group. Azure's own default rules already allow outbound traffic inside the VNet and to the internet, so this is an explicit statement of intent that keeps working if you replace those defaults. Empty adds no rule."
-  type        = list(string)
-  default     = []
-}

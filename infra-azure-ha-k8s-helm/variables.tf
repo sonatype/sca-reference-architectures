@@ -378,7 +378,7 @@ variable "opensearch_username" {
 }
 
 variable "opensearch_password" {
-  description = "Password for opensearch_username. This root has no Key Vault, so helm-install.sh reads this out of terraform.tfvars and writes it into helm-values-runtime.yaml, which that root's .gitignore excludes. That is the same route database_password already takes. Keep it in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  description = "Password for opensearch_username. This root has no Key Vault, so helm-install.sh and helm-upgrade.sh read it out of terraform.tfvars and write it into helm-values-runtime.yaml, which that root's .gitignore excludes. That is the same route database_password already takes. sensitive = true only keeps it out of CLI output: Terraform holds every variable in the state file as plain text, so treat terraform.tfstate as a secret, keep it in a backend that encrypts at rest and restrict who can read it. Keep the value in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
   type        = string
   default     = ""
   sensitive   = true
@@ -398,12 +398,6 @@ variable "opensearch_index_replicas" {
     condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
     error_message = "opensearch_index_replicas must be between 0 and 10."
   }
-}
-
-variable "opensearch_allowed_cidrs" {
-  description = "CIDRs the AKS subnet may reach on opensearch_port, added as an outbound rule on the AKS network security group. Azure's own default rules already allow outbound traffic inside the VNet and to the internet, so this is an explicit statement of intent that keeps working if you replace those defaults. Empty adds no rule."
-  type        = list(string)
-  default     = []
 }
 
 

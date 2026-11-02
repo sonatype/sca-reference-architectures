@@ -349,7 +349,6 @@ opensearch_use_tls        = true
 opensearch_username       = "iq-server"
 opensearch_password       = "<strong password>"
 opensearch_index_replicas = 0
-opensearch_allowed_cidrs  = ["10.0.40.0/24"]
 ```
 
 | Variable | Default | What it does |
@@ -359,12 +358,11 @@ opensearch_allowed_cidrs  = ["10.0.40.0/24"]
 | `opensearch_port` | `9200` | The port the cluster listens on |
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
-| `opensearch_password` | `""` | That user's password. Goes to Key Vault and to a container app secret, never into a plain environment variable |
+| `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, the route `db_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
 | `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
-| `opensearch_allowed_cidrs` | `[]` | CIDRs the IQ Server subnet may reach on `opensearch_port`, added as an outbound network security rule |
 
-Leave `search_engine` at `lucene` and nothing changes: no secrets are created, no network rule is
-added, and `config.yml` is byte-identical to a deployment that never knew about this section.
+Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` is
+byte-identical to a deployment that never knew about this section.
 
 ### What reaches `config.yml`
 
@@ -373,10 +371,17 @@ search:
   type: http
   mode: OPENSEARCH
   uri: https://opensearch.internal.example.com:9200
-  username: iq-server
-  password: <from the container app secret>
+  username: 'iq-server'
+  password: '<from the container app secret>'
   nexusOneIndexReplicas: 0
 ```
+
+The two credentials are single-quoted, and the entrypoint appends them with `printf` rather than
+substituting them into the template with `sed`. A single-quoted YAML scalar is literal, so a `|`,
+`&`, `\` or ` #` in the password is only that character, and nothing in the value can change the
+file's structure. The one character YAML gives meaning to inside single quotes is `'` itself, which
+doubles. The entrypoint also prints the generated file with every `password:` line redacted, so
+neither credential reaches Log Analytics.
 
 Three things about that block are deliberate:
 
@@ -417,8 +422,9 @@ Other things the cluster needs, none of which this configuration sets for you:
   OpenSearch guidance and the reason the per-node memory above is not larger.
 - **One node per availability zone** at M and above, so a zone outage costs one node rather than the
   cluster.
-- **A private subnet**, reachable from the subnet IQ Server runs in and from nowhere else. Put its
-  CIDR in `opensearch_allowed_cidrs`.
+- **A private subnet**, reachable from the subnet IQ Server runs in and from nowhere else. A network
+  security group on the OpenSearch subnet is what enforces that, since Azure allows outbound traffic
+  from the IQ Server subnet by default.
 - **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
   index up, and a lost index means a full rebuild at the cost quoted above.
 

@@ -72,7 +72,6 @@ search_engine = "lucene"
 # opensearch_username       = "iq-server"
 # opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 0
-# opensearch_allowed_cidrs  = ["10.0.50.0/24"]
 
 # Tags
 # Replace every placeholder below with your own values. terraform.tfvars is

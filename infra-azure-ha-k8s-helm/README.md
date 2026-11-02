@@ -437,8 +437,9 @@ independent of Terraform runs here.
 
 ### Turning it on
 
-Set these in `terraform.tfvars`. **`helm-install.sh` reads them out of that file with `grep`**, so it
-sees only what is written there and never a variable default. Write every one of them:
+Set these in `terraform.tfvars`. **`helm-install.sh` and `helm-upgrade.sh` read them out of that
+file**, through the shared `search-values.sh`, so they see only what is written there and never a
+variable default. Write every one of them:
 
 ```hcl
 search_engine             = "opensearch"
@@ -448,27 +449,29 @@ opensearch_use_tls        = true
 opensearch_username       = "iq-server"
 opensearch_password       = "<strong password>"
 opensearch_index_replicas = 0
-opensearch_allowed_cidrs  = ["10.1.30.0/24"]
 ```
 
 | Variable | Default | What it does |
 |---|---|---|
-| `search_engine` | `lucene` | `lucene` writes no `search:` block at all. `opensearch` writes one and creates the credential secrets |
+| `search_engine` | `lucene` | `lucene` writes no `search:` block at all. `opensearch` writes one on both install and upgrade |
 | `opensearch_endpoint` | `""` | Host name or IP of the cluster's client endpoint, no scheme and no port. Required when `search_engine` is `opensearch` |
 | `opensearch_port` | `9200` | The port the cluster listens on |
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
-| `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` writes it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes |
+| `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
 | `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
-| `opensearch_allowed_cidrs` | `[]` | CIDRs the AKS subnet may reach on `opensearch_port`, added as an outbound network security rule |
 
-Leave `search_engine` at `lucene` and nothing changes: no network rule is added, and
-`helm-values-runtime.yaml` is byte-identical to a deployment that never knew about this section.
+Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` is
+byte-identical to a deployment that never knew about this section.
 
 ### What reaches IQ Server's configuration
 
 IQ Server's configuration on this root comes from `helm-values.yaml` rather than from Terraform, so
-`helm-install.sh` appends the block to `helm-values-runtime.yaml` under `iq_server.config:`:
+`helm-install.sh` and `helm-upgrade.sh` append the block to `helm-values-runtime.yaml` under
+`iq_server.config:`. Both call `write_search_block` in `search-values.sh`, so an upgrade writes the
+same block an install writes. An upgrade rebuilds that file from `helm-values.yaml` and passes no
+`--reuse-values`, so without that shared step the block would be absent from the upgraded release and
+IQ Server would fall back to Lucene:
 
 ```yaml
 iq_server:
@@ -478,11 +481,17 @@ iq_server:
     search:
       type: http
       mode: OPENSEARCH
-      uri: "https://opensearch.internal.example.com:9200"
-      username: "iq-server"
-      password: "<from terraform.tfvars>"
+      uri: 'https://opensearch.internal.example.com:9200'
+      username: 'iq-server'
+      password: '<from terraform.tfvars>'
       nexusOneIndexReplicas: 0
 ```
+
+The two credentials are single-quoted, and `write_search_block` appends them with `printf` through a
+file rather than through an `awk -v` assignment. A single-quoted YAML scalar is literal, so a `|`,
+`&`, `\` or ` #` in the password is only that character, and nothing in the value can change the
+file's structure. The one character YAML gives meaning to inside single quotes is `'` itself, which
+doubles.
 
 **Nothing about it is committed to `helm-values.yaml`.** That file is rewritten by a `sed` whose
 `password: ""` pattern carries no line anchor, so a committed OpenSearch password key would be
@@ -528,8 +537,9 @@ Other things the cluster needs, none of which this configuration sets for you:
   OpenSearch guidance and the reason the per-node memory above is not larger.
 - **One node per availability zone** at M and above, so a zone outage costs one node rather than the
   cluster.
-- **A private subnet**, reachable from the subnet IQ Server runs in and from nowhere else. Put its
-  CIDR in `opensearch_allowed_cidrs`.
+- **A private subnet**, reachable from the AKS subnet and from nowhere else. A network security group
+  on the OpenSearch subnet is what enforces that, since Azure allows outbound traffic from the AKS
+  subnet by default.
 - **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
   index up, and a lost index means a full rebuild at the cost quoted above.
 

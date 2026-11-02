@@ -111,8 +111,10 @@ resource "azurerm_key_vault_secret" "db_name" {
 
 
 # The OpenSearch credentials follow the four database secrets above, so the
-# vault stays the record of every credential this deployment holds. Both are
-# created only when search_engine is "opensearch".
+# vault stays the record of every credential this deployment holds. Nothing
+# reads any of the six back: the container app receives its credentials as
+# container app secrets, set from the variables. Both are created only when
+# search_engine is "opensearch".
 
 resource "azurerm_key_vault_secret" "opensearch_username" {
   count        = var.search_engine == "opensearch" ? 1 : 0

@@ -14,6 +14,11 @@ HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
+# tfvar, load_search_vars and write_search_block. helm-upgrade.sh sources the
+# same file, so both paths write an identical search: block.
+# shellcheck source=search-values.sh
+source "$(dirname "$0")/search-values.sh"
+
 echo -e "${BLUE}🚀 Nexus IQ Server HA on AKS - Helm Installation${NC}"
 echo "===================================================="
 echo ""
@@ -54,21 +59,11 @@ echo -e "${BLUE}📊 Retrieving Infrastructure Details${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 DB_FQDN=$(terraform output -raw postgres_server_fqdn 2>/dev/null || echo "")
-DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+DB_PASSWORD=$(tfvar database_password)
 STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null || echo "")
 RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null || echo "")
 
-SEARCH_ENGINE=$(grep '^search_engine' terraform.tfvars 2>/dev/null | cut -d'"' -f2 || true)
-SEARCH_ENGINE=${SEARCH_ENGINE:-lucene}
-OPENSEARCH_ENDPOINT=$(grep '^opensearch_endpoint' terraform.tfvars 2>/dev/null | cut -d'"' -f2 || true)
-OPENSEARCH_USERNAME=$(grep '^opensearch_username' terraform.tfvars 2>/dev/null | cut -d'"' -f2 || true)
-OPENSEARCH_PASSWORD=$(grep '^opensearch_password' terraform.tfvars 2>/dev/null | cut -d'"' -f2 || true)
-OPENSEARCH_PORT=$(grep '^opensearch_port' terraform.tfvars 2>/dev/null | tr -d ' ' | cut -d'=' -f2 || true)
-OPENSEARCH_PORT=${OPENSEARCH_PORT:-9200}
-OPENSEARCH_USE_TLS=$(grep '^opensearch_use_tls' terraform.tfvars 2>/dev/null | tr -d ' ' | cut -d'=' -f2 || true)
-OPENSEARCH_USE_TLS=${OPENSEARCH_USE_TLS:-true}
-OPENSEARCH_INDEX_REPLICAS=$(grep '^opensearch_index_replicas' terraform.tfvars 2>/dev/null | tr -d ' ' | cut -d'=' -f2 || true)
-OPENSEARCH_INDEX_REPLICAS=${OPENSEARCH_INDEX_REPLICAS:-0}
+load_search_vars
 
 echo "• Database: $DB_FQDN"
 echo "• Storage Account: $STORAGE_ACCOUNT"
@@ -148,53 +143,13 @@ sed -i.bak \
 # The search: block is appended after that sed, never before it. Those two
 # patterns carry no line anchor, so a password: key written earlier would be
 # overwritten with the database password.
+if ! write_search_block "$TEMP_VALUES_FILE"; then
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    exit 1
+fi
+
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
-    if [[ -z "$OPENSEARCH_ENDPOINT" || -z "$OPENSEARCH_USERNAME" || -z "$OPENSEARCH_PASSWORD" ]]; then
-        echo -e "${RED}❌ Error: search_engine is \"opensearch\" but opensearch_endpoint, opensearch_username or opensearch_password is missing from terraform.tfvars${NC}"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
-        exit 1
-    fi
-
-    if [[ "$OPENSEARCH_USE_TLS" == "false" ]]; then
-        OPENSEARCH_SCHEME="http"
-    else
-        OPENSEARCH_SCHEME="https"
-    fi
-
-    # Appended under iq_server.config by matching the one clusterDirectory line
-    # there. awk rather than sed, because appending a line is spelled
-    # differently by BSD and GNU sed and this script runs on both.
-    OPENSEARCH_URI="$OPENSEARCH_SCHEME://$OPENSEARCH_ENDPOINT:$OPENSEARCH_PORT"
-    ANCHOR='    clusterDirectory: "/sonatype-work/clm-cluster"'
-
-    if [[ "$(grep -c "^${ANCHOR}$" "$TEMP_VALUES_FILE")" != "1" ]]; then
-        echo -e "${RED}❌ Error: expected exactly one clusterDirectory line under iq_server.config in $VALUES_FILE${NC}"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
-        exit 1
-    fi
-
-    awk -v anchor="$ANCHOR" -v uri="$OPENSEARCH_URI" -v user="$OPENSEARCH_USERNAME" \
-        -v pass="$OPENSEARCH_PASSWORD" -v replicas="$OPENSEARCH_INDEX_REPLICAS" '
-        { print }
-        $0 == anchor {
-            print "    search:"
-            print "      type: http"
-            print "      mode: OPENSEARCH"
-            print "      uri: \"" uri "\""
-            print "      username: \"" user "\""
-            print "      password: \"" pass "\""
-            print "      nexusOneIndexReplicas: " replicas
-        }
-    ' "$TEMP_VALUES_FILE" > "${TEMP_VALUES_FILE}.search" \
-        && mv "${TEMP_VALUES_FILE}.search" "$TEMP_VALUES_FILE"
-
-    if ! grep -q '^    search:$' "$TEMP_VALUES_FILE"; then
-        echo -e "${RED}❌ Error: could not write the search: block into $TEMP_VALUES_FILE${NC}"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" "${TEMP_VALUES_FILE}.search" k8s-storageclass-nfs-runtime.yaml
-        exit 1
-    fi
-
-    echo "• Search backend: OpenSearch at $OPENSEARCH_URI"
+    echo "• Search backend: OpenSearch at $SEARCH_URI"
 else
     echo "• Search backend: Lucene (embedded)"
 fi
@@ -208,7 +163,8 @@ fi
 echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
+CHART_VERSION=$(tfvar helm_chart_version)
+CHART_VERSION=${CHART_VERSION:-latest}
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"

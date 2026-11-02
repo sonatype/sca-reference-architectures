@@ -169,16 +169,6 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
     archivedFileCount: 50
 
-%{if var.search_engine == "opensearch"}
-search:
-  type: http
-  mode: OPENSEARCH
-  uri: ${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}
-  username: $OPENSEARCH_USERNAME
-  password: $OPENSEARCH_PASSWORD
-  nexusOneIndexReplicas: ${var.opensearch_index_replicas}
-
-%{endif}
 createSampleData: true
 CONFIGEOF
 
@@ -190,15 +180,38 @@ CONFIGEOF
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
-%{if var.search_engine == "opensearch"}
-          sed -i "s|\$OPENSEARCH_USERNAME|$OPENSEARCH_USERNAME|g" /etc/nexus-iq-server/config.yml
-          sed -i "s|\$OPENSEARCH_PASSWORD|$OPENSEARCH_PASSWORD|g" /etc/nexus-iq-server/config.yml
-%{endif}
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
+%{if var.search_engine == "opensearch"}
+
+          # The OpenSearch credentials never pass through the template or
+          # through a sed replacement, so no character in them can change the
+          # file's structure. They are read from the container app secrets and
+          # written as single-quoted YAML scalars, which are literal: a |, &, \
+          # or # in a password is only that character. The one character YAML
+          # gives meaning to inside single quotes is ' itself, which doubles.
+          # That doubling is the only substitution, both its pattern and its
+          # replacement are fixed, and the value reaches sed on standard input
+          # rather than as part of the script. Appending after the $HOSTNAME
+          # replacement also keeps that replacement away from the password.
+          os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
+          os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
+
+          {
+            printf 'search:\n'
+            printf '  type: http\n'
+            printf '  mode: OPENSEARCH\n'
+            printf '  uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf "  username: '%s'\n" "$os_user"
+            printf "  password: '%s'\n" "$os_pass"
+            printf '  nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+          } >> /etc/nexus-iq-server/config.yml
+
+          unset os_user os_pass
+%{endif}
 
           echo "Successfully created HA config.yml for replica: $HOSTNAME at /etc/nexus-iq-server/config.yml"
-          echo "Generated config file contents:"
-          cat /etc/nexus-iq-server/config.yml
+          echo "Generated config file contents, with every password redacted:"
+          sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
 
           ls -la /sonatype-work/
