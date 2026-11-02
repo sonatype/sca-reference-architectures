@@ -99,7 +99,7 @@ Choose your deployment size based on your application count and daily evaluation
 | **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required |
 | **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required |
 
-> ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing, though the memory and heap that testing ran with are not recorded here.
+> ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing, which ran on the GCP ARM instances below: `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL.
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 

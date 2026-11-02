@@ -14,7 +14,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r6g.2xlarge (ARM) |
 | **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r6g.4xlarge (ARM) |
 
-> All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> All sizes validated through performance testing, which ran on GCP ARM instances at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
 > **ARM instances recommended.** r6g (Graviton2) instances offer 20-30% better price-performance than x86 equivalents (r5).
 
