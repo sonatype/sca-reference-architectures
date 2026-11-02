@@ -16,7 +16,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
 
-> ² OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
+> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
@@ -72,9 +72,14 @@ db_storage_mb        = 102400              # 100 GB
 ### OpenSearch
 
 IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
-One list pages, typeahead, and dashboard, and **it is required at every size this architecture
-supports.** One cluster serves both features, through a single `search:` block in IQ Server's
-`config.yml`: one endpoint, one set of credentials, and no second switch to turn on.
+One list pages, typeahead, and dashboard, and **both features need it at every size this architecture
+supports.** One cluster serves both, through a single `search:` block in IQ Server's `config.yml`: one
+endpoint, one set of credentials, and no second switch to turn on.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
+`opensearch_endpoint`, `opensearch_username` and `opensearch_password`. Every variable and its default
+is in [Advanced Search with OpenSearch](#advanced-search-with-opensearch) below.
 
 Azure has no first-party managed OpenSearch service, so the cluster is **self-managed OpenSearch on
 Azure virtual machines** and IQ Server authenticates with a username and password. That means you also

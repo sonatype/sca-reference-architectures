@@ -155,8 +155,9 @@ cd sca-reference-architectures/<your-chosen-architecture>
 # Copy and edit the example variables file
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values (region, instance sizes, passwords, etc.)
-# Point the deployment at your OpenSearch cluster here: see the OpenSearch section
-# of your architecture's own README for the exact variable names it uses.
+# Point the deployment at your OpenSearch cluster here, where the architecture you
+# chose takes variables for it: the three Azure architectures name theirs under
+# "Advanced Search with OpenSearch" in that architecture's own README.
 ```
 
 ### Step 4: Deploy
