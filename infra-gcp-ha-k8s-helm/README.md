@@ -565,7 +565,7 @@ pod:
 ```bash
 # 1. Take the JVM's own trust store out of a running pod.
 POD=$(kubectl get pod -n nexus-iq -l name=nexus-iq-server-ha-iq-server -o jsonpath='{.items[0].metadata.name}')
-kubectl cp "nexus-iq/$POD:/opt/sonatype/nexus-iq-server/lib/security/cacerts" ./cacerts
+kubectl exec -n nexus-iq "$POD" -- cat /opt/sonatype/nexus-iq-server/lib/security/cacerts > ./cacerts
 # The path differs between base images. Find it with:
 #   kubectl exec -n nexus-iq "$POD" -- sh -c 'find / -name cacerts -type f 2>/dev/null'
 #   kubectl exec -n nexus-iq "$POD" -- sh -c 'find / -name keytool -type f 2>/dev/null'
@@ -583,6 +583,13 @@ keytool -list -keystore ./cacerts -storepass changeit -alias opensearch-ca
 kubectl create secret generic nexus-iq-truststore --from-file=cacerts=./cacerts -n nexus-iq
 rm -f ./cacerts
 ```
+
+**Step 1 reads the file with `cat` rather than `kubectl cp`.** `kubectl cp` runs `tar` inside the
+container, and there is no `tar` in `sonatype/nexus-iq-server`: the image is built on
+`ubi9-minimal`, which carries none, and nothing in the build adds one. `cat` and `find` are both
+present, so the commands above work. Leave `-t` off `kubectl exec`, because a terminal rewrites the
+byte stream and a trust store is a binary file. Step 3 is what proves the copy arrived whole:
+`keytool -list` fails on a truncated or rewritten file instead of printing a count.
 
 Then mount the secret and name the copy, by adding to `helm-values.yaml`:
 
