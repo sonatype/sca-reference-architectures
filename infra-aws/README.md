@@ -81,10 +81,10 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 
 ### OpenSearch
 
-IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index, and **it is
-required at every size this architecture supports.** One cluster serves both features, through a single
-`search:` block in IQ Server's `config.yml`: one endpoint, one set of credentials, and no second switch
-to turn on.
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a single `search:` block in IQ Server's
+`config.yml`: one endpoint, one set of credentials, and no second switch to turn on.
 
 On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
 SigV4 signed by the ECS task role, so there is no password to store. The task role needs the
@@ -98,26 +98,16 @@ index.
 
 #### Seven indices in one shared cluster
 
-A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
-(`application`, `violation`, `waiver`, `component`, `vulnerability`, and `entity`, which holds the
-organization, application category, component label, policy, user, and license threat group lookups
-together) and one for Advanced Search.
-
-Each Nexus One index is created with **one primary shard**, which is the recommendation at every
-published size. The `component`, `violation`, and `vulnerability` indices can be raised per tenant
-through the configuration API, up to `nexusOneIndexMaxShards`, which defaults to 12; the other three have no such setting. **A shard
-count applies only when an index is created**, so raising one has to be followed by a rebuild.
-
-**The Advanced Search index is the one IQ Server does not size.** It sends no shard count and no
-replica count for that index, so it gets whatever your domain's default, or a matching index template,
-gives it. On a managed AWS domain that default is AWS's, and nothing in IQ Server reports what the
-index actually got. Read it off the live index with `GET <index>/_settings`.
+A deployment running both features holds **seven indices on one domain**: six for the Nexus One index
+and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
+why a shard count can only be set when an index is created are the same on every cloud, so they are
+stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
 
 #### Replicas
 
-A replica is a full second copy of every shard, and it is what makes losing a data node survivable.
-**IQ Server's own default is 0**, so an architecture that omits `search.nexusOneIndexReplicas` gets no
-replica rather than a sensible default. This architecture sets the value explicitly:
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. **IQ Server's own default is 0**, so this architecture sets
+`search.nexusOneIndexReplicas` itself rather than inheriting that default:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -125,26 +115,18 @@ replica rather than a sensible default. This architecture sets the value explici
 | **S** | 1 | `0` |
 | **M** | more than 1 | Not published yet |
 
-**`0` at XS and S is a decision, not an omission.** A one-node cluster has nowhere to place a replica,
-so asking for one leaves the index permanently yellow for no benefit. That is not a failure state: a
-yellow index is created, opens, takes writes, and returns correct reads, because yellow means every
-primary is assigned and a replica is not, and primaries serve every read and take every write. IQ
-Server never reads cluster health, so no OpenSearch color is reported as an error. What it does cost
-you is plain: with one data node and no replica, **losing that node means rebuilding the index.**
-
-Give the Advanced Search index the same replica count through a domain-level index template, so both
-halves of search survive losing a data node or neither does.
+The rules behind this, including what a yellow index does and does not mean and how to give the
+Advanced Search index a matching replica count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count-and-iqs-own-default-is-0).
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete new set of indices and moves the aliases onto it when every
-pass has succeeded, then keeps the old set for **30 minutes** after the cutover. So during a rebuild,
-and for half an hour afterwards, the domain holds twice the Nexus One shards and twice the Nexus One
-disk, plus the Advanced Search index. **Judge free storage against the doubled figure, not the steady
-state.** A replica is a separate doubling that applies at the same time.
-
-A rebuild is also not a backup: search is stale or absent while one runs. A managed domain takes its own
-snapshots.
+A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
+after the cutover, so the domain holds twice the Nexus One shards and twice the Nexus One disk for the
+whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
 
 #### Per-size cluster specification
 
@@ -152,7 +134,7 @@ snapshots.
 awaiting a per-size measurement, as is the M replica count above. What is settled is the shape: XS and
 S run one data node and M runs more than one, which is what decides whether a replica can be placed.
 
-<!-- TO BE ADDED (CLM-55937): the per-size OpenSearch specification, from CLM-55930, plus the M replica
+<!-- TO BE ADDED (CLM-55930): the per-size OpenSearch specification, plus the M replica
      count. Needs measurements that do not exist. The only OpenSearch sizing data today is one estate of
      about 105,700 applications, above XL's 80,000 ceiling, taken at zero replicas, so it is not
      evidence for a number at any published size. Do not derive these values. -->

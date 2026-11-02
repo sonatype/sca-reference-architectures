@@ -91,7 +91,7 @@ For HTTPS access, prepare:
 
 ### Sizing Guide
 
-<!-- TO BE ADDED (CLM-55937): the "expected to change" notice goes here, in Product's own wording,
+<!-- TO BE ADDED (CLM-55936): the "expected to change" notice goes here, in Product's own wording,
      once Product has approved it. Nothing below should be read as that notice. -->
 
 Choose your deployment size based on your application count and daily evaluation volume:
@@ -112,6 +112,7 @@ Choose your deployment size based on your application count and daily evaluation
 
 > **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
 <!-- TO BE ADDED (CLM-55937): a link from this sizing table to the generic architecture's help pages,
+<!-- TO BE ADDED (no ticket yet): a link from this sizing table to the generic architecture's help pages,
      and an XXS row, once both are published. The help pages do not exist yet, so there is no URL to
      link. The generic architecture and its H2 option are tracked separately. -->
 
@@ -135,7 +136,17 @@ Then navigate to the corresponding directory:
 | **Azure** | [`infra-azure`](./infra-azure/) | [`infra-azure-ha`](./infra-azure-ha/) | [`infra-azure-ha-k8s-helm`](./infra-azure-ha-k8s-helm/) |
 | **GCP** | [`infra-gcp`](./infra-gcp/) | [`infra-gcp-ha`](./infra-gcp-ha/) | [`infra-gcp-ha-k8s-helm`](./infra-gcp-ha-k8s-helm/) |
 
-### Step 2: Configure Your Deployment
+### Step 2: Provision an OpenSearch Cluster
+
+OpenSearch is required at every size, and none of these configurations creates it. Build or identify a
+reachable cluster before going further, and keep its endpoint to hand: on AWS an Amazon OpenSearch
+Service domain, on Azure and GCP a self-managed cluster with a username and password. The per-size
+cluster specification is not published yet, so see [OpenSearch](#opensearch) for what is settled and
+what is still being measured.
+
+Skipping this step gets you a running IQ Server whose search does not work.
+
+### Step 3: Configure Your Deployment
 
 ```bash
 git clone https://github.com/sonatype/sca-reference-architectures.git
@@ -144,9 +155,11 @@ cd sca-reference-architectures/<your-chosen-architecture>
 # Copy and edit the example variables file
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values (region, instance sizes, passwords, etc.)
+# Point the deployment at your OpenSearch cluster here: see the OpenSearch section
+# of your architecture's own README for the exact variable names it uses.
 ```
 
-### Step 3: Deploy
+### Step 4: Deploy
 
 ```bash
 terraform init
@@ -160,7 +173,7 @@ For **Kubernetes deployments**, also run:
 ./helm-install.sh   # Deploy IQ Server via Helm chart
 ```
 
-### Step 4: Get Your Access Information
+### Step 5: Get Your Access Information
 
 ```bash
 terraform output
@@ -168,7 +181,7 @@ terraform output
 
 This displays the load balancer URL, database endpoint, and other access details.
 
-### Step 5: Access IQ Server
+### Step 6: Access IQ Server
 
 1. Navigate to the load balancer URL from the Terraform outputs
 2. Wait 5-15 minutes for the application to initialize
@@ -781,7 +794,7 @@ Two related things worth stating plainly:
 
 **Not published yet.**
 
-<!-- TO BE ADDED (CLM-55937): the per-size OpenSearch specification table, from CLM-55930. Every row
+<!-- TO BE ADDED (CLM-55930): the per-size OpenSearch specification table. Every row
      of it (data node count, node instance size, JVM heap per node, storage per node) needs
      measurements that do not exist. The only OpenSearch sizing data today is from an estate of about
      105,700 applications, above XL's 80,000 ceiling, and all of it was taken at zero replicas, so it
@@ -825,7 +838,7 @@ applied only when an index is created, and both can differ from what you asked f
 
 Continuous Monitoring is one of the most resource-intensive operations. The bottleneck is HDS (Hosted Data Services) latency. Set `-Dinsight.threads.monitor=10` to maximize CM throughput.
 
-<!-- TO BE UPDATED (CLM-55937): the ~310 and ~405 evals/hour figures below, and the three per-provider
+<!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures below, and the three per-provider
      "Expected throughput" rows that repeat them, are awaiting a re-measurement. Leave the numbers
      alone until it lands. The qualifier that they are measured with continuous monitoring running
      was added to those three rows so a reader of a provider table does not take them as general
