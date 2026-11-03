@@ -424,7 +424,7 @@ aurora_instances      = 2                  # Multi-AZ
 **Azure (Container Apps):**
 ```hcl
 # infra-azure/terraform.tfvars — Size M (Single Instance)
-# infra-azure-ha/terraform.tfvars — Size M (HA)
+# infra-azure-ha/terraform.tfvars, Size M (HA)
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
 iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is fixed at 1 replica
@@ -438,7 +438,7 @@ db_storage_mb        = 102400              # 100 GB, infra-azure only; infra-azu
 **GCP (GCE Docker):**
 ```hcl
 # infra-gcp/terraform.tfvars — Size M (Single Instance)
-# infra-gcp-ha/terraform.tfvars — Size M (HA: set iq_target_instances = 2, iq_min_instances = 2, iq_max_instances = 3)
+# infra-gcp-ha/terraform.tfvars, Size M (HA: set iq_target_instances = 2, iq_min_instances = 2, iq_max_instances = 3)
 # infra-gcp names the machine type gce_machine_type; infra-gcp-ha names it instance_machine_type
 gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
