@@ -135,19 +135,15 @@ trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE.bak" "$TEMP_VALUES_FILE.new"'
 
 ./render-values.sh "$TEMP_VALUES_FILE"
 
-<<<<<<< HEAD
+# AFTER render-values.sh, not before: it copies helm-values.yaml over the temp file, so a
+# substitution made first would be overwritten. The chart reads iq_server.replicas, and without
+# this the pod count in terraform.tfvars never reaches it.
 # sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
 # pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
 # The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
 # which is tr's and is 0 even when grep matched nothing, so it never fired.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
-=======
-# AFTER render-values.sh, not before: it copies helm-values.yaml over the temp file, so a
-# substitution made first would be overwritten. The chart reads iq_server.replicas, and without
-# this the pod count in terraform.tfvars never reaches it.
-REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
->>>>>>> 447f42c (Fix the second round of review findings on the GCP OpenSearch change (CLM-55933))
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
 rm -f "${TEMP_VALUES_FILE}.bak"
 

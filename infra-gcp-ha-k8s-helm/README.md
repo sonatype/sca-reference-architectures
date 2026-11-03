@@ -295,12 +295,8 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
-<<<<<<< HEAD
-=======
 # Not read on this root: set iq_server.javaOpts in helm-values.yaml, which the chart puts on the pods.
 java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-
->>>>>>> d73f94f (Fix review findings on the GCP OpenSearch change (CLM-55933))
 # Search Backend
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
