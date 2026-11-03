@@ -320,7 +320,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 - **Shared Storage**: Cloud Filestore (BASIC_SSD) provides consistent storage across all replicas with ReadWriteMany access
 - **Database Sharing**: All replicas connect to the shared regional Cloud SQL cluster via Kubernetes secrets
 - **Service Discovery**: Kubernetes service provides stable DNS and load balancing
-- **Horizontal Pod Autoscaler**: Pods scale from 3 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -343,7 +343,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: GKE nodes, pods, and database distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 3 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Cluster Autoscaler**: GKE nodes scale from 2-5 based on pod resource requests
 - **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
 - **Read Replica**: Optional read replica for load distribution

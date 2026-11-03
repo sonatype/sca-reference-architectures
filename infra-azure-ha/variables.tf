@@ -52,7 +52,7 @@ variable "container_memory" {
 variable "iq_min_replicas" {
   description = "Minimum number of IQ Server replicas (HA requires minimum 2)"
   type        = number
-  default     = 3
+  default     = 2
 
   validation {
     condition     = var.iq_min_replicas >= 2
@@ -63,7 +63,7 @@ variable "iq_min_replicas" {
 variable "iq_max_replicas" {
   description = "Maximum number of IQ Server replicas for auto scaling"
   type        = number
-  default     = 5
+  default     = 4
 }
 
 variable "iq_docker_image" {

@@ -299,7 +299,7 @@ helm_namespace     = "nexus-iq"
 ```
 
 **Important Settings:**
-- **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended, requires HA license)
+- **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4. Requires an HA license
 - **`node_group_min_size = 2`** - Minimum AKS node capacity
 - **`node_group_max_size = 5`** - Maximum AKS node capacity
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
@@ -317,7 +317,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 - **Shared Storage**: Azure Files Premium (ZRS) provides consistent storage across all replicas with ReadWriteMany access
 - **Database Sharing**: All replicas connect to the shared zone-redundant PostgreSQL cluster via Kubernetes secrets
 - **Service Discovery**: Kubernetes service provides stable DNS and load balancing
-- **Horizontal Pod Autoscaler**: Pods scale from 3-5 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -339,7 +339,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: AKS nodes, pods, Application Gateway, and database distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 3-5 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Cluster Autoscaler**: AKS nodes scale from 2-5 based on pod resource requests
 - **Zone-Redundant Database**: PostgreSQL Flexible Server with automatic failover (~30 seconds) between zones
 - **Automatic Restart**: Kubernetes automatically restarts failed pods

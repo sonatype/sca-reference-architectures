@@ -93,7 +93,7 @@ variable "iq_min_count" {
 variable "iq_max_count" {
   description = "Maximum number of IQ Server tasks for auto scaling"
   type        = number
-  default     = 5
+  default     = 4
 }
 
 variable "iq_cpu_target_value" {

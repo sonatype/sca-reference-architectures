@@ -234,7 +234,8 @@ Your IAM user/role needs these AWS service permissions:
 
 ### Configuration Variables
 
-Edit `terraform.tfvars` to customize your deployment:
+Edit `terraform.tfvars` to customize your deployment. The task counts below are the Size L values from
+the [Sizing Guide](#sizing-guide); use the per-size block for your own size instead of copying these.
 
 ```hcl
 # General Configuration
@@ -256,7 +257,7 @@ ecs_memory_reservation  = 24576  # 24 GB soft limit
 # IQ Server Configuration
 iq_desired_count        = 3
 iq_min_count           = 2
-iq_max_count           = 5
+iq_max_count           = 4
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
 iq_memory_target_value = 80  # Memory target for auto scaling (%)
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
@@ -290,9 +291,9 @@ log_retention_days       = 30
 ```
 
 **Important Settings:**
-- **`iq_desired_count = 3`** - Initial number of instances for HA (minimum 2 recommended)
-- **`iq_min_count = 2`** - Minimum auto scaling capacity (must be at least 2 for HA)
-- **`iq_max_count = 5`** - Maximum auto scaling capacity
+- **`iq_desired_count = 3`** - Initial number of tasks, the Size L value. Size M uses 2 and Size XL uses 4
+- **`iq_min_count = 2`** - Minimum auto scaling capacity, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA
+- **`iq_max_count = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
 - **`aurora_instances = 2`** - Number of Aurora instances (minimum 2 for HA)
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
@@ -328,7 +329,7 @@ This deployment solves critical IQ Server clustering challenges:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-AZ Deployment**: ECS tasks and Aurora instances distributed across multiple availability zones
-- **Auto Scaling**: ECS service scales from 2-5 tasks based on CPU/memory utilization
+- **Auto Scaling**: ECS service scales between the minimum and maximum task counts for your size based on CPU/memory utilization. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Aurora Cluster**: Multi-AZ database deployment with automatic failover (~30 seconds)
 - **Automatic Restart**: ECS automatically restarts failed containers
 - **Load Balancing**: ALB distributes traffic across healthy containers

@@ -226,8 +226,8 @@ db_subnet_cidr          = "10.0.40.0/24"
 # High Availability Container App Configuration
 container_cpu      = 4.0      # CPU per replica (max for Azure Container Apps)
 container_memory   = "8Gi"    # Memory per replica (max for Azure Container Apps)
-iq_min_replicas    = 3        # Minimum replicas for HA (must be >= 2)
-iq_max_replicas    = 5        # Maximum replicas for auto-scaling
+iq_min_replicas    = 2        # Minimum replicas, the Size L value (must be >= 2)
+iq_max_replicas    = 4        # Maximum replicas for auto-scaling, the Size L value
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
 java_opts          = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
@@ -265,8 +265,8 @@ enable_backup = true
 ```
 
 **Important Settings:**
-- **`iq_min_replicas = 3`** - Minimum replicas for HA (minimum 2 recommended)
-- **`iq_max_replicas = 5`** - Maximum auto scaling capacity
+- **`iq_min_replicas = 2`** - Minimum replicas, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA
+- **`iq_max_replicas = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
 - **`storage_account_replication_type = "ZRS"`** - Zone-Redundant Storage for file share
 - **`app_gateway_zones = ["1", "2", "3"]`** - Multi-zone Application Gateway
@@ -303,7 +303,7 @@ This deployment uses Azure Container Apps for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: Container Apps, Application Gateway, and database distributed across 3 availability zones
-- **Auto Scaling**: Container App replicas scale from 3-5 based on concurrent HTTP request load
+- **Auto Scaling**: Container App replicas scale between the minimum and maximum for your size based on concurrent HTTP request load. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Zone-Redundant Database**: PostgreSQL Flexible Server with automatic failover (~30 seconds) between zones
 - **Automatic Restart**: Container Apps automatically restarts failed replicas
 - **Zone-Redundant Storage**: Premium Azure Files (ZRS) provides 99.9999999999% durability

@@ -27,9 +27,9 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 ```hcl
 machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
-target_size          = 2                   # 2 instances across zones
-min_replicas         = 2
-max_replicas         = 3
+iq_target_instances  = 2                   # 2 instances across zones
+iq_min_instances     = 2
+iq_max_instances     = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
@@ -44,9 +44,9 @@ filestore_capacity_gb = 1024
 
 ```hcl
 machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
-target_size          = 3                   # 3 instances across zones
-min_replicas         = 2
-max_replicas         = 4
+iq_target_instances  = 3                   # 3 instances across zones
+iq_min_instances     = 2
+iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
@@ -61,9 +61,9 @@ filestore_capacity_gb = 2560
 
 ```hcl
 machine_type         = "n4a-highmem-16"    # 16 vCPU, 128 GB (ARM)
-target_size          = 4                   # 4 instances across zones
-min_replicas         = 3
-max_replicas         = 5
+iq_target_instances  = 4                   # 4 instances across zones
+iq_min_instances     = 3
+iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_tier              = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
@@ -255,9 +255,9 @@ iq_docker_image = "sonatype/nexus-iq-server:latest"
 instance_machine_type = "e2-standard-2"  # 2 vCPU, 8GB RAM
 
 # High Availability Configuration
-iq_min_instances    = 2  # Minimum for HA
-iq_max_instances    = 6  # Maximum for scaling
-iq_target_instances = 2  # Initial target
+iq_min_instances    = 2  # Minimum for HA, the Size L value
+iq_max_instances    = 4  # Maximum for scaling, the Size L value
+iq_target_instances = 3  # Initial target, the Size L value
 
 # Database Configuration
 db_name     = "nexusiq"
@@ -296,9 +296,9 @@ java_opts = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 
 **Important Settings:**
-- **`iq_min_instances = 2`** - Minimum instances for HA (2-6 supported, requires HA license)
-- **`iq_max_instances = 6`** - Maximum auto scaling capacity
-- **`iq_target_instances = 2`** - Initial number of instances
+- **`iq_min_instances = 2`** - Minimum instances, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA. Requires an HA license
+- **`iq_max_instances = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
+- **`iq_target_instances = 3`** - Initial number of instances, the Size L value. Size M uses 2 and Size XL uses 4
 - **`db_availability_type = "REGIONAL"`** - Multi-AZ database with automatic failover
 - **`enable_read_replica = true`** - Database read replica for load distribution
 - **`filestore_capacity_gb = 2560`** - Minimum for BASIC_SSD tier (2.5 TB)
@@ -325,7 +325,7 @@ This deployment uses Managed Instance Groups for IQ Server clustering:
 - **Unique Work Directories**: Each instance gets isolated `/sonatype-work/clm-server-${HOSTNAME}` directory on Cloud Filestore
 - **Shared Cluster Directory**: Coordination through `/sonatype-work/clm-cluster` on Cloud Filestore
 - **Database Sharing**: All instances connect to the shared regional Cloud SQL cluster via Kubernetes secrets
-- **Auto Scaling**: MIG autoscaler scales from 2-6 instances based on CPU utilization (70%) and load balancer utilization (80%)
+- **Auto Scaling**: MIG autoscaler scales between the minimum and maximum instance counts for your size, based on CPU utilization (70%) and load balancer utilization (80%). Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -347,7 +347,7 @@ This deployment uses Managed Instance Groups for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: MIG distributes instances across 2 availability zones (us-central1-a and us-central1-b)
-- **Auto Scaling**: MIG autoscaler scales from 2-6 instances based on CPU utilization and load balancer utilization
+- **Auto Scaling**: MIG autoscaler scales between the minimum and maximum instance counts for your size, based on CPU utilization and load balancer utilization. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
 - **Read Replica**: Optional read replica for load distribution
 - **Automatic Restart**: Docker container automatically restarts on failure

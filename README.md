@@ -426,10 +426,11 @@ aurora_instances      = 2                  # Multi-AZ
 **Azure (Container Apps):**
 ```hcl
 # infra-azure/terraform.tfvars — Size M (Single Instance)
-# infra-azure-ha/terraform.tfvars — Size M (HA: set min_replicas = 2)
+# infra-azure-ha/terraform.tfvars - Size M (HA: set iq_min_replicas = 2, iq_max_replicas = 3)
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
-container_min_replicas = 1                 # 1 for single, 2 for HA
+iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is fixed at 1 replica
+iq_max_replicas      = 3                   # infra-azure-ha only, Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
@@ -439,7 +440,7 @@ db_storage_mb        = 102400              # 100 GB
 **GCP (GCE Docker):**
 ```hcl
 # infra-gcp/terraform.tfvars — Size M (Single Instance)
-# infra-gcp-ha/terraform.tfvars — Size M (HA: set target_size = 2)
+# infra-gcp-ha/terraform.tfvars - Size M (HA: set iq_target_instances = 2, iq_min_instances = 2, iq_max_instances = 3)
 machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
@@ -490,8 +491,8 @@ aurora_instance_count   = 2
 # infra-azure-ha/terraform.tfvars — Size L
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
-container_min_replicas = 2                 # Minimum 2 for HA
-container_max_replicas = 4                 # Scale up to 4
+iq_min_replicas      = 2                   # Minimum 2 for HA
+iq_max_replicas      = 4                   # Scale up to 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
@@ -502,9 +503,9 @@ db_ha_mode           = "ZoneRedundant"     # Required for L
 ```hcl
 # infra-gcp-ha/terraform.tfvars — Size L
 machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
-target_size          = 3                   # 3 instances across zones
-min_replicas         = 2
-max_replicas         = 4
+iq_target_instances  = 3                   # 3 instances across zones
+iq_min_instances     = 2
+iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
@@ -568,9 +569,9 @@ storage_account_tier = "Premium"           # Required for NFS with AKS
 ```hcl
 # infra-gcp-ha/terraform.tfvars — Size XL
 machine_type         = "n4a-highmem-16"    # 16 vCPU, 128 GB (ARM)
-target_size          = 4                   # 4 instances across zones
-min_replicas         = 3
-max_replicas         = 5
+iq_target_instances  = 4                   # 4 instances across zones
+iq_min_instances     = 3
+iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_tier              = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)

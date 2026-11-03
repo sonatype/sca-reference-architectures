@@ -80,7 +80,7 @@ variable "iq_min_instances" {
 variable "iq_max_instances" {
   description = "Maximum number of instances in MIG"
   type        = number
-  default     = 6
+  default     = 4
 
   validation {
     condition     = var.iq_max_instances >= 2
@@ -91,7 +91,7 @@ variable "iq_max_instances" {
 variable "iq_target_instances" {
   description = "Target number of instances in MIG"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 # Database Variables

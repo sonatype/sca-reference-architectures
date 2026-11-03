@@ -323,15 +323,15 @@ acm_certificate_arn  = ""
 # Monitoring Configuration
 enable_hpa                      = true
 hpa_min_replicas               = 2
-hpa_max_replicas               = 5
+hpa_max_replicas               = 4
 hpa_target_cpu_utilization     = 70
 hpa_target_memory_utilization  = 80
 ```
 
 **Important Settings:**
-- **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended)
-- **`hpa_min_replicas = 2`** - Minimum auto scaling capacity (must be at least 2 for HA)
-- **`hpa_max_replicas = 5`** - Maximum auto scaling capacity
+- **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4
+- **`hpa_min_replicas = 2`** - Minimum auto scaling capacity, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA
+- **`hpa_max_replicas = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
 - **`aurora_instance_count = 2`** - Number of Aurora instances (minimum 2 for HA)
 - **`database_password`** - Use a strong, unique password (required change)
 - **`nexus_iq_license`** - Base64 encoded HA-capable license
@@ -368,7 +368,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-AZ Deployment**: EKS nodes, pods, and Aurora instances distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 2-5 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Node Auto Scaling**: EKS node groups scale from 2-5 nodes based on pod resource requests
 - **Aurora Cluster**: Multi-AZ database deployment with automatic failover (~30 seconds)
 - **Automatic Restart**: Kubernetes automatically restarts failed pods

@@ -14,8 +14,8 @@ db_subnet_cidr          = "10.0.40.0/24"
 # High Availability Container App Configuration
 container_cpu           = 4.0      # CPU per replica (max for Azure Container Apps)
 container_memory       = "8Gi"     # Memory per replica (max for Azure Container Apps)
-iq_min_replicas        = 3         # Minimum replicas for HA (must be >= 2)
-iq_max_replicas        = 5         # Maximum replicas for auto-scaling
+iq_min_replicas        = 2         # Minimum replicas, the Size L value (must be >= 2)
+iq_max_replicas        = 4         # Maximum replicas for auto-scaling, the Size L value
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
 java_opts              = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 

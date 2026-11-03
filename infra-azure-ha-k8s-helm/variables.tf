@@ -299,7 +299,7 @@ variable "hpa_min_replicas" {
 variable "hpa_max_replicas" {
   description = "Maximum replicas for HPA"
   type        = number
-  default     = 10
+  default     = 4
 }
 
 variable "hpa_target_cpu_utilization" {
