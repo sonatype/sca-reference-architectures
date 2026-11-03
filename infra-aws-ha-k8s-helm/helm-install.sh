@@ -230,7 +230,7 @@ sed -i.bak \
     -e "s/port: 5432/port: $DB_PORT/" \
     -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
     -e "s|eks.amazonaws.com/role-arn: \"\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
-    -e "s/replicaCount: [0-9]*/replicaCount: $REPLICA_COUNT/" \
+    -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
 sed -i '' \

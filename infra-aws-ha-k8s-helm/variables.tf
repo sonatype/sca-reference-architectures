@@ -215,35 +215,6 @@ variable "acm_certificate_arn" {
   default     = ""
 }
 
-variable "enable_hpa" {
-  description = "Enable Horizontal Pod Autoscaler"
-  type        = bool
-  default     = true
-}
-
-variable "hpa_min_replicas" {
-  description = "Minimum replicas for HPA"
-  type        = number
-  default     = 2
-}
-
-variable "hpa_max_replicas" {
-  description = "Maximum replicas for HPA"
-  type        = number
-  default     = 4
-}
-
-variable "hpa_target_cpu_utilization" {
-  description = "Target CPU utilization percentage for HPA"
-  type        = number
-  default     = 70
-}
-
-variable "hpa_target_memory_utilization" {
-  description = "Target memory utilization percentage for HPA"
-  type        = number
-  default     = 80
-}
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number

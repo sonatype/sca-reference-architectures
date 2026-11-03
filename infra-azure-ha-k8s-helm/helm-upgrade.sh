@@ -106,11 +106,13 @@ TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
         -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
         -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+        -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 fi
 

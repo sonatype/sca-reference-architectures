@@ -140,6 +140,9 @@ sed -i.bak "s|iam.gke.io/gcp-service-account: \"\"|iam.gke.io/gcp-service-accoun
 sed -i.bak "s|projectId: \"\"|projectId: \"${PROJECT_ID}\"|g" "$TEMP_VALUES_FILE"
 sed -i.bak "s|kubernetes.io/ingress.global-static-ip-name: \"\"|kubernetes.io/ingress.global-static-ip-name: \"${INGRESS_IP_NAME}\"|g" "$TEMP_VALUES_FILE"
 
+REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
+sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
+
 rm -f "${TEMP_VALUES_FILE}.bak"
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then

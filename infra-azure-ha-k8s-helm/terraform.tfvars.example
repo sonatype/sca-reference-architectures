@@ -62,12 +62,8 @@ log_retention_days = 30
 enable_fluentd     = true
 enable_monitoring  = true
 
-# HPA Configuration - matching AWS
-enable_hpa                   = true
-hpa_min_replicas             = 2
-hpa_max_replicas             = 4
-hpa_target_cpu_utilization   = 70
-hpa_target_memory_utilization = 80
+# Pod autoscaling is a Helm chart setting, not a Terraform input.
+# Set hpa.enabled, hpa.minReplicas and hpa.maxReplicas in helm-values.yaml.
 
 # Ingress Configuration
 ingress_hostname    = "" # Optional: custom hostname
