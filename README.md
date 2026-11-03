@@ -76,7 +76,7 @@ You need an active cloud account with permissions to create:
 - **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server))
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments
 - **PostgreSQL**: Version 15 or higher (provisioned automatically by Terraform)
-- **OpenSearch**: A reachable OpenSearch cluster, required at every size. See [OpenSearch](#opensearch) for what to build and why these configurations do not build it for you
+- **OpenSearch**: A reachable OpenSearch cluster, required at every size. The three AWS architectures can create the domain for you; on Azure and GCP you build the cluster yourself. See [OpenSearch](#opensearch).
 
 ### SSL Certificate (Optional)
 
@@ -966,7 +966,7 @@ To avoid ongoing cloud charges, destroy all resources when no longer needed:
 
 > **WARNING:** This permanently deletes all infrastructure and data. Ensure you have backups of any important data (database exports, reports, configuration) before proceeding.
 
-> **Your OpenSearch cluster is not part of this.** These configurations never create the cluster, so `terraform destroy` does not delete it or its indices. Remove it separately when you no longer need it.
+> **Your OpenSearch cluster is not deleted by this.** On Azure and GCP nothing here created the cluster, so `terraform destroy` does not delete it or its indices; remove it separately when you no longer need it. A domain the AWS architectures created carries `prevent_destroy`, so the destroy stops rather than deleting the index, and each AWS README's OpenSearch section has the steps that remove it deliberately.
 
 If `terraform destroy` fails due to deletion protection:
 1. Set `deletion_protection = false` in your variables
