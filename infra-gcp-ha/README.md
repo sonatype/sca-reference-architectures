@@ -232,10 +232,16 @@ Enable these APIs in your project:
 > picks up the new default on its next apply. Set the values your deployment is
 > running at in `terraform.tfvars` before applying.
 >
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `iq_target_instances` | 2 | 3 |
-> | `iq_max_instances` | 6 | 4 |
+> | Variable | Previous default | New default | Applies to |
+> |---|:---:|:---:|---|
+> | `iq_target_instances` | 2 | 3 | new deployments only, see below |
+> | `iq_max_instances` | 6 | 4 | every deployment |
+>
+> `iq_target_instances` reaches a group only when it is created: `compute.tf` sets
+> `ignore_changes = [target_size]` on the instance group manager, so an existing
+> deployment keeps the size it is running at and an apply will not resize it. Change the
+> size with `gcloud compute instance-groups managed resize`, or by removing that
+> lifecycle block.
 
 ### Configuration Variables
 

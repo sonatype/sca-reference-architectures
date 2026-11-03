@@ -338,6 +338,10 @@ hpa:
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
+> **Upgrading an existing deployment.** Installs made before this change ran 2 pods with no
+> autoscaler. The next `helm-upgrade.sh` moves them to the values above, so set `iq_server.replicas`
+> and the `hpa` block to what the deployment is running at before upgrading.
+
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4
 - **`hpa.minReplicas` in `helm-values.yaml`** - Minimum auto scaling capacity, 2 for Size M and L. Size XL uses 3, and every size must be at least 2 for HA
