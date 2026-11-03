@@ -232,7 +232,7 @@ variable "log_archive_retention_days" {
 # than quietly wrong for the estate it holds.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" points IQ Server at an existing AWS-managed OpenSearch domain."
+  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
   type        = string
   default     = "lucene"
 
