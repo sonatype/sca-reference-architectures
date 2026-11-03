@@ -8,7 +8,8 @@ gcp_zone       = "us-central1-a"
 environment    = "dev"
 
 # Network Configuration
-vpc_cidr            = "10.100.0.0/16"
+# This root creates subnets inside an auto-created VPC, so there is no
+# VPC-wide CIDR variable. Set the three subnet ranges instead.
 public_subnet_cidr  = "10.100.1.0/24"
 private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"
@@ -49,6 +50,3 @@ filestore_capacity_gb = 1024
 # Load Balancer Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
-
-# Logging Configuration
-log_retention_days = 30

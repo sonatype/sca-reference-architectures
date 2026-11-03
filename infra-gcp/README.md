@@ -26,10 +26,10 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 <summary><strong>Size XS</strong> — Extra Small (< 500 applications)</summary>
 
 ```hcl
-machine_type         = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
+gce_machine_type     = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
+db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
 db_disk_size         = 50                  # GB
 ```
 </details>
@@ -38,10 +38,10 @@ db_disk_size         = 50                  # GB
 <summary><strong>Size S</strong> — Small (500 – 2,000 applications)</summary>
 
 ```hcl
-machine_type         = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
+gce_machine_type     = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-2-13312" # 2 vCPU, 13 GB
+db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
 db_disk_size         = 100                 # GB
 ```
 </details>
@@ -50,10 +50,10 @@ db_disk_size         = 100                 # GB
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications)</summary>
 
 ```hcl
-machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
+gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_disk_size         = 100                 # GB, auto-resize enabled
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024               # 1 TiB minimum
@@ -202,6 +202,15 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable defaults changed with the
+> published sizing. A deployment whose `terraform.tfvars` does not set a variable
+> picks up the new default on its next apply. Set the values your deployment is
+> running at in `terraform.tfvars` before applying.
+>
+> | Variable | Previous default | New default |
+> |---|:---:|:---:|
+> | `postgres_version` | POSTGRES_17 | POSTGRES_15 |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -214,7 +223,8 @@ gcp_zone       = "us-central1-a"
 environment    = "dev"
 
 # Network Configuration
-vpc_cidr            = "10.100.0.0/16"
+# This root creates subnets inside an auto-created VPC, so there is no
+# VPC-wide CIDR variable. Set the three subnet ranges instead.
 public_subnet_cidr  = "10.100.1.0/24"
 private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"

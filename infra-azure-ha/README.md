@@ -208,6 +208,16 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable defaults changed with the
+> published sizing. A deployment whose `terraform.tfvars` does not set a variable
+> picks up the new default on its next apply. Set the values your deployment is
+> running at in `terraform.tfvars` before applying.
+>
+> | Variable | Previous default | New default |
+> |---|:---:|:---:|
+> | `iq_min_replicas` | 3 | 2 |
+> | `iq_max_replicas` | 5 | 4 |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:

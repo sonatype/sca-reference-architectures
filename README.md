@@ -330,7 +330,6 @@ db_allocated_storage = 50                  # GB
 # infra-azure/terraform.tfvars — Size XS
 container_cpu        = 2.0                 # 2 vCPU
 container_memory     = "16Gi"              # 16 GB
-container_min_replicas = 1                 # Single instance
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
@@ -340,10 +339,10 @@ db_storage_mb        = 51200               # 50 GB
 **GCP (GCE Docker):**
 ```hcl
 # infra-gcp/terraform.tfvars — Size XS
-machine_type         = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
+gce_machine_type     = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
+db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
 db_disk_size         = 50                  # GB
 ```
 
@@ -372,7 +371,6 @@ db_allocated_storage = 100                 # GB
 # infra-azure/terraform.tfvars — Size S
 container_cpu        = 4.0                 # 4 vCPU
 container_memory     = "32Gi"              # 32 GB
-container_min_replicas = 1                 # Single instance
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
@@ -382,10 +380,10 @@ db_storage_mb        = 102400              # 100 GB
 **GCP (GCE Docker):**
 ```hcl
 # infra-gcp/terraform.tfvars — Size S
-machine_type         = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
+gce_machine_type     = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-2-13312" # 2 vCPU, 13 GB
+db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
 db_disk_size         = 100                 # GB
 ```
 
@@ -426,7 +424,7 @@ aurora_instances      = 2                  # Multi-AZ
 **Azure (Container Apps):**
 ```hcl
 # infra-azure/terraform.tfvars — Size M (Single Instance)
-# infra-azure-ha/terraform.tfvars - Size M (HA: set iq_min_replicas = 2, iq_max_replicas = 3)
+# infra-azure-ha/terraform.tfvars — Size M (HA)
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
 iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is fixed at 1 replica
@@ -434,17 +432,18 @@ iq_max_replicas      = 3                   # infra-azure-ha only, Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
-db_storage_mb        = 102400              # 100 GB
+db_storage_mb        = 102400              # 100 GB, infra-azure only; infra-azure-ha fixes its storage at 64 GB
 ```
 
 **GCP (GCE Docker):**
 ```hcl
 # infra-gcp/terraform.tfvars — Size M (Single Instance)
-# infra-gcp-ha/terraform.tfvars - Size M (HA: set iq_target_instances = 2, iq_min_instances = 2, iq_max_instances = 3)
-machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
+# infra-gcp-ha/terraform.tfvars — Size M (HA: set iq_target_instances = 2, iq_min_instances = 2, iq_max_instances = 3)
+# infra-gcp names the machine type gce_machine_type; infra-gcp-ha names it instance_machine_type
+gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_disk_size         = 100                 # GB, auto-resize enabled
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024               # 1 TiB minimum
@@ -496,19 +495,19 @@ iq_max_replicas      = 4                   # Scale up to 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
-db_ha_mode           = "ZoneRedundant"     # Required for L
+db_high_availability_mode = "ZoneRedundant" # Required for L
 ```
 
 **GCP (MIG HA):**
 ```hcl
 # infra-gcp-ha/terraform.tfvars — Size L
-machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
+instance_machine_type = "n4a-highmem-8"    # 8 vCPU, 64 GB (ARM)
 iq_target_instances  = 3                   # 3 instances across zones
 iq_min_instances     = 2
 iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"          # Required for L
 filestore_tier       = "BASIC_HDD"         # 2.5 TiB
 filestore_capacity_gb = 2560               # 2.5 TiB
@@ -553,28 +552,28 @@ aurora_instance_count   = 2
 **Azure (AKS — recommended for XL):**
 ```hcl
 # infra-azure-ha-k8s-helm/terraform.tfvars — Size XL
-node_pool_vm_size    = "Standard_E16ps_v6" # 16 vCPU, 128 GB (ARM)
-node_pool_min_count  = 3
-node_pool_max_count  = 5
-node_pool_node_count = 4                   # 4 nodes
+node_instance_type   = "Standard_E16ps_v6" # 16 vCPU, 128 GB (ARM)
+node_group_min_size  = 3
+node_group_max_size  = 5
+node_group_desired_size = 4                # 4 nodes
 nexus_iq_replica_count = 4                 # 4 IQ pods
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# The container image and the Java heap are Helm chart values, set in
+# helm-values.yaml as iq_server.tag and iq_server.javaOpts.
 db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
-db_ha_mode           = "ZoneRedundant"     # Required
+db_high_availability_mode = "ZoneRedundant" # Required
 storage_account_tier = "Premium"           # Required for NFS with AKS
 ```
 
 **GCP (MIG HA):**
 ```hcl
 # infra-gcp-ha/terraform.tfvars — Size XL
-machine_type         = "n4a-highmem-16"    # 16 vCPU, 128 GB (ARM)
+instance_machine_type = "n4a-highmem-16"   # 16 vCPU, 128 GB (ARM)
 iq_target_instances  = 4                   # 4 instances across zones
 iq_min_instances     = 3
 iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type = "REGIONAL"          # Required with automatic failover
 filestore_tier       = "BASIC_HDD"         # 10 TiB (1,000 read / 5,000 write IOPS)
 filestore_capacity_gb = 10240              # 10 TiB
@@ -583,14 +582,14 @@ filestore_capacity_gb = 10240              # 10 TiB
 **GCP (GKE + Helm):**
 ```hcl
 # infra-gcp-ha-k8s-helm/terraform.tfvars — Size XL
-machine_type            = "n4a-highmem-16" # 16 vCPU, 128 GB (ARM)
-node_pool_min_count     = 3
-node_pool_max_count     = 5
-node_pool_initial_count = 4                # 4 nodes
+node_instance_type      = "n4a-highmem-16" # 16 vCPU, 128 GB (ARM)
+node_group_min_size     = 3
+node_group_max_size     = 5
+node_group_desired_size = 4                # 4 nodes
 nexus_iq_replica_count  = 4                # 4 IQ pods
-iq_docker_image         = "sonatype/nexus-iq-server:latest"
-java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier                 = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+# The container image and the Java heap are Helm chart values, set in
+# helm-values.yaml as iq_server.tag and iq_server.javaOpts.
+db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type    = "REGIONAL"
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 10240            # 10 TiB

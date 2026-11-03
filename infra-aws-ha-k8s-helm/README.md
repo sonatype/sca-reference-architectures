@@ -37,7 +37,6 @@ nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
 aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
-java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -56,7 +55,6 @@ nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
 aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
-java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -75,7 +73,6 @@ nexus_iq_cpu_request    = "12"
 nexus_iq_cpu_limit      = "16"
 aurora_instance_class   = "db.r6g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
-java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -259,6 +256,15 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable defaults changed with the
+> published sizing. A deployment whose `terraform.tfvars` does not set a variable
+> picks up the new default on its next apply. Set the values your deployment is
+> running at in `terraform.tfvars` before applying.
+>
+> | Variable | Previous default | New default |
+> |---|:---:|:---:|
+> | `aurora_engine_version` | 15.8 | 15.19 |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -319,19 +325,23 @@ enable_ingress_nginx = true
 ingress_hostname     = "nexus-iq.yourdomain.com"
 ingress_tls_enabled  = false
 acm_certificate_arn  = ""
+```
 
-# Monitoring Configuration
-enable_hpa                      = true
-hpa_min_replicas               = 2
-hpa_max_replicas               = 4
-hpa_target_cpu_utilization     = 70
-hpa_target_memory_utilization  = 80
+Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
+
+```yaml
+iq_server:
+  replicas: 3          # Size L. Size M uses 2 and Size XL uses 4
+hpa:
+  enabled: true
+  minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
+  maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4
-- **`hpa_min_replicas = 2`** - Minimum auto scaling capacity, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA
-- **`hpa_max_replicas = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
+- **`hpa.minReplicas` in `helm-values.yaml`** - Minimum auto scaling capacity, 2 for Size M and L. Size XL uses 3, and every size must be at least 2 for HA
+- **`hpa.maxReplicas` in `helm-values.yaml`** - Maximum auto scaling capacity, 4 for Size L. Size M uses 3 and Size XL uses 5
 - **`aurora_instance_count = 2`** - Number of Aurora instances (minimum 2 for HA)
 - **`database_password`** - Use a strong, unique password (required change)
 - **`nexus_iq_license`** - Base64 encoded HA-capable license

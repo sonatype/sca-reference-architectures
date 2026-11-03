@@ -26,17 +26,15 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
 ```hcl
-node_pool_vm_size    = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
-node_pool_min_count  = 2
-node_pool_max_count  = 3
-node_pool_node_count = 2
+node_instance_type   = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
+node_group_min_size  = 2
+node_group_max_size  = 3
+node_group_desired_size = 2
 nexus_iq_replica_count = 2                 # 2 IQ pods
 nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
@@ -46,17 +44,15 @@ db_high_availability_mode = "ZoneRedundant"
 <summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
 
 ```hcl
-node_pool_vm_size    = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
-node_pool_min_count  = 2
-node_pool_max_count  = 5
-node_pool_node_count = 3
+node_instance_type   = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
+node_group_min_size  = 2
+node_group_max_size  = 5
+node_group_desired_size = 3
 nexus_iq_replica_count = 3                 # 3 IQ pods
 nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
@@ -66,13 +62,11 @@ db_high_availability_mode = "ZoneRedundant"
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-node_pool_vm_size    = "Standard_E16ps_v6" # 16 vCPU, 128 GB (ARM)
-node_pool_min_count  = 3
-node_pool_max_count  = 5
-node_pool_node_count = 4
+node_instance_type   = "Standard_E16ps_v6" # 16 vCPU, 128 GB (ARM)
+node_group_min_size  = 3
+node_group_max_size  = 5
+node_group_desired_size = 4
 nexus_iq_replica_count = 4                 # 4 IQ pods
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier = "Premium"           # Required for NFS with AKS
