@@ -38,7 +38,7 @@ Sonatype provides these configurations as reference examples. You are responsibl
 - Encrypted storage and secrets management
 - Load balancing with health checks
 - Official Sonatype Helm chart integration (Kubernetes deployments)
-- ARM instance support for better price-performance (20-30% savings)
+- ARM instance support, at a lower on-demand price than the x86 equivalents (see [Cross-Provider Instance Comparison](#cross-provider-instance-comparison))
 
 ### Official Documentation
 
@@ -245,7 +245,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
-| Machine type | n4a-highmem-8 (ARM Ampere Altra) | n4a-highmem-8 (ARM Ampere Altra) | n4a-highmem-16 (ARM Ampere Altra) |
+| Machine type | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-16 (ARM Google Axion) |
 | vCPUs | 8 | 8 | 16 |
 | Memory | 64 GB | 64 GB | 128 GB |
 | Java Heap | `-Xms48g -Xmx48g` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
@@ -275,20 +275,20 @@ The following tables provide equivalent instance types across cloud providers fo
 
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
-| **GCP** | n4a-highmem-8 | ARM (Ampere Altra) |
+| **GCP** | n4a-highmem-8 | ARM (Google Axion) |
 | **AWS** | r8g.2xlarge | ARM (Graviton4) |
 | **AWS** | r8i.2xlarge | x86_64 |
-| **Azure** | Standard_E8ps_v6 | ARM (Ampere Altra) |
+| **Azure** | Standard_E8ps_v6 | ARM (Azure Cobalt 100) |
 | **Azure** | Standard_E8_v5 | x86_64 |
 
 #### Size XL (16 vCPU / 128 GB)
 
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
-| **GCP** | n4a-highmem-16 | ARM (Ampere Altra) |
+| **GCP** | n4a-highmem-16 | ARM (Google Axion) |
 | **AWS** | r8g.4xlarge | ARM (Graviton4) |
 | **AWS** | r8i.4xlarge | x86_64 |
-| **Azure** | Standard_E16ps_v6 | ARM (Ampere Altra) |
+| **Azure** | Standard_E16ps_v6 | ARM (Azure Cobalt 100) |
 | **Azure** | Standard_E16_v5 | x86_64 |
 
 #### Database Instance Comparison
@@ -301,7 +301,7 @@ The following tables provide equivalent instance types across cloud providers fo
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** ARM-based instances (GCP n4a, AWS r8g, Azure Eps_v6) offer 20-30% better price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 15% less on AWS (`r8g.2xlarge` against `r8i.2xlarge`, us-east-1) and 27% less on Azure (`Standard_E8ps_v6` against `Standard_E8_v5`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 
