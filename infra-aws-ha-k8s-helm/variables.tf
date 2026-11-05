@@ -31,7 +31,7 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "EC2 instance type for EKS worker nodes"
   type        = string
-  default     = "m5d.2xlarge"
+  default     = "m8id.2xlarge"
 }
 
 variable "node_group_min_size" {
@@ -65,9 +65,9 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "Aurora instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "aurora_instance_count" {

@@ -297,16 +297,16 @@ Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
 
 ```yaml
 iq_server:
-  replicas: 3          # Size L. Size M uses 2 and Size XL uses 4
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
 hpa:
   enabled: true
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
-> **Upgrading an existing deployment.** Installs made before this change ran 2 pods with no
-> autoscaler. The next `helm-upgrade.sh` moves them to the values above, so set `iq_server.replicas`
-> and the `hpa` block to what the deployment is running at before upgrading.
+> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
+> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
+> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
 
 **Important Settings:**
 - **`node_group_min_size = 2`** - Minimum GKE node capacity

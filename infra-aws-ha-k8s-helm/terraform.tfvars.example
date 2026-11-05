@@ -8,7 +8,7 @@ vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
 kubernetes_version       = "1.30"
-node_instance_type      = "m5d.2xlarge"
+node_instance_type      = "m8id.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
@@ -16,7 +16,7 @@ node_disk_size          = 50
 
 # RDS Aurora Configuration
 aurora_engine_version   = "15.19"
-aurora_instance_class   = "db.r6g.4xlarge"
+aurora_instance_class   = "db.r8g.4xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"

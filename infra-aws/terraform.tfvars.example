@@ -21,7 +21,7 @@ java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/so
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-db_instance_class           = "db.r6g.4xlarge"
+db_instance_class           = "db.r8g.4xlarge"
 db_allocated_storage        = 500
 db_max_allocated_storage    = 1000
 postgres_version            = "15.19"

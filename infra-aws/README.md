@@ -45,7 +45,7 @@ ecs_memory           = 32768               # 32 GB
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.large"      # 2 vCPU, 16 GB
+db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
 db_allocated_storage = 100
 ```
 </details>
@@ -59,7 +59,7 @@ ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
+db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 100                 # auto-scales to 500 GB
 ```
 </details>
@@ -69,8 +69,8 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 | Size | DB Instance Class | vCPU | Memory | Storage |
 |------|:-----------------|:----:|:------:|:-------:|
 | **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 50 GB |
-| **S** | db.r6g.large | 2 | 16 GB | 100 GB |
-| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+| **S** | db.r8g.large | 2 | 16 GB | 100 GB |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
 
 ---
 
@@ -247,7 +247,7 @@ java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/so
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-db_instance_class           = "db.r6g.4xlarge"
+db_instance_class           = "db.r8g.4xlarge"
 db_allocated_storage        = 500
 db_max_allocated_storage    = 1000
 postgres_version            = "15.19"
