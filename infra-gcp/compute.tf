@@ -1,3 +1,10 @@
+# Arm machine series boot an arm64 image, and the N4, N4A, C4 and C4A series
+# accept only Hyperdisk.
+locals {
+  machine_is_arm      = can(regex("^(n4a|c4a|t2a)-", var.gce_machine_type))
+  machine_needs_hyper = can(regex("^(n4|n4a|n4d|c4|c4a|c4d)-", var.gce_machine_type))
+}
+
 # GCE Instance for Nexus IQ Server (Single Instance)
 resource "google_compute_instance" "iq_server" {
   name         = "${local.app_name}-server"
@@ -9,9 +16,9 @@ resource "google_compute_instance" "iq_server" {
 
   boot_disk {
     initialize_params {
-      image = var.gce_boot_image
+      image = var.gce_boot_image != "" ? var.gce_boot_image : (local.machine_is_arm ? "debian-cloud/debian-12-arm64" : "debian-cloud/debian-12")
       size  = var.gce_boot_disk_size
-      type  = "pd-ssd"
+      type  = local.machine_needs_hyper ? "hyperdisk-balanced" : "pd-ssd"
     }
   }
 

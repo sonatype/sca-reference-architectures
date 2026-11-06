@@ -1,6 +1,13 @@
 # Cloud Filestore provides shared NFS storage for multi-instance HA clustering
 # No disk attachment needed - NFS is mounted via startup script
 
+# Arm machine series boot an arm64 image, and the N4, N4A, C4 and C4A series
+# accept only Hyperdisk.
+locals {
+  machine_is_arm      = can(regex("^(n4a|c4a|t2a)-", var.instance_machine_type))
+  machine_needs_hyper = can(regex("^(n4|n4a|n4d|c4|c4a|c4d)-", var.instance_machine_type))
+}
+
 # Instance template for Nexus IQ Server with native installation
 resource "google_compute_instance_template" "iq_template" {
   name_prefix  = "${local.infra_name}-template-"
@@ -10,10 +17,10 @@ resource "google_compute_instance_template" "iq_template" {
   tags = ["nexus-iq-ha", "allow-health-check"]
 
   disk {
-    source_image = "debian-cloud/debian-12"
+    source_image = local.machine_is_arm ? "debian-cloud/debian-12-arm64" : "debian-cloud/debian-12"
     auto_delete  = true
     boot         = true
-    disk_type    = "pd-ssd"
+    disk_type    = local.machine_needs_hyper ? "hyperdisk-balanced" : "pd-ssd"
     disk_size_gb = 100
   }
 

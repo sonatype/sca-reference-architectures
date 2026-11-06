@@ -210,6 +210,8 @@ Enable these APIs in your project:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `postgres_version` | POSTGRES_17 | POSTGRES_15 |
+> | `java_opts` | 48 GB heap, no direct memory cap | the Size M `java_opts` above |
+> | `gce_boot_image` | `debian-cloud/debian-12` | empty, which picks `debian-12-arm64` on an Arm machine type |
 
 ### Configuration Variables
 
@@ -234,20 +236,20 @@ private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"
 
 # GCE with Docker Configuration
-gce_machine_type   = "e2-standard-8"      # 8 vCPU, 32 GB RAM
-gce_boot_image     = "debian-cloud/debian-12"
+gce_machine_type   = "n4a-highmem-8"      # 8 vCPU, 64 GB (ARM)
+gce_boot_image     = ""                     # Empty picks Debian 12 for the machine type's architecture
 gce_boot_disk_size = 100
 iq_desired_count   = 1                    # Single instance
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version                    = "POSTGRES_15"
-db_instance_tier                    = "db-perf-optimized-N-8"  # 8 vCPU, optimized
-db_edition                          = "ENTERPRISE_PLUS"
+db_instance_tier                    = "db-custom-8-30720"  # 8 vCPU, 30 GB (Enterprise)
+db_edition                          = "ENTERPRISE"
 db_availability_type                = "ZONAL"
 db_disk_size                        = 100
 db_max_disk_size                    = 1000
@@ -256,7 +258,7 @@ db_deletion_protection              = false
 
 # Storage Configuration
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
+filestore_tier        = "BASIC_HDD"
 filestore_capacity_gb = 1024  # 1 TB minimum
 
 # Load Balancer Configuration

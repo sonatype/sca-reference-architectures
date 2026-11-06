@@ -236,6 +236,9 @@ Enable these APIs in your project:
 > |---|:---:|:---:|---|
 > | `iq_target_instances` | 2 | 3 | new deployments only, see below |
 > | `iq_max_instances` | 6 | 4 | every deployment |
+> | `db_disk_size` | 100 | 200 | every deployment, and the disk cannot shrink |
+> | `filestore_capacity_gb` | 1024 | 2560 | every deployment, and the share cannot shrink |
+> | `java_opts` | 48 GB heap, no direct memory cap | the Size M and L `java_opts` above | every deployment, and it rolls the group |
 >
 > `iq_target_instances` reaches a group only when it is created: `compute.tf` sets
 > `ignore_changes = [target_size]` on the instance group manager, so an existing
