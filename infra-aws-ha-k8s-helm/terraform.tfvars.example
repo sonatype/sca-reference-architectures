@@ -35,10 +35,10 @@ nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
 
 # Resource Limits (adjusted for node capacity)
-nexus_iq_memory_request = "16Gi"
-nexus_iq_memory_limit   = "24Gi"
-nexus_iq_cpu_request    = "4"
-nexus_iq_cpu_limit      = "6"
+nexus_iq_memory_request = "48Gi"
+nexus_iq_memory_limit   = "56Gi"
+nexus_iq_cpu_request    = "6"
+nexus_iq_cpu_limit      = "8"
 
 # Helm Configuration
 helm_chart_version = "195.0.0"

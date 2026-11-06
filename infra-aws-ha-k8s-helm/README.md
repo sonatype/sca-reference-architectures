@@ -488,6 +488,8 @@ Your IAM user/role needs these AWS service permissions:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `aurora_engine_version` | 15.8 | 15.19 |
+> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
+> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 
 ### Configuration Variables
 
@@ -531,10 +533,10 @@ nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
 
 # Resource Limits
-nexus_iq_memory_request = "16Gi"
-nexus_iq_memory_limit   = "24Gi"
-nexus_iq_cpu_request    = "4"
-nexus_iq_cpu_limit      = "6"
+nexus_iq_memory_request = "48Gi"
+nexus_iq_memory_limit   = "56Gi"
+nexus_iq_cpu_request    = "6"
+nexus_iq_cpu_limit      = "8"
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
