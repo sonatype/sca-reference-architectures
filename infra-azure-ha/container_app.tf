@@ -193,7 +193,7 @@ server:
       archivedFileCount: 5
 
 logging:
-  level: DEBUG
+  level: INFO
   loggers:
     com.sonatype.insight.scan: INFO
     eu.medsea.mimeutil.MimeUtil2: INFO

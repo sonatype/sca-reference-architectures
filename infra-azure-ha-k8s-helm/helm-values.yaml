@@ -34,7 +34,7 @@ iq_server:
     sonatypeWork: "/sonatype-work/clm-server"
     clusterDirectory: "/sonatype-work/clm-cluster"
     logging:
-      level: DEBUG
+      level: INFO
       loggers:
         "org.apache.hc.client5.http": INFO
         "org.apache.hc.client5.http.wire": ERROR
