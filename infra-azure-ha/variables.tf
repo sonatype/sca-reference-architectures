@@ -59,6 +59,12 @@ variable "container_memory" {
   default     = "8Gi"
 }
 
+variable "workload_profile_type" {
+  description = "Azure Container Apps workload profile type, which sets the cores and memory of each node the replicas run on. E8 is 8 cores and 64 GB, which is what the published Size M and L rows of README.md ask for per node; E16 is 16 cores and 128 GB for Size XL. A profile smaller than container_cpu and container_memory cannot host a replica, and the app then reports insufficient capacity rather than naming the profile. Run `az rest --method get --url \"https://management.azure.com/subscriptions/<id>/providers/Microsoft.App/locations/<region>/availableManagedEnvironmentsWorkloadProfileTypes?api-version=2024-03-01\"` for the types a region offers."
+  type        = string
+  default     = "E8"
+}
+
 variable "iq_min_replicas" {
   description = "Minimum number of IQ Server replicas (HA requires minimum 2)"
   type        = number

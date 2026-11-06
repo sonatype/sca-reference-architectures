@@ -26,6 +26,10 @@ resource "azurerm_application_insights" "iq_insights_ha" {
 }
 
 
+locals {
+  workload_profile_name = "${var.workload_profile_type}-Profile-HA"
+}
+
 resource "azurerm_container_app_environment" "iq_env_ha" {
   name                       = "cae-${var.cluster_name}"
   location                   = azurerm_resource_group.iq_rg.location
@@ -36,11 +40,13 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
   infrastructure_subnet_id = azurerm_subnet.private_subnets[0].id
 
 
+  # One replica at the published sizes occupies one node, so the node count
+  # follows the replica count.
   workload_profile {
-    name                  = "E8-Profile-HA"
-    workload_profile_type = "E8"
-    minimum_count         = 2
-    maximum_count         = 3
+    name                  = local.workload_profile_name
+    workload_profile_type = var.workload_profile_type
+    minimum_count         = var.iq_min_replicas
+    maximum_count         = var.iq_max_replicas
   }
 
   tags = merge(var.common_tags, {
@@ -54,6 +60,11 @@ resource "azurerm_container_app" "iq_app_ha" {
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
+  workload_profile_name        = local.workload_profile_name
+
+  identity {
+    type = "SystemAssigned"
+  }
 
   dynamic "secret" {
     for_each = var.container_registry_server == "" ? [] : [1]
@@ -61,11 +72,6 @@ resource "azurerm_container_app" "iq_app_ha" {
       name  = "registry-password"
       value = var.container_registry_password
     }
-  }
-  workload_profile_name        = "E8-Profile-HA"
-
-  identity {
-    type = "SystemAssigned"
   }
 
   dynamic "registry" {
