@@ -126,8 +126,8 @@ resource "azurerm_container_app" "iq_app_ha" {
 
           if [ -n "$OPENSEARCH_CA_PEM" ]; then
             TRUST_STORE=/sonatype-work/iq-truststore-$HOSTNAME.jks
-            JVM_CACERTS=$(find / -name cacerts -path "*lib/security*" 2>/dev/null | head -1)
-            KEYTOOL=$(find / -name keytool -type f -perm -u+x 2>/dev/null | head -1)
+            JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+            KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
             if [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ]; then
               cp "$JVM_CACERTS" "$TRUST_STORE"
               printf '%s' "$OPENSEARCH_CA_PEM" | base64 -d > /tmp/opensearch-ca.crt
