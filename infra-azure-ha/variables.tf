@@ -48,15 +48,15 @@ variable "db_subnet_cidr" {
 
 
 variable "container_cpu" {
-  description = "CPU allocation per container replica (max 4.0 for Azure Container Apps)"
+  description = "vCPU per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
   type        = number
-  default     = 4.0
+  default     = 8.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation per container replica (max 8Gi for Azure Container Apps)"
+  description = "Memory per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
   type        = string
-  default     = "8Gi"
+  default     = "64Gi"
 }
 
 variable "workload_profile_type" {
@@ -91,7 +91,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -141,7 +141,19 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
   type        = string
-  default     = "GP_Standard_D8s_v3"
+  default     = "MO_Standard_E16s_v3"
+}
+
+variable "db_storage_mb" {
+  description = "PostgreSQL storage in MB. Azure accepts 32768, 65536, 131072, 262144, 524288, 1048576 and larger powers of two. Storage grows automatically past this, and cannot shrink."
+  type        = number
+  default     = 131072
+}
+
+variable "db_storage_tier" {
+  description = "Performance tier of the PostgreSQL storage. P10 is the default for 128 GB."
+  type        = string
+  default     = "P10"
 }
 
 variable "db_backup_retention_days" {
@@ -206,9 +218,9 @@ variable "storage_account_replication_type" {
 }
 
 variable "file_share_quota_gb" {
-  description = "File share quota in GB for IQ Server data"
+  description = "File share quota in GB for IQ Server data. The default is the low end of the Size L range in README.md."
   type        = number
-  default     = 200
+  default     = 512
 }
 
 

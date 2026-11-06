@@ -35,8 +35,8 @@ resource "azurerm_container_app_environment" "iq_env" {
 
 
   workload_profile {
-    name                  = "D4-Profile"
-    workload_profile_type = "D4"
+    name                  = "${var.workload_profile_type}-Profile"
+    workload_profile_type = var.workload_profile_type
     minimum_count         = 1
     maximum_count         = 1
   }
@@ -52,7 +52,7 @@ resource "azurerm_container_app" "iq_app" {
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile"
+  workload_profile_name        = "${var.workload_profile_type}-Profile"
 
   identity {
     type = "SystemAssigned"

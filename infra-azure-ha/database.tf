@@ -43,8 +43,9 @@ resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
   }
 
 
-  storage_mb   = 65536
-  storage_tier = "P6"
+  storage_mb        = var.db_storage_mb
+  storage_tier      = var.db_storage_tier
+  auto_grow_enabled = true
 
 
   sku_name = var.db_sku_name

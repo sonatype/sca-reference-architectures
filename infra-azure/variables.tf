@@ -49,15 +49,21 @@ variable "db_subnet_cidr" {
 
 
 variable "container_cpu" {
-  description = "CPU allocation for container (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 4.0)"
+  description = "vCPU for the IQ Server container. The default is the Size M value. It must fit on one node of workload_profile_type."
   type        = number
-  default     = 4.0
+  default     = 8.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation for container in Gi (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 8Gi)"
+  description = "Memory for the IQ Server container. The default is the Size M value. It must fit on one node of workload_profile_type."
   type        = string
-  default     = "8Gi"
+  default     = "64Gi"
+}
+
+variable "workload_profile_type" {
+  description = "Azure Container Apps dedicated workload profile type, which sets the cores and memory of the node the container runs on. E8 is 8 cores and 64 GB, for Size M. E4 is 4 cores and 32 GB, for Size S. D4 is 4 cores and 16 GB, for Size XS."
+  type        = string
+  default     = "E8"
 }
 
 variable "iq_docker_image" {
@@ -69,7 +75,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -100,7 +106,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
   type        = string
-  default     = "GP_Standard_D8s_v3"
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_storage_mb" {

@@ -229,6 +229,20 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable and value defaults changed. A deployment whose
+> `terraform.tfvars` does not set a variable picks up the new default on its next apply, and
+> `helm-upgrade.sh` applies the new `helm-values.yaml`. Set the values your deployment is running at
+> before applying.
+>
+> | Setting | Previous default | New default |
+> |---|:---:|:---:|
+> | `node_instance_type` | `Standard_D8s_v3` | `Standard_E8ps_v6` |
+> | `kubernetes_version` | `1.27` | `1.33.3` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16s_v3` |
+> | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, grows automatically |
+> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
+> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -247,9 +261,9 @@ db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
 kubernetes_version      = "1.33.3"
-node_instance_type      = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
+node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
-node_group_max_size     = 5
+node_group_max_size     = 6
 node_group_desired_size = 3
 node_disk_size          = 50
 
@@ -257,8 +271,8 @@ node_disk_size          = 50
 postgres_version                 = "15"
 db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode        = "ZoneRedundant"
-db_storage_mb                    = 65536 # 64GB
-db_storage_tier                  = "P6"
+db_storage_mb                    = 131072 # 128GB, grows automatically
+db_storage_tier                  = "P10"
 database_name                    = "nexusiq"
 database_username                = "nexusiq"
 database_password                = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
@@ -282,10 +296,10 @@ nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
-nexus_iq_memory_request  = "16Gi"
-nexus_iq_memory_limit    = "24Gi"
-nexus_iq_cpu_request     = "4"
-nexus_iq_cpu_limit       = "6"
+nexus_iq_memory_request  = "48Gi"
+nexus_iq_memory_limit    = "56Gi"
+nexus_iq_cpu_request     = "6"
+nexus_iq_cpu_limit       = "8"
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
@@ -322,7 +336,7 @@ hpa:
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4. Requires an HA license
 - **`node_group_min_size = 2`** - Minimum AKS node capacity
-- **`node_group_max_size = 5`** - Maximum AKS node capacity
+- **`node_group_max_size = 6`** - Maximum AKS node capacity
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
 - **`storage_account_replication_type = "ZRS"`** - Zone-Redundant Storage for file share
 - **`database_password`** - Use a strong, unique password (required change)

@@ -12,15 +12,15 @@ private_subnet_cidrs    = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"] # Mul
 db_subnet_cidr          = "10.0.40.0/24"
 
 # High Availability Container App Configuration
-container_cpu           = 4.0      # CPU per replica (max for Azure Container Apps)
-container_memory       = "8Gi"     # Memory per replica (max for Azure Container Apps)
+container_cpu          = 8.0       # vCPU per replica, the Size M and L value
+container_memory       = "64Gi"    # Memory per replica, the Size M and L value
 iq_min_replicas        = 2         # Minimum replicas, the Size L value (must be >= 2)
 iq_max_replicas        = 4         # Maximum replicas for auto-scaling, the Size L value
 # Container Apps workload profile. E8 is 8 cores and 64 GB per node, for Size M
 # and L. Size XL uses E16, 16 cores and 128 GB.
 workload_profile_type  = "E8"
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
 cpu_utilization_threshold     = 70    # CPU threshold for scaling (%)
@@ -46,7 +46,7 @@ app_gateway_zones       = ["1", "2", "3"] # Availability zones
 # Premium Storage Configuration (HA)
 storage_account_tier            = "Premium"  # Premium for better performance
 storage_account_replication_type = "ZRS"     # Zone-Redundant Storage
-file_share_quota_gb            = 200         # File share size in GB
+file_share_quota_gb            = 512         # File share size in GB
 
 # Monitoring and Logging
 enable_monitoring         = true
