@@ -47,6 +47,7 @@ app_gateway_zones       = ["1", "2", "3"] # Availability zones
 storage_account_tier            = "Premium"  # Premium for better performance
 storage_account_replication_type = "ZRS"     # Zone-Redundant Storage
 file_share_quota_gb            = 512         # File share size in GB
+log_share_quota_gb             = 128         # Log share size in GB, mounted at /var/log/nexus-iq-server
 
 # Monitoring and Logging
 enable_monitoring         = true

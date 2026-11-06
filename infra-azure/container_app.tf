@@ -72,6 +72,12 @@ resource "azurerm_container_app" "iq_app" {
     }
 
     volume {
+      name         = "iq-logs"
+      storage_type = "AzureFile"
+      storage_name = azurerm_container_app_environment_storage.iq_logs.name
+    }
+
+    volume {
       name         = "config-volume"
       storage_type = "EmptyDir"
     }
@@ -271,6 +277,11 @@ CONFIGEOF
       }
 
       volume_mounts {
+        name = "iq-logs"
+        path = "/var/log/nexus-iq-server"
+      }
+
+      volume_mounts {
         name = "config-volume"
         path = "/etc/nexus-iq-server"
       }
@@ -330,6 +341,7 @@ CONFIGEOF
   depends_on = [
     azurerm_postgresql_flexible_server.iq_db,
     azurerm_postgresql_flexible_server_database.iq_database,
-    azurerm_container_app_environment_storage.iq_storage
+    azurerm_container_app_environment_storage.iq_storage,
+    azurerm_container_app_environment_storage.iq_logs
   ]
 }

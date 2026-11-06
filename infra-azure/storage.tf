@@ -39,6 +39,24 @@ resource "azurerm_storage_share" "iq_file_share" {
 }
 
 
+resource "azurerm_storage_share" "iq_logs" {
+  name                 = "nexus-iq-logs"
+  storage_account_name = azurerm_storage_account.iq_storage.name
+  quota                = var.log_share_quota_gb
+  enabled_protocol     = "SMB"
+}
+
+
+resource "azurerm_container_app_environment_storage" "iq_logs" {
+  name                         = "nexus-iq-logs"
+  container_app_environment_id = azurerm_container_app_environment.iq_env.id
+  account_name                 = azurerm_storage_account.iq_storage.name
+  share_name                   = azurerm_storage_share.iq_logs.name
+  access_key                   = azurerm_storage_account.iq_storage.primary_access_key
+  access_mode                  = "ReadWrite"
+}
+
+
 resource "azurerm_container_app_environment_storage" "iq_storage" {
   name                         = "nexus-iq-storage"
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
