@@ -192,6 +192,17 @@ logging:
     eu.medsea.mimeutil.MimeUtil2: INFO
     org.apache.http: INFO
     org.apache.http.wire: ERROR
+    org.apache.hc.client5.http: INFO
+    org.apache.hc.client5.http.wire: ERROR
+    org.apache.hc.core5.reactor: INFO
+    org.apache.http.client.protocol.ResponseProcessCookies: ERROR
+    org.postgresql.jdbc.PgConnection: INFO
+    org.quartz: INFO
+    org.zeroturnaround.exec: INFO
+    org.eclipse.jgit: INFO
+    software.amazon.awssdk: WARN
+    org.jooq.tools: WARN
+    org.jooq.Constants: OFF
     org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
     org.eclipse.jetty: INFO
     org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
@@ -209,9 +220,9 @@ logging:
   - type: file
     threshold: ALL
     currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
-    archivedFileCount: 50
+    archivedFileCount: 24
 
 createSampleData: true
 CONFIGEOF
