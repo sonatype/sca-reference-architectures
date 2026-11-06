@@ -37,9 +37,9 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
 
 
   workload_profile {
-    name                  = "D4-Profile-HA"
-    workload_profile_type = "D4"
-    minimum_count         = 1
+    name                  = "E8-Profile-HA"
+    workload_profile_type = "E8"
+    minimum_count         = 2
     maximum_count         = 3
   }
 
@@ -54,10 +54,27 @@ resource "azurerm_container_app" "iq_app_ha" {
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile-HA"
+
+  dynamic "secret" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      name  = "registry-password"
+      value = var.container_registry_password
+    }
+  }
+  workload_profile_name        = "E8-Profile-HA"
 
   identity {
     type = "SystemAssigned"
+  }
+
+  dynamic "registry" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      server               = var.container_registry_server
+      username             = var.container_registry_username
+      password_secret_name = "registry-password"
+    }
   }
 
   template {
@@ -99,6 +116,27 @@ resource "azurerm_container_app" "iq_app_ha" {
         <<-EOF
           set -e
           echo "Starting Nexus IQ Server HA instance - Replica: $HOSTNAME"
+%{if var.search_engine == "opensearch" && var.opensearch_use_tls}
+
+          if [ -n "$OPENSEARCH_CA_PEM" ]; then
+            TRUST_STORE=/sonatype-work/iq-truststore-$HOSTNAME.jks
+            JVM_CACERTS=$(find / -name cacerts -path "*lib/security*" 2>/dev/null | head -1)
+            KEYTOOL=$(find / -name keytool -type f -perm -u+x 2>/dev/null | head -1)
+            if [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ]; then
+              cp "$JVM_CACERTS" "$TRUST_STORE"
+              printf '%s' "$OPENSEARCH_CA_PEM" | base64 -d > /tmp/opensearch-ca.crt
+              "$KEYTOOL" -importcert -noprompt \
+                -keystore "$TRUST_STORE" -storepass changeit \
+                -alias opensearch-ca -file /tmp/opensearch-ca.crt
+              rm -f /tmp/opensearch-ca.crt
+              echo "trust store built, authorities: $("$KEYTOOL" -list -keystore "$TRUST_STORE" -storepass changeit 2>/dev/null | grep -c trustedCertEntry)"
+              export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.trustStore=$TRUST_STORE -Djavax.net.ssl.trustStorePassword=changeit"
+            else
+              echo "REFUSING: cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"
+              exit 1
+            fi
+          fi
+%{endif}
 
 
           UNIQUE_WORK="/sonatype-work/clm-server-$HOSTNAME"
@@ -203,7 +241,13 @@ CONFIGEOF
             printf '  uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
             printf "  username: '%s'\n" "$os_user"
             printf "  password: '%s'\n" "$os_pass"
-            printf '  nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+            printf 'nexusOne:\n'
+            printf '  connection:\n'
+            printf '    type: http\n'
+            printf '    uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf "    username: '%s'\n" "$os_user"
+            printf "    password: '%s'\n" "$os_pass"
+            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
           } >> /etc/nexus-iq-server/config.yml
 
           unset os_user os_pass
@@ -226,6 +270,11 @@ CONFIGEOF
       env {
         name  = "JAVA_OPTS"
         value = var.java_opts
+      }
+
+      env {
+        name  = "OPENSEARCH_CA_PEM"
+        value = var.opensearch_ca_pem
       }
 
       env {

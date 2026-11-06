@@ -330,8 +330,33 @@ variable "opensearch_password" {
   }
 }
 
+variable "container_registry_server" {
+  description = "Login server of a private container registry holding iq_docker_image, for example myregistry.azurecr.io. Leave empty for an image on a public registry, which writes no registry block and no credential."
+  type        = string
+  default     = ""
+}
+
+variable "container_registry_username" {
+  description = "User name the container app authenticates to the private registry with. Required when container_registry_server is set."
+  type        = string
+  default     = ""
+}
+
+variable "container_registry_password" {
+  description = "Password for container_registry_username, delivered to the container app as a secret rather than a plain value. sensitive = true keeps it out of CLI output only: Terraform holds every variable in the state file as plain text, so treat terraform.tfstate as a secret. Keep the value in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "opensearch_ca_pem" {
+  description = "The certificate authority that signed the OpenSearch cluster's certificate, base64 encoded, for a cluster using a private authority. IQ Server has no per-connection trust setting, so the entrypoint copies the JVM's own trust store, adds this authority to the copy, and names the copy with javax.net.ssl.trustStore. The JVM store is never replaced, because it also serves IQ Server's calls to the Sonatype data service. Leave empty for a certificate signed by a public authority. This is a public certificate and not a credential."
+  type        = string
+  default     = ""
+}
+
 variable "opensearch_index_replicas" {
-  description = "Replicas per Nexus One index shard, written as search.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
+  description = "Replicas per Nexus One index shard, written as nexusOne.connection.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
   type        = number
   default     = 0
 

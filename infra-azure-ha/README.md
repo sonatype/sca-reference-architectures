@@ -427,7 +427,8 @@ opensearch_index_replicas = 0
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, and also written to Key Vault beside the four database secrets. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_ca_pem` | `""` | Base64 certificate of a private authority that signed the cluster's certificate. The entrypoint adds it to a copy of the JVM trust store, see below |
 
 Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` is
 byte-identical to a deployment that never knew about this section.
@@ -441,7 +442,13 @@ search:
   uri: https://opensearch.internal.example.com:9200
   username: 'iq-server'
   password: '<from the container app secret>'
-  nexusOneIndexReplicas: 0
+nexusOne:
+  connection:
+    type: http
+    uri: https://opensearch.internal.example.com:9200
+    username: 'iq-server'
+    password: '<from the container app secret>'
+    nexusOneIndexReplicas: 0
 ```
 
 The two credentials are single-quoted, and the entrypoint appends them with `printf` rather than
@@ -458,7 +465,8 @@ Three things about that block are deliberate:
   the only option. Both fields are mandatory and IQ Server refuses to start without them.
 - **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
   every batch to the embedded Lucene index as well and cannot revert an index generation.
-- **No `nexusOne` block.** None is needed. The `search:` block is the switch.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
 
 ### Specifying the cluster
 
@@ -506,6 +514,11 @@ one is the `javax.net.ssl.trustStore` system property.
 **Copy the JVM's own trust store and add to the copy. Never replace it.** The same store serves IQ
 Server's calls to the Sonatype data service, so a store holding only your private authority breaks
 policy and vulnerability data while fixing OpenSearch.
+
+**Set `opensearch_ca_pem` and the entrypoint does this for you**: it copies the JVM's trust store to
+`/sonatype-work/iq-truststore-<replica>.jks`, adds the authority, and names the copy with
+`javax.net.ssl.trustStore`. To build the store yourself instead, leave `opensearch_ca_pem` empty and
+follow these steps.
 
 The steps, run against a copy of the container image or in a build that produces one:
 
