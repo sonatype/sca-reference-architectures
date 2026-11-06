@@ -459,7 +459,7 @@ opensearch_index_replicas = 0
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
 
 Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` is
 byte-identical to a deployment that never knew about this section.
@@ -484,7 +484,13 @@ iq_server:
       uri: 'https://opensearch.internal.example.com:9200'
       username: 'iq-server'
       password: '<from terraform.tfvars>'
-      nexusOneIndexReplicas: 0
+    nexusOne:
+      connection:
+        type: http
+        uri: 'https://opensearch.internal.example.com:9200'
+        username: 'iq-server'
+        password: '<from terraform.tfvars>'
+        nexusOneIndexReplicas: 0
 ```
 
 The two credentials are single-quoted, and `write_search_block` appends them with `printf` through a
@@ -505,7 +511,8 @@ Three things about that block are deliberate:
   the only option. Both fields are mandatory and IQ Server refuses to start without them.
 - **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
   every batch to the embedded Lucene index as well and cannot revert an index generation.
-- **No `nexusOne` block.** None is needed. The `search:` block is the switch.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
 
 ### Specifying the cluster
 

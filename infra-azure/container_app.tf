@@ -177,7 +177,13 @@ CONFIGEOF
             printf '  uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
             printf "  username: '%s'\n" "$os_user"
             printf "  password: '%s'\n" "$os_pass"
-            printf '  nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+            printf 'nexusOne:\n'
+            printf '  connection:\n'
+            printf '    type: http\n'
+            printf '    uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf "    username: '%s'\n" "$os_user"
+            printf "    password: '%s'\n" "$os_pass"
+            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
           } >> /etc/nexus-iq-server/config.yml
 
           unset os_user os_pass
