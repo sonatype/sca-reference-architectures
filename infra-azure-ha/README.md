@@ -33,7 +33,7 @@ iq_min_replicas      = 2                   # 2 replicas for HA
 iq_max_replicas      = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
 </details>
@@ -49,7 +49,7 @@ iq_min_replicas      = 2
 iq_max_replicas      = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier             = "Standard"
 storage_account_replication_type = "ZRS"
@@ -67,7 +67,7 @@ iq_min_replicas      = 3
 iq_max_replicas      = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
+db_sku_name          = "MO_Standard_E16ds_v5" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier             = "Premium"  # Required for NFS with AKS
 storage_account_replication_type = "ZRS"
@@ -78,9 +78,9 @@ storage_account_replication_type = "ZRS"
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow) |
-| **L** | GP_Standard_D8s_v3 | 8 | 32 GB | 200 GB – 1 TB (auto-grow) |
-| **XL** | MO_Standard_E16s_v3 | 16 | 128 GB | 500 GB – 2 TB (auto-grow) |
+| **M** | GP_Standard_D8ds_v5 | 8 | 32 GB | 100 GB (auto-grow) |
+| **L** | GP_Standard_D8ds_v5 | 8 | 32 GB | 200 GB to 1 TB (auto-grow) |
+| **XL** | MO_Standard_E16ds_v5 | 16 | 128 GB | 500 GB to 2 TB (auto-grow) |
 
 ### Shared Storage (Azure Files)
 
@@ -223,7 +223,7 @@ Your Azure account needs permissions for these services:
 > | `container_cpu` | 4.0 | 8.0 |
 > | `container_memory` | `8Gi` | `64Gi` |
 > | `java_opts` | 6 GB heap | 48 GB heap |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16s_v3` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v5` |
 > | `db_storage_mb` | 65536, fixed | 131072, grows automatically |
 > | `file_share_quota_gb` | 200 | 512 |
 > | workload profile | `D4`, 1 to 3 nodes | `workload_profile_type`, default `E8`, `iq_min_replicas` to `iq_max_replicas` nodes |
@@ -260,7 +260,7 @@ db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version               = "15"
-db_sku_name                    = "MO_Standard_E16s_v3"     # Memory Optimized: 16 vCores, 128GB RAM
+db_sku_name                    = "MO_Standard_E16ds_v5"     # Memory Optimized: 16 vCores, 128GB RAM
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
 db_high_availability_mode      = "ZoneRedundant"           # Zone-redundant HA
@@ -493,9 +493,9 @@ validated at two or more, so their rows are in the single-instance root's README
 
 | Size | Data nodes | Per-node starting point | `opensearch_index_replicas` |
 |---|---|---|---|
-| M | 3 | `Standard_D8s_v5`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
-| L | 3 | `Standard_D8s_v5`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
-| XL | 3 | `Standard_D8s_v5`, 8 vCPU, 32 GB, 2 TB Premium SSD | **not yet published** |
+| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
+| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
+| XL | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 2 TB Premium SSD | **not yet published** |
 
 **The replica count is being measured and is not published yet.** Pick `0` to run without redundancy
 or `1` to pay one extra copy of the index for it, and expect this table to name a figure later. `0`
