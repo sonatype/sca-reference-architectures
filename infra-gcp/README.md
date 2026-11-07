@@ -210,6 +210,8 @@ Enable these APIs in your project:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `postgres_version` | POSTGRES_17 | POSTGRES_15 |
+> | `java_opts` | 48 GB heap, no direct memory cap | the Size M `java_opts` above |
+> | `gce_boot_image` | `debian-cloud/debian-12` | empty, which picks `debian-12-arm64` on an Arm machine type |
 
 ### Configuration Variables
 
@@ -222,6 +224,10 @@ gcp_region     = "us-central1"
 gcp_zone       = "us-central1-a"
 environment    = "dev"
 
+# Resource Naming
+# Empty reproduces the published names. Set it per deployment when several sizes share a project.
+cluster_name = ""
+
 # Network Configuration
 # This root creates subnets inside an auto-created VPC, so there is no
 # VPC-wide CIDR variable. Set the three subnet ranges instead.
@@ -230,20 +236,20 @@ private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"
 
 # GCE with Docker Configuration
-gce_machine_type   = "e2-standard-8"      # 8 vCPU, 32 GB RAM
-gce_boot_image     = "debian-cloud/debian-12"
+gce_machine_type   = "n4a-highmem-8"      # 8 vCPU, 64 GB (ARM)
+gce_boot_image     = ""                     # Empty picks Debian 12 for the machine type's architecture
 gce_boot_disk_size = 100
 iq_desired_count   = 1                    # Single instance
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version                    = "POSTGRES_15"
-db_instance_tier                    = "db-perf-optimized-N-8"  # 8 vCPU, optimized
-db_edition                          = "ENTERPRISE_PLUS"
+db_instance_tier                    = "db-custom-8-30720"  # 8 vCPU, 30 GB (Enterprise)
+db_edition                          = "ENTERPRISE"
 db_availability_type                = "ZONAL"
 db_disk_size                        = 100
 db_max_disk_size                    = 1000
@@ -252,12 +258,23 @@ db_deletion_protection              = false
 
 # Storage Configuration
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
+filestore_tier        = "BASIC_HDD"
 filestore_capacity_gb = 1024  # 1 TB minimum
 
 # Load Balancer Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
+
+# Search Backend
+# "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
+# see "Search Backend" below.
+search_engine = "lucene"
+# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_port                     = 9200
+# opensearch_use_tls                  = true
+# opensearch_username                 = "nexusiq"
+# opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 0
 ```
 
 **Important Settings:**
@@ -277,6 +294,320 @@ This deployment uses Docker containers on GCE for easier version management:
 - **Volume Mounts**: `/sonatype-work` and `/var/log/nexus-iq-server` mounted from Cloud Filestore
 - **Database Configuration**: Generated dynamically from environment variables
 - **Automatic Restart**: Container configured with `--restart always`
+
+## Running Several Sizes in One Project
+
+Every resource name that has to be unique inside a Google Cloud project derives from one variable,
+`cluster_name`, so two sizes of this architecture can live in one project without colliding.
+
+```hcl
+cluster_name = "iq-xs"   # a distinct value per deployment
+```
+
+**The default is empty, which reproduces the names this architecture has always published**, so a
+customer who sets nothing sees no change and nothing is renamed or replaced. That includes the two
+firewall rules that have always carried no prefix at all, `allow-egress-gce` and
+`allow-google-apis`: an empty `cluster_name` adds nothing to either, and a set one prefixes them
+like everything else.
+
+Setting it moves the
+VPC, both subnets, the router, the Cloud NAT, the reserved address, every firewall rule, the load
+balancer and its proxies and forwarding rules, the health check, the instance, the instance group,
+Filestore, both service accounts, the Cloud SQL instance, the client certificate and both Secret
+Manager secrets. Measured with a plan: 30 of the 32 named attributes moved.
+
+What does not move, and does not need to: the database name and the database user, which are
+scoped to the Cloud SQL instance rather than to the project, and the Filestore share name, which
+is scoped to the Filestore instance.
+
+### What a name may contain, and what cannot be reused
+
+**`cluster_name` is validated at plan time** against the narrower of the limits that apply:
+lowercase letters, numbers and hyphens, starting with a letter and ending with a letter or number,
+1 to 19 characters. A resource name itself allows 63, but a service account id allows only 30 and
+the longest suffix added to this prefix is 11 characters, so 19 is what keeps every derived name
+legal. A value that breaks the rule fails at plan rather than part way through an apply.
+
+**One name genuinely cannot be reused, and it is not the one usually warned about.**
+
+| Name | Reuse after deletion |
+|---|---|
+| Cloud SQL instance, and its replica | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
+| Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
+| Everything else here | Immediate |
+
+So the thing to plan around when a size is torn down and rebuilt is **the service accounts**, not
+the database. Both of this root's accounts are recreated by the next apply and both have their
+roles granted by the same apply, so a normal destroy and rebuild is fine. What is not fine is
+deleting an account by hand and expecting to undelete it afterwards: creating the replacement first
+makes the original unrecoverable.
+
+**A Cloud SQL instance name carries a random suffix anyway**, `<cluster_name>-db-<suffix>`, and the
+suffix is regenerated on every fresh apply because the `random_string` resource has no `keepers`.
+That predates this change and made the old reuse window a non-issue; it still means a rebuilt
+environment's database has a different name from the one before it.
+
+## Search Backend
+
+Nexus IQ Server ships with a built-in search index and needs nothing else running. Pointing it at
+OpenSearch instead moves the index off the server, which is what the Nexus One features read.
+
+**Google Cloud has no managed OpenSearch service**, so there is no first-party cluster for this
+configuration to create. You run OpenSearch yourself on Compute Engine, and this configuration
+takes the endpoint of a cluster you have already built. That keeps the cluster, and the index data
+in it, independent of Terraform runs here: switching `search_engine` back and forth never destroys
+an index.
+
+### Turning it on
+
+```hcl
+search_engine                       = "opensearch"
+opensearch_endpoint                 = "opensearch.internal.example.com"  # host only, no scheme
+opensearch_port                     = 9200
+opensearch_use_tls                  = true
+opensearch_username                 = "nexusiq"
+opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+opensearch_index_replicas = 0
+```
+
+All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
+`search_engine` is `"opensearch"`, and the plan fails naming whichever is missing.
+
+`opensearch_username` may not hold a single quote, a double quote, a dollar sign, a
+backtick or a backslash, and the plan refuses one that does. The startup script writes it
+into a single-quoted YAML scalar inside a double-quoted shell string, and those five are the
+only characters that would break one or the other. Everything else is written through
+intact, including `|`, `&`, `: `, ` #` and a leading YAML indicator character.
+
+### What this writes into `config.yml`
+
+`scripts/startup.sh` adds a `search:` block, which is what turns the Nexus One index on:
+
+```yaml
+search:
+  type: http
+  mode: OPENSEARCH
+  uri: https://opensearch.internal.example.com:9200
+  username: nexusiq
+  password: <read from Secret Manager at boot>
+  nexusOneIndexReplicas: 0
+```
+
+Three things about that block are deliberate:
+
+- **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
+  name and password are how the server authenticates.
+- **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
+  writes every batch to the built-in index as well. That costs indexing time and cannot roll an
+  index generation back.
+- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default is 0,
+  and stating it keeps the value visible next to the cluster it describes.
+
+### How the password reaches the server
+
+`opensearch_password` is written to a Secret Manager secret named
+`<cluster_name>-opensearch-password`, or `nexus-iq-opensearch-password` when `cluster_name` is
+left empty. The instance reads it at boot with `gcloud secrets versions access`, so the password is
+never written into instance metadata, where anyone who can describe the instance could read it. The
+GCE service account already holds `roles/secretmanager.secretAccessor`, so no further grant is
+needed.
+
+To rotate the password, add a new secret version and restart the instance. Both names come from
+Terraform outputs, so this works whatever `cluster_name` is set to:
+
+```bash
+SECRET=$(terraform output -raw opensearch_password_secret_name)
+printf '%s' 'NEW_PASSWORD' | gcloud secrets versions add "$SECRET" --data-file=-
+gcloud compute instances reset "$(terraform output -raw instance_name)" --zone <your-zone>
+```
+
+The reset re-runs `scripts/startup.sh`, which reads the newest secret version and then removes and
+recreates the container, so the new password is the one the container starts with. Two things in
+that script are what make the rotation take, and both only matter from the second boot onward:
+
+- **The container is removed first.** `docker run --name nexus-iq-server` fails on a name clash, and
+  the script runs under `set -e`, so without the removal the script would stop there and
+  `--restart always` would bring the old container back on the old password.
+- **The Filestore mount tolerates an already-mounted share.** The script writes an fstab entry, so
+  on a later boot systemd has usually mounted the share before the script runs, and mounting it
+  again on the same mount point is refused. Unconditionally, that ended the boot before the
+  container was recreated.
+
+The secret value also lives in Terraform state, because `opensearch_password` is an input variable.
+Keep the state backend private.
+
+### Firewall
+
+Google Cloud denies all ingress that no rule allows, and allows all egress unless a deny rule says
+otherwise. Two rules follow from that:
+
+- **Ingress.** `search.tf` adds a rule letting instances tagged `nexus-iq-server` reach instances
+  tagged `nexus-iq-opensearch` on `opensearch_port`. **Tag each OpenSearch node
+  `nexus-iq-opensearch`** or the cluster is unreachable from the server. The rule matches on the
+  network tag, not on the service account, so **anything in this VPC tagged `nexus-iq-server`
+  reaches the cluster's port**, not only this instance.
+- **Egress.** `opensearch_port` is added to the `allow-egress-gce` rule, which carries no
+  `cluster_name` prefix on the default and `-<cluster_name>` when one is set. That rule is an allow
+  rule, so today it changes nothing on its own, but it states the intent and keeps working if you
+  add an egress deny rule of your own. **This root has no 5432 egress rule**, unlike
+  `infra-gcp-ha`, which is the clearest sign that egress here is permissive.
+
+A cluster outside this VPC is reached over whatever path you have built to it, and neither rule
+affects it.
+
+### The cluster to build
+
+Verified against the OpenSearch source at tags `2.19.0` and `3.2.0`.
+
+| | What to run |
+|---|---|
+| OpenSearch version | 2.19 or later. The 2.19 line is the long-term support release |
+| Data nodes | One is enough for XS and S. More than one needs `opensearch_index_replicas` raised to at least 1, or a lost node loses a shard |
+| Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
+| Disk | SSD persistent disk. The index is write-heavy during a rebuild |
+| Network | Private IP addresses in this VPC, or a VPC you have peered to it. No public address |
+| Security | The OpenSearch security plugin, with a user for Nexus IQ Server that can create, read and write indices |
+| Snapshots | The `repository-gcs` plugin, on every node |
+
+The machine shape per size is not published yet. The one measured OpenSearch sizing study ran above
+this architecture's ceiling and on a different cloud, so a shape read off it would be a guess rather
+than a measurement.
+
+`opensearch_index_replicas` by size:
+
+| Size | Data nodes | `opensearch_index_replicas` |
+|------|:----------:|:--------------------------------------|
+| **XS** | 1 | `0`. One data node cannot place a replica |
+| **S** | 1 | `0`. One data node cannot place a replica |
+| **M** | more than 1 | `0` for now. **Placeholder**: the figure for a multi-node cluster is being measured and is not published yet. `0` leaves the index with no redundancy, so a lost data node loses a shard until the index is rebuilt |
+
+### Trusting a private certificate authority
+
+With `opensearch_use_tls = true`, the server's JVM has to trust the cluster's certificate. A
+certificate from a public authority already works and needs nothing below.
+
+A certificate from a private authority needs that authority added to the JVM trust store, and
+Nexus IQ Server has no per-connection trust setting, so the whole JVM is affected. **Copy the trust
+store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
+calls to the Sonatype data service**, which rely on the public authorities already in it.
+
+Do this on the instance, once the container is running. **There is no `keytool` on the instance**:
+the startup script installs `docker.io`, `curl` and `nfs-common` only, and no JDK. Every step below
+therefore runs `keytool` from inside the container, which does carry one.
+
+```bash
+# 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/sonatype-work
+#    as /sonatype-work, so one copy is reachable from both sides.
+docker exec nexus-iq-server cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /sonatype-work/cacerts
+# These paths are the ones the published image uses: its Dockerfile installs the server, and
+# the jlinked runtime that ships inside it, at /opt/sonatype/nexus-iq-server. Confirm them on
+# the image you are running with:
+#   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
+#   docker exec nexus-iq-server sh -c 'find / -name keytool -type f 2>/dev/null'
+
+# 2. Put your certificate authority where the container can read it, and add it to the copy.
+#    The default trust store password is "changeit".
+docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
+  -keystore /sonatype-work/cacerts -storepass changeit \
+  -alias opensearch-ca -file /tmp/ca.pem
+
+# 3. Confirm the authority is in the copy, and that the public ones are still there.
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
+  -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
+docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
+  -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
+```
+
+The copy is already inside the container at `/sonatype-work/cacerts`, so nothing new has to be
+mounted. Name it in `java_opts` in `terraform.tfvars`:
+
+```
+-Djavax.net.ssl.trustStore=/sonatype-work/cacerts -Djavax.net.ssl.trustStorePassword=changeit
+```
+
+`/mnt/sonatype-work` is Cloud Filestore, so the copy survives the instance being replaced.
+
+**`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
+takes either one. The cost is that the basic auth password is sent unencrypted on every request.
+**Use `https`.** The copy above is a one-time step, and a password on the wire is permanent. `http`
+is reasonable only for a short evaluation on a private subnet you control.
+
+### Snapshots, and the credential they need
+
+**A snapshot repository on Cloud Storage needs no service account JSON key.** The
+`repository-gcs` plugin falls back to application default credentials when no `credentials_file` is
+in the OpenSearch keystore, and on Compute Engine that resolves to the service account attached to
+the instance the node runs on, read from the metadata server.
+
+**Do not add a key back.** Several widely read third-party guides state the opposite, that
+application default credentials are "not supported out of the box" and a key file is mandatory.
+They are wrong for this plugin, and the source says so. The cost of believing them is a credential
+that never expires, sits on every data node, and can write to every backup.
+
+The evidence, read in the OpenSearch source at tags `2.19.0` and `3.2.0`, which are identical here:
+
+- `GoogleCloudStorageClientSettings.loadCredential` returns `null` when
+  `gcs.client.<name>.credentials_file` is absent, with its own comment saying this is deliberate so
+  that "the default credential can be loaded later when creating the Storage client".
+- `GoogleCloudStorageService.createStorageOptions` then calls
+  `GoogleApplicationDefaultCredentials.get()`, which calls
+  `GoogleCredentials.getApplicationDefault()`.
+
+**Confirm it on your own cluster by reading the node log.** The plugin logs this line, at INFO, the
+first time it builds a client for the repository:
+
+```
+"Application Default Credentials" will be in use
+```
+
+Seeing that line means no key was read. Not seeing it means a `credentials_file` is set in the
+keystore, so check with `./bin/opensearch-keystore list | grep credentials_file`.
+
+**No key does not mean no permission.** The identity still has to be granted access to the bucket,
+or a snapshot fails with a 403 that looks like an authentication problem and is not:
+
+```bash
+gcloud storage buckets add-iam-policy-binding gs://your-snapshot-bucket \
+  --member="serviceAccount:OPENSEARCH_NODE_SERVICE_ACCOUNT" \
+  --role="roles/storage.objectAdmin"
+```
+
+`roles/storage.objectAdmin` on the bucket alone, not on the project: a snapshot writes, reads,
+lists and deletes objects, which `objectViewer` and `objectCreator` each cover only part of.
+
+Then install the plugin and register the repository with no client credentials at all:
+
+```bash
+./bin/opensearch-plugin install repository-gcs   # on every node, then restart
+
+curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Type: application/json' -d '
+{
+  "type": "gcs",
+  "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
+}'
+```
+
+The node log records `"Application Default Credentials" will be in use` when the fallback is taken,
+which is how to confirm no key is being read.
+
+### What running the cluster yourself costs you
+
+None of this is handled by this configuration, and all of it has to be handled by someone:
+
+- **Upgrades.** Rolling restarts, version by version, with the cluster kept green between steps.
+- **Snapshots and restore drills.** A snapshot nobody has restored is not a backup.
+- **Capacity.** Disk watermarks block writes before they fill the disk, and a blocked write is how
+  an index rebuild stalls.
+- **Certificate renewal.** Both the cluster's certificate and the trust store copy above.
+- **Monitoring.** Cluster status, unassigned shards, JVM heap pressure, rejected write threads.
+- **The password.** Rotating it in Secret Manager and restarting the server.
+
+### Rebuilding the index
+
+Switching `search_engine` to `"opensearch"` points the server at an empty cluster. The index is
+built from the Nexus IQ Server administration pages, not by Terraform, and the build reads the whole
+database, so run it when the server is otherwise quiet.
 
 ## Security Features
 

@@ -400,7 +400,7 @@ show_destruction_summary() {
     echo ""
     print_warning "⚠️  Service Networking Connection may require manual cleanup:"
     print_warning "   gcloud services vpc-peerings delete \\"
-    print_warning "     --network=ref-arch-iq-vpc \\"
+    print_warning "     --network=$(terraform output -raw vpc_name 2>/dev/null || echo '<your vpc name>') \\"
     print_warning "     --service=servicenetworking.googleapis.com \\"
     print_warning "     --project=\$(grep gcp_project_id terraform.tfvars | cut -d'\"' -f2)"
     echo ""

@@ -16,15 +16,40 @@ mkdir -p /mnt/iq-logs
 FILESTORE_IP="${filestore_ip}"
 FILESTORE_SHARE="nexus_iq_data"
 
-mount -t nfs -o vers=3 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work
+# The fstab entry below survives a reboot, so on every boot after the first the share may already
+# be mounted here by the time this script runs. Mounting the same share on the same mount point a
+# second time is refused with EBUSY, and this script runs under `set -e`, so an unconditional
+# mount would end the boot here, before the container is recreated. A password rotation depends on
+# that recreation, so the mount has to tolerate a share that is already there.
+if mountpoint -q /mnt/sonatype-work; then
+  echo "/mnt/sonatype-work is already mounted, leaving it as it is"
+else
+  mount -t nfs -o vers=3 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work
+fi
 
 mkdir -p /mnt/sonatype-work/sonatype-work
 mkdir -p /mnt/sonatype-work/logs
 
-cat >> /etc/fstab << FSTAB_EOF
+# Written once. An unconditional append adds another copy of the same entry on every boot.
+if ! grep -qF "$FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work" /etc/fstab; then
+  cat >> /etc/fstab << FSTAB_EOF
 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work nfs defaults,_netdev 0 0
 FSTAB_EOF
+fi
 
+%{ if search_engine == "opensearch" ~}
+echo "=== Reading the OpenSearch password from Secret Manager ==="
+OPENSEARCH_PASSWORD=$(gcloud secrets versions access latest \
+  --secret="${opensearch_password_secret}" \
+  --project="${gcp_project_id}")
+
+if [ -z "$OPENSEARCH_PASSWORD" ]; then
+  echo "FATAL: could not read the OpenSearch password from Secret Manager"
+  exit 1
+fi
+echo "OpenSearch password read successfully"
+
+%{ endif ~}
 echo "=== Creating Docker entrypoint script ==="
 cat > /opt/docker-entrypoint.sh << 'ENTRYPOINT_EOF'
 #!/bin/sh
@@ -97,10 +122,35 @@ sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+%{ if search_engine == "opensearch" ~}
+
+# The search block is appended here rather than written into the heredoc above, so the password
+# never passes through sed. A sed replacement reads \ and & specially and ends at the | delimiter,
+# so a password containing any of those three is mangled with no error. The password is written as
+# a single-quoted YAML scalar, which takes every character literally with an embedded single quote
+# written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
+# of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
+# good a place as the middle.
+# The user name is written as a single-quoted scalar for the same reason. Its Terraform variable
+# refuses the single quote, double quote, dollar, backtick and backslash characters, which are the
+# five the quoting here cannot absorb, so | & ": " " #" and a leading indicator all survive intact.
+{
+  echo "search:"
+  echo "  type: http"
+  echo "  mode: OPENSEARCH"
+  echo "  uri: ${opensearch_uri}"
+  echo "  username: '${opensearch_username}'"
+  printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
+  echo "  nexusOneIndexReplicas: ${opensearch_index_replicas}"
+} >> /etc/nexus-iq-server/config.yml
+%{ endif ~}
 
 echo "Successfully created config.yml with database configuration"
-echo "Generated config file contents:"
-cat /etc/nexus-iq-server/config.yml
+# Every password line is redacted. This is the container's stdout, and scripts/startup.sh reads it
+# back with `docker logs`, so whatever is printed here also reaches the instance serial console and
+# Cloud Logging, where anyone holding roles/logging.viewer on the project could read it.
+echo "Generated config file contents, with passwords redacted:"
+sed 's/^\([[:space:]]*password:\).*/\1 <redacted>/' /etc/nexus-iq-server/config.yml
 
 export JAVA_OPTS
 
@@ -111,6 +161,13 @@ ENTRYPOINT_EOF
 chmod +x /opt/docker-entrypoint.sh
 
 echo "=== Starting Nexus IQ Server Docker Container ==="
+# Replace any container left by an earlier boot. `docker run --name` fails on a name clash, and
+# under `set -e` the script would end right here with the old container still running on its old
+# environment, so a password rotation followed by `gcloud compute instances reset` would not take
+# effect. Removing it first makes every boot build the container from current values.
+docker stop nexus-iq-server 2>/dev/null || true
+docker rm nexus-iq-server 2>/dev/null || true
+
 docker run -d \
   --name nexus-iq-server \
   --restart always \
@@ -124,6 +181,9 @@ docker run -d \
   -e DB_PASSWORD="${db_password}" \
   -e JAVA_OPTS="${java_opts}" \
   -e NEXUS_SECURITY_RANDOMPASSWORD="false" \
+%{ if search_engine == "opensearch" ~}
+  -e OPENSEARCH_PASSWORD="$OPENSEARCH_PASSWORD" \
+%{ endif ~}
   -v /mnt/sonatype-work/sonatype-work:/sonatype-work \
   -v /mnt/sonatype-work/logs:/var/log/nexus-iq-server \
   -v /opt/docker-entrypoint.sh:/docker-entrypoint.sh \
@@ -133,6 +193,8 @@ docker run -d \
 echo "=== Verifying Docker container status ==="
 sleep 10
 docker ps -a | grep nexus-iq-server
-docker logs nexus-iq-server
+# This output goes to the instance serial console and on to Cloud Logging, so any password line
+# the container happens to print is redacted on the way through.
+docker logs nexus-iq-server 2>&1 | sed 's/^\([[:space:]]*password:\).*/\1 <redacted>/'
 
 echo "=== Nexus IQ Server Docker Installation Complete ==="

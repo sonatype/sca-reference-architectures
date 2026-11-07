@@ -1,6 +1,13 @@
+# Arm machine series boot an arm64 image, and the N4, N4A, C4 and C4A series
+# accept only Hyperdisk.
+locals {
+  machine_is_arm      = can(regex("^(n4a|c4a|t2a)-", var.gce_machine_type))
+  machine_needs_hyper = can(regex("^(n4|n4a|n4d|c4|c4a|c4d)-", var.gce_machine_type))
+}
+
 # GCE Instance for Nexus IQ Server (Single Instance)
 resource "google_compute_instance" "iq_server" {
-  name         = "nexus-iq-server"
+  name         = "${local.app_name}-server"
   machine_type = var.gce_machine_type
   zone         = var.gcp_zone
   project      = var.gcp_project_id
@@ -9,9 +16,9 @@ resource "google_compute_instance" "iq_server" {
 
   boot_disk {
     initialize_params {
-      image = var.gce_boot_image
+      image = var.gce_boot_image != "" ? var.gce_boot_image : (local.machine_is_arm ? "debian-cloud/debian-12-arm64" : "debian-cloud/debian-12")
       size  = var.gce_boot_disk_size
-      type  = "pd-ssd"
+      type  = local.machine_needs_hyper ? "hyperdisk-balanced" : "pd-ssd"
     }
   }
 
@@ -33,6 +40,13 @@ resource "google_compute_instance" "iq_server" {
     docker_image = var.iq_docker_image
     java_opts    = var.java_opts
     filestore_ip = google_filestore_instance.iq_filestore.networks[0].ip_addresses[0]
+
+    gcp_project_id             = var.gcp_project_id
+    search_engine              = var.search_engine
+    opensearch_uri             = local.opensearch_enabled ? local.opensearch_uri : ""
+    opensearch_username        = var.opensearch_username
+    opensearch_password_secret = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
+    opensearch_index_replicas  = var.opensearch_index_replicas
   })
 
   service_account {
@@ -53,7 +67,7 @@ resource "google_compute_instance" "iq_server" {
 
 # Unmanaged Instance Group for Load Balancer
 resource "google_compute_instance_group" "iq_group" {
-  name        = "nexus-iq-instance-group"
+  name        = "${local.app_name}-instance-group"
   description = "Instance group for Nexus IQ Server"
   zone        = var.gcp_zone
   project     = var.gcp_project_id
@@ -70,7 +84,7 @@ resource "google_compute_instance_group" "iq_group" {
 
 # Firewall rule to allow health checks
 resource "google_compute_firewall" "allow_health_check" {
-  name    = "nexus-iq-allow-health-check"
+  name    = "${local.app_name}-allow-health-check"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id
 
@@ -85,7 +99,7 @@ resource "google_compute_firewall" "allow_health_check" {
 
 # Firewall rule to allow load balancer traffic
 resource "google_compute_firewall" "allow_lb_to_instances" {
-  name    = "nexus-iq-allow-lb"
+  name    = "${local.app_name}-allow-lb"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id
 

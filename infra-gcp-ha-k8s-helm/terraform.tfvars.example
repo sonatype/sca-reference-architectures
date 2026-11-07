@@ -1,7 +1,7 @@
 gcp_project_id = "your-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "prod"
-cluster_name   = "nexus-iq-ha"
+cluster_name   = "nexus-iq-ha"   # distinct per deployment when several sizes share one project
 
 public_subnet_cidr   = "10.100.1.0/24"
 private_subnet_cidrs = ["10.100.10.0/24", "10.100.11.0/24", "10.100.12.0/24"]
@@ -9,8 +9,8 @@ gke_pods_cidr        = "10.101.0.0/16"
 gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
-kubernetes_version           = "1.27"
-node_instance_type           = "n2-standard-8"
+kubernetes_version           = "1.33"
+node_instance_type           = "n4a-highmem-8"
 node_group_min_size          = 2
 node_group_max_size          = 5
 node_group_desired_size      = 3
@@ -35,7 +35,7 @@ db_username                        = "nexusiq"
 db_password                        = "CHANGE_ME_STRONG_PASSWORD"
 
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
+filestore_tier        = "BASIC_HDD"
 filestore_capacity_gb = 2560
 
 log_retention_days               = 7
@@ -45,6 +45,20 @@ cloud_armor_rate_limit_threshold = 1000
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
+# Not read on this root: the Helm chart renders the pod spec, so set iq_server.javaOpts in
+# helm-values.yaml instead, which is the value the pods get.
+java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
-# The Java heap is a Helm chart setting, not a Terraform input.
-# Set iq_server.javaOpts in helm-values.yaml.
+# Search Backend
+# "lucene" (default) uses the built-in index and needs nothing else running.
+# "opensearch" points Nexus IQ Server at an OpenSearch cluster you run yourself. Google Cloud has
+# no managed OpenSearch service, so this configuration does not create one: build the cluster to
+# the specification in README.md, "Search Backend", and name its host here.
+search_engine = "lucene"
+
+# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_port                     = 9200
+# opensearch_use_tls                  = true
+# opensearch_username                 = "nexusiq"
+# opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 0

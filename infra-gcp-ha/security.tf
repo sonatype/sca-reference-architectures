@@ -1,6 +1,6 @@
 # Firewall rule to allow health checks from Google Cloud Load Balancer
 resource "google_compute_firewall" "allow_health_check" {
-  name    = "ref-arch-iq-ha-allow-health-check"
+  name    = "${local.infra_name}-allow-health-check"
   network = google_compute_network.iq_ha_vpc.name
 
   allow {
@@ -21,7 +21,7 @@ resource "google_compute_firewall" "allow_health_check" {
 
 # Firewall rule to allow load balancer traffic
 resource "google_compute_firewall" "allow_load_balancer" {
-  name    = "ref-arch-iq-ha-allow-load-balancer"
+  name    = "${local.infra_name}-allow-load-balancer"
   network = google_compute_network.iq_ha_vpc.name
 
   allow {
@@ -37,7 +37,7 @@ resource "google_compute_firewall" "allow_load_balancer" {
 
 # Firewall rule for internal communication between instances
 resource "google_compute_firewall" "allow_internal" {
-  name    = "ref-arch-iq-ha-allow-internal"
+  name    = "${local.infra_name}-allow-internal"
   network = google_compute_network.iq_ha_vpc.name
 
   allow {
@@ -58,7 +58,7 @@ resource "google_compute_firewall" "allow_internal" {
 
 # Firewall rule for SSH access (optional, for debugging)
 resource "google_compute_firewall" "allow_ssh" {
-  name    = "ref-arch-iq-ha-allow-ssh"
+  name    = "${local.infra_name}-allow-ssh"
   network = google_compute_network.iq_ha_vpc.name
 
   allow {
@@ -74,7 +74,7 @@ resource "google_compute_firewall" "allow_ssh" {
 
 # Firewall rule to deny all other inbound traffic (implicit deny)
 resource "google_compute_firewall" "deny_all" {
-  name     = "ref-arch-iq-ha-deny-all"
+  name     = "${local.infra_name}-deny-all"
   network  = google_compute_network.iq_ha_vpc.name
   priority = 65534
 
@@ -89,7 +89,7 @@ resource "google_compute_firewall" "deny_all" {
 
 # Firewall rule to allow outbound internet access for instances
 resource "google_compute_firewall" "allow_outbound" {
-  name      = "ref-arch-iq-ha-allow-outbound"
+  name      = "${local.infra_name}-allow-outbound"
   network   = google_compute_network.iq_ha_vpc.name
   direction = "EGRESS"
 
@@ -108,6 +108,17 @@ resource "google_compute_firewall" "allow_outbound" {
     ports    = ["53"] # DNS
   }
 
+  # Reaching a self-managed OpenSearch cluster on its own port. This rule is the only egress rule
+  # in the root, so without the port here the server cannot reach the cluster at all unless it
+  # listens on 80 or 443.
+  dynamic "allow" {
+    for_each = local.opensearch_enabled ? [1] : []
+    content {
+      protocol = "tcp"
+      ports    = [tostring(var.opensearch_port)]
+    }
+  }
+
   destination_ranges = ["0.0.0.0/0"]
   target_tags        = ["nexus-iq-ha"]
 
@@ -116,7 +127,7 @@ resource "google_compute_firewall" "allow_outbound" {
 
 # Firewall rule to allow NFS traffic to Cloud Filestore
 resource "google_compute_firewall" "allow_nfs" {
-  name    = "ref-arch-iq-ha-allow-nfs"
+  name    = "${local.infra_name}-allow-nfs"
   network = google_compute_network.iq_ha_vpc.name
 
   allow {

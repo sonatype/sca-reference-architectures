@@ -6,20 +6,20 @@ resource "google_logging_project_bucket_config" "iq_ha_logs" {
   project        = var.gcp_project_id
   location       = "global"
   retention_days = var.log_retention_days
-  bucket_id      = "nexus-iq-ha-logs-${random_string.suffix.result}"
+  bucket_id      = "${local.app_name}-logs-${random_string.suffix.result}"
 
   description = "Centralized log bucket for Nexus IQ HA application logs"
 }
 
 # Log sink for Docker container logs (stderr/stdout)
 resource "google_logging_project_sink" "iq_ha_container_logs" {
-  name        = "nexus-iq-ha-container-logs-${random_string.suffix.result}"
+  name        = "${local.app_name}-container-logs-${random_string.suffix.result}"
   project     = var.gcp_project_id
   destination = "logging.googleapis.com/${google_logging_project_bucket_config.iq_ha_logs.id}"
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
     logName:"docker"
   EOT
 
@@ -32,13 +32,13 @@ resource "google_logging_project_sink" "iq_ha_container_logs" {
 
 # Log-based metric: Error count
 resource "google_logging_metric" "iq_ha_error_count" {
-  name        = "nexus-iq-ha-error-count"
+  name        = "${local.app_name}-error-count"
   project     = var.gcp_project_id
   description = "Count of ERROR level logs from Nexus IQ HA instances"
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
     severity="ERROR"
   EOT
 
@@ -61,13 +61,13 @@ resource "google_logging_metric" "iq_ha_error_count" {
 
 # Log-based metric: Warning count
 resource "google_logging_metric" "iq_ha_warning_count" {
-  name        = "nexus-iq-ha-warning-count"
+  name        = "${local.app_name}-warning-count"
   project     = var.gcp_project_id
   description = "Count of WARNING level logs from Nexus IQ HA instances"
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
     severity="WARNING"
   EOT
 
@@ -95,14 +95,14 @@ resource "google_logging_metric" "iq_ha_warning_count" {
 #
 # resource "google_monitoring_alert_policy" "iq_ha_high_error_rate" {
 #   project      = var.gcp_project_id
-#   display_name = "Nexus IQ HA - High Error Rate"
+#   display_name = "${local.alert_prefix} - High Error Rate"
 #   combiner     = "OR"
 #
 #   conditions {
 #     display_name = "Error count exceeds 50 per minute"
 #
 #     condition_threshold {
-#       filter          = "metric.type=\"logging.googleapis.com/user/nexus-iq-ha-error-count\" resource.type=\"gce_instance\""
+#       filter          = "metric.type=\"logging.googleapis.com/user/${local.app_name}-error-count\" resource.type=\"gce_instance\""
 #       duration        = "300s"
 #       comparison      = "COMPARISON_GT"
 #       threshold_value = 50
@@ -133,7 +133,7 @@ resource "google_logging_metric" "iq_ha_warning_count" {
 # Alert policy: Container restart
 resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
   project      = var.gcp_project_id
-  display_name = "Nexus IQ HA - Container Restart Detected"
+  display_name = "${local.alert_prefix} - Container Restart Detected"
   combiner     = "OR"
 
   conditions {
@@ -142,7 +142,7 @@ resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
     condition_matched_log {
       filter = <<-EOT
         resource.type="gce_instance"
-        labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+        labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
         textPayload=~"Starting Nexus IQ Server HA Docker Installation"
       EOT
     }
@@ -168,7 +168,7 @@ resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
 # Alert policy: NFS mount failure
 resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
   project      = var.gcp_project_id
-  display_name = "Nexus IQ HA - NFS Mount Failure"
+  display_name = "${local.alert_prefix} - NFS Mount Failure"
   combiner     = "OR"
 
   conditions {
@@ -177,7 +177,7 @@ resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
     condition_matched_log {
       filter = <<-EOT
         resource.type="gce_instance"
-        labels."compute.googleapis.com/resource_name"=~"nexus-iq-ha.*"
+        labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
         textPayload=~"FATAL: NFS mount failed after 5 attempts"
       EOT
     }
@@ -202,7 +202,7 @@ resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
 
 # Log view for easy filtering of IQ Server logs
 resource "google_logging_log_view" "iq_ha_view" {
-  name        = "nexus-iq-ha-view"
+  name        = "${local.app_name}-view"
   bucket      = google_logging_project_bucket_config.iq_ha_logs.id
   description = "Filtered view of Nexus IQ HA application logs"
 

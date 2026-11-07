@@ -13,6 +13,9 @@ DB_PASSWORD_SECRET="${db_password_secret}"
 JAVA_OPTS="${java_opts}"
 PROJECT_ID="${gcp_project_id}"
 FILESTORE_IP="${filestore_ip}"
+%{ if search_engine == "opensearch" ~}
+OPENSEARCH_PASSWORD_SECRET="${opensearch_password_secret}"
+%{ endif ~}
 
 # Logging function
 log() {
@@ -51,6 +54,12 @@ NFS_SHARE="/nexus_iq_ha_data"
 mkdir -p "$${MOUNT_POINT}"
 
 # Mount the NFS share with retries
+# The fstab entry written below survives a reboot, so on a later boot the share may already be
+# mounted here. Mounting the same share on the same mount point again is refused with EBUSY, which
+# this loop would read as five failed attempts and then exit, so check first.
+if mountpoint -q "$${MOUNT_POINT}"; then
+  log "$${MOUNT_POINT} is already mounted, leaving it as it is"
+else
 log "Mounting NFS share from $${FILESTORE_IP}:$${NFS_SHARE} to $${MOUNT_POINT}"
 for attempt in {1..5}; do
   if mount -t nfs -o nfsvers=3,hard,intr,rsize=1048576,wsize=1048576,timeo=600,retrans=2 \
@@ -61,12 +70,13 @@ for attempt in {1..5}; do
     log "NFS mount attempt $${attempt}/5 failed, retrying in 10 seconds..."
     sleep 10
   fi
-  
+
   if [ $attempt -eq 5 ]; then
     log "FATAL: NFS mount failed after 5 attempts"
     exit 1
   fi
 done
+fi
 
 # Verify mount
 if ! mountpoint -q "$${MOUNT_POINT}"; then
@@ -153,7 +163,19 @@ if [ -z "$DB_PASSWORD" ]; then
 fi
 log "Database password retrieved successfully"
 
-# ============================================
+%{ if search_engine == "opensearch" ~}
+log "Retrieving OpenSearch password from Secret Manager..."
+OPENSEARCH_PASSWORD=$(gcloud secrets versions access latest \
+  --secret="$${OPENSEARCH_PASSWORD_SECRET}" \
+  --project="$${PROJECT_ID}")
+
+if [ -z "$OPENSEARCH_PASSWORD" ]; then
+  log "FATAL: Failed to retrieve OpenSearch password from Secret Manager"
+  exit 1
+fi
+log "OpenSearch password retrieved successfully"
+
+%{ endif ~}# ============================================
 # SECTION 6: Generate config.yml
 # ============================================
 # CRITICAL: Use CONTAINER PATHS (not host paths)
@@ -232,6 +254,28 @@ sed -i "s|\$DB_NAME|$${DB_NAME}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_USER|$${DB_USER}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$${DB_PASSWORD}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/config.yml
+%{ if search_engine == "opensearch" ~}
+
+# The search block is appended here rather than written into the heredoc above, so the password
+# never passes through sed. A sed replacement reads \ and & specially and ends at the | delimiter,
+# so a password containing any of those three is mangled with no error. The password is written as
+# a single-quoted YAML scalar, which takes every character literally with an embedded single quote
+# written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
+# of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
+# good a place as the middle.
+# The user name is written as a single-quoted scalar for the same reason. Its Terraform variable
+# refuses the single quote, double quote, dollar, backtick and backslash characters, which are the
+# five the quoting here cannot absorb, so | & ": " " #" and a leading indicator all survive intact.
+{
+  echo "search:"
+  echo "  type: http"
+  echo "  mode: OPENSEARCH"
+  echo "  uri: ${opensearch_uri}"
+  echo "  username: '${opensearch_username}'"
+  printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
+  echo "  nexusOneIndexReplicas: ${opensearch_index_replicas}"
+} >> /etc/nexus-iq-server/config.yml
+%{ endif ~}
 
 log "Configuration file created at: /etc/nexus-iq-server/config.yml"
 

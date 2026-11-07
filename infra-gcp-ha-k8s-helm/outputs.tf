@@ -110,3 +110,29 @@ output "project_id" {
   description = "GCP project ID"
   value       = var.gcp_project_id
 }
+
+output "search_engine" {
+  description = "Search backend Nexus IQ Server is configured to use. helm-install.sh reads this to decide whether to write a search block."
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "URI Nexus IQ Server uses to reach OpenSearch, empty when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? local.opensearch_uri : ""
+}
+
+output "opensearch_username" {
+  description = "OpenSearch user Nexus IQ Server authenticates as, empty when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? var.opensearch_username : ""
+}
+
+output "opensearch_password" {
+  description = "Password for opensearch_username, empty when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? var.opensearch_password : ""
+  sensitive   = true
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas every Nexus One index is created with"
+  value       = var.opensearch_index_replicas
+}

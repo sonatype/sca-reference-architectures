@@ -1,19 +1,26 @@
 # Cloud Filestore provides shared NFS storage for multi-instance HA clustering
 # No disk attachment needed - NFS is mounted via startup script
 
+# Arm machine series boot an arm64 image, and the N4, N4A, C4 and C4A series
+# accept only Hyperdisk.
+locals {
+  machine_is_arm      = can(regex("^(n4a|c4a|t2a)-", var.instance_machine_type))
+  machine_needs_hyper = can(regex("^(n4|n4a|n4d|c4|c4a|c4d)-", var.instance_machine_type))
+}
+
 # Instance template for Nexus IQ Server with native installation
 resource "google_compute_instance_template" "iq_template" {
-  name_prefix  = "ref-arch-iq-ha-template-"
+  name_prefix  = "${local.infra_name}-template-"
   machine_type = var.instance_machine_type
   region       = var.gcp_region
 
   tags = ["nexus-iq-ha", "allow-health-check"]
 
   disk {
-    source_image = "debian-cloud/debian-12"
+    source_image = local.machine_is_arm ? "debian-cloud/debian-12-arm64" : "debian-cloud/debian-12"
     auto_delete  = true
     boot         = true
-    disk_type    = "pd-ssd"
+    disk_type    = local.machine_needs_hyper ? "hyperdisk-balanced" : "pd-ssd"
     disk_size_gb = 100
   }
 
@@ -40,6 +47,12 @@ resource "google_compute_instance_template" "iq_template" {
     java_opts          = var.java_opts
     gcp_project_id     = var.gcp_project_id
     filestore_ip       = google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]
+
+    search_engine              = var.search_engine
+    opensearch_uri             = local.opensearch_enabled ? local.opensearch_uri : ""
+    opensearch_username        = var.opensearch_username
+    opensearch_password_secret = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
+    opensearch_index_replicas  = var.opensearch_index_replicas
   })
 
   labels = merge(var.common_tags, {
@@ -59,10 +72,10 @@ resource "google_compute_instance_template" "iq_template" {
 
 # Regional Managed Instance Group for HA deployment
 resource "google_compute_region_instance_group_manager" "iq_mig" {
-  name   = "ref-arch-iq-ha-mig"
+  name   = "${local.infra_name}-mig"
   region = var.gcp_region
 
-  base_instance_name = "nexus-iq-ha"
+  base_instance_name = local.app_name
   target_size        = var.iq_target_instances
 
   version {
@@ -114,7 +127,7 @@ resource "google_compute_region_instance_group_manager" "iq_mig" {
 
 # Health check for auto healing
 resource "google_compute_health_check" "iq_health_check" {
-  name                = "ref-arch-iq-ha-health-check"
+  name                = "${local.infra_name}-health-check"
   check_interval_sec  = 30
   timeout_sec         = 10
   healthy_threshold   = 2
@@ -132,7 +145,7 @@ resource "google_compute_health_check" "iq_health_check" {
 
 # Regional autoscaler for the MIG
 resource "google_compute_region_autoscaler" "iq_autoscaler" {
-  name   = "ref-arch-iq-ha-autoscaler"
+  name   = "${local.infra_name}-autoscaler"
   region = var.gcp_region
   target = google_compute_region_instance_group_manager.iq_mig.id
 
