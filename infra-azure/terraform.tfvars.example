@@ -4,6 +4,10 @@
 # General Configuration
 azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
 
+# Name prefix for every resource. Change it to run more than one of these in
+# one subscription. Lowercase letters, digits and hyphens, 3 to 14 characters.
+cluster_name = "ref-arch-iq"
+
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
 public_subnet_cidr  = "10.0.1.0/24"
@@ -11,17 +15,18 @@ private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
-container_cpu    = 4.0
-container_memory = "8Gi"
-iq_docker_image  = "sonatype/nexus-iq-server:latest"
-java_opts        = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+container_cpu         = 8.0
+container_memory      = "64Gi"
+workload_profile_type = "E8"
+iq_docker_image       = "sonatype/nexus-iq-server:latest"
+java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16s_v3"
+db_sku_name                      = "MO_Standard_E16ds_v5"
 db_storage_mb                    = 524288
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
@@ -48,3 +53,35 @@ enable_monitoring  = true
 
 # Security Configuration
 key_vault_sku_name = "standard"
+
+# Search Backend (optional)
+# "lucene" (default) uses IQ Server's embedded index and needs nothing else.
+# "opensearch" points IQ Server at a self-managed OpenSearch cluster you run on
+# Azure Virtual Machines. This configuration does not provision that cluster,
+# so its lifecycle and its indexed data stay independent of Terraform runs
+# here. README.md carries the cluster specification, the build steps and the
+# trust store steps a private certificate authority needs.
+search_engine = "lucene"
+
+# opensearch_endpoint       = "opensearch.internal.example.com"
+# opensearch_port           = 9200
+# opensearch_use_tls        = true
+# opensearch_username       = "iq-server"
+# opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 0
+
+# Tags
+# Merged into every resource, on top of the Name and project tags this root
+# sets itself. A key with one of those names replaces it. Replace every
+# placeholder with your own values. terraform.tfvars is gitignored and this
+# example file is not, so nothing naming a person or an account belongs here.
+#
+# Azure treats tag names as case-insensitive, so do not add a key that differs
+# from one of these only in capitalization.
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}

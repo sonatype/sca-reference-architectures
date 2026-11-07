@@ -10,17 +10,27 @@ iq_server:
 
   resources:
     requests:
-      cpu: "4"
-      memory: "16Gi"
-    limits:
       cpu: "6"
-      memory: "24Gi"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
 
 
-  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 
   config:
+    # Advanced Search backend. No search key is committed here: helm-install.sh
+    # appends one to helm-values-runtime.yaml when search_engine is
+    # "opensearch" in terraform.tfvars, and appends nothing when it is
+    # "lucene".
+    #
+    # It is generated rather than committed because this file is rewritten by
+    # an unanchored sed that replaces every empty password value with the
+    # database password, so a committed OpenSearch password key would receive
+    # it. The generated search: and nexusOne.connection blocks carry the
+    # cluster's uri and credentials. README.md shows them in full.
     sonatypeWork: "/sonatype-work/clm-server"
     clusterDirectory: "/sonatype-work/clm-cluster"
 

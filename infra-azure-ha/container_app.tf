@@ -1,33 +1,37 @@
 
 resource "azurerm_log_analytics_workspace" "iq_logs_ha" {
-  name                = "log-ref-arch-iq-ha"
+  name                = "log-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
 
   tags = merge(var.common_tags, {
-    Name = "log-ref-arch-iq-ha"
+    Name = "log-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_application_insights" "iq_insights_ha" {
   count               = var.enable_monitoring ? 1 : 0
-  name                = "appi-ref-arch-iq-ha"
+  name                = "appi-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   workspace_id        = azurerm_log_analytics_workspace.iq_logs_ha.id
   application_type    = "web"
 
   tags = merge(var.common_tags, {
-    Name = "appi-ref-arch-iq-ha"
+    Name = "appi-${var.cluster_name}"
   })
 }
 
 
+locals {
+  workload_profile_name = "${var.workload_profile_type}-Profile-HA"
+}
+
 resource "azurerm_container_app_environment" "iq_env_ha" {
-  name                       = "cae-ref-arch-iq-ha"
+  name                       = "cae-${var.cluster_name}"
   location                   = azurerm_resource_group.iq_rg.location
   resource_group_name        = azurerm_resource_group.iq_rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs_ha.id
@@ -36,28 +40,47 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
   infrastructure_subnet_id = azurerm_subnet.private_subnets[0].id
 
 
+  # One replica at the published sizes occupies one node, so the node count
+  # follows the replica count.
   workload_profile {
-    name                  = "D4-Profile-HA"
-    workload_profile_type = "D4"
-    minimum_count         = 1
-    maximum_count         = 3
+    name                  = local.workload_profile_name
+    workload_profile_type = var.workload_profile_type
+    minimum_count         = var.iq_min_replicas
+    maximum_count         = var.iq_max_replicas
   }
 
   tags = merge(var.common_tags, {
-    Name = "cae-ref-arch-iq-ha"
+    Name = "cae-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_container_app" "iq_app_ha" {
-  name                         = "ca-ref-arch-iq-ha"
+  name                         = "ca-${var.cluster_name}"
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile-HA"
+  workload_profile_name        = local.workload_profile_name
 
   identity {
     type = "SystemAssigned"
+  }
+
+  dynamic "secret" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      name  = "registry-password"
+      value = var.container_registry_password
+    }
+  }
+
+  dynamic "registry" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      server               = var.container_registry_server
+      username             = var.container_registry_username
+      password_secret_name = "registry-password"
+    }
   }
 
   template {
@@ -99,6 +122,27 @@ resource "azurerm_container_app" "iq_app_ha" {
         <<-EOF
           set -e
           echo "Starting Nexus IQ Server HA instance - Replica: $HOSTNAME"
+%{if var.search_engine == "opensearch" && var.opensearch_use_tls}
+
+          if [ -n "$OPENSEARCH_CA_PEM" ]; then
+            TRUST_STORE=/sonatype-work/iq-truststore-$HOSTNAME.jks
+            JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+            KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+            if [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ]; then
+              cp "$JVM_CACERTS" "$TRUST_STORE"
+              printf '%s' "$OPENSEARCH_CA_PEM" | base64 -d > /tmp/opensearch-ca.crt
+              "$KEYTOOL" -importcert -noprompt \
+                -keystore "$TRUST_STORE" -storepass changeit \
+                -alias opensearch-ca -file /tmp/opensearch-ca.crt
+              rm -f /tmp/opensearch-ca.crt
+              echo "trust store built, authorities: $("$KEYTOOL" -list -keystore "$TRUST_STORE" -storepass changeit 2>/dev/null | grep -c trustedCertEntry)"
+              export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.trustStore=$TRUST_STORE -Djavax.net.ssl.trustStorePassword=changeit"
+            else
+              echo "REFUSING: cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"
+              exit 1
+            fi
+          fi
+%{endif}
 
 
           UNIQUE_WORK="/sonatype-work/clm-server-$HOSTNAME"
@@ -181,10 +225,43 @@ CONFIGEOF
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
+%{if var.search_engine == "opensearch"}
+
+          # The OpenSearch credentials never pass through the template or
+          # through a sed replacement, so no character in them can change the
+          # file's structure. They are read from the container app secrets and
+          # written as single-quoted YAML scalars, which are literal: a |, &, \
+          # or # in a password is only that character. The one character YAML
+          # gives meaning to inside single quotes is ' itself, which doubles.
+          # That doubling is the only substitution, both its pattern and its
+          # replacement are fixed, and the value reaches sed on standard input
+          # rather than as part of the script. Appending after the $HOSTNAME
+          # replacement also keeps that replacement away from the password.
+          os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
+          os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
+
+          {
+            printf 'search:\n'
+            printf '  type: http\n'
+            printf '  mode: OPENSEARCH\n'
+            printf '  uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf "  username: '%s'\n" "$os_user"
+            printf "  password: '%s'\n" "$os_pass"
+            printf 'nexusOne:\n'
+            printf '  connection:\n'
+            printf '    type: http\n'
+            printf '    uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf "    username: '%s'\n" "$os_user"
+            printf "    password: '%s'\n" "$os_pass"
+            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+          } >> /etc/nexus-iq-server/config.yml
+
+          unset os_user os_pass
+%{endif}
 
           echo "Successfully created HA config.yml for replica: $HOSTNAME at /etc/nexus-iq-server/config.yml"
-          echo "Generated config file contents:"
-          cat /etc/nexus-iq-server/config.yml
+          echo "Generated config file contents, with every password redacted:"
+          sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
 
           ls -la /sonatype-work/
@@ -199,6 +276,11 @@ CONFIGEOF
       env {
         name  = "JAVA_OPTS"
         value = var.java_opts
+      }
+
+      env {
+        name  = "OPENSEARCH_CA_PEM"
+        value = var.opensearch_ca_pem
       }
 
       env {
@@ -248,6 +330,22 @@ CONFIGEOF
         value = "/sonatype-work/clm-cluster"
       }
 
+      dynamic "env" {
+        for_each = var.search_engine == "opensearch" ? [1] : []
+        content {
+          name        = "OPENSEARCH_USERNAME"
+          secret_name = "opensearch-username"
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.search_engine == "opensearch" ? [1] : []
+        content {
+          name        = "OPENSEARCH_PASSWORD"
+          secret_name = "opensearch-password"
+        }
+      }
+
 
       volume_mounts {
         name = "iq-data-ha"
@@ -273,6 +371,22 @@ CONFIGEOF
     value = var.db_password
   }
 
+  dynamic "secret" {
+    for_each = var.search_engine == "opensearch" ? [1] : []
+    content {
+      name  = "opensearch-username"
+      value = var.opensearch_username
+    }
+  }
+
+  dynamic "secret" {
+    for_each = var.search_engine == "opensearch" ? [1] : []
+    content {
+      name  = "opensearch-password"
+      value = var.opensearch_password
+    }
+  }
+
 
   ingress {
     external_enabled           = true
@@ -294,7 +408,7 @@ CONFIGEOF
   }
 
   tags = merge(var.common_tags, {
-    Name = "ca-ref-arch-iq-ha"
+    Name = "ca-${var.cluster_name}"
   })
 
   depends_on = [

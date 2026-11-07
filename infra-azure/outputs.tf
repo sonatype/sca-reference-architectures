@@ -138,3 +138,19 @@ output "db_nsg_id" {
   description = "ID of the database network security group"
   value       = azurerm_network_security_group.db_nsg.id
 }
+
+
+output "search_engine" {
+  description = "Which search backend IQ Server is configured to use"
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "The OpenSearch URI written into IQ Server's config.yml. Null when search_engine is 'lucene'."
+  value       = var.search_engine == "opensearch" ? "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}" : null
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per Nexus One index shard written as search.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
+  value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
+}

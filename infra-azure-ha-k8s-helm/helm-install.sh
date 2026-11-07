@@ -14,6 +14,11 @@ HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
+# tfvar, load_search_vars and write_search_block. helm-upgrade.sh sources the
+# same file, so both paths write an identical search: block.
+# shellcheck source=search-values.sh
+source "$(dirname "$0")/search-values.sh"
+
 echo -e "${BLUE}🚀 Nexus IQ Server HA on AKS - Helm Installation${NC}"
 echo "===================================================="
 echo ""
@@ -54,9 +59,11 @@ echo -e "${BLUE}📊 Retrieving Infrastructure Details${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 DB_FQDN=$(terraform output -raw postgres_server_fqdn 2>/dev/null || echo "")
-DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+DB_PASSWORD=$(tfvar database_password)
 STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null || echo "")
 RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null || echo "")
+
+load_search_vars
 
 echo "• Database: $DB_FQDN"
 echo "• Storage Account: $STORAGE_ACCOUNT"
@@ -133,6 +140,20 @@ sed -i.bak \
     -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
+# The search: block is appended after that sed, never before it. Those two
+# patterns carry no line anchor, so a password: key written earlier would be
+# overwritten with the database password.
+if ! write_search_block "$TEMP_VALUES_FILE"; then
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    exit 1
+fi
+
+if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
+    echo "• Search backend: OpenSearch at $SEARCH_URI"
+else
+    echo "• Search backend: Lucene (embedded)"
+fi
+
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
@@ -142,7 +163,8 @@ fi
 echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
+CHART_VERSION=$(tfvar helm_chart_version)
+CHART_VERSION=${CHART_VERSION:-latest}
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"

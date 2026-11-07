@@ -1,15 +1,15 @@
 
 resource "azurerm_public_ip" "app_gateway_pip" {
-  name                = "pip-ref-arch-iq-appgw"
+  name                = "pip-${var.cluster_name}-appgw"
   resource_group_name = azurerm_resource_group.iq_rg.name
   location            = azurerm_resource_group.iq_rg.location
   allocation_method   = "Static"
   sku                 = "Standard"
-  domain_name_label   = "ref-arch-iq-${random_string.dns_suffix.result}"
+  domain_name_label   = "${var.cluster_name}-${random_string.dns_suffix.result}"
 
-  tags = {
-    Name = "pip-ref-arch-iq-appgw"
-  }
+  tags = merge(var.common_tags, {
+    Name = "pip-${var.cluster_name}-appgw"
+  })
 }
 
 
@@ -21,7 +21,7 @@ resource "random_string" "dns_suffix" {
 
 
 resource "azurerm_application_gateway" "iq_app_gateway" {
-  name                = "appgw-ref-arch-iq"
+  name                = "appgw-${var.cluster_name}"
   resource_group_name = azurerm_resource_group.iq_rg.name
   location            = azurerm_resource_group.iq_rg.location
 
@@ -170,9 +170,9 @@ resource "azurerm_application_gateway" "iq_app_gateway" {
     }
   }
 
-  tags = {
-    Name = "appgw-ref-arch-iq"
-  }
+  tags = merge(var.common_tags, {
+    Name = "appgw-${var.cluster_name}"
+  })
 
   depends_on = [
     azurerm_container_app.iq_app,

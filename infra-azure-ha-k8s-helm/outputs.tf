@@ -181,5 +181,22 @@ output "ha_configuration" {
     appgw_zones           = local.availability_zones
     min_replicas          = var.nexus_iq_replica_count
     geo_redundant_backups = var.db_geo_redundant_backup_enabled
+    search_engine         = var.search_engine
   }
+}
+
+
+output "search_engine" {
+  description = "Which search backend IQ Server is configured to use"
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "The OpenSearch URI helm-install.sh writes into helm-values-runtime.yaml. Null when search_engine is 'lucene'."
+  value       = var.search_engine == "opensearch" ? "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}" : null
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per Nexus One index shard written as search.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
+  value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
 }

@@ -1,6 +1,6 @@
 
 resource "azurerm_key_vault" "iq_kv" {
-  name                        = "kv-ref-arch-iq-${random_string.kv_suffix.result}"
+  name                        = "kv-${var.cluster_name}-${random_string.kv_suffix.result}"
   location                    = azurerm_resource_group.iq_rg.location
   resource_group_name         = azurerm_resource_group.iq_rg.name
   enabled_for_disk_encryption = true
@@ -15,9 +15,9 @@ resource "azurerm_key_vault" "iq_kv" {
     default_action = "Allow"
   }
 
-  tags = {
-    Name = "kv-ref-arch-iq"
-  }
+  tags = merge(var.common_tags, {
+    Name = "kv-${var.cluster_name}"
+  })
 }
 
 
@@ -58,6 +58,12 @@ resource "azurerm_key_vault_access_policy" "container_app" {
 
   depends_on = [azurerm_container_app.iq_app]
 }
+
+
+# The OpenSearch credentials are not kept here. The container app receives them
+# as container app secrets, set from the variables, and nothing reads them back
+# out of a vault, so a Key Vault copy would be a second place the password
+# lives and has to be rotated. The database password takes the same route.
 
 
 

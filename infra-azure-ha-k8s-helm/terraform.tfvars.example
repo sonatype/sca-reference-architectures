@@ -11,18 +11,18 @@ db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
 kubernetes_version      = "1.33.3"
-node_instance_type      = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
+node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
-node_group_max_size     = 5
+node_group_max_size     = 6
 node_group_desired_size = 3
 node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA) - matching AWS Aurora specs
 postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS r8g.4xlarge)
+db_sku_name                      = "MO_Standard_E16ds_v5" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS r8g.4xlarge)
 db_high_availability_mode        = "ZoneRedundant"
-db_storage_mb                    = 65536 # 64GB
-db_storage_tier                  = "P6"
+db_storage_mb                    = 131072 # 128GB, grows automatically
+db_storage_tier                  = "P10"
 database_name                    = "nexusiq"
 database_username                = "nexusiq"
 database_password                = "CHANGE_ME_STRONG_PASSWORD"
@@ -46,10 +46,10 @@ nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
-nexus_iq_memory_request  = "16Gi"
-nexus_iq_memory_limit    = "24Gi"
-nexus_iq_cpu_request     = "4"
-nexus_iq_cpu_limit       = "6"
+nexus_iq_memory_request  = "48Gi"
+nexus_iq_memory_limit    = "56Gi"
+nexus_iq_cpu_request     = "6"
+nexus_iq_cpu_limit       = "8"
 
 # Helm Configuration
 helm_chart_version      = "195.0.0"
@@ -68,3 +68,40 @@ enable_monitoring  = true
 # Ingress Configuration
 ingress_hostname    = "" # Optional: custom hostname
 ingress_tls_enabled = false
+
+# Search Backend (optional)
+# "lucene" (default) uses IQ Server's embedded index and needs nothing else.
+# "opensearch" points IQ Server at a self-managed OpenSearch cluster you run on
+# Azure Virtual Machines. This configuration does not provision that cluster,
+# so its lifecycle and its indexed data stay independent of Terraform runs
+# here. README.md carries the cluster specification, the build steps and the
+# trust store steps a private certificate authority needs.
+#
+# helm-install.sh reads these out of this file with grep, so it sees only what
+# is written here and never a variable default. Write every one of them when
+# search_engine is "opensearch".
+search_engine = "lucene"
+
+# opensearch_endpoint       = "opensearch.internal.example.com"
+# opensearch_port           = 9200
+# opensearch_use_tls        = true
+# opensearch_username       = "iq-server"
+# opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 0
+
+# Tags
+# Merged on top of the four tags this root sets itself: project, Environment,
+# ManagedBy and Purpose. A key below with the same name replaces that one.
+# Replace every placeholder with your own values. terraform.tfvars is
+# gitignored and this example file is not, so nothing naming a person or an
+# account belongs here.
+#
+# Azure treats tag names as case-insensitive, so do not add a key that differs
+# from one of those four only in capitalization.
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}

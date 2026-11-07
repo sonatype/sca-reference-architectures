@@ -16,7 +16,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **ARM instances recommended.** Eps_v6 costs 27% less on demand than the x86 equivalent E_v5 (`Standard_E8ps_v6` against `Standard_E8_v5` in eastus, list prices in November 2026).
+> **ARM instances recommended.** Eps_v6 costs 47% less on demand than the x86 equivalent Esv7 (`Standard_E8ps_v6` against `Standard_E8s_v7` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 
@@ -35,7 +35,7 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
 </details>
@@ -53,7 +53,7 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
 </details>
@@ -67,7 +67,7 @@ node_group_min_size  = 3
 node_group_max_size  = 5
 node_group_desired_size = 4
 nexus_iq_replica_count = 4                 # 4 IQ pods
-db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
+db_sku_name          = "MO_Standard_E16ds_v5" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier = "Premium"           # Required for NFS with AKS
 storage_account_replication_type = "ZRS"
@@ -78,9 +78,9 @@ storage_account_replication_type = "ZRS"
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow) |
-| **L** | GP_Standard_D8s_v3 | 8 | 32 GB | 200 GB – 1 TB (auto-grow) |
-| **XL** | MO_Standard_E16s_v3 | 16 | 128 GB | 500 GB – 2 TB (auto-grow) |
+| **M** | GP_Standard_D8ds_v5 | 8 | 32 GB | 100 GB (auto-grow) |
+| **L** | GP_Standard_D8ds_v5 | 8 | 32 GB | 200 GB to 1 TB (auto-grow) |
+| **XL** | MO_Standard_E16ds_v5 | 16 | 128 GB | 500 GB to 2 TB (auto-grow) |
 
 ### Shared Storage (Azure Files Premium ZRS)
 
@@ -229,6 +229,20 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable and value defaults changed. A deployment whose
+> `terraform.tfvars` does not set a variable picks up the new default on its next apply, and
+> `helm-upgrade.sh` applies the new `helm-values.yaml`. Set the values your deployment is running at
+> before applying.
+>
+> | Setting | Previous default | New default |
+> |---|:---:|:---:|
+> | `node_instance_type` | `Standard_D8s_v3` | `Standard_E8ps_v6` |
+> | `kubernetes_version` | `1.27` | `1.33.3` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v5` |
+> | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, grows automatically |
+> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
+> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -247,18 +261,18 @@ db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
 kubernetes_version      = "1.33.3"
-node_instance_type      = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
+node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
-node_group_max_size     = 5
+node_group_max_size     = 6
 node_group_desired_size = 3
 node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA)
 postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM
+db_sku_name                      = "MO_Standard_E16ds_v5" # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode        = "ZoneRedundant"
-db_storage_mb                    = 65536 # 64GB
-db_storage_tier                  = "P6"
+db_storage_mb                    = 131072 # 128GB, grows automatically
+db_storage_tier                  = "P10"
 database_name                    = "nexusiq"
 database_username                = "nexusiq"
 database_password                = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
@@ -282,14 +296,26 @@ nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
-nexus_iq_memory_request  = "16Gi"
-nexus_iq_memory_limit    = "24Gi"
-nexus_iq_cpu_request     = "4"
-nexus_iq_cpu_limit       = "6"
+nexus_iq_memory_request  = "48Gi"
+nexus_iq_memory_limit    = "56Gi"
+nexus_iq_cpu_request     = "6"
+nexus_iq_cpu_limit       = "8"
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
 helm_namespace     = "nexus-iq"
+
+# Search Backend (optional) - see "Advanced Search with OpenSearch" below
+search_engine = "lucene"
+
+# Tags merged on top of the four this root sets itself
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
@@ -310,7 +336,7 @@ hpa:
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4. Requires an HA license
 - **`node_group_min_size = 2`** - Minimum AKS node capacity
-- **`node_group_max_size = 5`** - Maximum AKS node capacity
+- **`node_group_max_size = 6`** - Maximum AKS node capacity
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
 - **`storage_account_replication_type = "ZRS"`** - Zone-Redundant Storage for file share
 - **`database_password`** - Use a strong, unique password (required change)
@@ -383,6 +409,210 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Public NSG**: Allows HTTP (80), HTTPS (443) from internet
 - **AKS NSG**: Allows traffic from Application Gateway, inter-node communication
 - **Database NSG**: Allows PostgreSQL (5432) from AKS subnet only
+
+### Running several sizes in one subscription
+
+Every resource name is built from `cluster_name`, so two deployments coexist in one Azure
+subscription as long as they use different values:
+
+```hcl
+cluster_name = "iq-m-aks"   # one deployment
+cluster_name = "iq-l-aks"   # another, in the same subscription
+```
+
+**The default reproduces the names this configuration has always used**, so a customer who sets
+nothing sees no change.
+
+One Azure limit constrains the value, and the variable rejects a value that would break it:
+
+**A storage account name is globally unique across Azure**, lowercase alphanumeric only, and capped
+at 24 characters. This root builds it as `st<cluster_name without hyphens>iqha`, so the variable is
+capped at 18 characters once its hyphens are removed.
+
+**That name carries no random suffix**, unlike the two Container Apps roots, so the value has to be
+one nobody else on Azure has used rather than merely one this subscription has not. An apply fails
+with `StorageAccountAlreadyTaken` if it is taken. This root creates no Key Vault.
+
+**The subnet names (`snet-public`, `snet-aks`, `snet-database`) do not move with `cluster_name`, and
+do not need to**, because they are scoped inside the virtual network, which does move. The private
+DNS zone `privatelink.postgres.database.azure.com` is Azure's own fixed name for that zone and is
+shared by design.
+
+## Advanced Search with OpenSearch
+
+Sonatype IQ Server can keep its Advanced Search index in OpenSearch instead of the embedded Lucene
+index. Pointing it at OpenSearch is what turns the Nexus One index on: the `search:` block alone does
+it, and no other configuration key is involved.
+
+Azure has no first-party managed OpenSearch service, so **OpenSearch here is a cluster you run
+yourself on Azure Virtual Machines**. This configuration does not build that cluster. You build it,
+then supply its endpoint and credentials, which keeps the cluster's lifecycle and its indexed data
+independent of Terraform runs here.
+
+### Turning it on
+
+Set these in `terraform.tfvars`. **`helm-install.sh` and `helm-upgrade.sh` read them out of that
+file**, through the shared `search-values.sh`, so they see only what is written there and never a
+variable default. Write every one of them:
+
+```hcl
+search_engine             = "opensearch"
+opensearch_endpoint       = "opensearch.internal.example.com"
+opensearch_port           = 9200
+opensearch_use_tls        = true
+opensearch_username       = "iq-server"
+opensearch_password       = "<strong password>"
+opensearch_index_replicas = 0
+```
+
+| Variable | Default | What it does |
+|---|---|---|
+| `search_engine` | `lucene` | `lucene` writes no `search:` block at all. `opensearch` writes one on both install and upgrade |
+| `opensearch_endpoint` | `""` | Host name or IP of the cluster's client endpoint, no scheme and no port. Required when `search_engine` is `opensearch` |
+| `opensearch_port` | `9200` | The port the cluster listens on |
+| `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
+| `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
+| `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
+| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+
+Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` is
+byte-identical to a deployment that never knew about this section.
+
+### What reaches IQ Server's configuration
+
+IQ Server's configuration on this root comes from `helm-values.yaml` rather than from Terraform, so
+`helm-install.sh` and `helm-upgrade.sh` append the block to `helm-values-runtime.yaml` under
+`iq_server.config:`. Both call `write_search_block` in `search-values.sh`, so an upgrade writes the
+same block an install writes. An upgrade rebuilds that file from `helm-values.yaml` and passes no
+`--reuse-values`, so without that shared step the block would be absent from the upgraded release and
+IQ Server would fall back to Lucene:
+
+```yaml
+iq_server:
+  config:
+    sonatypeWork: "/sonatype-work/clm-server"
+    clusterDirectory: "/sonatype-work/clm-cluster"
+    search:
+      type: http
+      mode: OPENSEARCH
+      uri: 'https://opensearch.internal.example.com:9200'
+      username: 'iq-server'
+      password: '<from terraform.tfvars>'
+    nexusOne:
+      connection:
+        type: http
+        uri: 'https://opensearch.internal.example.com:9200'
+        username: 'iq-server'
+        password: '<from terraform.tfvars>'
+        nexusOneIndexReplicas: 0
+```
+
+The two credentials are single-quoted, and `write_search_block` appends them with `printf` through a
+file rather than through an `awk -v` assignment. A single-quoted YAML scalar is literal, so a `|`,
+`&`, `\` or ` #` in the password is only that character, and nothing in the value can change the
+file's structure. The one character YAML gives meaning to inside single quotes is `'` itself, which
+doubles.
+
+**Nothing about it is committed to `helm-values.yaml`.** That file is rewritten by a `sed` whose
+`password: ""` pattern carries no line anchor, so a committed OpenSearch password key would be
+overwritten with the database password. The block is appended after that `sed` runs, for the same
+reason.
+
+Three things about that block are deliberate:
+
+- **`type: http` with basic auth.** The `aws` connection type signs each request with an AWS
+  credential, and Azure has nothing to sign with, so the HTTP type with a user name and a password is
+  the only option. Both fields are mandatory and IQ Server refuses to start without them.
+- **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
+  every batch to the embedded Lucene index as well and cannot revert an index generation.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
+
+### Specifying the cluster
+
+The one measured sizing study ran about 105,700 applications on three AWS OpenSearch data nodes of
+8 vCPU and 32 GB each, at zero replicas, and rebuilt 68.3 million documents in about 1 hour 30
+minutes. That is above this guide's XL ceiling of 80,000 applications, and it was measured on AWS
+rather than on Azure Virtual Machines, so treat the row below as a starting point and not as a
+tested figure.
+
+This root covers M, L and XL, so the XS and S rows are in the single-instance root's README instead.
+
+| Size | Data nodes | Per-node starting point | `opensearch_index_replicas` |
+|---|---|---|---|
+| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
+| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
+| XL | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 2 TB Premium SSD | **not yet published** |
+
+**The replica count is being measured and is not published yet.** Pick `0` to run without redundancy
+or `1` to pay one extra copy of the index for it, and expect this table to name a figure later. `0`
+is the only workable value on a single data node, because that node cannot place a replica: the shard
+stays unassigned and the cluster sits yellow for ever.
+
+Other things the cluster needs, none of which this configuration sets for you:
+
+- **OpenSearch 2.x**, with the security plugin on, so basic auth and a password-protected user exist.
+- **A user IQ Server owns**, with permission to create and write its own indices. Do not reuse the
+  bootstrap admin.
+- **Heap at half of RAM and no more than about 31 GB**, set in `jvm.options`, which is the standard
+  OpenSearch guidance and the reason the per-node memory above is not larger.
+- **One node per availability zone** at M and above, so a zone outage costs one node rather than the
+  cluster.
+- **A private subnet**, reachable from the AKS subnet and from nowhere else. A network security group
+  on the OpenSearch subnet is what enforces that, since Azure allows outbound traffic from the AKS
+  subnet by default.
+- **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
+  index up, and a lost index means a full rebuild at the cost quoted above.
+
+### TLS, and the JVM trust store
+
+**IQ Server has no per-connection trust setting.** A certificate signed by a private certificate
+authority is trusted only if that authority is in the trust store the JVM loads, and the way to name
+one is the `javax.net.ssl.trustStore` system property.
+
+**Copy the JVM's own trust store and add to the copy. Never replace it.** The same store serves IQ
+Server's calls to the Sonatype data service, so a store holding only your private authority breaks
+policy and vulnerability data while fixing OpenSearch.
+
+The steps, run against a copy of the container image or in a build that produces one:
+
+```bash
+# 1. Copy the JVM's trust store out of the image.
+cp "$JAVA_HOME/lib/security/cacerts" /sonatype-work/iq-truststore.jks
+
+# 2. Add your certificate authority to the copy. The default password is "changeit".
+keytool -importcert -noprompt \
+  -keystore /sonatype-work/iq-truststore.jks -storepass changeit \
+  -alias opensearch-ca -file /path/to/ca.crt
+
+# 3. Confirm it is there, and that the public authorities still are.
+keytool -list -keystore /sonatype-work/iq-truststore.jks -storepass changeit | grep -c 'trustedCertEntry'
+```
+
+Then name the copy in `iq_server.javaOpts` in `helm-values.yaml`, which the chart passes to the pod.
+This root declares no `java_opts` variable, so the value is edited in that file:
+
+```yaml
+iq_server:
+  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/sonatype-work/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+```
+
+`/sonatype-work` is the Azure Files share every pod mounts, so one copy of the store serves all of
+them and survives a pod being replaced.
+
+**A certificate from a public authority needs none of this**, because the JVM already trusts it. That
+is the cheapest answer if your cluster can carry one.
+
+**IQ Server also accepts a plain `http://` URI**, so a cluster in a private subnet can skip TLS
+entirely by setting `opensearch_use_tls = false`. That sends the basic-auth password in clear text on
+every request, and anything able to read traffic inside that subnet can read it.
+
+**The recommendation is TLS with a private certificate authority and a copied trust store.** The cost
+is one `keytool` command and one extra JVM argument, paid once. Plaintext puts a long-lived
+credential on the wire on every request, and a subnet is not a confidentiality boundary: a
+misconfigured peering, a diagnostic VM, or a later change to the network makes that traffic readable
+by something nobody intended. Use `opensearch_use_tls = false` only to get a proof of concept
+running, and treat it as a thing to undo.
 
 ## Important: Admin Port 8071 Not Exposed
 
