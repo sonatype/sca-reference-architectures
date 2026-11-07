@@ -206,7 +206,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput, with continuous monitoring running** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880 to 22,320/day total) | ~405 evals/hour/node (~29,160 to 38,880/day total) |
 | **Compute** | | | |
-| Instance type | r8g.2xlarge (ARM) or r8i.2xlarge (x86) | r8g.2xlarge (ARM) or r8i.2xlarge (x86) | r8g.4xlarge (ARM) or r8i.4xlarge (x86) |
+| Instance type | r9g.2xlarge (ARM) or r8i.2xlarge (x86) | r9g.2xlarge (ARM) or r8i.2xlarge (x86) | r9g.4xlarge (ARM) or r8i.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
 | Memory | 60 GB Fargate task, or 64 GB per EKS node | 60 GB Fargate task, or 64 GB per EKS node | 120 GB Fargate task, or 128 GB per EKS node |
 | Java Heap | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms96g -Xmx96g` |
@@ -237,14 +237,14 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput, with continuous monitoring running** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880 to 22,320/day total) | ~405 evals/hour/node (~29,160 to 38,880/day total) |
 | **Compute** | | | |
-| Instance type | Standard_E8ps_v6 (ARM) or Standard_E8_v5 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8_v5 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16_v5 (x86) |
+| Instance type | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) |
 | vCPUs | 8 | 8 | 16 |
 | Memory | 64 GB | 64 GB | 128 GB |
 | Java Heap | `-Xms48g -Xmx48g` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
 | Deployment option | Azure Container Apps or AKS | Azure Container Apps or AKS | AKS recommended at this scale |
 | **Database** | | | |
 | Service | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server |
-| SKU | GP_Standard_D8s_v3 (8 vCores, 32 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
+| SKU | GP_Standard_D8ds_v5 (8 vCores, 32 GB) | GP_Standard_D8ds_v5 (8 vCores, 32 GB) | MO_Standard_E16ds_v5 (16 vCores, 128 GB) |
 | Storage | 100 GB with auto-scaling | 200 GB – 1 TB with auto-scaling | 500 GB – 2 TB with auto-scaling |
 | Zone redundancy | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
@@ -300,32 +300,32 @@ The following tables provide equivalent instance types across cloud providers fo
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
 | **GCP** | n4a-highmem-8 | ARM (Google Axion) |
-| **AWS** | r8g.2xlarge | ARM (Graviton4) |
+| **AWS** | r9g.2xlarge | ARM (Graviton5) |
 | **AWS** | r8i.2xlarge | x86_64 |
 | **Azure** | Standard_E8ps_v6 | ARM (Azure Cobalt 100) |
-| **Azure** | Standard_E8_v5 | x86_64 |
+| **Azure** | Standard_E8s_v7 | x86_64 |
 
 #### Size XL (16 vCPU / 128 GB)
 
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
 | **GCP** | n4a-highmem-16 | ARM (Google Axion) |
-| **AWS** | r8g.4xlarge | ARM (Graviton4) |
+| **AWS** | r9g.4xlarge | ARM (Graviton5) |
 | **AWS** | r8i.4xlarge | x86_64 |
 | **Azure** | Standard_E16ps_v6 | ARM (Azure Cobalt 100) |
-| **Azure** | Standard_E16_v5 | x86_64 |
+| **Azure** | Standard_E16s_v7 | x86_64 |
 
 #### Database Instance Comparison
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
+| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v5 (8 vCores, 32 GB) |
+| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v5 (8 vCores, 32 GB) |
+| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v5 (16 vCores, 128 GB) |
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 15% less on AWS (`r8g.2xlarge` against `r8i.2xlarge`, us-east-1) and 27% less on Azure (`Standard_E8ps_v6` against `Standard_E8_v5`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 47% less on Azure (`Standard_E8ps_v6` against `Standard_E8s_v7`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 
@@ -397,7 +397,7 @@ container_cpu        = 4.0                 # 4 vCPU
 container_memory     = "32Gi"              # 32 GB
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
+db_sku_name          = "GP_Standard_D2ds_v5" # 2 vCores, 8 GB
 db_storage_mb        = 102400              # 100 GB
 ```
 
@@ -455,7 +455,7 @@ iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is
 iq_max_replicas      = 3                   # infra-azure-ha only, Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
 db_storage_mb        = 102400              # 100 GB, infra-azure only; infra-azure-ha fixes its storage at 64 GB
 ```
 
@@ -496,7 +496,7 @@ aurora_instances      = 2                  # Multi-AZ with failover
 **AWS (EKS + Helm):**
 ```hcl
 # infra-aws-ha-k8s-helm/terraform.tfvars — Size L
-node_instance_type      = "r8g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r9g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 3                # 3 nodes
 node_group_min_size     = 2
 node_group_max_size     = 5
@@ -518,7 +518,7 @@ iq_min_replicas      = 2                   # Minimum 2 for HA
 iq_max_replicas      = 4                   # Scale up to 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant" # Required for L
 ```
 
@@ -560,7 +560,7 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 **AWS (EKS + Helm):**
 ```hcl
 # infra-aws-ha-k8s-helm/terraform.tfvars — Size XL
-node_instance_type      = "r8g.4xlarge"    # 16 vCPU, 128 GB (ARM)
+node_instance_type      = "r9g.4xlarge"    # 16 vCPU, 128 GB (ARM)
 node_group_desired_size = 4                # 4 nodes
 node_group_min_size     = 3
 node_group_max_size     = 6
@@ -583,7 +583,7 @@ node_group_desired_size = 4                # 4 nodes
 nexus_iq_replica_count = 4                 # 4 IQ pods
 # The container image and the Java heap are Helm chart values, set in
 # helm-values.yaml as iq_server.tag and iq_server.javaOpts.
-db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
+db_sku_name          = "MO_Standard_E16ds_v5" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant" # Required
 storage_account_tier = "Premium"           # Required for NFS with AKS
 ```

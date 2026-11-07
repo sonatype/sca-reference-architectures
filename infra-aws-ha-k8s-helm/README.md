@@ -10,9 +10,9 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type | OpenSearch |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r8g.2xlarge (ARM) | Required ¹ |
-| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r8g.2xlarge (ARM) | Required ¹ |
-| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r8g.4xlarge (ARM) | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r9g.4xlarge (ARM) | Required ¹ |
 
 > All sizes validated through performance testing, which ran on GCP ARM instances at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
@@ -23,7 +23,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
-> **ARM instances recommended.** r8g (Graviton4) costs 15% less than the x86 equivalent (r8i) on demand in us-east-1, at list prices in November 2026. The node AMI follows the instance architecture, so both ARM and x86 types deploy.
+> **ARM instances recommended.** r9g (Graviton5) costs 8% less than the x86 equivalent (r8i) on demand in us-east-1, at list prices in November 2026. The node AMI follows the instance architecture, so both ARM and x86 types deploy.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
@@ -33,7 +33,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r8g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r9g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 2
 node_group_min_size     = 2
 node_group_max_size     = 3
@@ -51,7 +51,7 @@ aurora_instance_count   = 2
 <summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r8g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r9g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 3
 node_group_min_size     = 2
 node_group_max_size     = 5
@@ -69,7 +69,7 @@ aurora_instance_count   = 2
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r8g.4xlarge"    # 16 vCPU, 128 GB (ARM)
+node_instance_type      = "r9g.4xlarge"    # 16 vCPU, 128 GB (ARM)
 node_group_desired_size = 4
 node_group_min_size     = 3
 node_group_max_size     = 6
@@ -582,7 +582,7 @@ vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
 kubernetes_version       = "1.30"
-node_instance_type      = "m8id.2xlarge"
+node_instance_type      = "m9gd.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
