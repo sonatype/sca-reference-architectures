@@ -38,7 +38,7 @@ Sonatype provides these configurations as reference examples. You are responsibl
 - Encrypted storage and secrets management
 - Load balancing with health checks
 - Official Sonatype Helm chart integration (Kubernetes deployments)
-- ARM instance support for better price-performance (20-30% savings)
+- ARM instance support, at a lower on-demand price than the x86 equivalents (see [Cross-Provider Instance Comparison](#cross-provider-instance-comparison))
 
 ### Official Documentation
 
@@ -182,13 +182,13 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
-| Instance type | r6g.2xlarge (ARM) or r5.2xlarge (x86) | r6g.2xlarge (ARM) or r5.2xlarge (x86) | r6g.4xlarge (ARM) or r5.4xlarge (x86) |
+| Instance type | r8g.2xlarge (ARM) or r8i.2xlarge (x86) | r8g.2xlarge (ARM) or r8i.2xlarge (x86) | r8g.4xlarge (ARM) or r8i.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
 | Memory | 60 GB Fargate task, or 64 GB per EKS node | 60 GB Fargate task, or 64 GB per EKS node | 120 GB Fargate task, or 128 GB per EKS node |
 | Java Heap | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms96g -Xmx96g` |
 | **Database** | | | |
 | Service | RDS PostgreSQL 15+ or Aurora PostgreSQL | Aurora PostgreSQL 15+ (recommended) | Aurora PostgreSQL 15+ (strongly recommended) |
-| Instance class | db.r6g.2xlarge (8 vCPU, 64 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | db.r6g.4xlarge (16 vCPU, 128 GB) |
+| Instance class | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) |
 | Storage | 100 GB gp3, auto-scaling to 500 GB | 200 GB – 1 TB auto-scaling | 500 GB – 2 TB auto-scaling |
 | Multi-AZ | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
@@ -245,7 +245,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
-| Machine type | n4a-highmem-8 (ARM Ampere Altra) | n4a-highmem-8 (ARM Ampere Altra) | n4a-highmem-16 (ARM Ampere Altra) |
+| Machine type | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-16 (ARM Google Axion) |
 | vCPUs | 8 | 8 | 16 |
 | Memory | 64 GB | 64 GB | 128 GB |
 | Java Heap | `-Xms48g -Xmx48g` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
@@ -275,33 +275,33 @@ The following tables provide equivalent instance types across cloud providers fo
 
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
-| **GCP** | n4a-highmem-8 | ARM (Ampere Altra) |
-| **AWS** | r6g.2xlarge | ARM (Graviton2) |
-| **AWS** | r5.2xlarge | x86_64 |
-| **Azure** | Standard_E8ps_v6 | ARM (Ampere Altra) |
+| **GCP** | n4a-highmem-8 | ARM (Google Axion) |
+| **AWS** | r8g.2xlarge | ARM (Graviton4) |
+| **AWS** | r8i.2xlarge | x86_64 |
+| **Azure** | Standard_E8ps_v6 | ARM (Azure Cobalt 100) |
 | **Azure** | Standard_E8_v5 | x86_64 |
 
 #### Size XL (16 vCPU / 128 GB)
 
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
-| **GCP** | n4a-highmem-16 | ARM (Ampere Altra) |
-| **AWS** | r6g.4xlarge | ARM (Graviton2) |
-| **AWS** | r5.4xlarge | x86_64 |
-| **Azure** | Standard_E16ps_v6 | ARM (Ampere Altra) |
+| **GCP** | n4a-highmem-16 | ARM (Google Axion) |
+| **AWS** | r8g.4xlarge | ARM (Graviton4) |
+| **AWS** | r8i.4xlarge | x86_64 |
+| **Azure** | Standard_E16ps_v6 | ARM (Azure Cobalt 100) |
 | **Azure** | Standard_E16_v5 | x86_64 |
 
 #### Database Instance Comparison
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r6g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r6g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
+| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
+| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
+| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** ARM-based instances (GCP n4a, AWS r6g, Azure Eps_v6) offer 20-30% better price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 15% less on AWS (`r8g.2xlarge` against `r8i.2xlarge`, us-east-1) and 27% less on Azure (`Standard_E8ps_v6` against `Standard_E8_v5`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 
@@ -362,7 +362,7 @@ ecs_memory           = 32768              # 32 GB
 iq_desired_count     = 1                   # Single instance
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.large"      # 2 vCPU, 16 GB
+db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
 db_allocated_storage = 100                 # GB
 ```
 
@@ -403,7 +403,7 @@ ecs_memory           = 61440              # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1                   # Single instance (or 2 for HA)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
+db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 100                 # GB, auto-scales to 500 GB
 ```
 
@@ -417,7 +417,7 @@ iq_min_count         = 2                   # Minimum instances
 iq_max_count         = 3                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
 ```
 
@@ -465,14 +465,14 @@ iq_min_count         = 2                   # Minimum instances
 iq_max_count         = 4                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
 ```
 
 **AWS (EKS + Helm):**
 ```hcl
 # infra-aws-ha-k8s-helm/terraform.tfvars — Size L
-node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r8g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 3                # 3 nodes
 node_group_min_size     = 2
 node_group_max_size     = 5
@@ -481,7 +481,7 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
 ```
 
@@ -529,14 +529,14 @@ iq_min_count         = 3                   # Minimum instances
 iq_max_count         = 5                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-aurora_instance_class = "db.r6g.4xlarge"   # 16 vCPU, 128 GB
+aurora_instance_class = "db.r8g.4xlarge"   # 16 vCPU, 128 GB
 aurora_instances      = 2                  # Multi-AZ with automatic failover
 ```
 
 **AWS (EKS + Helm):**
 ```hcl
 # infra-aws-ha-k8s-helm/terraform.tfvars — Size XL
-node_instance_type      = "r6g.4xlarge"    # 16 vCPU, 128 GB (ARM)
+node_instance_type      = "r8g.4xlarge"    # 16 vCPU, 128 GB (ARM)
 node_group_desired_size = 4                # 4 nodes
 node_group_min_size     = 3
 node_group_max_size     = 6
@@ -545,7 +545,7 @@ nexus_iq_memory_request = "96Gi"
 nexus_iq_memory_limit   = "112Gi"
 nexus_iq_cpu_request    = "12"
 nexus_iq_cpu_limit      = "16"
-aurora_instance_class   = "db.r6g.4xlarge" # 16 vCPU, 128 GB
+aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
 ```
 

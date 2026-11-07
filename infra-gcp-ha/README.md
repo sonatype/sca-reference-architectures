@@ -16,7 +16,7 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **GCP was the primary test platform** — all performance data was validated on GCP ARM-based instances (Ampere Altra).
+> **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
