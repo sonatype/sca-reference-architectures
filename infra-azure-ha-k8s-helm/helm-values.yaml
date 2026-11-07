@@ -33,6 +33,26 @@ iq_server:
     # cluster's uri and credentials. README.md shows them in full.
     sonatypeWork: "/sonatype-work/clm-server"
     clusterDirectory: "/sonatype-work/clm-cluster"
+    logging:
+      level: INFO
+      loggers:
+        "org.apache.hc.client5.http": INFO
+        "org.apache.hc.client5.http.wire": ERROR
+        "org.apache.hc.core5.reactor": INFO
+        "org.apache.http.client.protocol.ResponseProcessCookies": ERROR
+        "software.amazon.awssdk": WARN
+        "org.jooq.tools": WARN
+        "org.jooq.Constants": "OFF"
+      appenders:
+        - type: console
+          threshold: INFO
+          logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+        - type: file
+          threshold: ALL
+          logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
+          currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server.log"
+          archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server-%d{yyyy-MM-dd-HH}.log.gz"
+          archivedFileCount: 24
 
 
   env:

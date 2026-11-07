@@ -46,6 +46,7 @@ app_gateway_capacity    = 2
 storage_account_tier             = "Standard"
 storage_account_replication_type = "LRS"
 file_share_quota                 = 500
+log_share_quota_gb               = 128 # Log share size in GB, mounted at /var/log/nexus-iq-server
 
 # Monitoring Configuration
 log_retention_days = 30

@@ -105,6 +105,12 @@ resource "azurerm_container_app" "iq_app_ha" {
     }
 
     volume {
+      name         = "iq-logs-ha"
+      storage_type = "AzureFile"
+      storage_name = azurerm_container_app_environment_storage.iq_logs_ha.name
+    }
+
+    volume {
       name         = "config-volume-ha"
       storage_type = "EmptyDir"
     }
@@ -153,6 +159,7 @@ resource "azurerm_container_app" "iq_app_ha" {
 
           echo "Creating shared cluster directory: $CLUSTER_DIR"
           mkdir -p "$CLUSTER_DIR"
+          mkdir -p "/var/log/nexus-iq-server/$HOSTNAME"
 
 
 
@@ -181,17 +188,28 @@ server:
   requestLog:
     appenders:
     - type: file
-      currentLogFilename: "/var/log/nexus-iq-server/request.log"
-      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+      currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/request.log"
+      archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/request-%d.log.gz"
       archivedFileCount: 5
 
 logging:
-  level: DEBUG
+  level: INFO
   loggers:
     com.sonatype.insight.scan: INFO
     eu.medsea.mimeutil.MimeUtil2: INFO
     org.apache.http: INFO
     org.apache.http.wire: ERROR
+    org.apache.hc.client5.http: INFO
+    org.apache.hc.client5.http.wire: ERROR
+    org.apache.hc.core5.reactor: INFO
+    org.apache.http.client.protocol.ResponseProcessCookies: ERROR
+    org.postgresql.jdbc.PgConnection: INFO
+    org.quartz: INFO
+    org.zeroturnaround.exec: INFO
+    org.eclipse.jgit: INFO
+    software.amazon.awssdk: WARN
+    org.jooq.tools: WARN
+    org.jooq.Constants: OFF
     org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
     org.eclipse.jetty: INFO
     org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
@@ -199,8 +217,8 @@ logging:
     com.sonatype.insight.audit:
       appenders:
       - type: file
-        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/audit-%d.log.gz"
         archivedFileCount: 50
   appenders:
   - type: console
@@ -208,10 +226,10 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
   - type: file
     threshold: ALL
-    currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+    currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/clm-server.log"
+    archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
-    archivedFileCount: 50
+    archivedFileCount: 24
 
 createSampleData: true
 CONFIGEOF
@@ -353,6 +371,11 @@ CONFIGEOF
       }
 
       volume_mounts {
+        name = "iq-logs-ha"
+        path = "/var/log/nexus-iq-server"
+      }
+
+      volume_mounts {
         name = "config-volume-ha"
         path = "/etc/nexus-iq-server"
       }
@@ -414,6 +437,7 @@ CONFIGEOF
   depends_on = [
     azurerm_postgresql_flexible_server.iq_db_ha,
     azurerm_postgresql_flexible_server_database.iq_database_ha,
-    azurerm_container_app_environment_storage.iq_storage_ha
+    azurerm_container_app_environment_storage.iq_storage_ha,
+    azurerm_container_app_environment_storage.iq_logs_ha
   ]
 }

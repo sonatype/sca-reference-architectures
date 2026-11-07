@@ -205,6 +205,12 @@ variable "app_gateway_zones" {
 }
 
 
+variable "log_share_quota_gb" {
+  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running."
+  type        = number
+  default     = 128
+}
+
 variable "storage_account_tier" {
   description = "Storage account performance tier. Standard (HDD) is recommended for cost efficiency. Use Premium if NFS protocol is required."
   type        = string
