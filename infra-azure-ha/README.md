@@ -10,9 +10,9 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type | OpenSearch |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) | Required ¹ |
-| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) | Required ¹ |
-| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Standard_E16ps_v6 (ARM) | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | E8 workload profile | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | E8 workload profile | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | E16 workload profile | Required ¹ |
 
 > All sizes validated through performance testing. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
@@ -35,6 +35,7 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 ```hcl
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
+workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_min_replicas      = 2                   # 2 replicas for HA
 iq_max_replicas      = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
@@ -50,6 +51,7 @@ db_high_availability_mode = "ZoneRedundant"
 ```hcl
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
+workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_min_replicas      = 2
 iq_max_replicas      = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
@@ -67,6 +69,7 @@ storage_account_replication_type = "ZRS"
 ```hcl
 container_cpu        = 16.0                # 16 vCPU
 container_memory     = "128Gi"             # 128 GB
+workload_profile_type = "E16"              # 16 cores, 128 GB per node
 iq_min_replicas      = 3
 iq_max_replicas      = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
@@ -294,6 +297,13 @@ Your Azure account needs permissions for these services:
 > |---|:---:|:---:|
 > | `iq_min_replicas` | 3 | 2 |
 > | `iq_max_replicas` | 5 | 4 |
+> | `container_cpu` | 4.0 | 8.0 |
+> | `container_memory` | `8Gi` | `64Gi` |
+> | `java_opts` | 6 GB heap | 48 GB heap |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16s_v3` |
+> | `db_storage_mb` | 65536, fixed | 131072, grows automatically |
+> | `file_share_quota_gb` | 200 | 512 |
+> | workload profile | `D4`, 1 to 3 nodes | `workload_profile_type`, default `E8`, `iq_min_replicas` to `iq_max_replicas` nodes |
 
 ### Configuration Variables
 
@@ -311,12 +321,13 @@ private_subnet_cidrs    = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"] # Mul
 db_subnet_cidr          = "10.0.40.0/24"
 
 # High Availability Container App Configuration
-container_cpu      = 4.0      # CPU per replica (max for Azure Container Apps)
-container_memory   = "8Gi"    # Memory per replica (max for Azure Container Apps)
+container_cpu      = 8.0      # vCPU per replica, the Size M and L value
+container_memory   = "64Gi"   # Memory per replica, the Size M and L value
+workload_profile_type = "E8"  # 8 cores, 64 GB per node
 iq_min_replicas    = 2        # Minimum replicas, the Size L value (must be >= 2)
 iq_max_replicas    = 4        # Maximum replicas for auto-scaling, the Size L value
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
 scale_rule_concurrent_requests = 100  # Concurrent requests threshold for HTTP scaling
@@ -340,7 +351,7 @@ app_gateway_zones       = ["1", "2", "3"] # Availability zones
 # Premium Storage Configuration (HA)
 storage_account_tier             = "Premium"  # Premium for better performance
 storage_account_replication_type = "ZRS"      # Zone-Redundant Storage
-file_share_quota_gb              = 200        # File share size in GB
+file_share_quota_gb              = 512        # File share size in GB
 
 # Monitoring and Logging
 enable_monitoring         = true
@@ -382,7 +393,7 @@ common_tags = {
 
 This deployment uses Azure Container Apps for IQ Server clustering:
 
-- **Multiple Replicas**: 3-5 Container App replicas distributed across availability zones
+- **Multiple Replicas**: 2 to 5 Container App replicas by size, one per workload profile node, distributed across availability zones
 - **Unique Work Directories**: Each replica gets isolated `/sonatype-work/clm-server-${HOSTNAME}`
 - **Shared Cluster Directory**: Coordination through `/sonatype-work/clm-cluster`
 - **Database Sharing**: All replicas connect to the shared zone-redundant PostgreSQL cluster
@@ -504,7 +515,8 @@ opensearch_index_replicas = 0
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, and also written to Key Vault beside the four database secrets. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_ca_pem` | `""` | Base64 certificate of a private authority that signed the cluster's certificate. The entrypoint adds it to a copy of the JVM trust store, see below |
 
 Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` is
 byte-identical to a deployment that never knew about this section.
@@ -518,7 +530,13 @@ search:
   uri: https://opensearch.internal.example.com:9200
   username: 'iq-server'
   password: '<from the container app secret>'
-  nexusOneIndexReplicas: 0
+nexusOne:
+  connection:
+    type: http
+    uri: https://opensearch.internal.example.com:9200
+    username: 'iq-server'
+    password: '<from the container app secret>'
+    nexusOneIndexReplicas: 0
 ```
 
 The two credentials are single-quoted, and the entrypoint appends them with `printf` rather than
@@ -535,7 +553,8 @@ Three things about that block are deliberate:
   the only option. Both fields are mandatory and IQ Server refuses to start without them.
 - **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
   every batch to the embedded Lucene index as well and cannot revert an index generation.
-- **No `nexusOne` block.** None is needed. The `search:` block is the switch.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
 
 ### Specifying the cluster
 
@@ -582,6 +601,11 @@ one is the `javax.net.ssl.trustStore` system property.
 **Copy the JVM's own trust store and add to the copy. Never replace it.** The same store serves IQ
 Server's calls to the Sonatype data service, so a store holding only your private authority breaks
 policy and vulnerability data while fixing OpenSearch.
+
+**Set `opensearch_ca_pem` and the entrypoint does this for you**: it copies the JVM's trust store to
+`/sonatype-work/iq-truststore-<replica>.jks`, adds the authority, and names the copy with
+`javax.net.ssl.trustStore`. To build the store yourself instead, leave `opensearch_ca_pem` empty and
+follow these steps.
 
 The steps, run against a copy of the container image or in a build that produces one:
 

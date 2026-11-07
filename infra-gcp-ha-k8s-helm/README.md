@@ -23,7 +23,7 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
-> **GCP was the primary test platform** — all performance data was validated on GCP ARM-based instances (Ampere Altra).
+> **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
@@ -341,8 +341,8 @@ gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
 # GKE Configuration
-kubernetes_version           = "1.27"
-node_instance_type           = "n2-standard-8"  # 8 vCPU, 32GB RAM
+kubernetes_version           = "1.33"
+node_instance_type           = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
 node_group_min_size          = 2
 node_group_max_size          = 5
 node_group_desired_size      = 3
@@ -373,7 +373,7 @@ nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
 # Not read on this root: set iq_server.javaOpts in helm-values.yaml, which the chart puts on the pods.
-java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 # Search Backend
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
@@ -390,16 +390,27 @@ Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
 
 ```yaml
 iq_server:
-  replicas: 3          # Size L. Size M uses 2 and Size XL uses 4
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
 hpa:
   enabled: true
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
-> **Upgrading an existing deployment.** Installs made before this change ran 2 pods with no
-> autoscaler. The next `helm-upgrade.sh` moves them to the values above, so set `iq_server.replicas`
-> and the `hpa` block to what the deployment is running at before upgrading.
+> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
+> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
+> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
+>
+> These defaults changed as well. Set the values your deployment runs at before applying.
+>
+> | Setting | Previous default | New default |
+> |---|:---:|:---:|
+> | `node_instance_type` | `n2-standard-8` | `n4a-highmem-8` |
+> | `kubernetes_version` | `1.27` | `1.33` |
+> | `filestore_capacity_gb` | 1024 | 2560, and the share cannot shrink |
+> | `db_max_disk_size` | 500 | 1000 |
+> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
+> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 
 **Important Settings:**
 - **`node_group_min_size = 2`** - Minimum GKE node capacity
@@ -418,7 +429,7 @@ hpa:
 This deployment leverages Kubernetes and Helm for IQ Server clustering:
 
 - **Pod Distribution**: Kubernetes pod anti-affinity ensures replicas run on different nodes across availability zones
-- **Shared Storage**: Cloud Filestore (BASIC_SSD) provides consistent storage across all replicas with ReadWriteMany access
+- **Shared Storage**: Cloud Filestore (BASIC_HDD) provides consistent storage across all replicas with ReadWriteMany access
 - **Database Sharing**: All replicas connect to the shared regional Cloud SQL cluster via Kubernetes secrets
 - **Service Discovery**: Kubernetes service provides stable DNS and load balancing
 - **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
@@ -818,7 +829,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 
 ## Persistent Storage
 
-- **Cloud Filestore (BASIC_SSD)**: Shared storage for `/sonatype-work` directory (2.5 TB minimum)
+- **Cloud Filestore (BASIC_HDD)**: Shared storage for `/sonatype-work` directory (1 TiB minimum)
 - **Database**: Cloud SQL PostgreSQL 15 (regional) for application data
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery

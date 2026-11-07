@@ -28,10 +28,11 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 ```hcl
 container_cpu        = 2.0                 # 2 vCPU
 container_memory     = "16Gi"              # 16 GB
+workload_profile_type = "D4"               # 4 cores, 16 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
-db_storage_mb        = 51200               # 50 GB
+db_storage_mb        = 65536               # 64 GB
 ```
 </details>
 
@@ -41,10 +42,11 @@ db_storage_mb        = 51200               # 50 GB
 ```hcl
 container_cpu        = 4.0                 # 4 vCPU
 container_memory     = "32Gi"              # 32 GB
+workload_profile_type = "E4"               # 4 cores, 32 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
-db_storage_mb        = 102400              # 100 GB
+db_storage_mb        = 131072              # 128 GB
 ```
 </details>
 
@@ -54,10 +56,11 @@ db_storage_mb        = 102400              # 100 GB
 ```hcl
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
+workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
-db_storage_mb        = 102400              # 100 GB
+db_storage_mb        = 524288              # 512 GB
 ```
 </details>
 
@@ -65,9 +68,9 @@ db_storage_mb        = 102400              # 100 GB
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 50 GB |
-| **S** | GP_Standard_D2s_v3 | 2 | 8 GB | 100 GB |
-| **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow enabled) |
+| **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 64 GB |
+| **S** | GP_Standard_D2s_v3 | 2 | 8 GB | 128 GB |
+| **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 512 GB (auto-grow enabled) |
 
 ### OpenSearch
 
@@ -256,6 +259,18 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable defaults changed. A deployment whose
+> `terraform.tfvars` does not set a variable picks up the new default on its next apply. Set the
+> values your deployment is running at in `terraform.tfvars` before applying.
+>
+> | Variable | Previous default | New default |
+> |---|:---:|:---:|
+> | `container_cpu` | 4.0 | 8.0 |
+> | `container_memory` | `8Gi` | `64Gi` |
+> | `java_opts` | 6 GB heap | 48 GB heap |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16s_v3` |
+> | `workload_profile_type` | `D4`, fixed | `E8` |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -272,10 +287,11 @@ private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
-container_cpu    = 4.0           # 4.0 vCPU
-container_memory = "8Gi"         # 8GB RAM
-iq_docker_image  = "sonatype/nexus-iq-server:latest"
-java_opts        = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+container_cpu         = 8.0           # 8 vCPU, Size M
+container_memory      = "64Gi"        # 64 GB, Size M
+workload_profile_type = "E8"          # 8 cores, 64 GB per node
+iq_docker_image       = "sonatype/nexus-iq-server:latest"
+java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                          = "nexusiq"
@@ -431,7 +447,7 @@ opensearch_index_replicas = 0
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, the route `db_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
 
 Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` is
 byte-identical to a deployment that never knew about this section.
@@ -445,7 +461,13 @@ search:
   uri: https://opensearch.internal.example.com:9200
   username: 'iq-server'
   password: '<from the container app secret>'
-  nexusOneIndexReplicas: 0
+nexusOne:
+  connection:
+    type: http
+    uri: https://opensearch.internal.example.com:9200
+    username: 'iq-server'
+    password: '<from the container app secret>'
+    nexusOneIndexReplicas: 0
 ```
 
 The two credentials are single-quoted, and the entrypoint appends them with `printf` rather than
@@ -462,7 +484,8 @@ Three things about that block are deliberate:
   the only option. Both fields are mandatory and IQ Server refuses to start without them.
 - **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
   every batch to the embedded Lucene index as well and cannot revert an index generation.
-- **No `nexusOne` block.** None is needed. The `search:` block is the switch.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
 
 ### Specifying the cluster
 

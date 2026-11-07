@@ -48,15 +48,21 @@ variable "db_subnet_cidr" {
 
 
 variable "container_cpu" {
-  description = "CPU allocation per container replica (max 4.0 for Azure Container Apps)"
+  description = "vCPU per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
   type        = number
-  default     = 4.0
+  default     = 8.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation per container replica (max 8Gi for Azure Container Apps)"
+  description = "Memory per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
   type        = string
-  default     = "8Gi"
+  default     = "64Gi"
+}
+
+variable "workload_profile_type" {
+  description = "Azure Container Apps workload profile type, which sets the cores and memory of each node the replicas run on. E8 is 8 cores and 64 GB, which is what the published Size M and L rows of README.md ask for per node; E16 is 16 cores and 128 GB for Size XL. A profile smaller than container_cpu and container_memory cannot host a replica, and the app then reports insufficient capacity rather than naming the profile. Run `az rest --method get --url \"https://management.azure.com/subscriptions/<id>/providers/Microsoft.App/locations/<region>/availableManagedEnvironmentsWorkloadProfileTypes?api-version=2024-03-01\"` for the types a region offers."
+  type        = string
+  default     = "E8"
 }
 
 variable "iq_min_replicas" {
@@ -85,7 +91,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -135,7 +141,19 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
   type        = string
-  default     = "GP_Standard_D8s_v3"
+  default     = "MO_Standard_E16s_v3"
+}
+
+variable "db_storage_mb" {
+  description = "PostgreSQL storage in MB. Azure accepts 32768, 65536, 131072, 262144, 524288, 1048576 and larger powers of two. Storage grows automatically past this, and cannot shrink."
+  type        = number
+  default     = 131072
+}
+
+variable "db_storage_tier" {
+  description = "Performance tier of the PostgreSQL storage. P10 is the default for 128 GB."
+  type        = string
+  default     = "P10"
 }
 
 variable "db_backup_retention_days" {
@@ -200,9 +218,9 @@ variable "storage_account_replication_type" {
 }
 
 variable "file_share_quota_gb" {
-  description = "File share quota in GB for IQ Server data"
+  description = "File share quota in GB for IQ Server data. The default is the low end of the Size L range in README.md."
   type        = number
-  default     = 200
+  default     = 512
 }
 
 
@@ -330,8 +348,33 @@ variable "opensearch_password" {
   }
 }
 
+variable "container_registry_server" {
+  description = "Login server of a private container registry holding iq_docker_image, for example myregistry.azurecr.io. Leave empty for an image on a public registry, which writes no registry block and no credential."
+  type        = string
+  default     = ""
+}
+
+variable "container_registry_username" {
+  description = "User name the container app authenticates to the private registry with. Required when container_registry_server is set."
+  type        = string
+  default     = ""
+}
+
+variable "container_registry_password" {
+  description = "Password for container_registry_username, delivered to the container app as a secret rather than a plain value. sensitive = true keeps it out of CLI output only: Terraform holds every variable in the state file as plain text, so treat terraform.tfstate as a secret. Keep the value in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "opensearch_ca_pem" {
+  description = "The certificate authority that signed the OpenSearch cluster's certificate, base64 encoded, for a cluster using a private authority. IQ Server has no per-connection trust setting, so the entrypoint copies the JVM's own trust store, adds this authority to the copy, and names the copy with javax.net.ssl.trustStore. The JVM store is never replaced, because it also serves IQ Server's calls to the Sonatype data service. Leave empty for a certificate signed by a public authority. This is a public certificate and not a credential."
+  type        = string
+  default     = ""
+}
+
 variable "opensearch_index_replicas" {
-  description = "Replicas per Nexus One index shard, written as search.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
+  description = "Replicas per Nexus One index shard, written as nexusOne.connection.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
   type        = number
   default     = 0
 

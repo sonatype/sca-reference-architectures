@@ -9,8 +9,8 @@ gke_pods_cidr        = "10.101.0.0/16"
 gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
-kubernetes_version           = "1.27"
-node_instance_type           = "n2-standard-8"
+kubernetes_version           = "1.33"
+node_instance_type           = "n4a-highmem-8"
 node_group_min_size          = 2
 node_group_max_size          = 5
 node_group_desired_size      = 3
@@ -35,7 +35,7 @@ db_username                        = "nexusiq"
 db_password                        = "CHANGE_ME_STRONG_PASSWORD"
 
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
+filestore_tier        = "BASIC_HDD"
 filestore_capacity_gb = 2560
 
 log_retention_days               = 7
@@ -47,7 +47,7 @@ nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
 # Not read on this root: the Helm chart renders the pod spec, so set iq_server.javaOpts in
 # helm-values.yaml instead, which is the value the pods get.
-java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Search Backend
 # "lucene" (default) uses the built-in index and needs nothing else running.

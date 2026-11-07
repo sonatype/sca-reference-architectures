@@ -122,7 +122,13 @@ write_search_block() {
         printf "      uri: '%s'\n" "$uri"
         printf "      username: '%s'\n" "$user"
         printf "      password: '%s'\n" "$pass"
-        printf '      nexusOneIndexReplicas: %s\n' "$OPENSEARCH_INDEX_REPLICAS"
+        printf '    nexusOne:\n'
+        printf '      connection:\n'
+        printf '        type: http\n'
+        printf "        uri: '%s'\n" "$uri"
+        printf "        username: '%s'\n" "$user"
+        printf "        password: '%s'\n" "$pass"
+        printf '        nexusOneIndexReplicas: %s\n' "$OPENSEARCH_INDEX_REPLICAS"
     } > "${values_file}.searchblock"
 
     # awk rather than sed, because appending a line is spelled differently by

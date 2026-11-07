@@ -23,7 +23,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
-> **ARM instances recommended.** Eps_v6 (Ampere Altra) instances offer 20-30% better price-performance than x86 equivalents (E_v5).
+> **ARM instances recommended.** Eps_v6 costs 27% less on demand than the x86 equivalent E_v5 (`Standard_E8ps_v6` against `Standard_E8_v5` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 
@@ -306,6 +306,20 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable and value defaults changed. A deployment whose
+> `terraform.tfvars` does not set a variable picks up the new default on its next apply, and
+> `helm-upgrade.sh` applies the new `helm-values.yaml`. Set the values your deployment is running at
+> before applying.
+>
+> | Setting | Previous default | New default |
+> |---|:---:|:---:|
+> | `node_instance_type` | `Standard_D8s_v3` | `Standard_E8ps_v6` |
+> | `kubernetes_version` | `1.27` | `1.33.3` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16s_v3` |
+> | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, grows automatically |
+> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
+> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -324,9 +338,9 @@ db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
 kubernetes_version      = "1.33.3"
-node_instance_type      = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
+node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
-node_group_max_size     = 5
+node_group_max_size     = 6
 node_group_desired_size = 3
 node_disk_size          = 50
 
@@ -334,8 +348,8 @@ node_disk_size          = 50
 postgres_version                 = "15"
 db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode        = "ZoneRedundant"
-db_storage_mb                    = 65536 # 64GB
-db_storage_tier                  = "P6"
+db_storage_mb                    = 131072 # 128GB, grows automatically
+db_storage_tier                  = "P10"
 database_name                    = "nexusiq"
 database_username                = "nexusiq"
 database_password                = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
@@ -359,10 +373,10 @@ nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
-nexus_iq_memory_request  = "16Gi"
-nexus_iq_memory_limit    = "24Gi"
-nexus_iq_cpu_request     = "4"
-nexus_iq_cpu_limit       = "6"
+nexus_iq_memory_request  = "48Gi"
+nexus_iq_memory_limit    = "56Gi"
+nexus_iq_cpu_request     = "6"
+nexus_iq_cpu_limit       = "8"
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
@@ -385,21 +399,21 @@ Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
 
 ```yaml
 iq_server:
-  replicas: 3          # Size L. Size M uses 2 and Size XL uses 4
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
 hpa:
   enabled: true
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
-> **Upgrading an existing deployment.** Installs made before this change ran 2 pods with no
-> autoscaler. The next `helm-upgrade.sh` moves them to the values above, so set `iq_server.replicas`
-> and the `hpa` block to what the deployment is running at before upgrading.
+> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
+> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
+> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
 
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4. Requires an HA license
 - **`node_group_min_size = 2`** - Minimum AKS node capacity
-- **`node_group_max_size = 5`** - Maximum AKS node capacity
+- **`node_group_max_size = 6`** - Maximum AKS node capacity
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
 - **`storage_account_replication_type = "ZRS"`** - Zone-Redundant Storage for file share
 - **`database_password`** - Use a strong, unique password (required change)
@@ -536,7 +550,7 @@ opensearch_index_replicas = 0
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `0` | Written as `search.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
 
 Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` is
 byte-identical to a deployment that never knew about this section.
@@ -561,7 +575,13 @@ iq_server:
       uri: 'https://opensearch.internal.example.com:9200'
       username: 'iq-server'
       password: '<from terraform.tfvars>'
-      nexusOneIndexReplicas: 0
+    nexusOne:
+      connection:
+        type: http
+        uri: 'https://opensearch.internal.example.com:9200'
+        username: 'iq-server'
+        password: '<from terraform.tfvars>'
+        nexusOneIndexReplicas: 0
 ```
 
 The two credentials are single-quoted, and `write_search_block` appends them with `printf` through a
@@ -582,7 +602,8 @@ Three things about that block are deliberate:
   the only option. Both fields are mandatory and IQ Server refuses to start without them.
 - **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
   every batch to the embedded Lucene index as well and cannot revert an index generation.
-- **No `nexusOne` block.** None is needed. The `search:` block is the switch.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
 
 ### Specifying the cluster
 

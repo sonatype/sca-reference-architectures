@@ -55,13 +55,13 @@ variable "db_subnet_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for AKS cluster"
   type        = string
-  default     = "1.27"
+  default     = "1.33.3"
 }
 
 variable "node_instance_type" {
-  description = "VM size for AKS worker nodes"
+  description = "VM size for AKS worker nodes. The default is the Size M and L value, 8 vCPU and 64 GB. Size XL uses Standard_E16ps_v6."
   type        = string
-  default     = "Standard_D8s_v3"
+  default     = "Standard_E8ps_v6"
 }
 
 variable "node_group_min_size" {
@@ -98,7 +98,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
   type        = string
-  default     = "GP_Standard_D8s_v3"
+  default     = "MO_Standard_E16s_v3"
 }
 
 variable "db_high_availability_mode" {
@@ -108,15 +108,15 @@ variable "db_high_availability_mode" {
 }
 
 variable "db_storage_mb" {
-  description = "Storage size in MB for PostgreSQL"
+  description = "PostgreSQL storage in MB. Azure accepts 32768, 65536, 131072, 262144, 524288, 1048576 and larger powers of two. Storage grows automatically past this, and cannot shrink."
   type        = number
-  default     = 65536
+  default     = 131072
 }
 
 variable "db_storage_tier" {
-  description = "Storage tier for PostgreSQL (P6, P10, P15, P20, etc.)"
+  description = "Storage tier for PostgreSQL (P10, P15, P20, etc.). P10 is the default for 128 GB."
   type        = string
-  default     = "P6"
+  default     = "P10"
 }
 
 variable "database_name" {
@@ -228,25 +228,25 @@ variable "nexus_iq_replica_count" {
 variable "nexus_iq_memory_request" {
   description = "Memory request for Nexus IQ Server pods"
   type        = string
-  default     = "16Gi"
+  default     = "48Gi"
 }
 
 variable "nexus_iq_memory_limit" {
   description = "Memory limit for Nexus IQ Server pods"
   type        = string
-  default     = "24Gi"
+  default     = "56Gi"
 }
 
 variable "nexus_iq_cpu_request" {
   description = "CPU request for Nexus IQ Server pods"
   type        = string
-  default     = "4"
+  default     = "6"
 }
 
 variable "nexus_iq_cpu_limit" {
   description = "CPU limit for Nexus IQ Server pods"
   type        = string
-  default     = "6"
+  default     = "8"
 }
 
 
@@ -390,7 +390,7 @@ variable "opensearch_password" {
 }
 
 variable "opensearch_index_replicas" {
-  description = "Replicas per Nexus One index shard, written as search.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
+  description = "Replicas per Nexus One index shard, written as nexusOne.connection.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
   type        = number
   default     = 0
 

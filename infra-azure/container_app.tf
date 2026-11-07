@@ -35,8 +35,8 @@ resource "azurerm_container_app_environment" "iq_env" {
 
 
   workload_profile {
-    name                  = "D4-Profile"
-    workload_profile_type = "D4"
+    name                  = "${var.workload_profile_type}-Profile"
+    workload_profile_type = var.workload_profile_type
     minimum_count         = 1
     maximum_count         = 1
   }
@@ -52,7 +52,7 @@ resource "azurerm_container_app" "iq_app" {
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile"
+  workload_profile_name        = "${var.workload_profile_type}-Profile"
 
   identity {
     type = "SystemAssigned"
@@ -177,7 +177,13 @@ CONFIGEOF
             printf '  uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
             printf "  username: '%s'\n" "$os_user"
             printf "  password: '%s'\n" "$os_pass"
-            printf '  nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+            printf 'nexusOne:\n'
+            printf '  connection:\n'
+            printf '    type: http\n'
+            printf '    uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf "    username: '%s'\n" "$os_user"
+            printf "    password: '%s'\n" "$os_pass"
+            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
           } >> /etc/nexus-iq-server/config.yml
 
           unset os_user os_pass

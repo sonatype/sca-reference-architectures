@@ -74,9 +74,9 @@ variable "ecs_cpu" {
 }
 
 variable "ecs_memory" {
-  description = "Memory for ECS task in MiB"
+  description = "Memory for ECS task in MiB. The default is the Size M value, the most Fargate allows at 8192 CPU."
   type        = number
-  default     = 32768
+  default     = 61440
 }
 
 variable "iq_desired_count" {
@@ -94,7 +94,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -117,9 +117,9 @@ variable "db_password" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "RDS instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "db_allocated_storage" {
