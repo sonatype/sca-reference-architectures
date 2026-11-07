@@ -128,16 +128,33 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
           "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-*"
         ]
       }
-    ],
-    var.enable_log_archive ? [{
-      Effect = "Allow"
-      Action = [
-        "s3:PutObject",
-        "s3:PutObjectAcl"
-      ]
-      Resource = [
-        "${aws_s3_bucket.log_archive[0].arn}/*"
-      ]
+      ],
+      var.enable_log_archive ? [{
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:PutObjectAcl"
+        ]
+        Resource = [
+          "${aws_s3_bucket.log_archive[0].arn}/*"
+        ]
+      }] : [],
+      var.search_engine == "opensearch" ? [{
+        # One action per HTTP verb, because that is how AWS checks a signed
+        # OpenSearch request. The domain's access_policies in opensearch.tf says
+        # why a signed request is the only kind it accepts.
+        Effect = "Allow"
+        Action = [
+          "es:ESHttpGet",
+          "es:ESHttpPost",
+          "es:ESHttpPut",
+          "es:ESHttpHead",
+          "es:ESHttpDelete"
+        ]
+        Resource = [
+          "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_name}",
+          "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_name}/*"
+        ]
     }] : [])
   })
 }

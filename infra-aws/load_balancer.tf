@@ -1,6 +1,6 @@
 
 resource "aws_lb" "iq_alb" {
-  name               = "ref-arch-iq-alb"
+  name               = "${var.cluster_name}-iq-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
@@ -15,13 +15,13 @@ resource "aws_lb" "iq_alb" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-alb"
+    Name = "${var.cluster_name}-iq-alb"
   }
 }
 
 
 resource "aws_lb_target_group" "iq_tg" {
-  name        = "ref-arch-iq-tg"
+  name        = "${var.cluster_name}-iq-tg"
   port        = 8070
   protocol    = "HTTP"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -41,13 +41,13 @@ resource "aws_lb_target_group" "iq_tg" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-target-group"
+    Name = "${var.cluster_name}-iq-target-group"
   }
 }
 
 
 resource "aws_lb_target_group" "iq_admin_tg" {
-  name        = "ref-arch-iq-admin-tg"
+  name        = "${var.cluster_name}-iq-admin-tg"
   port        = 8071
   protocol    = "HTTP"
   vpc_id      = aws_vpc.iq_vpc.id
@@ -66,7 +66,7 @@ resource "aws_lb_target_group" "iq_admin_tg" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-admin-target-group"
+    Name = "${var.cluster_name}-iq-admin-target-group"
   }
 }
 
@@ -86,11 +86,11 @@ resource "aws_lb_listener" "iq_listener" {
 
 
 resource "aws_s3_bucket" "alb_logs" {
-  bucket        = "ref-arch-iq-alb-logs-${random_string.bucket_suffix.result}"
+  bucket        = "${var.cluster_name}-iq-alb-logs-${random_string.bucket_suffix.result}"
   force_destroy = true
 
   tags = {
-    Name        = "ref-arch-iq-alb-logs"
+    Name = "${var.cluster_name}-iq-alb-logs"
   }
 }
 

@@ -88,6 +88,205 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 ---
 
+## OpenSearch for the Nexus One Index
+
+Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
+domain instead of the index built into the server. Set `search_engine` to
+`opensearch` and this configuration creates the domain:
+
+```hcl
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 50
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
+```
+
+`search_engine = "lucene"` is the default and needs none of the others.
+
+To use a domain you already run, name it instead and nothing is created:
+
+```hcl
+search_engine              = "opensearch"
+opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+opensearch_domain_name     = "my-domain"
+```
+
+**On this architecture OpenSearch is the index that every task shares.** The
+built-in index lives on each task's own storage, so a cluster of tasks keeps a
+copy each and each copy is rebuilt separately. An OpenSearch domain is one
+index all the tasks read and write, which is why it matters more here than on
+the single-instance architecture.
+
+### `terraform destroy` will not delete the domain
+
+The domain carries `prevent_destroy`, because it holds the index and rebuilding
+one takes over an hour on a large estate. A destroy fails while it is in state,
+so removing it is deliberate:
+
+```bash
+terraform state rm aws_opensearch_domain.nexus_one
+aws opensearch delete-domain --domain-name <the domain>
+# wait for the domain to finish deleting, which releases its interfaces
+terraform destroy
+```
+
+The `state rm` is what gets past `prevent_destroy`. The delete is what lets the
+rest of the teardown finish: the domain's network interfaces sit in this VPC's
+private subnets and hold its security group, so destroying the VPC around a live
+domain fails on `DependencyViolation`.
+
+**To keep the index, keep this deployment standing.** A domain cannot outlive the
+VPC it was built in. A deployment that builds its own network can then name this
+domain through `opensearch_domain_endpoint` and share the index with it.
+
+### One account-level prerequisite before the first domain
+
+A VPC domain needs the OpenSearch service-linked role,
+`AWSServiceRoleForAmazonOpenSearchService`, which is what OpenSearch assumes to
+put the domain's network interfaces in the private subnets. AWS creates it on its
+own when a VPC domain is made through the console, so an account that has ever
+held one already has it. Otherwise, once per account:
+
+```bash
+aws iam create-service-linked-role \
+  --aws-service-name opensearchservice.amazonaws.com
+```
+
+To check first:
+
+```bash
+aws iam list-roles \
+  --path-prefix /aws-service-role/opensearchservice.amazonaws.com/ \
+  --query 'Roles[].RoleName' --output text
+```
+
+The calling identity needs `iam:CreateServiceLinkedRole`. An account still
+carrying the legacy `AWSServiceRoleForAmazonElasticsearchService` role goes on
+using that one and needs nothing. This configuration deliberately does not create
+the role: AWS allows one per account while each deployment of this root is
+separate, so whichever deployment owned it would delete it out from under the
+others at teardown.
+
+What the created domain gets, none of which needs configuring:
+
+- **The private subnets of this VPC**, one per Availability Zone it spreads
+  across, reachable on 443 from the ECS tasks alone and from nowhere else.
+- **Encryption at rest and node to node**, and TLS 1.2 enforced.
+- **An access policy naming the ECS task role and no other principal.** IQ
+  Server signs its requests with SigV4 through that role.
+- **Three dedicated master nodes** whenever there is more than one data node,
+  which keeps cluster state off the nodes serving queries.
+
+**Fine-grained access control has to stay off for as long as the domain holds this
+index.** Turning it on gives the domain an internal user database and changes how
+every request is authenticated, so SigV4 alone no longer reaches it and IQ Server's
+`type: aws` configuration stops working. There is no credential to supply instead:
+this architecture authenticates with the ECS task role and nothing else.
+
+### Domain shape per size
+
+| Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Replicas |
+|------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|
+| **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 50 GB | 3 x `m8g.medium.search` | 3 | 1 |
+| **L** | 10,000 - 20,000 | 3 | `m8g.xlarge.search` | 8 GiB | 100 GB | 3 x `m8g.medium.search` | 3 | 1 |
+| **XL** | 20,000 - 80,000 | 3 | `m8g.2xlarge.search` | 16 GiB | 100 GB | 3 x `m8g.large.search` | 3 | 1 |
+
+Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
+not a setting this configuration can change.
+
+**These are starting points, not measured results.** Sizing per size is being
+measured under
+[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930). Measure your own
+estate until it reports.
+
+Three data nodes at every size, because three is the smallest count that both
+places a replica and spreads across three Availability Zones. At 0 replicas a
+lost node means the index is rebuilt rather than recovered.
+
+**Storage holds more than one copy of the index.** A replica doubles it, a
+rebuild holds a second generation for the whole run and for 30 minutes after
+cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
+above allow for all three.
+
+### Where the domain's own logs go
+
+Three CloudWatch log groups per domain, written by OpenSearch itself:
+
+| Log group | Holds |
+|---|---|
+| `/aws/opensearch/<cluster_name>-nexus-one/search_slow_logs` | Searches past the index's slow threshold |
+| `/aws/opensearch/<cluster_name>-nexus-one/index_slow_logs` | Writes past the index's slow threshold |
+| `/aws/opensearch/<cluster_name>-nexus-one/es_application_logs` | What the cluster itself saw: rejected writes, cluster state changes, errors behind a 5xx |
+
+Retention is `opensearch_log_retention_days`, 30 days by default.
+
+**An account at 10 CloudWatch Logs resource policies needs one written by
+hand.** OpenSearch writes these streams itself, so the service principal needs a
+resource policy granting it `logs:PutLogEvents` and `logs:CreateLogStream` on the
+groups. A resource policy is account-wide and AWS allows 10 per region, so a
+deployment into an account already at that quota fails with
+`LimitExceededException`. The answer is one policy covering every domain's log
+groups, written once outside Terraform, and `opensearch_create_log_resource_policy
+= false` in each deployment. That toggle skips the policy and nothing else: the
+log groups and the domain's `log_publishing_options` are still created, so the
+shared policy has groups to name. Setting it false with no such policy in the
+account is not a working configuration, the domain create then fails on the
+`log_publishing_options`.
+
+**The slow logs stay empty until a threshold is set.** OpenSearch ships with
+slow logging off per index, so set a threshold on the index to get any rows:
+
+```bash
+curl -XPUT "https://<endpoint>/<index>/_settings" -H 'Content-Type: application/json' -d '{
+  "index.search.slowlog.threshold.query.warn": "2s",
+  "index.indexing.slowlog.threshold.index.warn": "2s"
+}'
+```
+
+The application log needs nothing and fills on its own.
+
+**Audit logs are not available here.** They need fine-grained access control,
+which this architecture cannot turn on without breaking SigV4.
+
+### What Terraform writes into `config.yml`
+
+```yaml
+search:
+  type: aws
+  mode: OPENSEARCH
+  domain: https://<the created domain's endpoint, or opensearch_domain_endpoint>
+  region: <aws_region>
+  nexusOneIndexReplicas: <opensearch_index_replicas>
+
+nexusOne:
+  connection:
+    type: aws
+    mode: OPENSEARCH
+    domain: https://<the same endpoint>
+    region: <aws_region>
+    nexusOneIndexReplicas: <opensearch_index_replicas>
+```
+
+- **`type: aws`** signs every request with SigV4 through the task role.
+  `type: http` always sends a user name and password, which a domain with
+  fine-grained access control off has no way to check.
+- **`mode: OPENSEARCH`** is written out rather than left to default. The
+  default is `HYBRID`, which also writes every batch to the built-in index.
+- **`nexusOneIndexReplicas`** is always written, because IQ Server's own
+  default is 0 and this configuration states the value rather than inheriting
+  it.
+- **`nexusOne.connection` repeats the same fields** because it is the only
+  block the Nexus One index reads. With `search:` set and this one absent, the
+  index store has no transport and turning the feature on is refused. Both name
+  the same domain.
+
+Shard counts are held in IQ Server's database, not in `config.yml`, and a
+shard count only takes effect when an index is created.
+
+---
+
 ## Deployment Guide
 
 ### Step 1: Prerequisites
@@ -241,6 +440,8 @@ Your IAM user/role needs these AWS service permissions:
 > |---|:---:|:---:|
 > | `iq_max_count` | 5 | 4 |
 > | `aurora_engine_version` | 15.10 | 15.19 |
+> | `ecs_memory` | 32768 | 61440 |
+> | `java_opts` | 24 GB heap | 44 GB heap |
 
 ### Configuration Variables
 
@@ -261,7 +462,7 @@ enable_nat_gateway     = true
 
 # ECS Configuration
 ecs_cpu                 = 8192   # 8 vCPU
-ecs_memory              = 32768  # 32 GB
+ecs_memory              = 61440  # 60 GB, the Size M and L value
 ecs_memory_reservation  = 24576  # 24 GB soft limit
 
 # IQ Server Configuration
@@ -271,7 +472,7 @@ iq_max_count           = 4
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
 iq_memory_target_value = 80  # Memory target for auto scaling (%)
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
@@ -291,13 +492,22 @@ db_deletion_protection     = false
 alb_deletion_protection = false
 
 # EFS Configuration
-efs_throughput_mode                  = "provisioned"
+efs_throughput_mode                  = "elastic"
 efs_provisioned_throughput_in_mibps = 100
 
 # Monitoring Configuration
 enable_container_insights = true
 enable_prometheus        = true
 log_retention_days       = 30
+
+# Search Backend (optional)
+# "lucene" (default) uses the index built into IQ Server. "opensearch" creates
+# a domain here, or uses one you already run if you set
+# opensearch_domain_endpoint. See the OpenSearch section above.
+search_engine = "lucene"
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
+# opensearch_index_replicas  = 1
 ```
 
 **Important Settings:**
@@ -309,7 +519,7 @@ log_retention_days       = 30
 - **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
 - **`db_skip_final_snapshot = true`** - Set to `false` for production to create a final backup snapshot before database deletion
 - **`alb_deletion_protection = false`** - Set to `true` for production use
-- **Resource Names** - Controlled by `cluster_name` variable
+- **Resource Names** - Controlled by `cluster_name` variable, which defaults to `ref-arch-iq-ha-cluster`. **Give each deployment its own value to run more than one in a single AWS account**, since the load balancer, target groups, IAM roles, log group, SSM parameters, Secrets Manager secret and Aurora cluster identifier all have to be unique. One value per size, for example `ref-arch-m-cluster` through `ref-arch-xl-cluster`, is the intended use.
 
 ### Custom Clustering Solution
 
@@ -379,6 +589,9 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 - **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
 - **Auto Scaling Metrics**: CPU and memory utilization tracking
 - **ALB Access Logs**: Load balancer access logs stored in S3
+- **OpenSearch Metrics**: `ClusterStatus`, `FreeStorageSpace`, `ClusterIndexWritesBlocked` and
+  the rest published to CloudWatch by the service, plus the domain's two slow logs and its
+  application log. No alarms are created; see the OpenSearch section above
 
 ## Persistent Storage
 

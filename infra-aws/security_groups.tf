@@ -1,6 +1,6 @@
 
 resource "aws_security_group" "alb" {
-  name_prefix = "ref-arch-alb-"
+  name_prefix = "${var.cluster_name}-alb-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -35,7 +35,7 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name        = "ref-arch-alb-security-group"
+    Name = "${var.cluster_name}-alb-security-group"
   }
 
   lifecycle {
@@ -45,7 +45,7 @@ resource "aws_security_group" "alb" {
 
 
 resource "aws_security_group" "ecs_tasks" {
-  name_prefix = "ref-arch-ecs-tasks-"
+  name_prefix = "${var.cluster_name}-ecs-tasks-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -81,7 +81,7 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   tags = {
-    Name        = "ref-arch-ecs-tasks-security-group"
+    Name = "${var.cluster_name}-ecs-tasks-security-group"
   }
 
   lifecycle {
@@ -91,7 +91,7 @@ resource "aws_security_group" "ecs_tasks" {
 
 
 resource "aws_security_group" "rds" {
-  name_prefix = "ref-arch-rds-"
+  name_prefix = "${var.cluster_name}-rds-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -111,7 +111,7 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name        = "ref-arch-rds-security-group"
+    Name = "${var.cluster_name}-rds-security-group"
   }
 
   lifecycle {
@@ -121,7 +121,7 @@ resource "aws_security_group" "rds" {
 
 
 resource "aws_security_group" "efs" {
-  name_prefix = "ref-arch-efs-"
+  name_prefix = "${var.cluster_name}-efs-"
   vpc_id      = aws_vpc.iq_vpc.id
 
   ingress {
@@ -141,7 +141,7 @@ resource "aws_security_group" "efs" {
   }
 
   tags = {
-    Name        = "ref-arch-efs-security-group"
+    Name = "${var.cluster_name}-efs-security-group"
   }
 
   lifecycle {

@@ -4,6 +4,10 @@
 # General Configuration
 aws_region  = "us-east-1"
  
+# Base name for every resource this creates. Give each deployment its own value
+# to run more than one in a single AWS account, one per size for example.
+cluster_name = "ref-arch"
+ 
 # Network Configuration
 vpc_cidr               = "10.0.0.0/16"
 public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
@@ -12,10 +16,10 @@ db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
  
 # ECS Configuration
 ecs_cpu           = 8192  # 8 vCPU
-ecs_memory        = 32768 # 32 GB
+ecs_memory        = 61440 # 60 GB, the Size M value
 iq_desired_count  = 1 # Single instance (recommended)
 iq_docker_image   = "sonatype/nexus-iq-server:latest"
-java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts         = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # Database Configuration
 db_name                     = "nexusiq"
@@ -37,3 +41,55 @@ alb_deletion_protection = false
  
 # Logging Configuration
 log_retention_days = 30
+
+# Search Backend (optional)
+# "lucene" (default) uses the index built into IQ Server and needs nothing else.
+# "opensearch" creates an AWS-managed domain here and points IQ Server at it.
+# The domain carries prevent_destroy, so a teardown is three steps:
+#   terraform state rm aws_opensearch_domain.nexus_one
+#   aws opensearch delete-domain --domain-name <the domain>
+#   # wait for the domain to finish deleting, which releases its interfaces
+#   terraform destroy
+# The state rm gets past prevent_destroy; the delete releases the private
+# subnets, or destroying the VPC fails on DependencyViolation. See the
+# OpenSearch section of README.md before switching.
+#
+# A VPC domain also needs the OpenSearch service-linked role in the account
+# before the first apply. One command, once per account:
+#   aws iam create-service-linked-role \
+#     --aws-service-name opensearchservice.amazonaws.com
+search_engine = "lucene"
+
+# Domain shape, by the size you picked above. Starting points, not measured
+# results: the per-size sizing is CLM-55930.
+#
+# XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters:
+# opensearch_instance_type           = "m8g.large.search"
+# opensearch_instance_count          = 1
+# opensearch_volume_size_gb          = 50
+# opensearch_availability_zone_count = 1
+# opensearch_index_replicas          = 0
+#
+# M (2,000 - 10,000 apps), three data nodes across three zones. The domain needs
+# one private subnet per zone, and private_subnet_cidrs above has two, so this
+# shape needs a third. Edit the private_subnet_cidrs line above rather than
+# adding a second one here, which Terraform refuses as a redefined attribute,
+# and pick a range no other subnet list uses: 10.0.30.0/24 is already
+# db_subnet_cidrs[0]. For example:
+#   private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
+# opensearch_instance_type           = "m8g.large.search"
+# opensearch_instance_count          = 3
+# opensearch_volume_size_gb          = 50
+# opensearch_availability_zone_count = 3
+# opensearch_index_replicas          = 1
+#
+# An account already at the region's 10 CloudWatch Logs resource policies writes
+# one policy by hand covering every domain's log groups and sets this false. The
+# log groups and the domain's logs stay; only the policy is skipped, so false
+# with no such policy in place fails the domain create:
+# opensearch_create_log_resource_policy = false
+#
+# To use a domain you already run, set these two instead of the shape above and
+# nothing is created:
+# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "my-domain"
