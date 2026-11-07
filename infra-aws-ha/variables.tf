@@ -300,7 +300,7 @@ variable "common_tags" {
 # search_engine picks which search backend IQ Server's config.yml points at. It
 # switches the `search:` block in the config.yml heredoc in ecs.tf on and off.
 #
-# "opensearch" uses an AWS-managed OpenSearch domain. By default this
+# Setting it to "opensearch" uses an AWS-managed OpenSearch domain, and this
 # configuration creates that domain, in opensearch.tf, sized by the
 # opensearch_* variables below. A customer who already runs a domain names it
 # in opensearch_domain_endpoint and opensearch_domain_name instead, and nothing

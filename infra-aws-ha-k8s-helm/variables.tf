@@ -258,18 +258,25 @@ variable "log_retention_days" {
 # iq_server.config block in helm-values.yaml, and helm-install.sh fills in or
 # removes the `search:` block there according to this variable.
 #
-# "opensearch" needs an OpenSearch domain that already exists, named in
-# opensearch_domain_name and reached at opensearch_domain_endpoint. This
-# configuration creates the domain unless you name one. The domain holds the
-# index, so keeping it outside Terraform means switching engines, replacing the
-# node group or destroying this stack never deletes the indexed data, and the
-# domain can be resized, upgraded and backed up on its own schedule.
+# Setting it to "opensearch" uses an AWS-managed OpenSearch domain, and this
+# configuration creates that domain, in opensearch.tf, sized by the
+# opensearch_* variables below. A customer who already runs a domain names it
+# in opensearch_domain_endpoint and opensearch_domain_name instead, and nothing
+# is created.
+#
+# The domain is a resource of its own, so replacing the node group leaves the
+# indexed data alone, and the domain can be resized, upgraded and backed up on
+# its own schedule. A domain created here carries prevent_destroy, because it
+# holds the index and rebuilding that index on a large estate is measured in
+# hours, so switching engines or destroying this stack stops rather than
+# deleting it. Removing it is deliberate: see the note at the top of
+# opensearch.tf.
 #
 # Sizing the domain is a separate exercise. See the OpenSearch section of this
 # directory's README.md for the shape each size needs.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" points IQ Server at an existing AWS-managed OpenSearch domain."
+  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
   type        = string
   default     = "lucene"
 

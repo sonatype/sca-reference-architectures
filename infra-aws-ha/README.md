@@ -17,6 +17,20 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 > Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL), from performance testing of these sizes. That testing ran on GCP ARM instances, `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL, not on Fargate tasks. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
 
 > **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type | OpenSearch |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Fargate (16384 CPU / 131072 MEM) | Required ¹ |
+
+> All sizes validated through performance testing. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+<!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
+     re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
+     continuous monitoring running was added so a reader does not take them as general evaluation
+     throughput. -->
+
+> ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
@@ -85,6 +99,73 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 | **M** | Elastic | 200 GB – 500 GB | Lifecycle policies: 30-day move to IA |
 | **L** | Elastic | 500 GB – 1.5 TB | Lifecycle policies: 30-day move to IA |
 | **XL** | Elastic | 1.5 TB – 4 TB | Lifecycle policies: 30-day move to IA |
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a single `search:` block in IQ Server's
+`config.yml`: one endpoint, one set of credentials, and nothing extra to switch on per feature.
+
+On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
+SigV4 signed by the deployment's own role, so there is no password to store. That role needs the
+`es:ESHttpGet`, `es:ESHttpPost`, `es:ESHttpPut`, `es:ESHttpHead` and `es:ESHttpDelete` actions on the
+domain.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"`. Every variable and its
+default is in [OpenSearch for the Nexus One Index](#opensearch-for-the-nexus-one-index) below.
+
+**This architecture creates the domain unless you name one.** With `search_engine = "opensearch"` and
+`opensearch_domain_endpoint` left empty, the domain is created here. Set that endpoint and
+`opensearch_domain_name` to point at a domain you already run, and nothing is created. A domain created
+here carries `prevent_destroy`, so `terraform destroy` stops rather than deleting your index; a domain
+you named stays independent of this deployment entirely.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one domain**: six for the Nexus One index
+and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
+why a shard count can only be set when an index is created are the same on every cloud, so they are
+stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. **IQ Server's own default is 0**, so this architecture sets
+`search.nexusOneIndexReplicas` itself rather than inheriting that default:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **M** | more than 1 | Not published yet |
+| **L** | more than 1 | Not published yet |
+| **XL** | more than 1 | Not published yet |
+
+The rules behind this, including what a yellow index does and does not mean and how to give the
+Advanced Search index a matching replica count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count-and-iqs-own-default-is-0).
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
+after the cutover, so the domain holds twice the Nexus One shards and twice the Nexus One disk for the
+whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+**Not published yet.** The data node count, node size, JVM heap, and storage for each size are awaiting
+a per-size measurement. What is settled is the shape of the requirement: every size this architecture supports runs more than one data node, so
+a replica is placeable at all of them.
+
+<!-- TO BE ADDED (CLM-55930): the per-size specification and the replica counts above are CLM-55930's to publish.
+     They need measurements that do not exist. The only OpenSearch sizing data today is one estate
+     larger than XL's 80,000 application ceiling, all taken at zero replicas, so it is not
+     evidence for a number at any published size. Do not derive these values. -->
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -417,6 +498,8 @@ Your IAM user/role needs these AWS service permissions:
 ---
 
 ## Teardown / Cleanup
+
+> **Your OpenSearch domain is not deleted by this.** A domain this architecture created carries `prevent_destroy`, so `./tf-destroy.sh` stops rather than deleting it; the steps that remove it deliberately are in [`terraform destroy` will not delete the domain](#terraform-destroy-will-not-delete-the-domain). A domain named through `opensearch_domain_endpoint` was never created here and is not deleted here.
 
 **WARNING: This will delete ALL infrastructure and data!**
 

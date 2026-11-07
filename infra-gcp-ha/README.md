@@ -8,13 +8,20 @@ This directory contains Terraform configuration for deploying Sonatype IQ Server
 
 This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Machine Type |
-|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) |
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Machine Type | OpenSearch |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:------------:|:----------:|
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) | Required ¹ |
 
-> All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> All sizes validated through performance testing on GCP ARM instances. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+<!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
+     re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
+     continuous monitoring running was added so a reader does not take them as general evaluation
+     throughput. -->
+
+> ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
 > **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
 
@@ -90,6 +97,74 @@ filestore_capacity_gb = 10240
 | **XL** | BASIC_HDD | 10 TiB | 1,000 | 5,000 |
 
 > BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS (4x observed peak of ~1,212 ops/sec) at roughly the same cost as 2.5 TiB SSD.
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a single `search:` block in IQ Server's
+`config.yml`: one endpoint, one set of credentials, and nothing extra to switch on per feature.
+
+Google Cloud has no first-party managed OpenSearch service, so the cluster is **self-managed
+OpenSearch on Compute Engine instances** and IQ Server authenticates with a username and password. That
+means you also choose the OpenSearch server version and own upgrades, snapshots, and node replacement.
+Use `https` on the cluster's REST layer: with no IAM to sign with, that password is the only thing
+protecting the index, and on plain `http` it crosses the network in clear text on every request.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
+`opensearch_endpoint`, `opensearch_username` and `opensearch_password`. Every variable and its default
+is in [Search Backend](#search-backend) below.
+
+**This architecture does not create the cluster.** It takes an endpoint and points IQ Server at it, so
+the cluster's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
+cluster has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
+index.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
+and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
+why a shard count can only be set when an index is created are the same on every cloud, so they are
+stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. **IQ Server's own default is 0**, so this architecture sets
+`search.nexusOneIndexReplicas` itself rather than inheriting that default:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **M** | more than 1 | Not published yet |
+| **L** | more than 1 | Not published yet |
+| **XL** | more than 1 | Not published yet |
+
+The rules behind this, including what a yellow index does and does not mean and how to give the
+Advanced Search index a matching replica count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count-and-iqs-own-default-is-0).
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
+after the cutover, so the cluster holds twice the Nexus One shards and twice the Nexus One disk for the
+whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+**Not published yet.** The data node count, node size, JVM heap, and storage for each size are awaiting
+a per-size measurement. What is settled is the shape of the requirement: every size this architecture supports runs more than one data node, so
+a replica is placeable at all of them.
+
+<!-- TO BE ADDED (CLM-55930): the per-size specification and the replica counts above are CLM-55930's to publish.
+     They need measurements that do not exist. The only OpenSearch sizing data today is one estate
+     larger than XL's 80,000 application ceiling, all taken at zero replicas, so it is not
+     evidence for a number at any published size. Do not derive these values. -->
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -213,6 +288,8 @@ Enable these APIs in your project:
 ---
 
 ## Teardown / Cleanup
+
+> **Your OpenSearch cluster is not part of this.** This architecture never creates the cluster, so `./gcp-ha-destroy.sh` does not delete it or its indices. Remove it separately when you no longer need it.
 
 **WARNING: This will delete ALL infrastructure and data!**
 

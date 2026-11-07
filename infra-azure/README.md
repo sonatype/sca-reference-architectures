@@ -8,13 +8,15 @@ This directory contains Terraform configuration for deploying a **single-instanc
 
 This single-instance architecture supports sizes **XS**, **S**, and **M**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
-|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Container Apps (2.0 CPU / 16Gi) |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Container Apps (4.0 CPU / 32Gi) |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | Container Apps (8.0 CPU / 64Gi) |
+| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
+|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
+| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Container Apps (2.0 CPU / 16Gi) | Required ² |
+| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 32 GB | 24 GB | Container Apps (4.0 CPU / 32Gi) | Required ² |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 64 GB | 48 GB | Container Apps (8.0 CPU / 64Gi) | Required ² |
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
+
+> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
@@ -69,6 +71,74 @@ db_storage_mb        = 524288              # 512 GB
 | **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 64 GB |
 | **S** | GP_Standard_D2ds_v5 | 2 | 8 GB | 128 GB |
 | **M** | GP_Standard_D8ds_v5 | 8 | 32 GB | 512 GB (auto-grow enabled) |
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **both features need it at every size this architecture
+supports.** One cluster serves both, through a single `search:` block in IQ Server's `config.yml`: one
+endpoint, one set of credentials, and nothing extra to switch on per feature.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
+`opensearch_endpoint`, `opensearch_username` and `opensearch_password`. Every variable and its default
+is in [Advanced Search with OpenSearch](#advanced-search-with-opensearch) below.
+
+Azure has no first-party managed OpenSearch service, so the cluster is **self-managed OpenSearch on
+Azure virtual machines** and IQ Server authenticates with a username and password. That means you also
+choose the OpenSearch server version and own upgrades, snapshots, and node replacement. Use `https` on
+the cluster's REST layer: with no IAM to sign with, that password is the only thing protecting the
+index, and on plain `http` it crosses the network in clear text on every request.
+
+**This architecture does not create the cluster.** It takes an endpoint and points IQ Server at it, so
+the cluster's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
+cluster has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
+index.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
+and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
+why a shard count can only be set when an index is created are the same on every cloud, so they are
+stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. **IQ Server's own default is 0**, so this architecture sets
+`search.nexusOneIndexReplicas` itself rather than inheriting that default:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **XS** | 1 | `0` |
+| **S** | 1 | `0` |
+| **M** | more than 1 | Not published yet |
+
+The rules behind this, including what a yellow index does and does not mean and how to give the
+Advanced Search index a matching replica count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count-and-iqs-own-default-is-0).
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
+after the cutover, so the cluster holds twice the Nexus One shards and twice the Nexus One disk for the
+whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+**Not published yet.** The data node count, node size, JVM heap, and storage for each size are awaiting
+a per-size measurement. What is settled is the shape of the requirement: XS and S run one data node and M runs more than one, which is what
+decides whether a replica can be placed at all.
+
+<!-- TO BE ADDED (CLM-55930): the per-size specification and the M replica count above are CLM-55930's to publish.
+     They need measurements that do not exist. The only OpenSearch sizing data today is one estate
+     larger than XL's 80,000 application ceiling, all taken at zero replicas, so it is not
+     evidence for a number at any published size. Do not derive these values. -->
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -173,6 +243,8 @@ Your Azure account needs permissions for these services:
 ---
 
 ## Teardown / Cleanup
+
+> **Your OpenSearch cluster is not part of this.** This architecture never creates the cluster, so `./tf-destroy.sh` does not delete it or its indices. Remove it separately when you no longer need it.
 
 **WARNING: This will delete ALL infrastructure and data!**
 
@@ -417,11 +489,10 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-The one measured sizing study ran about 105,700 applications on three AWS OpenSearch data nodes of
-8 vCPU and 32 GB each, at zero replicas, and rebuilt 68.3 million documents in about 1 hour 30
-minutes. That is above this guide's XL ceiling of 80,000 applications, and it was measured on AWS
-rather than on Azure Virtual Machines, so treat the row below as a starting point and not as a
-tested figure.
+The one measured sizing study ran an estate larger than this guide's XL ceiling of 80,000
+applications, on three AWS OpenSearch data nodes of 8 vCPU and 32 GB each, at zero replicas. It was
+measured on AWS rather than on Azure Virtual Machines, so treat the row below as a starting point
+and not as a tested figure.
 
 | Size | Data nodes | Per-node starting point | `opensearch_index_replicas` |
 |---|---|---|---|
