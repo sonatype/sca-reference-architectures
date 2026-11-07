@@ -21,12 +21,12 @@ private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"
 
 # GCE with Docker Configuration
-gce_machine_type   = "e2-standard-8"
-gce_boot_image     = "debian-cloud/debian-12"
+gce_machine_type   = "n4a-highmem-8"
+gce_boot_image     = ""  # Empty picks Debian 12 for the machine type's architecture
 gce_boot_disk_size = 100
 iq_desired_count   = 1
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
@@ -35,8 +35,8 @@ db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this
 # Cloud SQL cannot downgrade a major version in place. If an instance already exists
 # on POSTGRES_17, leave this at POSTGRES_17 rather than changing it to POSTGRES_15.
 postgres_version                    = "POSTGRES_15"
-db_instance_tier                    = "db-perf-optimized-N-8"
-db_edition                          = "ENTERPRISE_PLUS"
+db_instance_tier                    = "db-custom-8-30720"
+db_edition                          = "ENTERPRISE"
 db_availability_type                = "ZONAL"
 db_disk_size                        = 100
 db_max_disk_size                    = 1000
@@ -50,7 +50,7 @@ db_deletion_protection              = false
 
 # Storage Configuration
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
+filestore_tier        = "BASIC_HDD"
 filestore_capacity_gb = 1024
 
 # Load Balancer Configuration

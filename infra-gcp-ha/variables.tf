@@ -137,9 +137,9 @@ variable "db_availability_type" {
 }
 
 variable "db_disk_size" {
-  description = "Database disk size in GB"
+  description = "Database disk size in GB. The default is the Size L value."
   type        = number
-  default     = 100
+  default     = 200
 }
 
 variable "db_backup_start_time" {
@@ -244,7 +244,7 @@ variable "log_retention_days" {
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Storage Variables
@@ -266,9 +266,9 @@ variable "filestore_tier" {
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
+  description = "Filestore capacity in GB. The default is the Size L capacity. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
   type        = number
-  default     = 1024
+  default     = 2560
 
   validation {
     condition     = var.filestore_capacity_gb >= 1024

@@ -16,7 +16,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **ARM instances recommended.** Eps_v6 (Ampere Altra) instances offer 20-30% better price-performance than x86 equivalents (E_v5).
+> **ARM instances recommended.** Eps_v6 costs 27% less on demand than the x86 equivalent E_v5 (`Standard_E8ps_v6` against `Standard_E8_v5` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 
@@ -322,16 +322,16 @@ Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
 
 ```yaml
 iq_server:
-  replicas: 3          # Size L. Size M uses 2 and Size XL uses 4
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
 hpa:
   enabled: true
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
-> **Upgrading an existing deployment.** Installs made before this change ran 2 pods with no
-> autoscaler. The next `helm-upgrade.sh` moves them to the values above, so set `iq_server.replicas`
-> and the `hpa` block to what the deployment is running at before upgrading.
+> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
+> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
+> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
 
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4. Requires an HA license

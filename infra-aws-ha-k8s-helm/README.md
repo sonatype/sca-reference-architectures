@@ -10,13 +10,13 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r6g.2xlarge (ARM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r6g.2xlarge (ARM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r6g.4xlarge (ARM) |
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r8g.2xlarge (ARM) |
+| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r8g.2xlarge (ARM) |
+| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r8g.4xlarge (ARM) |
 
 > All sizes validated through performance testing, which ran on GCP ARM instances at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **ARM instances recommended.** r6g (Graviton2) instances offer 20-30% better price-performance than x86 equivalents (r5).
+> **ARM instances recommended.** r8g (Graviton4) costs 15% less than the x86 equivalent (r8i) on demand in us-east-1, at list prices in November 2026. The node AMI follows the instance architecture, so both ARM and x86 types deploy.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
@@ -26,7 +26,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r8g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 2
 node_group_min_size     = 2
 node_group_max_size     = 3
@@ -35,7 +35,7 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
 ```
 </details>
@@ -44,7 +44,7 @@ aurora_instance_count   = 2
 <summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r8g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 3
 node_group_min_size     = 2
 node_group_max_size     = 5
@@ -53,7 +53,7 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
 ```
 </details>
@@ -62,7 +62,7 @@ aurora_instance_count   = 2
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r6g.4xlarge"    # 16 vCPU, 128 GB (ARM)
+node_instance_type      = "r8g.4xlarge"    # 16 vCPU, 128 GB (ARM)
 node_group_desired_size = 4
 node_group_min_size     = 3
 node_group_max_size     = 6
@@ -71,7 +71,7 @@ nexus_iq_memory_request = "96Gi"
 nexus_iq_memory_limit   = "112Gi"
 nexus_iq_cpu_request    = "12"
 nexus_iq_cpu_limit      = "16"
-aurora_instance_class   = "db.r6g.4xlarge" # 16 vCPU, 128 GB
+aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
 ```
 </details>
@@ -80,9 +80,9 @@ aurora_instance_count   = 2
 
 | Size | Aurora Instance Class | vCPU | Memory | Storage |
 |------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
-| **L** | db.r6g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
-| **XL** | db.r6g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+| **L** | db.r8g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
+| **XL** | db.r8g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
 
 ### Shared Storage (EFS)
 
@@ -488,6 +488,8 @@ Your IAM user/role needs these AWS service permissions:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `aurora_engine_version` | 15.8 | 15.19 |
+> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
+> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 
 ### Configuration Variables
 
@@ -504,7 +506,7 @@ vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
 kubernetes_version       = "1.30"
-node_instance_type      = "m5d.2xlarge"
+node_instance_type      = "m8id.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
@@ -512,7 +514,7 @@ node_disk_size          = 50
 
 # RDS Aurora Configuration
 aurora_engine_version   = "15.19"
-aurora_instance_class   = "db.r6g.4xlarge"
+aurora_instance_class   = "db.r8g.4xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"
@@ -531,10 +533,10 @@ nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
 
 # Resource Limits
-nexus_iq_memory_request = "16Gi"
-nexus_iq_memory_limit   = "24Gi"
-nexus_iq_cpu_request    = "4"
-nexus_iq_cpu_limit      = "6"
+nexus_iq_memory_request = "48Gi"
+nexus_iq_memory_limit   = "56Gi"
+nexus_iq_cpu_request    = "6"
+nexus_iq_cpu_limit      = "8"
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
@@ -575,16 +577,16 @@ Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
 
 ```yaml
 iq_server:
-  replicas: 3          # Size L. Size M uses 2 and Size XL uses 4
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
 hpa:
   enabled: true
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
-> **Upgrading an existing deployment.** Installs made before this change ran 2 pods with no
-> autoscaler. The next `helm-upgrade.sh` moves them to the values above, so set `iq_server.replicas`
-> and the `hpa` block to what the deployment is running at before upgrading.
+> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
+> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
+> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
 
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4
