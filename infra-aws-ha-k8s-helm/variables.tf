@@ -58,9 +58,9 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_type" {
-  description = "EC2 instance type for EKS worker nodes"
+  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture."
   type        = string
-  default     = "m5d.2xlarge"
+  default     = "m8id.2xlarge"
 }
 
 variable "node_group_min_size" {
@@ -94,9 +94,9 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "Aurora instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "aurora_instance_count" {
@@ -175,25 +175,25 @@ variable "nexus_iq_replica_count" {
 variable "nexus_iq_memory_request" {
   description = "Memory request for Nexus IQ Server pods"
   type        = string
-  default     = "16Gi"
+  default     = "48Gi"
 }
 
 variable "nexus_iq_memory_limit" {
   description = "Memory limit for Nexus IQ Server pods"
   type        = string
-  default     = "24Gi"
+  default     = "56Gi"
 }
 
 variable "nexus_iq_cpu_request" {
   description = "CPU request for Nexus IQ Server pods"
   type        = string
-  default     = "4"
+  default     = "6"
 }
 
 variable "nexus_iq_cpu_limit" {
   description = "CPU limit for Nexus IQ Server pods"
   type        = string
-  default     = "6"
+  default     = "8"
 }
 
 variable "helm_chart_version" {

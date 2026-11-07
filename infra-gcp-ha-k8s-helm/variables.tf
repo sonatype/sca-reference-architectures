@@ -63,13 +63,13 @@ variable "gke_master_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for GKE cluster"
   type        = string
-  default     = "1.27"
+  default     = "1.33"
 }
 
 variable "node_instance_type" {
   description = "Instance type for GKE nodes"
   type        = string
-  default     = "n2-standard-8"
+  default     = "n4a-highmem-8"
 }
 
 variable "node_group_min_size" {
@@ -129,7 +129,7 @@ variable "db_disk_size" {
 variable "db_max_disk_size" {
   description = "Maximum database disk size in GB for autoresize"
   type        = number
-  default     = 500
+  default     = 1000
 }
 
 variable "db_max_connections" {
@@ -211,9 +211,9 @@ variable "filestore_tier" {
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
+  description = "Filestore capacity in GB. The default is the Size L capacity. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
   type        = number
-  default     = 1024
+  default     = 2560
 }
 
 variable "log_retention_days" {
@@ -259,7 +259,7 @@ variable "java_opts" {
   # change. This variable is kept because existing terraform.tfvars files set it.
   description = "Java options for Nexus IQ Server. Not read on this root: set iq_server.javaOpts in helm-values.yaml instead, which is what the chart puts on the pods."
   type        = string
-  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 # Search Backend
 #

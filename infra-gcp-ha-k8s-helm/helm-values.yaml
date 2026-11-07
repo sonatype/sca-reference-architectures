@@ -9,13 +9,21 @@ iq_server:
 
   resources:
     requests:
-      cpu: "4"
-      memory: "16Gi"
-    limits:
       cpu: "6"
-      memory: "24Gi"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
 
-  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+  # GKE taints every Arm node with kubernetes.io/arch=arm64:NoSchedule. The IQ
+  # Server image is published for amd64 and arm64, so the pods tolerate it.
+  tolerations:
+    - key: "kubernetes.io/arch"
+      operator: "Equal"
+      value: "arm64"
+      effect: "NoSchedule"
 
   env:
     - name: NXIQ_DATABASE_MIGRATION

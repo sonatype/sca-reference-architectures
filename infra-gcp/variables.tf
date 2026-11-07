@@ -60,9 +60,9 @@ variable "gce_machine_type" {
 }
 
 variable "gce_boot_image" {
-  description = "Boot image for GCE instances"
+  description = "Boot image for the GCE instance. Empty, the default, picks Debian 12 for the machine type's architecture: debian-12-arm64 for an Arm type such as n4a, debian-12 otherwise."
   type        = string
-  default     = "debian-cloud/debian-12"
+  default     = ""
 }
 
 variable "gce_boot_disk_size" {
@@ -230,7 +230,7 @@ variable "domain_name" {
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Search Backend

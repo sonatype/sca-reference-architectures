@@ -16,7 +16,7 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **GCP was the primary test platform** — all performance data was validated on GCP ARM-based instances (Ampere Altra).
+> **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
@@ -236,6 +236,9 @@ Enable these APIs in your project:
 > |---|:---:|:---:|---|
 > | `iq_target_instances` | 2 | 3 | new deployments only, see below |
 > | `iq_max_instances` | 6 | 4 | every deployment |
+> | `db_disk_size` | 100 | 200 | every deployment, and the disk cannot shrink |
+> | `filestore_capacity_gb` | 1024 | 2560 | every deployment, and the share cannot shrink |
+> | `java_opts` | 48 GB heap, no direct memory cap | the Size M and L `java_opts` above | every deployment, and it rolls the group |
 >
 > `iq_target_instances` reaches a group only when it is created: `compute.tf` sets
 > `ignore_changes = [target_size]` on the instance group manager, so an existing
