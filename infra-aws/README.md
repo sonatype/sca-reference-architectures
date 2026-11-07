@@ -12,9 +12,11 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
 | **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
 | **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
+| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
 
-> ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
+> ¹ XS and S are projected sizing estimates. M has been validated through performance testing, which ran on a GCP ARM instance at 8 vCPU and 64 GB with a 48 GB heap rather than on a Fargate task. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
+
+> **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Raising it back to 48 GB removes most of that margin.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
 
@@ -43,7 +45,7 @@ ecs_memory           = 32768               # 32 GB
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.large"      # 2 vCPU, 16 GB
+db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
 db_allocated_storage = 100
 ```
 </details>
@@ -53,11 +55,11 @@ db_allocated_storage = 100
 
 ```hcl
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536               # 64 GB
+ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 100                 # auto-scales to 500 GB
 ```
 </details>
@@ -67,8 +69,8 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 | Size | DB Instance Class | vCPU | Memory | Storage |
 |------|:-----------------|:----:|:------:|:-------:|
 | **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 50 GB |
-| **S** | db.r6g.large | 2 | 16 GB | 100 GB |
-| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+| **S** | db.r8g.large | 2 | 16 GB | 100 GB |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
 
 ---
 
@@ -211,6 +213,15 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable defaults changed with the
+> published sizing. A deployment whose `terraform.tfvars` does not set a variable
+> picks up the new default on its next apply. Set the values your deployment is
+> running at in `terraform.tfvars` before applying.
+>
+> | Variable | Previous default | New default |
+> |---|:---:|:---:|
+> | `postgres_version` | 15.10 | 15.19 |
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -236,10 +247,10 @@ java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/so
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-db_instance_class           = "db.r6g.4xlarge"
+db_instance_class           = "db.r8g.4xlarge"
 db_allocated_storage        = 500
 db_max_allocated_storage    = 1000
-postgres_version            = "15.10"
+postgres_version            = "15.19"
 db_backup_retention_period  = 7
 db_backup_window           = "03:00-04:00"
 db_maintenance_window      = "sun:04:00-sun:05:00"

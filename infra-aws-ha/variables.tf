@@ -93,7 +93,7 @@ variable "iq_min_count" {
 variable "iq_max_count" {
   description = "Maximum number of IQ Server tasks for auto scaling"
   type        = number
-  default     = 5
+  default     = 4
 }
 
 variable "iq_cpu_target_value" {
@@ -142,13 +142,13 @@ variable "db_password" {
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version"
   type        = string
-  default     = "15.10"
+  default     = "15.19"
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "Aurora instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "aurora_instances" {

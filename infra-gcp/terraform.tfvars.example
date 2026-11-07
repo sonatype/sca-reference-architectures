@@ -8,7 +8,8 @@ gcp_zone       = "us-central1-a"
 environment    = "dev"
 
 # Network Configuration
-vpc_cidr            = "10.100.0.0/16"
+# This root creates subnets inside an auto-created VPC, so there is no
+# VPC-wide CIDR variable. Set the three subnet ranges instead.
 public_subnet_cidr  = "10.100.1.0/24"
 private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"
@@ -25,7 +26,9 @@ java_opts          = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/
 db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version                    = "POSTGRES_17"
+# Cloud SQL cannot downgrade a major version in place. If an instance already exists
+# on POSTGRES_17, leave this at POSTGRES_17 rather than changing it to POSTGRES_15.
+postgres_version                    = "POSTGRES_15"
 db_instance_tier                    = "db-perf-optimized-N-8"
 db_edition                          = "ENTERPRISE_PLUS"
 db_availability_type                = "ZONAL"
@@ -47,6 +50,3 @@ filestore_capacity_gb = 1024
 # Load Balancer Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
-
-# Logging Configuration
-log_retention_days = 30

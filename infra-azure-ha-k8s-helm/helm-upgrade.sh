@@ -106,11 +106,18 @@ TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+# sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
+# pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
+# The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
+# which is tr's and is 0 even when grep matched nothing, so it never fired.
+REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
         -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
         -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+        -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 fi
 

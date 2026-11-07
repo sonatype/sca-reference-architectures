@@ -131,7 +131,12 @@ else
 fi
 
 FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_role_arn 2>/dev/null)
-REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
+# sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
+# pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
+# The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
+# which is tr's and is 0 even when grep matched nothing, so it never fired.
+REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
@@ -142,7 +147,7 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
         -e "s/port: 5432/port: $DB_PORT/" \
         -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
         -e "s|eks.amazonaws.com/role-arn: \".*\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
-        -e "s/replicaCount: [0-9]*/replicaCount: $REPLICA_COUNT/" \
+        -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 
     sed -i '' \

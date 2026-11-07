@@ -82,9 +82,9 @@ variable "db_password" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "RDS instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "db_allocated_storage" {
@@ -102,7 +102,7 @@ variable "db_max_allocated_storage" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "15.10"
+  default     = "15.19"
 }
 
 variable "db_backup_retention_period" {

@@ -1,3 +1,13 @@
+# The node AMI must match the instance architecture, so it is read from the
+# instance type rather than set by hand: Graviton types get the arm64 AMI.
+data "aws_ec2_instance_type" "node" {
+  instance_type = var.node_instance_type
+}
+
+locals {
+  node_ami_type = contains(data.aws_ec2_instance_type.node.supported_architectures, "arm64") ? "AL2023_ARM_64_STANDARD" : "AL2023_x86_64_STANDARD"
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 19.15"
@@ -21,9 +31,9 @@ module "eks" {
       max_size     = var.node_group_max_size
       desired_size = var.node_group_desired_size
 
-      ami_type       = "AL2_x86_64"
-      capacity_type  = "ON_DEMAND"
-      disk_size      = var.node_disk_size
+      ami_type      = local.node_ami_type
+      capacity_type = "ON_DEMAND"
+      disk_size     = var.node_disk_size
 
 
       iam_role_additional_policies = {

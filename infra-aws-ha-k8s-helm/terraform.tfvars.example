@@ -8,15 +8,15 @@ vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
 kubernetes_version       = "1.30"
-node_instance_type      = "m5d.2xlarge"
+node_instance_type      = "m9gd.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
 node_disk_size          = 50
 
 # RDS Aurora Configuration
-aurora_engine_version   = "15.8"
-aurora_instance_class   = "db.r6g.4xlarge"
+aurora_engine_version   = "15.19"
+aurora_instance_class   = "db.r8g.4xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"
@@ -54,9 +54,5 @@ ingress_hostname     = "nexus-iq.yourdomain.com"
 ingress_tls_enabled  = false
 acm_certificate_arn  = ""
 
-# Monitoring Configuration
-enable_hpa                      = true
-hpa_min_replicas               = 2
-hpa_max_replicas               = 5
-hpa_target_cpu_utilization     = 70
-hpa_target_memory_utilization  = 80
+# Pod autoscaling is a Helm chart setting, not a Terraform input.
+# Set hpa.enabled, hpa.minReplicas and hpa.maxReplicas in helm-values.yaml.

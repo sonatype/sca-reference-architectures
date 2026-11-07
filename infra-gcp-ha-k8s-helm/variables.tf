@@ -243,9 +243,3 @@ variable "helm_chart_version" {
   type        = string
   default     = "195.0.0"
 }
-
-variable "java_opts" {
-  description = "Java options for Nexus IQ Server"
-  type        = string
-  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-}

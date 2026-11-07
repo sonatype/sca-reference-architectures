@@ -16,7 +16,7 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **GCP was the primary test platform** — all performance data was validated on GCP ARM-based instances (Ampere Altra).
+> **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
@@ -26,13 +26,13 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
 ```hcl
-machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
-target_size          = 2                   # 2 instances across zones
-min_replicas         = 2
-max_replicas         = 3
+instance_machine_type = "n4a-highmem-8"    # 8 vCPU, 64 GB (ARM)
+iq_target_instances  = 2                   # 2 instances across zones
+iq_min_instances     = 2
+iq_max_instances     = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024
@@ -43,13 +43,13 @@ filestore_capacity_gb = 1024
 <summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
 
 ```hcl
-machine_type         = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
-target_size          = 3                   # 3 instances across zones
-min_replicas         = 2
-max_replicas         = 4
+instance_machine_type = "n4a-highmem-8"    # 8 vCPU, 64 GB (ARM)
+iq_target_instances  = 3                   # 3 instances across zones
+iq_min_instances     = 2
+iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
 filestore_tier       = "BASIC_HDD"         # 2.5 TiB
 filestore_capacity_gb = 2560
@@ -60,13 +60,13 @@ filestore_capacity_gb = 2560
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-machine_type         = "n4a-highmem-16"    # 16 vCPU, 128 GB (ARM)
-target_size          = 4                   # 4 instances across zones
-min_replicas         = 3
-max_replicas         = 5
+instance_machine_type = "n4a-highmem-16"   # 16 vCPU, 128 GB (ARM)
+iq_target_instances  = 4                   # 4 instances across zones
+iq_min_instances     = 3
+iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier              = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type = "REGIONAL"
 filestore_tier       = "BASIC_HDD"         # 10 TiB (1,000 read / 5,000 write IOPS)
 filestore_capacity_gb = 10240
@@ -227,6 +227,22 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **Upgrading an existing deployment.** These variable defaults changed with the
+> published sizing. A deployment whose `terraform.tfvars` does not set a variable
+> picks up the new default on its next apply. Set the values your deployment is
+> running at in `terraform.tfvars` before applying.
+>
+> | Variable | Previous default | New default | Applies to |
+> |---|:---:|:---:|---|
+> | `iq_target_instances` | 2 | 3 | new deployments only, see below |
+> | `iq_max_instances` | 6 | 4 | every deployment |
+>
+> `iq_target_instances` reaches a group only when it is created: `compute.tf` sets
+> `ignore_changes = [target_size]` on the instance group manager, so an existing
+> deployment keeps the size it is running at and an apply will not resize it. Change the
+> size with `gcloud compute instance-groups managed resize`, or by removing that
+> lifecycle block.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -243,7 +259,8 @@ availability_zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
 environment = "prod"
 
 # Network Configuration
-vpc_cidr               = "10.200.0.0/16"
+# This root creates subnets inside an auto-created VPC, so there is no
+# VPC-wide CIDR variable. Set the three subnet ranges instead.
 public_subnet_cidr     = "10.200.1.0/24"
 private_subnet_cidrs   = ["10.200.10.0/24", "10.200.11.0/24", "10.200.12.0/24"]
 db_subnet_cidr         = "10.200.20.0/24"
@@ -252,12 +269,12 @@ db_subnet_cidr         = "10.200.20.0/24"
 iq_docker_image = "sonatype/nexus-iq-server:latest"
 
 # Compute Engine Instance Configuration
-instance_machine_type = "e2-standard-2"  # 2 vCPU, 8GB RAM
+instance_machine_type = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM), the Size L value
 
 # High Availability Configuration
-iq_min_instances    = 2  # Minimum for HA
-iq_max_instances    = 6  # Maximum for scaling
-iq_target_instances = 2  # Initial target
+iq_min_instances    = 2  # Minimum for HA, the Size L value
+iq_max_instances    = 4  # Maximum for scaling, the Size L value
+iq_target_instances = 3  # Initial target, the Size L value
 
 # Database Configuration
 db_name     = "nexusiq"
@@ -266,9 +283,9 @@ db_password = "your-secure-database-password"  # Change this!
 
 # Database settings
 postgres_version       = "POSTGRES_15"
-db_instance_tier      = "db-custom-2-7680"  # 2 vCPU, 7.5GB RAM
+db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB, the Size L value
 db_availability_type  = "REGIONAL"          # REGIONAL for HA
-db_disk_size          = 100
+db_disk_size          = 200
 db_max_disk_size      = 1000
 db_max_connections    = "200"
 db_backup_retention_count  = 7
@@ -279,8 +296,8 @@ enable_read_replica = true
 
 # Cloud Filestore Configuration
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
-filestore_capacity_gb = 2560  # 2.5 TB minimum for BASIC_SSD
+filestore_tier        = "BASIC_HDD"
+filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 
 # Load Balancer and SSL Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
@@ -292,16 +309,16 @@ scale_in_cooldown_seconds   = 300   # 5 minutes
 scale_out_cooldown_seconds  = 60    # 1 minute
 
 # Java Configuration
-java_opts = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 
 **Important Settings:**
-- **`iq_min_instances = 2`** - Minimum instances for HA (2-6 supported, requires HA license)
-- **`iq_max_instances = 6`** - Maximum auto scaling capacity
-- **`iq_target_instances = 2`** - Initial number of instances
+- **`iq_min_instances = 2`** - Minimum instances, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA. Requires an HA license
+- **`iq_max_instances = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
+- **`iq_target_instances = 3`** - Initial number of instances, the Size L value. Size M uses 2 and Size XL uses 4
 - **`db_availability_type = "REGIONAL"`** - Multi-AZ database with automatic failover
 - **`enable_read_replica = true`** - Database read replica for load distribution
-- **`filestore_capacity_gb = 2560`** - Minimum for BASIC_SSD tier (2.5 TB)
+- **`filestore_capacity_gb = 2560`** - 2.5 TiB, the Size L capacity. Size M uses 1024 and Size XL uses 10240
 - **`gcp_project_id`** - Your GCP project ID (required)
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = true`** - Set to `false` only for testing to allow database deletion
@@ -325,7 +342,7 @@ This deployment uses Managed Instance Groups for IQ Server clustering:
 - **Unique Work Directories**: Each instance gets isolated `/sonatype-work/clm-server-${HOSTNAME}` directory on Cloud Filestore
 - **Shared Cluster Directory**: Coordination through `/sonatype-work/clm-cluster` on Cloud Filestore
 - **Database Sharing**: All instances connect to the shared regional Cloud SQL cluster via Kubernetes secrets
-- **Auto Scaling**: MIG autoscaler scales from 2-6 instances based on CPU utilization (70%) and load balancer utilization (80%)
+- **Auto Scaling**: MIG autoscaler scales between the minimum and maximum instance counts for your size, based on CPU utilization (70%) and load balancer utilization (80%). Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -347,7 +364,7 @@ This deployment uses Managed Instance Groups for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: MIG distributes instances across 2 availability zones (us-central1-a and us-central1-b)
-- **Auto Scaling**: MIG autoscaler scales from 2-6 instances based on CPU utilization and load balancer utilization
+- **Auto Scaling**: MIG autoscaler scales between the minimum and maximum instance counts for your size, based on CPU utilization and load balancer utilization. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
 - **Read Replica**: Optional read replica for load distribution
 - **Automatic Restart**: Docker container automatically restarts on failure

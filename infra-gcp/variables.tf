@@ -103,9 +103,9 @@ variable "db_password" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL version. Cloud SQL cannot downgrade a major version in place, so an instance already created on POSTGRES_17 has to keep that value set here."
   type        = string
-  default     = "POSTGRES_17"
+  default     = "POSTGRES_15"
 }
 
 variable "db_instance_tier" {

@@ -26,7 +26,6 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 ```hcl
 container_cpu        = 2.0                 # 2 vCPU
 container_memory     = "16Gi"              # 16 GB
-container_min_replicas = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
@@ -40,7 +39,6 @@ db_storage_mb        = 51200               # 50 GB
 ```hcl
 container_cpu        = 4.0                 # 4 vCPU
 container_memory     = "32Gi"              # 32 GB
-container_min_replicas = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
@@ -54,7 +52,6 @@ db_storage_mb        = 102400              # 100 GB
 ```hcl
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
-container_min_replicas = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
