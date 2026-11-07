@@ -98,7 +98,7 @@ variable "postgres_version" {
 variable "db_sku_name" {
   description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
   type        = string
-  default     = "MO_Standard_E16s_v3"
+  default     = "MO_Standard_E16ds_v5"
 }
 
 variable "db_high_availability_mode" {
