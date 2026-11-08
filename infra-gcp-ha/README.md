@@ -453,8 +453,8 @@ instance. Plan it as a restart of the whole group.
 
 ### What this writes into `config.yml`
 
-`scripts/startup.sh` adds a `search:` block, which is what turns the Nexus One index on. Every
-instance writes the same block, so they share one index:
+`scripts/startup.sh` adds a `search:` block and a `nexusOne.connection` block naming the same
+cluster. Every instance writes the same two blocks, so they share one index:
 
 ```yaml
 search:
@@ -463,20 +463,40 @@ search:
   uri: https://opensearch.internal.example.com:9200
   username: nexusiq
   password: <read from Secret Manager at boot>
-  nexusOneIndexReplicas: 0
+nexusOne:
+  connection:
+    type: http
+    mode: OPENSEARCH
+    uri: https://opensearch.internal.example.com:9200
+    username: nexusiq
+    password: <read from Secret Manager at boot>
+    nexusOneIndexReplicas: 0
 ```
 
-Three things about that block are deliberate:
+Four things about these blocks are deliberate:
 
 - **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
   name and password are how the servers authenticate.
 - **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
   writes every batch to the built-in index as well. That costs indexing time and cannot roll an
   index generation back.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and reads `nexusOneIndexReplicas` from it. With `search:` set
+  and this block absent, enabling the `nexus-one` feature is refused.
 - **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default depends
   on the release. Releases that include CLM-55924 use 1 replica, or 0 on a cluster with exactly one
   data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the
   value visible next to the cluster it describes.
+
+### A private certificate authority
+
+A cluster whose certificates are signed by a private authority needs that authority in the JVM's
+trust store, or every request fails the TLS handshake. Set `opensearch_ca_certificate` to the
+authority's PEM certificate, with `opensearch_use_tls = true`. Terraform stores it in Secret
+Manager, and each instance copies the image's JVM trust store onto Filestore at boot, adds the
+authority to the copy, and starts IQ Server with `-Djavax.net.ssl.trustStore` pointing at it. The
+JVM's own store is left as it is, because replacing it would break IQ Server's calls to the
+Sonatype data services. A certificate from a public authority needs none of this.
 
 ### How the password reaches the servers
 

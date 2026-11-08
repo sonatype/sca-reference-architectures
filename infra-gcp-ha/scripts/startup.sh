@@ -273,8 +273,39 @@ sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/conf
   echo "  uri: ${opensearch_uri}"
   echo "  username: '${opensearch_username}'"
   printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
-  echo "  nexusOneIndexReplicas: ${opensearch_index_replicas}"
+  # The Nexus One index builds its connection from nexusOne.connection alone, and reads
+  # nexusOneIndexReplicas from it. Without this block enabling the nexus-one feature is refused.
+  echo "nexusOne:"
+  echo "  connection:"
+  echo "    type: http"
+  echo "    mode: OPENSEARCH"
+  echo "    uri: ${opensearch_uri}"
+  echo "    username: '${opensearch_username}'"
+  printf "    password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
+  echo "    nexusOneIndexReplicas: ${opensearch_index_replicas}"
 } >> /etc/nexus-iq-server/config.yml
+%{ if opensearch_ca_secret != "" ~}
+
+# A private certificate authority for the cluster: copy the image's JVM trust store onto Filestore,
+# add the authority to the copy, and point the JVM at the copy. Replacing the JVM's own store would
+# break IQ Server's calls to the Sonatype data services.
+log "Building the OpenSearch trust store on Filestore..."
+gcloud secrets versions access latest --secret="${opensearch_ca_secret}" --project="$${PROJECT_ID}" > /tmp/opensearch-ca.pem
+TRUSTSTORE_HOST="$${MOUNT_POINT}/opensearch-cacerts"
+docker run --rm --user 0:0 --entrypoint /bin/sh \
+  -e STAGING="opensearch-cacerts.$${INSTANCE_HOSTNAME}" \
+  -v "$${MOUNT_POINT}:/sonatype-work" -v /tmp/opensearch-ca.pem:/tmp/opensearch-ca.pem:ro \
+  "$${IQ_DOCKER_IMAGE}" -c '
+    JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+    KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+    [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ] || { echo "cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"; exit 1; }
+    cp "$JVM_CACERTS" "/sonatype-work/$STAGING" &&
+      "$KEYTOOL" -importcert -noprompt -keystore "/sonatype-work/$STAGING" -storepass changeit -alias opensearch-ca -file /tmp/opensearch-ca.pem &&
+      mv "/sonatype-work/$STAGING" /sonatype-work/opensearch-cacerts'
+[ -s "$${TRUSTSTORE_HOST}" ] || { log "FATAL: the OpenSearch trust store was not written"; exit 1; }
+JAVA_OPTS="$${JAVA_OPTS} -Djavax.net.ssl.trustStore=/sonatype-work/opensearch-cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+log "Trust store ready at $${TRUSTSTORE_HOST}"
+%{ endif ~}
 %{ endif ~}
 
 log "Configuration file created at: /etc/nexus-iq-server/config.yml"

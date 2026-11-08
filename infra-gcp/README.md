@@ -381,7 +381,8 @@ intact, including `|`, `&`, `: `, ` #` and a leading YAML indicator character.
 
 ### What this writes into `config.yml`
 
-`scripts/startup.sh` adds a `search:` block, which is what turns the Nexus One index on:
+`scripts/startup.sh` adds a `search:` block and a `nexusOne.connection` block naming the same
+cluster:
 
 ```yaml
 search:
@@ -390,16 +391,26 @@ search:
   uri: https://opensearch.internal.example.com:9200
   username: nexusiq
   password: <read from Secret Manager at boot>
-  nexusOneIndexReplicas: 0
+nexusOne:
+  connection:
+    type: http
+    mode: OPENSEARCH
+    uri: https://opensearch.internal.example.com:9200
+    username: nexusiq
+    password: <read from Secret Manager at boot>
+    nexusOneIndexReplicas: 0
 ```
 
-Three things about that block are deliberate:
+Four things about these blocks are deliberate:
 
 - **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
   name and password are how the server authenticates.
 - **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
   writes every batch to the built-in index as well. That costs indexing time and cannot roll an
   index generation back.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and reads `nexusOneIndexReplicas` from it. With `search:` set
+  and this block absent, enabling the `nexus-one` feature is refused.
 - **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default depends
   on the release. Releases that include CLM-55924 use 1 replica, or 0 on a cluster with exactly one
   data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the

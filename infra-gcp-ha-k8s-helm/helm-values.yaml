@@ -87,7 +87,16 @@ iq_server:
       uri: OPENSEARCH_URI_PLACEHOLDER
       username: OPENSEARCH_USERNAME_PLACEHOLDER
       password: OPENSEARCH_PASSWORD_PLACEHOLDER
-      nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
+    # The Nexus One index builds its connection from nexusOne.connection alone, and reads
+    # nexusOneIndexReplicas from it. Without this block enabling the nexus-one feature is refused.
+    nexusOne:
+      connection:
+        type: http
+        mode: OPENSEARCH
+        uri: OPENSEARCH_URI_PLACEHOLDER
+        username: OPENSEARCH_USERNAME_PLACEHOLDER
+        password: OPENSEARCH_PASSWORD_PLACEHOLDER
+        nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
     # search-block-end
 
     server:

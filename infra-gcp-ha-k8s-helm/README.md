@@ -447,7 +447,8 @@ characters that would break it. Everything else is written through intact, inclu
 
 ### What this writes into `config.yml`
 
-`helm-values.yaml` carries the block with placeholders between two markers,
+`helm-values.yaml` carries a `search:` block and a `nexusOne.connection` block naming the same
+cluster, with placeholders between two markers,
 `# search-block-begin` and `# search-block-end`. `helm-install.sh` fills them from Terraform
 outputs, and the Helm chart renders the result as `config.yml` in every pod:
 
@@ -458,23 +459,33 @@ outputs, and the Helm chart renders the result as `config.yml` in every pod:
       uri: https://opensearch.internal.example.com:9200
       username: nexusiq
       password: <filled by helm-install.sh>
-      nexusOneIndexReplicas: 0
+    nexusOne:
+      connection:
+        type: http
+        mode: OPENSEARCH
+        uri: https://opensearch.internal.example.com:9200
+        username: nexusiq
+        password: <filled by helm-install.sh>
+        nexusOneIndexReplicas: 0
 ```
 
-Three things about that block are deliberate:
+Four things about these blocks are deliberate:
 
 - **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
   name and password are how the pods authenticate.
 - **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
   writes every batch to the built-in index as well. That costs indexing time and cannot roll an
   index generation back.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and reads `nexusOneIndexReplicas` from it. With `search:` set
+  and this block absent, enabling the `nexus-one` feature is refused.
 - **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default depends
   on the release. Releases that include CLM-55924 use 1 replica, or 0 on a cluster with exactly one
   data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the
   value visible next to the cluster it describes.
 
 **Keep the two markers.** With `search_engine = "lucene"`, `helm-install.sh` deletes everything
-between them so the deployment has no `search:` block at all, which is how the built-in index stays
+between them so the deployment has no `search:` or `nexusOne:` block at all, which is how the built-in index stays
 the default. The script then checks that no placeholder survived and refuses to install if one did,
 because a literal `OPENSEARCH_URI_PLACEHOLDER` would be read as a host name.
 

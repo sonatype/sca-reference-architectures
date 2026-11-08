@@ -53,6 +53,7 @@ resource "google_compute_instance_template" "iq_template" {
     opensearch_username        = var.opensearch_username
     opensearch_password_secret = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
     opensearch_index_replicas  = var.opensearch_index_replicas
+    opensearch_ca_secret       = local.opensearch_private_ca ? google_secret_manager_secret.opensearch_ca[0].secret_id : ""
   })
 
   labels = merge(var.common_tags, {
