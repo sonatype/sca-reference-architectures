@@ -44,6 +44,8 @@ db_password = "your-secure-database-password" # Change this!
 # Database settings
 postgres_version     = "POSTGRES_15"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_edition           = "ENTERPRISE"        # ENTERPRISE_PLUS for db-perf-optimized-N-* or db-c4a-highmem-*
+db_disk_type         = "PD_SSD"            # HYPERDISK_BALANCED for db-c4a-highmem-*
 db_availability_type = "REGIONAL"          # REGIONAL for HA, ZONAL for single-zone
 db_disk_size         = 200
 db_max_disk_size     = 1000
@@ -69,6 +71,9 @@ filestore_capacity_gb = 2560 # 2.5 TiB, the Size L capacity
 enable_ssl  = false # Set to true and provide domain_name for HTTPS
 domain_name = ""    # Required if enable_ssl is true (e.g., "iq.example.com")
 
+# Seconds the load balancer waits for IQ Server before answering 502
+lb_backend_timeout_sec = 30
+
 # Auto Scaling Configuration
 cpu_target_utilization     = 0.7 # 70% CPU utilization target
 scale_in_cooldown_seconds  = 300 # 5 minutes
@@ -79,6 +84,9 @@ java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+Always
 
 # Logging
 log_retention_days = 30
+
+# Extra logger levels for config.yml, for example for a support case
+# iq_log_levels = { "com.sonatype.insight.brain.search" = "DEBUG" }
 
 # Common Tags/Labels
 common_tags = {
@@ -102,6 +110,7 @@ search_engine = "lucene"
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 0
+# opensearch_ca_certificate           = file("opensearch-ca.pem") # only for a private certificate authority
 
 # The values above are Size L. The two blocks below are the other sizes this
 # root supports. See the README Sizing Guide for application and evaluation

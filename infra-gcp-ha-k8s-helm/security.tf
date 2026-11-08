@@ -103,7 +103,7 @@ resource "google_compute_firewall" "allow_nodes_to_master" {
     ports    = ["443"]
   }
 
-  source_tags       = ["gke-node"]
+  source_tags        = ["gke-node"]
   destination_ranges = [var.gke_master_cidr]
 
   description = "Allow GKE nodes to communicate with master"

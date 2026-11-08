@@ -125,6 +125,28 @@ variable "db_instance_tier" {
   default     = "db-custom-8-30720"
 }
 
+variable "db_edition" {
+  description = "Cloud SQL edition. ENTERPRISE takes the db-custom-* tiers; ENTERPRISE_PLUS is required by the newer machine series such as db-perf-optimized-N-* and db-c4a-highmem-*."
+  type        = string
+  default     = "ENTERPRISE"
+
+  validation {
+    condition     = contains(["ENTERPRISE", "ENTERPRISE_PLUS"], var.db_edition)
+    error_message = "db_edition must be ENTERPRISE or ENTERPRISE_PLUS."
+  }
+}
+
+variable "db_disk_type" {
+  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED."
+  type        = string
+  default     = "PD_SSD"
+
+  validation {
+    condition     = contains(["PD_SSD", "PD_HDD", "HYPERDISK_BALANCED"], var.db_disk_type)
+    error_message = "db_disk_type must be PD_SSD, PD_HDD or HYPERDISK_BALANCED."
+  }
+}
+
 variable "db_availability_type" {
   description = "Database availability type (REGIONAL for HA)"
   type        = string
@@ -209,6 +231,12 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "lb_backend_timeout_sec" {
+  description = "Seconds the load balancer waits for a response from Nexus IQ Server before answering 502. A large scan upload or report export can run longer than the default."
+  type        = number
+  default     = 30
+}
+
 # Auto Scaling Variables
 variable "cpu_target_utilization" {
   description = "Target CPU utilization for auto scaling"
@@ -245,6 +273,12 @@ variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
   default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+}
+
+variable "iq_log_levels" {
+  description = "Extra logger levels written under logging.loggers in config.yml, as logger name to level, for example { \"com.sonatype.insight.brain.search\" = \"DEBUG\" } for a support case. Every line lands in clm-server.log on Filestore."
+  type        = map(string)
+  default     = {}
 }
 
 # Storage Variables
@@ -358,8 +392,14 @@ variable "opensearch_password" {
   sensitive   = true
 }
 
+variable "opensearch_ca_certificate" {
+  description = "PEM certificate of a private authority that signed the OpenSearch cluster's certificates. When set with opensearch_use_tls, each instance adds it to a copy of the JVM trust store on Filestore and points the JVM at the copy. Leave empty for a certificate from a public authority."
+  type        = string
+  default     = ""
+}
+
 variable "opensearch_index_replicas" {
-  description = "Replicas every Nexus One index is created with, written to config.yml as search.nexusOneIndexReplicas. A single data node cannot place a replica, so 0 is the only workable value on a one-node cluster. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
+  description = "Replicas every Nexus One index is created with, written to config.yml as nexusOne.connection.nexusOneIndexReplicas, which is where the Nexus One index reads it. A single data node cannot place a replica, so 0 is the only workable value on a one-node cluster. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
   type        = number
   default     = 0
 

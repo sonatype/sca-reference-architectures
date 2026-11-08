@@ -435,7 +435,7 @@ variable "opensearch_create_log_resource_policy" {
 }
 
 variable "opensearch_index_replicas" {
-  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. IQ Server's own default is 0, so this configuration always writes the value rather than relying on that default. One is the default here, matching the default domain's two data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This configuration always writes the value, because IQ Server's own default depends on the release. Releases that include CLM-55924 use 1 replica, or 0 on a domain with exactly one data node, and 1 when they cannot read the data node count. Earlier releases use 0. One is the default here, matching the default domain's two data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
   type        = number
   default     = 1
 

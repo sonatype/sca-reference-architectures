@@ -42,6 +42,31 @@ resource "google_secret_manager_secret_version" "opensearch_password" {
   secret_data = var.opensearch_password
 }
 
+# A private certificate authority for the cluster, held in Secret Manager and read at boot. The GCE
+# service account's project-wide secretAccessor grant covers it. Not needed for a certificate from a
+# public authority.
+locals {
+  opensearch_private_ca = local.opensearch_enabled && var.opensearch_use_tls && var.opensearch_ca_certificate != ""
+}
+
+resource "google_secret_manager_secret" "opensearch_ca" {
+  count     = local.opensearch_private_ca ? 1 : 0
+  secret_id = "${local.app_name}-opensearch-ca"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "opensearch_ca" {
+  count       = local.opensearch_private_ca ? 1 : 0
+  secret      = google_secret_manager_secret.opensearch_ca[0].id
+  secret_data = var.opensearch_ca_certificate
+}
+
 # Google Cloud denies all ingress that no rule allows, so an OpenSearch cluster built inside this
 # VPC needs a rule of its own. Tag each OpenSearch node "nexus-iq-opensearch" to pick this up. A
 # cluster outside this VPC is reached over whatever path you have built to it, and this rule has

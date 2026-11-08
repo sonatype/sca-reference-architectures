@@ -244,7 +244,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Deployment option | Azure Container Apps or AKS | Azure Container Apps or AKS | AKS recommended at this scale |
 | **Database** | | | |
 | Service | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server |
-| SKU | GP_Standard_D8ds_v5 (8 vCores, 32 GB) | GP_Standard_D8ds_v5 (8 vCores, 32 GB) | MO_Standard_E16ds_v5 (16 vCores, 128 GB) |
+| SKU | GP_Standard_D8ds_v6 (8 vCores, 32 GB) | GP_Standard_D8ds_v6 (8 vCores, 32 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
 | Storage | 100 GB with auto-scaling | 200 GB – 1 TB with auto-scaling | 500 GB – 2 TB with auto-scaling |
 | Zone redundancy | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
@@ -319,9 +319,9 @@ The following tables provide equivalent instance types across cloud providers fo
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v5 (8 vCores, 32 GB) |
-| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v5 (8 vCores, 32 GB) |
-| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v5 (16 vCores, 128 GB) |
+| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v6 (8 vCores, 32 GB) |
+| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v6 (8 vCores, 32 GB) |
+| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
@@ -397,7 +397,7 @@ container_cpu        = 4.0                 # 4 vCPU
 container_memory     = "32Gi"              # 32 GB
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D2ds_v5" # 2 vCores, 8 GB
+db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 102400              # 100 GB
 ```
 
@@ -455,7 +455,7 @@ iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is
 iq_max_replicas      = 3                   # infra-azure-ha only, Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
 db_storage_mb        = 102400              # 100 GB, infra-azure only; infra-azure-ha fixes its storage at 64 GB
 ```
 
@@ -518,7 +518,7 @@ iq_min_replicas      = 2                   # Minimum 2 for HA
 iq_max_replicas      = 4                   # Scale up to 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant" # Required for L
 ```
 
@@ -583,7 +583,7 @@ node_group_desired_size = 4                # 4 nodes
 nexus_iq_replica_count = 4                 # 4 IQ pods
 # The container image and the Java heap are Helm chart values, set in
 # helm-values.yaml as iq_server.tag and iq_server.javaOpts.
-db_sku_name          = "MO_Standard_E16ds_v5" # 16 vCores, 128 GB
+db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant" # Required
 storage_account_tier = "Premium"           # Required for NFS with AKS
 ```
