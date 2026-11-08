@@ -87,7 +87,7 @@ search_engine = "lucene"
 # opensearch_use_tls        = true
 # opensearch_username       = "iq-server"
 # opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_index_replicas = 0
+# opensearch_index_replicas = 1
 
 # Tags
 # Merged on top of the four tags this root sets itself: project, Environment,
