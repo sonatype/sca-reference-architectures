@@ -106,7 +106,7 @@ Choose your deployment size based on your application count and daily evaluation
 
 > ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing, which ran on the GCP ARM instances below: `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL.
 
-> ² OpenSearch is part of every size. The per-size cluster specification, meaning data node count, node size, heap and storage, is not published yet; see [OpenSearch](#opensearch).
+> ² OpenSearch is part of every size. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
@@ -141,8 +141,7 @@ Then navigate to the corresponding directory:
 OpenSearch is required at every size. The three AWS architectures can create an Amazon OpenSearch
 Service domain for you; the six Azure and GCP ones cannot, so on those clouds build a reachable
 self-managed cluster first and keep its endpoint, user name, and password to hand. The per-size
-cluster specification is not published yet, so see [OpenSearch](#opensearch) for what is settled and
-what is still being measured.
+cluster specification is in [Per-size cluster specification](#per-size-cluster-specification).
 
 Skipping this step gets you a running IQ Server whose search does not work.
 
@@ -699,10 +698,10 @@ which: IQ Server sends an explicit shard count and replica count for the six Nex
 sends **neither** for the Advanced Search index. So that one index is created on whatever your cluster
 would give any index with no settings of its own.
 
-#### Shards: one per index by default
+#### Shards: 3 for three indices at M and above
 
-Every Nexus One index is created with **one primary shard**. Three of the six can be raised per tenant,
-through the configuration API rather than `config.yml`:
+Every Nexus One index is created with **one primary shard** unless configured otherwise. Three of the
+six can be raised per tenant, through the configuration API rather than `config.yml`:
 
 | Setting | Index it applies to |
 |---------|---------------------|
@@ -713,8 +712,17 @@ through the configuration API rather than `config.yml`:
 `application`, `entity`, and `waiver` have no such setting and always get one shard. The three that can
 be raised are capped by `nexusOneIndexMaxShards`, which defaults to **12**.
 
-**Leave these alone unless you have measured a reason not to.** One shard is the stated position at
-every published size. More shards help only when a read of that index misses its latency target *and*
+**At M, L and XL every architecture creates these three indices with 3 shards**, and every other index
+with 1. At XS and S every index keeps 1. Set the three before the Nexus One index is first built, with
+one request to the configuration API as an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+Going past 3 helps only when a read of that index misses its latency target *and*
 the cluster has idle CPU for the extra threads; a document count on its own is not evidence, and shard
 count sets the minimum heap the cluster needs, so extra shards on a small index spend heap for nothing.
 
@@ -738,9 +746,9 @@ a reader can see it was chosen:
 |------|:---------------------:|:-------------:|
 | **XS** | 1 | `0` |
 | **S** | 1 | `0` |
-| **M** | more than 1 | Not published yet |
-| **L** | more than 1 | Not published yet |
-| **XL** | more than 1 | Not published yet |
+| **M** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
+| **L** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
+| **XL** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
 
 **`0` on a single-node tier is a decision, not an omission.** One data node has nowhere to place a
 replica, so asking for one leaves the index permanently yellow for no benefit, which makes a real
@@ -781,8 +789,9 @@ That window is a fixed value in IQ Server with no setting.
 
 So during a rebuild, and for half an hour after it, the cluster holds:
 
-- **Twice the Nexus One shards.** At one shard per index that is 12 rather than 6, plus the Advanced
-  Search index's own shards.
+- **Twice the Nexus One shards.** At XS and S, one shard per index, that is 12 primaries rather than
+  6. At M, L and XL, with three indices at 3 shards, it is 24 rather than 12. Both are before replicas
+  and before the Advanced Search index's own shards.
 - **Twice the Nexus One disk**, and twice the document count.
 
 **Judge free disk against the doubled figure, not the steady state.** A cluster that fits the index
@@ -800,15 +809,23 @@ Two related things worth stating plainly:
 
 #### Per-size cluster specification
 
-**Not published yet.**
+These are starting points rather than measured results, and each architecture's README carries its
+own table with the variables that set them.
 
-<!-- TO BE ADDED (CLM-55930): the per-size OpenSearch specification table. Every row
-     of it (data node count, node instance size, JVM heap per node, storage per node) needs
-     measurements that do not exist. The only OpenSearch sizing data today is from one estate larger
-     than XL's 80,000 application ceiling, and all of it was taken at zero replicas, so it
-     is not evidence for a number at any published size. Do not derive these values; publish them when
-     the measurement lands. The replica counts for M, L and XL in the table above come from the same
-     ticket. -->
+| Size | Data nodes | AWS | Azure | GCP | Storage per node | Shards ¹ | Replicas |
+|------|:----------:|:---:|:-----:|:---:|:----------------:|:--------:|:--------:|
+| **XS** | 1 | `m8g.large.search` | `Standard_D4ps_v6` | `c4a-standard-2` | 25 GB | 1 | `0` |
+| **S** | 1 | `m8g.large.search` | `Standard_D4ps_v6` | `c4a-standard-2` | 50 GB | 1 | `0` |
+| **M** | 3 ² | `m8g.large.search` | `Standard_D8ps_v6` | `c4a-standard-2` | 100 GB | 3 | `1` |
+| **L** | 3 ² | `m8g.xlarge.search` | `Standard_D8ps_v6` | `c4a-standard-4` | 150 GB | 3 | `1` |
+| **XL** | 3 ² | `r8g.2xlarge.search` | `Standard_E8ps_v6` | `c4a-highmem-8` | 250 GB | 3 | `1` |
+
+¹ Primary shards for the component, violation and vulnerability indices. Every other index has 1.
+
+² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds.
+
+The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
+tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
 
 The data node count, node size, JVM heap, and storage for each size are awaiting a per-size
 measurement. What is settled today is only the shape of the requirement: XS and S run one data node, M

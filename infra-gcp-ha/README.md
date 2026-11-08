@@ -21,7 +21,7 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
      continuous monitoring running was added so a reader does not take them as general evaluation
      throughput. -->
 
-> ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
+> ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
 
@@ -133,14 +133,14 @@ stated once in the [top-level OpenSearch section](../README.md#opensearch) rathe
 A replica is a full second copy of every shard, and it is what makes losing a data node
 survivable. **IQ Server's own default depends on the release.** Releases that include
 CLM-55924 use 1 replica, or 0 on a cluster with exactly one data node. Earlier releases use 0.
-So this architecture sets `search.nexusOneIndexReplicas` itself rather than inheriting that
+So this architecture sets `nexusOneIndexReplicas` itself rather than inheriting that
 default:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
-| **M** | more than 1 | Not published yet |
-| **L** | more than 1 | Not published yet |
-| **XL** | more than 1 | Not published yet |
+| **M** | 3 | `1` |
+| **L** | 3 | `1` |
+| **XL** | 3 | `1` |
 
 The rules behind this, including what a yellow index does and does not mean and how to give the
 Advanced Search index a matching replica count, are in the
@@ -157,14 +157,10 @@ a rebuild is not a backup, are in the
 
 #### Per-size cluster specification
 
-**Not published yet.** The data node count, node size, JVM heap, and storage for each size are awaiting
-a per-size measurement. What is settled is the shape of the requirement: every size this architecture supports runs more than one data node, so
-a replica is placeable at all of them.
-
-<!-- TO BE ADDED (CLM-55930): the per-size specification and the replica counts above are CLM-55930's to publish.
-     They need measurements that do not exist. The only OpenSearch sizing data today is one estate
-     larger than XL's 80,000 application ceiling, all taken at zero replicas, so it is not
-     evidence for a number at any published size. Do not derive these values. -->
+The data node type and count, storage per node, shards and replicas for each size are in the
+[cluster table](#the-cluster-to-build) below. At M, L and XL the component, violation and vulnerability indices are
+created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
+shard counts are set through the configuration API before the first build, as shown there.
 
 See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 

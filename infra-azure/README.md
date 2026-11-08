@@ -16,7 +16,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
 
-> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and which parts of the per-size cluster specification are not published yet.
+> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
@@ -107,14 +107,14 @@ stated once in the [top-level OpenSearch section](../README.md#opensearch) rathe
 A replica is a full second copy of every shard, and it is what makes losing a data node
 survivable. **IQ Server's own default depends on the release.** Releases that include
 CLM-55924 use 1 replica, or 0 on a cluster with exactly one data node. Earlier releases use 0.
-So this architecture sets `search.nexusOneIndexReplicas` itself rather than inheriting that
+So this architecture sets `nexusOneIndexReplicas` itself rather than inheriting that
 default:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
 | **XS** | 1 | `0` |
 | **S** | 1 | `0` |
-| **M** | more than 1 | Not published yet |
+| **M** | 3 | `1` |
 
 The rules behind this, including what a yellow index does and does not mean and how to give the
 Advanced Search index a matching replica count, are in the
@@ -131,14 +131,10 @@ a rebuild is not a backup, are in the
 
 #### Per-size cluster specification
 
-**Not published yet.** The data node count, node size, JVM heap, and storage for each size are awaiting
-a per-size measurement. What is settled is the shape of the requirement: XS and S run one data node and M runs more than one, which is what
-decides whether a replica can be placed at all.
-
-<!-- TO BE ADDED (CLM-55930): the per-size specification and the M replica count above are CLM-55930's to publish.
-     They need measurements that do not exist. The only OpenSearch sizing data today is one estate
-     larger than XL's 80,000 application ceiling, all taken at zero replicas, so it is not
-     evidence for a number at any published size. Do not derive these values. -->
+The data node type and count, storage per node, shards and replicas for each size are in the
+[cluster table](#specifying-the-cluster) below. At M, L and XL the component, violation and vulnerability indices are
+created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
+shard counts are set through the configuration API before the first build, as shown there.
 
 See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
