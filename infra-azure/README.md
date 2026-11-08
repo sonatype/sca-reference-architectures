@@ -424,18 +424,33 @@ minutes. That is above this guide's XL ceiling of 80,000 applications, and it wa
 rather than on Azure Virtual Machines, so treat the row below as a starting point and not as a
 tested figure.
 
-| Size | Data nodes | Per-node starting point | `opensearch_index_replicas` |
-|---|---|---|---|
-| XS | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB, 256 GB Premium SSD | `0` |
-| S | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB, 512 GB Premium SSD | `0` |
-| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
-| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
-| XL | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 2 TB Premium SSD | **not yet published** |
+| Size | Data nodes | Per-node starting point | Storage per node | Shards ¹ | `opensearch_index_replicas` |
+|---|---|---|---|---|---|
+| XS | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 25 GB, on a P4 Premium SSD of 32 GiB | 1 | `0` |
+| S | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 50 GB, on a P6 Premium SSD of 64 GiB | 1 | `0` |
+| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 | `1` |
+| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 | `1` |
+| XL | 3 | `Standard_E8ps_v6`, 8 vCPU, 64 GB | 250 GB, on a P15 Premium SSD of 256 GiB | 3 | `1` |
+
+Premium SSD is billed and performs by fixed tiers, so each storage figure sits on the smallest tier
+at or above it.
+
+¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
+Shard counts are held in IQ Server's database, not in `config.yml`, and only take effect when an
+index is created, so **at M, L and XL set them before the Nexus One index is first built**, with one
+request to the configuration API as an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+An index built before the change keeps its count until it is rebuilt.
 
 **`0` is the only workable value at XS and S**, because a single data node cannot place a replica:
-the shard stays unassigned and the cluster sits yellow for ever. At M, L and XL the right value is
-being measured and is not published yet, so pick `0` to run without redundancy or `1` to pay one
-extra copy of the index for it, and expect this table to name a figure later.
+the shard stays unassigned and the cluster sits yellow for ever. At M, L and XL use `1`, so a lost
+data node leaves a complete copy of the index on the others.
 
 Other things the cluster needs, none of which this configuration sets for you:
 

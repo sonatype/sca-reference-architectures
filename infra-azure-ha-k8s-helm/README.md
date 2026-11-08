@@ -462,7 +462,7 @@ opensearch_port           = 9200
 opensearch_use_tls        = true
 opensearch_username       = "iq-server"
 opensearch_password       = "<strong password>"
-opensearch_index_replicas = 0
+opensearch_index_replicas = 1
 ```
 
 | Variable | Default | What it does |
@@ -473,7 +473,7 @@ opensearch_index_replicas = 0
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
 
 Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` is
 byte-identical to a deployment that never knew about this section.
@@ -504,7 +504,7 @@ iq_server:
         uri: 'https://opensearch.internal.example.com:9200'
         username: 'iq-server'
         password: '<from terraform.tfvars>'
-        nexusOneIndexReplicas: 0
+        nexusOneIndexReplicas: 1
 ```
 
 The two credentials are single-quoted, and `write_search_block` appends them with `printf` through a
@@ -538,16 +538,31 @@ tested figure.
 
 This root covers M, L and XL, so the XS and S rows are in the single-instance root's README instead.
 
-| Size | Data nodes | Per-node starting point | `opensearch_index_replicas` |
-|---|---|---|---|
-| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
-| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 1 TB Premium SSD | **not yet published** |
-| XL | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB, 2 TB Premium SSD | **not yet published** |
+| Size | Data nodes | Per-node starting point | Storage per node | Shards ¹ | `opensearch_index_replicas` |
+|---|---|---|---|---|---|
+| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 | `1` |
+| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 | `1` |
+| XL | 3 | `Standard_E8ps_v6`, 8 vCPU, 64 GB | 250 GB, on a P15 Premium SSD of 256 GiB | 3 | `1` |
 
-**The replica count is being measured and is not published yet.** Pick `0` to run without redundancy
-or `1` to pay one extra copy of the index for it, and expect this table to name a figure later. `0`
-is the only workable value on a single data node, because that node cannot place a replica: the shard
-stays unassigned and the cluster sits yellow for ever.
+Premium SSD is billed and performs by fixed tiers, so each storage figure sits on the smallest tier
+at or above it.
+
+¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
+Shard counts are held in IQ Server's database, not in `config.yml`, and only take effect when an
+index is created, so **at M, L and XL set them before the Nexus One index is first built**, with one
+request to the configuration API as an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+An index built before the change keeps its count until it is rebuilt.
+
+**Use `1` replica at every size here**, so a lost data node leaves a complete copy of the index on
+the others. `0` is the only workable value on a single data node, because that node cannot place a
+replica: the shard stays unassigned and the cluster sits yellow for ever.
 
 Other things the cluster needs, none of which this configuration sets for you:
 

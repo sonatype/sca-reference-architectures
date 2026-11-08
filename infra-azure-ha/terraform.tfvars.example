@@ -75,7 +75,7 @@ search_engine = "lucene"
 # opensearch_use_tls        = true
 # opensearch_username       = "iq-server"
 # opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_index_replicas = 0
+# opensearch_index_replicas = 1
 
 # For a cluster whose certificate comes from a private certificate authority,
 # that authority's certificate, base64 encoded. IQ Server has no per-connection

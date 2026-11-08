@@ -367,7 +367,7 @@ opensearch_port                     = 9200
 opensearch_use_tls                  = true
 opensearch_username                 = "nexusiq"
 opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-opensearch_index_replicas = 0
+opensearch_index_replicas = 0  # 1 at M, where the cluster has three data nodes
 ```
 
 All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
@@ -477,22 +477,35 @@ Verified against the OpenSearch source at tags `2.19.0` and `3.2.0`.
 | OpenSearch version | 2.19 or later. The 2.19 line is the long-term support release |
 | Data nodes | One is enough for XS and S. More than one needs `opensearch_index_replicas` raised to at least 1, or a lost node loses a shard |
 | Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
-| Disk | SSD persistent disk. The index is write-heavy during a rebuild |
+| Disk | Hyperdisk Balanced on C4A, or SSD persistent disk on a series that takes it. The index is write-heavy during a rebuild |
 | Network | Private IP addresses in this VPC, or a VPC you have peered to it. No public address |
 | Security | The OpenSearch security plugin, with a user for Nexus IQ Server that can create, read and write indices |
 | Snapshots | The `repository-gcs` plugin, on every node |
 
-The machine shape per size is not published yet. The one measured OpenSearch sizing study ran above
-this architecture's ceiling and on a different cloud, so a shape read off it would be a guess rather
-than a measurement.
+Per size:
 
-`opensearch_index_replicas` by size:
+| Size | Data nodes | Machine type | Storage per node | Shards ¹ | `opensearch_index_replicas` |
+|------|:----------:|:------------:|:----------------:|:--------:|:---------------------------:|
+| **XS** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 25 GB Hyperdisk Balanced | 1 | `0`. One data node cannot place a replica |
+| **S** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 50 GB Hyperdisk Balanced | 1 | `0`. One data node cannot place a replica |
+| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 | `1` |
 
-| Size | Data nodes | `opensearch_index_replicas` |
-|------|:----------:|:--------------------------------------|
-| **XS** | 1 | `0`. One data node cannot place a replica |
-| **S** | 1 | `0`. One data node cannot place a replica |
-| **M** | more than 1 | `0` for now. **Placeholder**: the figure for a multi-node cluster is being measured and is not published yet. `0` leaves the index with no redundancy, so a lost data node loses a shard until the index is rebuilt |
+C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
+volume. These are starting points rather than measured results, except the machine type and node count
+at M, which a GCP Size M measurement ran.
+
+¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
+Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
+an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with
+one request to the configuration API as an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+An index built before the change keeps its count until it is rebuilt.
 
 ### Trusting a private certificate authority
 
