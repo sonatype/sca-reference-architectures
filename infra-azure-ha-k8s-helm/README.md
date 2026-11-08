@@ -35,7 +35,7 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
 </details>
@@ -53,7 +53,7 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
 </details>
@@ -67,7 +67,7 @@ node_group_min_size  = 3
 node_group_max_size  = 5
 node_group_desired_size = 4
 nexus_iq_replica_count = 4                 # 4 IQ pods
-db_sku_name          = "MO_Standard_E16ds_v5" # 16 vCores, 128 GB
+db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier = "Premium"           # Required for NFS with AKS
 storage_account_replication_type = "ZRS"
@@ -78,9 +78,9 @@ storage_account_replication_type = "ZRS"
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **M** | GP_Standard_D8ds_v5 | 8 | 32 GB | 100 GB (auto-grow) |
-| **L** | GP_Standard_D8ds_v5 | 8 | 32 GB | 200 GB to 1 TB (auto-grow) |
-| **XL** | MO_Standard_E16ds_v5 | 16 | 128 GB | 500 GB to 2 TB (auto-grow) |
+| **M** | GP_Standard_D8ds_v6 | 8 | 32 GB | 100 GB (auto-grow) |
+| **L** | GP_Standard_D8ds_v6 | 8 | 32 GB | 200 GB to 1 TB (auto-grow) |
+| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 500 GB to 2 TB (auto-grow) |
 
 ### Shared Storage (Azure Files Premium ZRS)
 
@@ -238,7 +238,7 @@ Your Azure account needs permissions for these services:
 > |---|:---:|:---:|
 > | `node_instance_type` | `Standard_D8s_v3` | `Standard_E8ps_v6` |
 > | `kubernetes_version` | `1.27` | `1.33.3` |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v5` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v6` |
 > | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, grows automatically |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
@@ -269,7 +269,7 @@ node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA)
 postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16ds_v5" # Memory Optimized: 16 vCores, 128GB RAM
+db_sku_name                      = "MO_Standard_E16ds_v6" # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode        = "ZoneRedundant"
 db_storage_mb                    = 131072 # 128GB, grows automatically
 db_storage_tier                  = "P10"
