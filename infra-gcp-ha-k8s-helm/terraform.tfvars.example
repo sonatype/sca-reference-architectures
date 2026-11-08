@@ -61,5 +61,5 @@ search_engine = "lucene"
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_index_replicas = 0
+# opensearch_index_replicas = 1
 # opensearch_ca_certificate = file("opensearch-ca.pem")  # only for a private certificate authority

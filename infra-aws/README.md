@@ -244,11 +244,15 @@ this architecture authenticates with the ECS task role and nothing else.
 
 ### Domain shape per size
 
-| Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Replicas |
-|------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|
-| **XS** | < 500 | 1 | `m8g.large.search` | 4 GiB | 50 GB | none | 1 | 0 |
-| **S** | 500 - 2,000 | 1 | `m8g.large.search` | 4 GiB | 50 GB | none | 1 | 0 |
-| **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 50 GB | 3 x `m8g.medium.search` | 3 | 1 |
+| Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Shards ¹ | Replicas |
+|------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|:--------:|
+| **XS** | < 500 | 1 | `m8g.large.search` | 4 GiB | 25 GB | none | 1 | 1 | 0 |
+| **S** | 500 - 2,000 | 1 | `m8g.large.search` | 4 GiB | 50 GB | none | 1 | 1 | 0 |
+| **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 100 GB | 3 x `m8g.medium.search` | 3 | 3 | 1 |
+
+¹ Primary shards for the component, violation and vulnerability indices. Every
+other index keeps 1. See [What Terraform writes into `config.yml`](#what-terraform-writes-into-configyml)
+for how to set them.
 
 Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
 not a setting this configuration can change.
@@ -343,7 +347,20 @@ nexusOne:
   the same domain.
 
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
-shard count only takes effect when an index is created.
+shard count only takes effect when an index is created. **At M, L and XL, set
+the component, violation and vulnerability indices to 3 shards before the
+Nexus One index is first built**, with one request to the configuration API as
+an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+The other Nexus One indices and the Advanced Search index keep 1 shard, and XS
+and S keep 1 for every index. An index built before the change keeps its count
+until it is rebuilt.
 
 ---
 
