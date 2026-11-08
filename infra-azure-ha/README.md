@@ -481,16 +481,15 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-The one measured sizing study ran about 105,700 applications on three AWS OpenSearch data nodes of
-8 vCPU and 32 GB each, at zero replicas, and rebuilt 68.3 million documents in about 1 hour 30
-minutes. That is above this guide's XL ceiling of 80,000 applications, and it was measured on AWS
-rather than on Azure Virtual Machines, so treat the row below as a starting point and not as a
-tested figure.
+**M and L are measured on Azure; XS, S and XL are not.** The measurements ran `Standard_D2ps_v6`
+data nodes at M and `Standard_D4ps_v6` at L. The data node types below are the published sizes,
+chosen at or above those, and storage per node is the published size, chosen at or above the
+measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
 validated at two or more, so their rows are in the single-instance root's README instead.
 
-| Size | Data nodes | Per-node starting point | Storage per node | Shards ¹ | `opensearch_index_replicas` |
+| Size | Data nodes | Data node | Storage per node | Shards ¹ | `opensearch_index_replicas` |
 |---|---|---|---|---|---|
 | M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 | `1` |
 | L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 | `1` |
