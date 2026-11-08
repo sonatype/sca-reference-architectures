@@ -754,10 +754,16 @@ a reader can see it was chosen:
 replica, so asking for one leaves the index permanently yellow for no benefit, which makes a real
 problem indistinguishable from this one. It is also not a limitation: a yellow index is created, opens,
 takes writes, and returns correct reads, because yellow means every primary shard is assigned and at
-least one replica is not. Primaries serve every read and take every write. Nothing in IQ Server reads
-cluster health, so no OpenSearch color is reported as a failure, and the Index Manager's own
-`HEALTHY` / `WARNING` bands describe how far behind the index is rather than how the cluster placed its
-shards.
+least one replica is not. Primaries serve every read and take every write. IQ Server reports no
+OpenSearch color as a failure, and the Index Manager's own `HEALTHY` / `WARNING` bands describe how far
+behind the index is rather than how the cluster placed its shards.
+
+**Releases that include CLM-55924 read `_cluster/health` once per new Nexus One index generation**,
+for the data node count, and only when `nexusOneIndexReplicas` is not set, to choose the replica
+count. Earlier releases do not read it. That read needs the `cluster:monitor/health` permission on
+IQ Server's OpenSearch user; without it IQ Server logs a warning and uses 1 replica. Every
+architecture here writes `nexusOneIndexReplicas`, so the read does not happen and the user needs no
+cluster permission for it.
 
 What a single-node tier does cost you is plain: **losing that node means rebuilding the index.** There
 is nothing to fail over to.
@@ -809,8 +815,12 @@ Two related things worth stating plainly:
 
 #### Per-size cluster specification
 
-These are starting points rather than measured results, and each architecture's README carries its
-own table with the variables that set them.
+**Measured:** every AWS size, Azure M and L, and GCP M. The other sizes are not measured on that
+cloud. Where a published value is larger than what was measured, it is the published size, chosen at
+or above the measurement: the Azure data node types, measured on `Standard_D2ps_v6` at M and
+`Standard_D4ps_v6` at L, and storage per node on every cloud. The measurements are on
+[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+Each architecture's README carries its own table with the variables that set them.
 
 | Size | Data nodes | AWS | Azure | GCP | Storage per node | Shards ¹ | Replicas |
 |------|:----------:|:---:|:-----:|:---:|:----------------:|:--------:|:--------:|
