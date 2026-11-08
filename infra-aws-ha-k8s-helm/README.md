@@ -302,10 +302,13 @@ for how to set them.
 Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
 not a setting this configuration can change.
 
-**These are starting points, not measured results.** Sizing per size is being
-measured under
-[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930). Measure your own
-estate until it reports.
+**The data node type, masters, shards and replicas above are the measured
+values at every size.** The measurement ran three data nodes, one per zone;
+this architecture runs two because it builds two zones, and that count is not
+measured. Storage per node is the published size, chosen at or above the
+measured use. The measurements are on
+[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
+and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
 
 **Two zones, because that is what this architecture builds.** `main.tf` creates
 two private subnets, and the domain needs one subnet per zone, so two is the

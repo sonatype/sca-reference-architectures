@@ -253,10 +253,11 @@ for how to set them.
 Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
 not a setting this configuration can change.
 
-**These are starting points, not measured results.** Sizing per size is being
-measured under
-[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930). Measure your own
-estate until it reports.
+**The data node type and count, masters, shards and replicas above are the
+measured values at every size.** Storage per node is the published size, chosen
+at or above the measured use. The measurements are on
+[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
+and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
 
 At 0 replicas a lost node means the index is rebuilt rather than recovered.
 That is the trade a one-node domain makes, and it is part of why XS and S are

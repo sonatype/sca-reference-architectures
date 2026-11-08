@@ -487,12 +487,12 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-The one measured sizing study ran an estate larger than this guide's XL ceiling of 80,000
-applications, on three AWS OpenSearch data nodes of 8 vCPU and 32 GB each, at zero replicas. It was
-measured on AWS rather than on Azure Virtual Machines, so treat the row below as a starting point
-and not as a tested figure.
+**M and L are measured on Azure; XS, S and XL are not.** The measurements ran `Standard_D2ps_v6`
+data nodes at M and `Standard_D4ps_v6` at L. The data node types below are the published sizes,
+chosen at or above those, and storage per node is the published size, chosen at or above the
+measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
-| Size | Data nodes | Per-node starting point | Storage per node | Shards ¹ | `opensearch_index_replicas` |
+| Size | Data nodes | Data node | Storage per node | Shards ¹ | `opensearch_index_replicas` |
 |---|---|---|---|---|---|
 | XS | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 25 GB, on a P4 Premium SSD of 32 GiB | 1 | `0` |
 | S | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 50 GB, on a P6 Premium SSD of 64 GiB | 1 | `0` |

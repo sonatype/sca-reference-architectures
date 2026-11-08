@@ -75,8 +75,9 @@ acm_certificate_arn  = ""
 #     --aws-service-name opensearchservice.amazonaws.com
 search_engine = "lucene"
 
-# Domain shape, by the size you picked above. Starting points, not measured
-# results: the per-size sizing is CLM-55930. Two data nodes at every size, one
+# Domain shape, by the size you picked above. Type, masters and replicas are
+# the measured values, measured on three data nodes; storage is the published
+# size, at or above the measured use. Two data nodes at every size, one
 # in each of the two zones this architecture builds, which places a replica.
 #
 # M (2,000 - 10,000 apps):
