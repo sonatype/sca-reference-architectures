@@ -330,6 +330,12 @@ variable "opensearch_password" {
   sensitive   = true
 }
 
+variable "opensearch_ca_certificate" {
+  description = "PEM certificate of a private authority that signed the OpenSearch cluster's certificates. When set with opensearch_use_tls, helm-install.sh and helm-upgrade.sh store it in the Kubernetes Secret nexus-iq-opensearch-ca, and each IQ Server pod adds it to a copy of the JVM trust store at start. Leave empty for a certificate from a public authority."
+  type        = string
+  default     = ""
+}
+
 variable "opensearch_index_replicas" {
   description = "Replicas every Nexus One index is created with, written to config.yml as nexusOne.connection.nexusOneIndexReplicas, which is where the Nexus One index reads it. A single data node cannot place a replica, so 0 is the only workable value on a one-node cluster. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
   type        = number

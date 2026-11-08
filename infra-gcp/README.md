@@ -504,46 +504,24 @@ Nexus IQ Server has no per-connection trust setting, so the whole JVM is affecte
 store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
 calls to the Sonatype data service**, which rely on the public authorities already in it.
 
-Do this on the instance, once the container is running. **There is no `keytool` on the instance**:
-the startup script installs `docker.io`, `curl` and `nfs-common` only, and no JDK. Every step below
-therefore runs `keytool` from inside the container, which does carry one.
+This root does the copy for you. Set the authority's PEM certificate:
 
-```bash
-# 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/sonatype-work
-#    as /sonatype-work, so one copy is reachable from both sides.
-docker exec nexus-iq-server cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /sonatype-work/cacerts
-# These paths are the ones the published image uses: its Dockerfile installs the server, and
-# the jlinked runtime that ships inside it, at /opt/sonatype/nexus-iq-server. Confirm them on
-# the image you are running with:
-#   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
-#   docker exec nexus-iq-server sh -c 'find / -name keytool -type f 2>/dev/null'
-
-# 2. Put your certificate authority where the container can read it, and add it to the copy.
-#    The default trust store password is "changeit".
-docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
-  -keystore /sonatype-work/cacerts -storepass changeit \
-  -alias opensearch-ca -file /tmp/ca.pem
-
-# 3. Confirm the authority is in the copy, and that the public ones are still there.
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
-  -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
-  -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
+```hcl
+opensearch_use_tls        = true
+opensearch_ca_certificate = file("opensearch-ca.pem")
 ```
 
-The copy is already inside the container at `/sonatype-work/cacerts`, so nothing new has to be
-mounted. Name it in `java_opts` in `terraform.tfvars`:
-
-```
--Djavax.net.ssl.trustStore=/sonatype-work/cacerts -Djavax.net.ssl.trustStorePassword=changeit
-```
-
-`/mnt/sonatype-work` is Cloud Filestore, so the copy survives the instance being replaced.
+Terraform stores it in a Secret Manager secret named `<cluster_name>-opensearch-ca`, which the
+instance reads at boot with the service account's existing `roles/secretmanager.secretAccessor`.
+The startup script mounts it into the container, and at every container start the entrypoint
+copies the image's JVM trust store to `/tmp/opensearch-cacerts`, adds the authority with the
+image's own `keytool`, and adds `-Djavax.net.ssl.trustStore` to `JAVA_OPTS`. Nothing has to be
+added to `java_opts`. To change the certificate, apply and then reset the instance, as for a
+password rotation below, so the startup script reads the new secret version.
 
 **`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
 takes either one. The cost is that the basic auth password is sent unencrypted on every request.
-**Use `https`.** The copy above is a one-time step, and a password on the wire is permanent. `http`
+**Use `https`.** The copy above is one variable, and a password on the wire is permanent. `http`
 is reasonable only for a short evaluation on a private subnet you control.
 
 ### Snapshots, and the credential they need

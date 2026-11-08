@@ -488,16 +488,6 @@ Four things about these blocks are deliberate:
   data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the
   value visible next to the cluster it describes.
 
-### A private certificate authority
-
-A cluster whose certificates are signed by a private authority needs that authority in the JVM's
-trust store, or every request fails the TLS handshake. Set `opensearch_ca_certificate` to the
-authority's PEM certificate, with `opensearch_use_tls = true`. Terraform stores it in Secret
-Manager, and each instance copies the image's JVM trust store onto Filestore at boot, adds the
-authority to the copy, and starts IQ Server with `-Djavax.net.ssl.trustStore` pointing at it. The
-JVM's own store is left as it is, because replacing it would break IQ Server's calls to the
-Sonatype data services. A certificate from a public authority needs none of this.
-
 ### How the password reaches the servers
 
 `opensearch_password` is written to a Secret Manager secret named
@@ -585,49 +575,24 @@ Nexus IQ Server has no per-connection trust setting, so the whole JVM is affecte
 store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
 calls to the Sonatype data service**, which rely on the public authorities already in it.
 
-Prepare the copy once, on Cloud Filestore, so every instance the group creates sees it. **There is
-no `keytool` on the instances**: the startup script installs `docker.io`, `nfs-common`, `jq`,
-`curl` and `wget` only, and no JDK. Every step below therefore runs `keytool` from inside the
-container, which does carry one.
+This root does the copy for you. Set the authority's PEM certificate:
 
-```bash
-# On any one instance, once the container is running.
-# 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/filestore as
-#    /sonatype-work, so one copy is reachable from both sides and from every other instance.
-docker exec nexus-iq-server cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /sonatype-work/cacerts
-# These paths are the ones the published image uses: its Dockerfile installs the server, and
-# the jlinked runtime that ships inside it, at /opt/sonatype/nexus-iq-server. Confirm them on
-# the image you are running with:
-#   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
-#   docker exec nexus-iq-server sh -c 'find / -name keytool -type f 2>/dev/null'
-
-# 2. Put your certificate authority where the container can read it, and add it to the copy.
-#    The default trust store password is "changeit".
-docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
-  -keystore /sonatype-work/cacerts -storepass changeit \
-  -alias opensearch-ca -file /tmp/ca.pem
-
-# 3. Confirm the authority is in the copy, and that the public ones are still there.
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
-  -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
-  -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
+```hcl
+opensearch_use_tls        = true
+opensearch_ca_certificate = file("opensearch-ca.pem")
 ```
 
-Then make every instance use it. `/mnt/filestore` is already mounted into the container as
-`/sonatype-work`, so no new mount is needed, and `java_opts` in `terraform.tfvars` gains:
-
-```
--Djavax.net.ssl.trustStore=/sonatype-work/cacerts -Djavax.net.ssl.trustStorePassword=changeit
-```
-
-Changing `java_opts` replaces the instance template and rolls the group, which is the point: every
-instance then reads the same copy.
+Terraform stores it in a Secret Manager secret and grants the compute service account
+`roles/secretmanager.secretAccessor` on it. At boot each instance copies the image's JVM trust
+store to `opensearch-cacerts` on Cloud Filestore, adds the authority with the image's own
+`keytool`, and starts IQ Server with `-Djavax.net.ssl.trustStore` pointing at the copy. Nothing
+has to be added to `java_opts`. To change the certificate, apply and then restart the group with
+`gcloud compute instance-groups managed rolling-action restart`, as for a password rotation, so
+every instance reads the new secret version.
 
 **`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
 takes either one. The cost is that the basic auth password is sent unencrypted on every request.
-**Use `https`.** The copy above is a one-time step, and a password on the wire is permanent. `http`
+**Use `https`.** The copy above is one variable, and a password on the wire is permanent. `http`
 is reasonable only for a short evaluation on a private subnet you control.
 
 ### Snapshots, and the credential they need

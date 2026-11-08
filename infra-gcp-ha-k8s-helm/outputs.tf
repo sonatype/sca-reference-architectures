@@ -132,6 +132,11 @@ output "opensearch_password" {
   sensitive   = true
 }
 
+output "opensearch_ca_certificate" {
+  description = "PEM certificate of the OpenSearch cluster's private certificate authority, empty when none is set or TLS is off"
+  value       = var.search_engine == "opensearch" && var.opensearch_use_tls ? var.opensearch_ca_certificate : ""
+}
+
 output "opensearch_index_replicas" {
   description = "Replicas every Nexus One index is created with"
   value       = var.opensearch_index_replicas

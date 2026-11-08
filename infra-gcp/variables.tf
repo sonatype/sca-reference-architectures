@@ -301,6 +301,12 @@ variable "opensearch_password" {
   sensitive   = true
 }
 
+variable "opensearch_ca_certificate" {
+  description = "PEM certificate of a private authority that signed the OpenSearch cluster's certificates. When set with opensearch_use_tls, the container adds it to a copy of the JVM trust store at each start and points the JVM at the copy. Leave empty for a certificate from a public authority."
+  type        = string
+  default     = ""
+}
+
 variable "opensearch_index_replicas" {
   description = "Replicas every Nexus One index is created with, written to config.yml as nexusOne.connection.nexusOneIndexReplicas, which is where the Nexus One index reads it. A single data node cannot place a replica, so leave this at 0 unless the cluster has more than one data node. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
   type        = number

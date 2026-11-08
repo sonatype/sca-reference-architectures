@@ -49,6 +49,14 @@ if [ -z "$OPENSEARCH_PASSWORD" ]; then
 fi
 echo "OpenSearch password read successfully"
 
+%{ if opensearch_ca_secret != "" ~}
+echo "=== Reading the OpenSearch certificate authority from Secret Manager ==="
+gcloud secrets versions access latest \
+  --secret="${opensearch_ca_secret}" \
+  --project="${gcp_project_id}" > /opt/opensearch-ca.pem
+[ -s /opt/opensearch-ca.pem ] || { echo "FATAL: could not read the OpenSearch certificate authority"; exit 1; }
+
+%{ endif ~}
 %{ endif ~}
 echo "=== Creating Docker entrypoint script ==="
 cat > /opt/docker-entrypoint.sh << 'ENTRYPOINT_EOF'
@@ -161,6 +169,19 @@ echo "Successfully created config.yml with database configuration"
 echo "Generated config file contents, with passwords redacted:"
 sed 's/^\([[:space:]]*password:\).*/\1 <redacted>/' /etc/nexus-iq-server/config.yml
 
+%{ if opensearch_ca_secret != "" ~}
+
+# A private certificate authority for the cluster: copy the image's JVM trust store, add the
+# authority to the copy, and point the JVM at the copy. Replacing the JVM's own store would break
+# IQ Server's calls to the Sonatype data services. The copy is rebuilt at every container start.
+JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+[ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ] || { echo "cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"; exit 1; }
+cp "$JVM_CACERTS" /tmp/opensearch-cacerts
+"$KEYTOOL" -importcert -noprompt -keystore /tmp/opensearch-cacerts -storepass changeit -alias opensearch-ca -file /etc/opensearch-ca.pem
+JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.trustStore=/tmp/opensearch-cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+%{ endif ~}
+
 export JAVA_OPTS
 
 echo "Starting Nexus IQ Server"
@@ -196,6 +217,9 @@ docker run -d \
   -v /mnt/sonatype-work/sonatype-work:/sonatype-work \
   -v /mnt/sonatype-work/logs:/var/log/nexus-iq-server \
   -v /opt/docker-entrypoint.sh:/docker-entrypoint.sh \
+%{ if opensearch_ca_secret != "" ~}
+  -v /opt/opensearch-ca.pem:/etc/opensearch-ca.pem:ro \
+%{ endif ~}
   --entrypoint /docker-entrypoint.sh \
   ${docker_image}
 
