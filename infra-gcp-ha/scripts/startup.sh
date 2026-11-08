@@ -133,6 +133,15 @@ if ! docker info >/dev/null 2>&1; then
 fi
 log "Docker daemon is ready"
 
+# An Artifact Registry image is pulled with the instance's service account, which the metadata
+# server supplies once docker is told to ask gcloud for it.
+case "$${IQ_DOCKER_IMAGE}" in
+  *-docker.pkg.dev/*)
+    log "Configuring docker to authenticate to $${IQ_DOCKER_IMAGE%%/*}"
+    gcloud auth configure-docker "$${IQ_DOCKER_IMAGE%%/*}" --quiet
+    ;;
+esac
+
 # Pull Docker image with retries
 log "Pulling Nexus IQ Server Docker image ($${IQ_DOCKER_IMAGE})..."
 for attempt in {1..3}; do
@@ -225,6 +234,9 @@ logging:
     org.eclipse.jetty: INFO
     org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
     com.networknt.schema: OFF
+%{ for logger_name, logger_level in iq_log_levels ~}
+    ${logger_name}: ${logger_level}
+%{ endfor ~}
     com.sonatype.insight.audit:
       appenders:
       - type: file
