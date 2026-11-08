@@ -40,6 +40,7 @@ resource "google_compute_instance_template" "iq_template" {
     java_opts          = var.java_opts
     gcp_project_id     = var.gcp_project_id
     filestore_ip       = google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]
+    iq_log_levels      = var.iq_log_levels
   })
 
   labels = merge(var.common_tags, {
