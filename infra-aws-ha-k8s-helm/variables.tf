@@ -376,7 +376,7 @@ variable "opensearch_volume_size_gb" {
     tier needs.
   EOT
   type        = number
-  default     = 50
+  default     = 100
 
   validation {
     condition     = var.opensearch_volume_size_gb >= 10 && var.opensearch_volume_size_gb <= 3000
