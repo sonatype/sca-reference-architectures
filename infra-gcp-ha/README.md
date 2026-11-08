@@ -473,8 +473,10 @@ Three things about that block are deliberate:
 - **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
   writes every batch to the built-in index as well. That costs indexing time and cannot roll an
   index generation back.
-- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default is 0,
-  and stating it keeps the value visible next to the cluster it describes.
+- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default depends
+  on the release. Releases that include CLM-55924 use 1 replica, or 0 on a cluster with exactly one
+  data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the
+  value visible next to the cluster it describes.
 
 ### How the password reaches the servers
 
