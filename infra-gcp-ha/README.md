@@ -290,7 +290,7 @@ db_availability_type  = "REGIONAL"          # REGIONAL for HA
 db_disk_size          = 200
 db_max_disk_size      = 1000
 db_max_connections    = "200"
-db_backup_retention_count  = 7
+db_backup_retention_count  = 8
 db_deletion_protection     = true
 
 # Enable read replica for load distribution
