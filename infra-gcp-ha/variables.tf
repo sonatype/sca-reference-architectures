@@ -189,9 +189,9 @@ variable "db_transaction_log_retention_days" {
 }
 
 variable "db_backup_retention_count" {
-  description = "Number of automated backups to retain"
+  description = "Number of automated backups to retain. Cloud SQL refuses a count that is not greater than db_transaction_log_retention_days, with \"backup retention should be > transaction log retention\", so this stays above that variable."
   type        = number
-  default     = 7
+  default     = 8
 }
 
 variable "db_maintenance_window_day" {

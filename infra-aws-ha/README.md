@@ -200,10 +200,11 @@ for how to set them.
 Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
 not a setting this configuration can change.
 
-**These are starting points, not measured results.** Sizing per size is being
-measured under
-[CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930). Measure your own
-estate until it reports.
+**The data node type and count, masters, shards and replicas above are the
+measured values at every size.** Storage per node is the published size, chosen
+at or above the measured use. The measurements are on
+[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
+and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
 
 Three data nodes at every size, because three is the smallest count that both
 places a replica and spreads across three Availability Zones. At 0 replicas a

@@ -253,7 +253,7 @@ db_edition                          = "ENTERPRISE"
 db_availability_type                = "ZONAL"
 db_disk_size                        = 100
 db_max_disk_size                    = 1000
-db_backup_retention_count           = 7
+db_backup_retention_count           = 8
 db_deletion_protection              = false
 
 # Storage Configuration
