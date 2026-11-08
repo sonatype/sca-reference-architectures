@@ -564,8 +564,8 @@ Per size:
 | **XL** | 3 | `c4a-highmem-8`, 8 vCPU, 64 GB | 250 GB Hyperdisk Balanced | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
-volume. These are starting points rather than measured results, except M, which is the shape the
-GCP Size M measurement ran.
+volume. These are starting points rather than measured results, except the machine type and node count
+at M, which a GCP Size M measurement ran.
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
