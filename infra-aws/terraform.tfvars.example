@@ -60,8 +60,9 @@ log_retention_days = 30
 #     --aws-service-name opensearchservice.amazonaws.com
 search_engine = "lucene"
 
-# Domain shape, by the size you picked above. Starting points, not measured
-# results: the per-size sizing is CLM-55930.
+# Domain shape, by the size you picked above. Type, count, masters and
+# replicas are the measured values; storage is the published size, at or
+# above the measured use.
 #
 # XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters. 25 GB
 # per node at XS, 50 GB at S:
