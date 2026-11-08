@@ -10,23 +10,23 @@ resource "aws_db_subnet_group" "iq_db_subnet_group" {
 }
 
 resource "aws_rds_cluster" "iq_cluster" {
-  cluster_identifier      = "${var.cluster_name}-aurora-cluster"
-  engine                  = "aurora-postgresql"
-  engine_version          = var.aurora_engine_version
-  availability_zones      = slice(data.aws_availability_zones.available.names, 0, 2)
-  database_name           = var.database_name
-  master_username         = var.database_username
-  master_password         = var.database_password
-  backup_retention_period = var.backup_retention_period
-  preferred_backup_window = "03:00-04:00"
+  cluster_identifier           = "${var.cluster_name}-aurora-cluster"
+  engine                       = "aurora-postgresql"
+  engine_version               = var.aurora_engine_version
+  availability_zones           = slice(data.aws_availability_zones.available.names, 0, 2)
+  database_name                = var.database_name
+  master_username              = var.database_username
+  master_password              = var.database_password
+  backup_retention_period      = var.backup_retention_period
+  preferred_backup_window      = "03:00-04:00"
   preferred_maintenance_window = "Sun:04:00-Sun:05:00"
-  db_subnet_group_name    = aws_db_subnet_group.iq_db_subnet_group.name
-  vpc_security_group_ids  = [aws_security_group.rds.id]
-  storage_encrypted       = true
-  kms_key_id             = aws_kms_key.iq_kms_key.arn
-  skip_final_snapshot    = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
-  deletion_protection    = var.deletion_protection
+  db_subnet_group_name         = aws_db_subnet_group.iq_db_subnet_group.name
+  vpc_security_group_ids       = [aws_security_group.rds.id]
+  storage_encrypted            = true
+  kms_key_id                   = aws_kms_key.iq_kms_key.arn
+  skip_final_snapshot          = var.skip_final_snapshot
+  final_snapshot_identifier    = var.skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  deletion_protection          = var.deletion_protection
 
   enabled_cloudwatch_logs_exports = ["postgresql"]
 
@@ -46,8 +46,8 @@ resource "aws_rds_cluster_instance" "iq_cluster_instances" {
   engine_version     = aws_rds_cluster.iq_cluster.engine_version
 
   performance_insights_enabled = true
-  monitoring_interval         = 60
-  monitoring_role_arn        = aws_iam_role.rds_enhanced_monitoring.arn
+  monitoring_interval          = 60
+  monitoring_role_arn          = aws_iam_role.rds_enhanced_monitoring.arn
 
   tags = {
     Name        = "${var.cluster_name}-aurora-${count.index}"
