@@ -35,7 +35,7 @@ resource "google_compute_backend_service" "iq_ha_backend" {
   description           = "Backend service for Nexus IQ HA"
   protocol              = "HTTP"
   port_name             = "http"
-  timeout_sec           = 30
+  timeout_sec           = var.lb_backend_timeout_sec
   enable_cdn            = false
   load_balancing_scheme = "EXTERNAL_MANAGED"
 

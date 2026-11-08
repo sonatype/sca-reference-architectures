@@ -284,6 +284,8 @@ db_password = "your-secure-database-password"  # Change this!
 # Database settings
 postgres_version       = "POSTGRES_15"
 db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB, the Size L value
+db_edition            = "ENTERPRISE"
+db_disk_type          = "PD_SSD"
 db_availability_type  = "REGIONAL"          # REGIONAL for HA
 db_disk_size          = 200
 db_max_disk_size      = 1000
@@ -302,6 +304,7 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 # Load Balancer and SSL Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
+lb_backend_timeout_sec = 30
 
 # Auto Scaling Configuration
 cpu_target_utilization      = 0.7   # 70% CPU utilization target
@@ -322,7 +325,10 @@ java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+Always
 - **`gcp_project_id`** - Your GCP project ID (required)
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = true`** - Set to `false` only for testing to allow database deletion
-- **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`)
+- **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`). An image in Artifact Registry in the same project is pulled with the instances' service account, which holds `roles/artifactregistry.reader`
+- **`db_edition` and `db_disk_type`** - `ENTERPRISE` and `PD_SSD` suit the `db-custom-*` tiers. The newer Cloud SQL series need `ENTERPRISE_PLUS`, and `db-c4a-highmem-*` also needs `HYPERDISK_BALANCED`
+- **`lb_backend_timeout_sec = 30`** - Seconds the load balancer waits for IQ Server before answering 502. Raise it if large scan uploads or report exports run longer
+- **`iq_log_levels`** - Extra logger levels written to `config.yml`, empty by default
 
 ### Docker Container Deployment
 

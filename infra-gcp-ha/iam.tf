@@ -25,6 +25,12 @@ resource "google_project_iam_member" "iq_compute_monitoring_reader" {
   member  = "serviceAccount:${google_service_account.iq_compute_service.email}"
 }
 
+resource "google_project_iam_member" "iq_compute_artifact_reader" {
+  project = var.gcp_project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.iq_compute_service.email}"
+}
+
 # Secret Manager access for database credentials
 resource "google_secret_manager_secret_iam_member" "iq_compute_db_credentials" {
   secret_id = google_secret_manager_secret.db_credentials.secret_id
