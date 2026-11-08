@@ -33,9 +33,9 @@ resource "google_logging_metric" "error_count" {
   EOT
 
   metric_descriptor {
-    metric_kind = "DELTA"
-    value_type  = "INT64"
-    unit        = "1"
+    metric_kind  = "DELTA"
+    value_type   = "INT64"
+    unit         = "1"
     display_name = "Nexus IQ HA Error Count"
   }
 }
@@ -52,9 +52,9 @@ resource "google_logging_metric" "warning_count" {
   EOT
 
   metric_descriptor {
-    metric_kind = "DELTA"
-    value_type  = "INT64"
-    unit        = "1"
+    metric_kind  = "DELTA"
+    value_type   = "INT64"
+    unit         = "1"
     display_name = "Nexus IQ HA Warning Count"
   }
 }
@@ -85,7 +85,7 @@ resource "google_monitoring_alert_policy" "pod_restart_alert" {
   }
 
   enabled = var.enable_monitoring_alerts
-  
+
   depends_on = [google_container_cluster.iq_gke]
 }
 
@@ -115,7 +115,7 @@ resource "google_monitoring_alert_policy" "high_error_rate" {
   }
 
   enabled = var.enable_monitoring_alerts
-  
+
   depends_on = [
     google_logging_metric.error_count,
     google_container_cluster.iq_gke
