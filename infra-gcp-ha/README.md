@@ -291,6 +291,8 @@ db_password = "your-secure-database-password"  # Change this!
 # Database settings
 postgres_version       = "POSTGRES_15"
 db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB, the Size L value
+db_edition            = "ENTERPRISE"
+db_disk_type          = "PD_SSD"
 db_availability_type  = "REGIONAL"          # REGIONAL for HA
 db_disk_size          = 200
 db_max_disk_size      = 1000
@@ -309,6 +311,7 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 # Load Balancer and SSL Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
+lb_backend_timeout_sec = 30
 
 # Auto Scaling Configuration
 cpu_target_utilization      = 0.7   # 70% CPU utilization target
@@ -340,7 +343,10 @@ search_engine = "lucene"
 - **`gcp_project_id`** - Your GCP project ID (required)
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = true`** - Set to `false` only for testing to allow database deletion
-- **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`)
+- **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`). An image in Artifact Registry in the same project is pulled with the instances' service account, which holds `roles/artifactregistry.reader`
+- **`db_edition` and `db_disk_type`** - `ENTERPRISE` and `PD_SSD` suit the `db-custom-*` tiers. The newer Cloud SQL series need `ENTERPRISE_PLUS`, and `db-c4a-highmem-*` also needs `HYPERDISK_BALANCED`
+- **`lb_backend_timeout_sec = 30`** - Seconds the load balancer waits for IQ Server before answering 502. Raise it if large scan uploads or report exports run longer
+- **`iq_log_levels`** - Extra logger levels written to `config.yml`, empty by default
 
 ### Docker Container Deployment
 
@@ -453,8 +459,8 @@ instance. Plan it as a restart of the whole group.
 
 ### What this writes into `config.yml`
 
-`scripts/startup.sh` adds a `search:` block, which is what turns the Nexus One index on. Every
-instance writes the same block, so they share one index:
+`scripts/startup.sh` adds a `search:` block and a `nexusOne.connection` block naming the same
+cluster. Every instance writes the same two blocks, so they share one index:
 
 ```yaml
 search:
@@ -463,18 +469,30 @@ search:
   uri: https://opensearch.internal.example.com:9200
   username: nexusiq
   password: <read from Secret Manager at boot>
-  nexusOneIndexReplicas: 0
+nexusOne:
+  connection:
+    type: http
+    mode: OPENSEARCH
+    uri: https://opensearch.internal.example.com:9200
+    username: nexusiq
+    password: <read from Secret Manager at boot>
+    nexusOneIndexReplicas: 0
 ```
 
-Three things about that block are deliberate:
+Four things about these blocks are deliberate:
 
 - **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
   name and password are how the servers authenticate.
 - **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
   writes every batch to the built-in index as well. That costs indexing time and cannot roll an
   index generation back.
-- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default is 0,
-  and stating it keeps the value visible next to the cluster it describes.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and reads `nexusOneIndexReplicas` from it. With `search:` set
+  and this block absent, enabling the `nexus-one` feature is refused.
+- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default depends
+  on the release. Releases that include CLM-55924 use 1 replica, or 0 on a cluster with exactly one
+  data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the
+  value visible next to the cluster it describes.
 
 ### How the password reaches the servers
 
@@ -563,49 +581,24 @@ Nexus IQ Server has no per-connection trust setting, so the whole JVM is affecte
 store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
 calls to the Sonatype data service**, which rely on the public authorities already in it.
 
-Prepare the copy once, on Cloud Filestore, so every instance the group creates sees it. **There is
-no `keytool` on the instances**: the startup script installs `docker.io`, `nfs-common`, `jq`,
-`curl` and `wget` only, and no JDK. Every step below therefore runs `keytool` from inside the
-container, which does carry one.
+This root does the copy for you. Set the authority's PEM certificate:
 
-```bash
-# On any one instance, once the container is running.
-# 1. Copy the JVM's own trust store onto Cloud Filestore. The container sees /mnt/filestore as
-#    /sonatype-work, so one copy is reachable from both sides and from every other instance.
-docker exec nexus-iq-server cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /sonatype-work/cacerts
-# These paths are the ones the published image uses: its Dockerfile installs the server, and
-# the jlinked runtime that ships inside it, at /opt/sonatype/nexus-iq-server. Confirm them on
-# the image you are running with:
-#   docker exec nexus-iq-server sh -c 'find / -name cacerts -type f 2>/dev/null'
-#   docker exec nexus-iq-server sh -c 'find / -name keytool -type f 2>/dev/null'
-
-# 2. Put your certificate authority where the container can read it, and add it to the copy.
-#    The default trust store password is "changeit".
-docker cp /path/to/ca.pem nexus-iq-server:/tmp/ca.pem
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
-  -keystore /sonatype-work/cacerts -storepass changeit \
-  -alias opensearch-ca -file /tmp/ca.pem
-
-# 3. Confirm the authority is in the copy, and that the public ones are still there.
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
-  -keystore /sonatype-work/cacerts -storepass changeit | grep -c 'trustedCertEntry'
-docker exec nexus-iq-server /opt/sonatype/nexus-iq-server/bin/keytool -list \
-  -keystore /sonatype-work/cacerts -storepass changeit -alias opensearch-ca
+```hcl
+opensearch_use_tls        = true
+opensearch_ca_certificate = file("opensearch-ca.pem")
 ```
 
-Then make every instance use it. `/mnt/filestore` is already mounted into the container as
-`/sonatype-work`, so no new mount is needed, and `java_opts` in `terraform.tfvars` gains:
-
-```
--Djavax.net.ssl.trustStore=/sonatype-work/cacerts -Djavax.net.ssl.trustStorePassword=changeit
-```
-
-Changing `java_opts` replaces the instance template and rolls the group, which is the point: every
-instance then reads the same copy.
+Terraform stores it in a Secret Manager secret and grants the compute service account
+`roles/secretmanager.secretAccessor` on it. At boot each instance copies the image's JVM trust
+store to `opensearch-cacerts` on Cloud Filestore, adds the authority with the image's own
+`keytool`, and starts IQ Server with `-Djavax.net.ssl.trustStore` pointing at the copy. Nothing
+has to be added to `java_opts`. To change the certificate, apply and then restart the group with
+`gcloud compute instance-groups managed rolling-action restart`, as for a password rotation, so
+every instance reads the new secret version.
 
 **`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
 takes either one. The cost is that the basic auth password is sent unencrypted on every request.
-**Use `https`.** The copy above is a one-time step, and a password on the wire is permanent. `http`
+**Use `https`.** The copy above is one variable, and a password on the wire is permanent. `http`
 is reasonable only for a short evaluation on a private subnet you control.
 
 ### Snapshots, and the credential they need

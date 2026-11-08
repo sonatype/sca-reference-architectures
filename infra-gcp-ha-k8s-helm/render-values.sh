@@ -44,6 +44,7 @@ OPENSEARCH_URI=$(terraform output -raw opensearch_uri 2>/dev/null || echo "")
 OPENSEARCH_USERNAME=$(terraform output -raw opensearch_username 2>/dev/null || echo "")
 OPENSEARCH_PASSWORD=$(terraform output -raw opensearch_password 2>/dev/null || echo "")
 OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
+OPENSEARCH_CA=$(terraform output -raw opensearch_ca_certificate 2>/dev/null || echo "")
 
 if [[ -z "$FILESTORE_IP" || -z "$DB_HOST" ]]; then
     echo -e "${RED}❌ Error: Missing required infrastructure outputs${NC}"
@@ -104,6 +105,18 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
 else
     # Remove the whole search block, markers and all, so the deployment uses the built-in index.
     sed -i.bak "/# search-block-begin/,/# search-block-end/d" "$TEMP_VALUES_FILE"
+fi
+
+# A private certificate authority for the cluster reaches the pods as the Kubernetes Secret
+# nexus-iq-opensearch-ca, which the pods read through an environment variable. The chart version
+# this root pins mounts no extra volumes into the IQ Server pod. Without an authority, the blocks
+# between the opensearch-ca markers are deleted, so the pods run the image's own start command.
+if [[ "$SEARCH_ENGINE" == "opensearch" && -n "$OPENSEARCH_CA" ]]; then
+    kubectl create secret generic nexus-iq-opensearch-ca \
+        --from-literal=ca.pem="$OPENSEARCH_CA" \
+        -n "${NAMESPACE:-nexus-iq}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+else
+    sed -i.bak "/# opensearch-ca-begin/,/# opensearch-ca-end/d" "$TEMP_VALUES_FILE"
 fi
 
 # A placeholder left behind means a substitution did not run, and Nexus IQ Server would read the

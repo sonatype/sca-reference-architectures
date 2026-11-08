@@ -58,6 +58,42 @@ resource "google_secret_manager_secret_iam_member" "iq_compute_opensearch_passwo
   project   = var.gcp_project_id
 }
 
+# A private certificate authority for the cluster, held in Secret Manager so each instance can add
+# it to a copy of the JVM trust store at boot. Not needed for a certificate from a public authority.
+locals {
+  opensearch_private_ca = local.opensearch_enabled && var.opensearch_use_tls && var.opensearch_ca_certificate != ""
+}
+
+resource "google_secret_manager_secret" "opensearch_ca" {
+  count     = local.opensearch_private_ca ? 1 : 0
+  secret_id = "${local.app_name}-opensearch-ca-${random_string.suffix.result}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+
+  labels = merge(var.common_tags, {
+    component = "nexus-iq-ha-opensearch-ca"
+  })
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "opensearch_ca" {
+  count       = local.opensearch_private_ca ? 1 : 0
+  secret      = google_secret_manager_secret.opensearch_ca[0].id
+  secret_data = var.opensearch_ca_certificate
+}
+
+resource "google_secret_manager_secret_iam_member" "iq_compute_opensearch_ca" {
+  count     = local.opensearch_private_ca ? 1 : 0
+  secret_id = google_secret_manager_secret.opensearch_ca[0].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.iq_compute_service.email}"
+  project   = var.gcp_project_id
+}
+
 # Google Cloud denies all ingress that no rule allows, and this root adds a deny-all ingress rule
 # of its own at priority 65534, so an OpenSearch cluster built inside this VPC needs a rule. Tag
 # each OpenSearch node "nexus-iq-opensearch" to pick this up. A cluster outside this VPC is
