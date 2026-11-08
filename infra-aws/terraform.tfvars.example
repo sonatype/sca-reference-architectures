@@ -63,7 +63,8 @@ search_engine = "lucene"
 # Domain shape, by the size you picked above. Starting points, not measured
 # results: the per-size sizing is CLM-55930.
 #
-# XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters:
+# XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters. 25 GB
+# per node at XS, 50 GB at S:
 # opensearch_instance_type           = "m8g.large.search"
 # opensearch_instance_count          = 1
 # opensearch_volume_size_gb          = 50
@@ -79,7 +80,7 @@ search_engine = "lucene"
 #   private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
 # opensearch_instance_type           = "m8g.large.search"
 # opensearch_instance_count          = 3
-# opensearch_volume_size_gb          = 50
+# opensearch_volume_size_gb          = 100
 # opensearch_availability_zone_count = 3
 # opensearch_index_replicas          = 1
 #
