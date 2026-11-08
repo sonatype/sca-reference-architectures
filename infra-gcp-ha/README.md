@@ -297,7 +297,7 @@ db_availability_type  = "REGIONAL"          # REGIONAL for HA
 db_disk_size          = 200
 db_max_disk_size      = 1000
 db_max_connections    = "200"
-db_backup_retention_count  = 7
+db_backup_retention_count  = 8
 db_deletion_protection     = true
 
 # Enable read replica for load distribution
@@ -564,8 +564,10 @@ Per size:
 | **XL** | 3 | `c4a-highmem-8`, 8 vCPU, 64 GB | 250 GB Hyperdisk Balanced | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
-volume. These are starting points rather than measured results, except the machine type and node count
-at M, which a GCP Size M measurement ran.
+volume. **At M, the machine type and node count are the measured values**, and so is the replica
+count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
+Storage per node is the published size, chosen at or above the measured use. XS, S, L and XL are
+not measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
