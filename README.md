@@ -722,14 +722,17 @@ count sets the minimum heap the cluster needs, so extra shards on a small index 
 creation and an index cannot be resharded, so raising one does nothing to the index a tenant already
 has. The order is: set the count, then rebuild the index.
 
-#### Replicas: each architecture sets the count, and IQ's own default is 0
+#### Replicas: each architecture sets the count
 
 A replica is a full second copy of every shard. It is what makes losing a data node survivable, and it
 costs the disk and the indexing work of that second copy.
 
-IQ Server's own default replica count is **0** and is not changing, so an architecture that omits
-`search.nexusOneIndexReplicas` gets no replica. **Each architecture therefore sets the value itself**,
-rather than relying on the default, and writes it explicitly so a reader can see it was chosen:
+IQ Server's own default replica count depends on the release. Releases that include CLM-55924
+create Nexus One indices with **1** replica, or **0** on a cluster with exactly one data node. They
+also use 1 when they cannot read the data node count. Earlier releases use **0**, so on those an
+architecture that omits `search.nexusOneIndexReplicas` gets no replica. **Each architecture
+therefore sets the value itself**, rather than relying on the default, and writes it explicitly so
+a reader can see it was chosen:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|

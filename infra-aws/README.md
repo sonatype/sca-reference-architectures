@@ -111,8 +111,10 @@ stated once in the [top-level OpenSearch section](../README.md#opensearch) rathe
 #### Replicas
 
 A replica is a full second copy of every shard, and it is what makes losing a data node
-survivable. **IQ Server's own default is 0**, so this architecture sets
-`search.nexusOneIndexReplicas` itself rather than inheriting that default:
+survivable. **IQ Server's own default depends on the release.** Releases that include
+CLM-55924 use 1 replica, or 0 on a cluster with exactly one data node. Earlier releases use 0.
+So this architecture sets `search.nexusOneIndexReplicas` itself rather than inheriting that
+default:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -122,7 +124,7 @@ survivable. **IQ Server's own default is 0**, so this architecture sets
 
 The rules behind this, including what a yellow index does and does not mean and how to give the
 Advanced Search index a matching replica count, are in the
-[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count-and-iqs-own-default-is-0).
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
 
 #### Plan for twice the index during a rebuild
 
