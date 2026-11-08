@@ -26,7 +26,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
   }
 }
 
@@ -37,7 +37,7 @@ provider "helm" {
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      args = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
     }
   }
 }
@@ -57,8 +57,8 @@ resource "aws_vpc" "iq_vpc" {
   enable_dns_support   = true
 
   tags = {
-    Name    = "${var.cluster_name}-vpc"
-    Project = "nexus-iq-server-ha"
+    Name        = "${var.cluster_name}-vpc"
+    Project     = "nexus-iq-server-ha"
     Environment = var.environment
   }
 }
@@ -67,8 +67,8 @@ resource "aws_internet_gateway" "iq_igw" {
   vpc_id = aws_vpc.iq_vpc.id
 
   tags = {
-    Name    = "${var.cluster_name}-igw"
-    Project = "nexus-iq-server-ha"
+    Name        = "${var.cluster_name}-igw"
+    Project     = "nexus-iq-server-ha"
     Environment = var.environment
   }
 }
@@ -82,9 +82,9 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.iq_vpc.id
 
   tags = {
-    Name    = "${var.cluster_name}-public-${count.index + 1}"
-    Project = "nexus-iq-server-ha"
-    Environment = var.environment
+    Name                     = "${var.cluster_name}-public-${count.index + 1}"
+    Project                  = "nexus-iq-server-ha"
+    Environment              = var.environment
     "kubernetes.io/role/elb" = "1"
   }
 }
@@ -97,9 +97,9 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.iq_vpc.id
 
   tags = {
-    Name    = "${var.cluster_name}-private-${count.index + 1}"
-    Project = "nexus-iq-server-ha"
-    Environment = var.environment
+    Name                              = "${var.cluster_name}-private-${count.index + 1}"
+    Project                           = "nexus-iq-server-ha"
+    Environment                       = var.environment
     "kubernetes.io/role/internal-elb" = "1"
   }
 }
@@ -112,8 +112,8 @@ resource "aws_subnet" "database" {
   vpc_id            = aws_vpc.iq_vpc.id
 
   tags = {
-    Name    = "${var.cluster_name}-db-${count.index + 1}"
-    Project = "nexus-iq-server-ha"
+    Name        = "${var.cluster_name}-db-${count.index + 1}"
+    Project     = "nexus-iq-server-ha"
     Environment = var.environment
   }
 }
@@ -127,8 +127,8 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name    = "${var.cluster_name}-public"
-    Project = "nexus-iq-server-ha"
+    Name        = "${var.cluster_name}-public"
+    Project     = "nexus-iq-server-ha"
     Environment = var.environment
   }
 }
@@ -143,12 +143,12 @@ resource "aws_route_table_association" "public" {
 resource "aws_eip" "nat" {
   count = 2
 
-  domain = "vpc"
+  domain     = "vpc"
   depends_on = [aws_internet_gateway.iq_igw]
 
   tags = {
-    Name    = "${var.cluster_name}-nat-${count.index + 1}"
-    Project = "nexus-iq-server-ha"
+    Name        = "${var.cluster_name}-nat-${count.index + 1}"
+    Project     = "nexus-iq-server-ha"
     Environment = var.environment
   }
 }
@@ -160,8 +160,8 @@ resource "aws_nat_gateway" "nat" {
   subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name    = "${var.cluster_name}-nat-${count.index + 1}"
-    Project = "nexus-iq-server-ha"
+    Name        = "${var.cluster_name}-nat-${count.index + 1}"
+    Project     = "nexus-iq-server-ha"
     Environment = var.environment
   }
 
@@ -179,8 +179,8 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name    = "${var.cluster_name}-private-${count.index + 1}"
-    Project = "nexus-iq-server-ha"
+    Name        = "${var.cluster_name}-private-${count.index + 1}"
+    Project     = "nexus-iq-server-ha"
     Environment = var.environment
   }
 }

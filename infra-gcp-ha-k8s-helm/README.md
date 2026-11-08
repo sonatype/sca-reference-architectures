@@ -447,7 +447,8 @@ characters that would break it. Everything else is written through intact, inclu
 
 ### What this writes into `config.yml`
 
-`helm-values.yaml` carries the block with placeholders between two markers,
+`helm-values.yaml` carries a `search:` block and a `nexusOne.connection` block naming the same
+cluster, with placeholders between two markers,
 `# search-block-begin` and `# search-block-end`. `helm-install.sh` fills them from Terraform
 outputs, and the Helm chart renders the result as `config.yml` in every pod:
 
@@ -458,21 +459,33 @@ outputs, and the Helm chart renders the result as `config.yml` in every pod:
       uri: https://opensearch.internal.example.com:9200
       username: nexusiq
       password: <filled by helm-install.sh>
-      nexusOneIndexReplicas: 0
+    nexusOne:
+      connection:
+        type: http
+        mode: OPENSEARCH
+        uri: https://opensearch.internal.example.com:9200
+        username: nexusiq
+        password: <filled by helm-install.sh>
+        nexusOneIndexReplicas: 0
 ```
 
-Three things about that block are deliberate:
+Four things about these blocks are deliberate:
 
 - **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
   name and password are how the pods authenticate.
 - **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
   writes every batch to the built-in index as well. That costs indexing time and cannot roll an
   index generation back.
-- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default is 0,
-  and stating it keeps the value visible next to the cluster it describes.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
+  connection from this block alone, and reads `nexusOneIndexReplicas` from it. With `search:` set
+  and this block absent, enabling the `nexus-one` feature is refused.
+- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default depends
+  on the release. Releases that include CLM-55924 use 1 replica, or 0 on a cluster with exactly one
+  data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the
+  value visible next to the cluster it describes.
 
 **Keep the two markers.** With `search_engine = "lucene"`, `helm-install.sh` deletes everything
-between them so the deployment has no `search:` block at all, which is how the built-in index stays
+between them so the deployment has no `search:` or `nexusOne:` block at all, which is how the built-in index stays
 the default. The script then checks that no placeholder survived and refuses to install if one did,
 because a literal `OPENSEARCH_URI_PLACEHOLDER` would be read as a host name.
 
@@ -566,70 +579,31 @@ Nexus IQ Server has no per-connection trust setting, so the whole JVM is affecte
 store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
 calls to the Sonatype data service**, which rely on the public authorities already in it.
 
-Pods are replaced often here, so build the copy once and mount it, rather than editing a running
-pod:
+This root does the copy for you. Set the authority's PEM certificate in `terraform.tfvars`:
 
-```bash
-# 1. Take the JVM's own trust store out of a running pod.
-POD=$(kubectl get pod -n nexus-iq -l name=nexus-iq-server-ha-iq-server -o jsonpath='{.items[0].metadata.name}')
-kubectl exec -n nexus-iq "$POD" -- cat /opt/sonatype/nexus-iq-server/lib/security/cacerts > ./cacerts
-# The path differs between base images. Find it with:
-#   kubectl exec -n nexus-iq "$POD" -- sh -c 'find / -name cacerts -type f 2>/dev/null'
-#   kubectl exec -n nexus-iq "$POD" -- sh -c 'find / -name keytool -type f 2>/dev/null'
-
-# 2. Add your certificate authority to the copy. The default password is "changeit".
-keytool -importcert -noprompt \
-  -keystore ./cacerts -storepass changeit \
-  -alias opensearch-ca -file /path/to/ca.pem
-
-# 3. Confirm the authority is in the copy, and that the public ones are still there.
-keytool -list -keystore ./cacerts -storepass changeit | grep -c 'trustedCertEntry'
-keytool -list -keystore ./cacerts -storepass changeit -alias opensearch-ca
-
-# 4. Put the copy in a secret every pod can mount.
-kubectl create secret generic nexus-iq-truststore --from-file=cacerts=./cacerts -n nexus-iq
-rm -f ./cacerts
+```hcl
+opensearch_use_tls        = true
+opensearch_ca_certificate = file("opensearch-ca.pem")
 ```
 
-**Step 1 reads the file with `cat` rather than `kubectl cp`.** `kubectl cp` runs `tar` inside the
-container, and there is no `tar` in `sonatype/nexus-iq-server`: the image is built on
-`ubi9-minimal`, which carries none, and nothing in the build adds one. `cat` and `find` are both
-present, so the commands above work. Leave `-t` off `kubectl exec`, because a terminal rewrites the
-byte stream and a trust store is a binary file. Step 3 is what proves the copy arrived whole:
-`keytool -list` fails on a truncated or rewritten file instead of printing a count.
+After `terraform apply`, `helm-install.sh` or `helm-upgrade.sh` stores it in the Kubernetes
+Secret `nexus-iq-opensearch-ca` and keeps the two blocks between the `# opensearch-ca-begin` and
+`# opensearch-ca-end` markers in `helm-values.yaml`. Those give each pod the certificate as the
+`OPENSEARCH_CA_PEM` environment variable, read from the Secret, and a start command that copies
+the image's JVM trust store to `/tmp/opensearch-cacerts`, adds the authority with the image's own
+`keytool`, adds `-Djavax.net.ssl.trustStore` to `JAVA_OPTS`, and then runs the image's own start
+script. Without a certificate both blocks are deleted, and the pods run the image's default
+command. Keep the markers. To change the certificate, apply, run `helm-upgrade.sh`, and restart
+the pods with `kubectl rollout restart deployment -n nexus-iq`, since a pod reads the Secret only
+when it starts.
 
-Then mount the secret and name the copy, by adding to `helm-values.yaml`:
-
-```yaml
-iq_server:
-  extraVolumes:
-    - name: truststore
-      secret:
-        secretName: nexus-iq-truststore
-  extraVolumeMounts:
-    - name: truststore
-      mountPath: /etc/nexus-iq-server/truststore
-      readOnly: true
-```
-
-and to `javaOpts` in `helm-values.yaml`:
-
-```yaml
-iq_server:
-  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/etc/nexus-iq-server/truststore/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
-```
-
-**Not to `java_opts` in `terraform.tfvars`.** On this root the Helm chart renders the pod spec, and
-nothing here passes `java_opts` into the release, so `iq_server.javaOpts` in `helm-values.yaml` is
-the only value the pods read.
-
-Check the chart version in `helm_chart_version` accepts `extraVolumes` and `extraVolumeMounts`
-under `iq_server` before relying on those key names, with
-`helm show values sonatype/nexus-iq-server-ha --version <your version>`.
+The Secret reaches the pod as an environment variable rather than a mounted file because chart
+`195.0.0`, the version `helm_chart_version` pins, mounts no extra volumes into the IQ Server pod.
+Nothing has to be added to `javaOpts`.
 
 **`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
 takes either one. The cost is that the basic auth password is sent unencrypted on every request.
-**Use `https`.** The secret above is a one-time step, and a password on the wire is permanent.
+**Use `https`.** The copy above is one variable, and a password on the wire is permanent.
 `http` is reasonable only for a short evaluation on a private network you control.
 
 ### Snapshots, and the credential they need

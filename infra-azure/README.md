@@ -43,7 +43,7 @@ container_memory     = "32Gi"              # 32 GB
 workload_profile_type = "E4"               # 4 cores, 32 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D2ds_v5" # 2 vCores, 8 GB
+db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 131072              # 128 GB
 ```
 </details>
@@ -57,7 +57,7 @@ container_memory     = "64Gi"              # 64 GB
 workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v5" # 8 vCores, 32 GB
+db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
 db_storage_mb        = 524288              # 512 GB
 ```
 </details>
@@ -67,8 +67,8 @@ db_storage_mb        = 524288              # 512 GB
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
 | **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 64 GB |
-| **S** | GP_Standard_D2ds_v5 | 2 | 8 GB | 128 GB |
-| **M** | GP_Standard_D8ds_v5 | 8 | 32 GB | 512 GB (auto-grow enabled) |
+| **S** | GP_Standard_D2ds_v6 | 2 | 8 GB | 128 GB |
+| **M** | GP_Standard_D8ds_v6 | 8 | 32 GB | 512 GB (auto-grow enabled) |
 
 ---
 
@@ -196,7 +196,7 @@ Your Azure account needs permissions for these services:
 > | `container_cpu` | 4.0 | 8.0 |
 > | `container_memory` | `8Gi` | `64Gi` |
 > | `java_opts` | 6 GB heap | 48 GB heap |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v5` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v6` |
 > | `workload_profile_type` | `D4`, fixed | `E8` |
 
 ### Configuration Variables
@@ -226,7 +226,7 @@ db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16ds_v5"  # Memory Optimized (16 vCores, 128GB RAM)
+db_sku_name                      = "MO_Standard_E16ds_v6"  # Memory Optimized (16 vCores, 128GB RAM)
 db_storage_mb                    = 524288                 # 512GB storage
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
@@ -480,7 +480,7 @@ keytool -list -keystore /sonatype-work/iq-truststore.jks -storepass changeit | g
 Then name the copy in `java_opts`, which this configuration passes to the container as `JAVA_OPTS`:
 
 ```hcl
-java_opts = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/sonatype-work/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/sonatype-work/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
 ```
 
 `/sonatype-work` is the Azure Files share, so the store survives a revision replacing the container.

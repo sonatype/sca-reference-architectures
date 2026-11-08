@@ -45,6 +45,7 @@ resource "google_compute_instance_template" "iq_template" {
     db_user            = var.db_username
     db_password_secret = google_secret_manager_secret.db_password.secret_id
     java_opts          = var.java_opts
+    iq_log_levels      = var.iq_log_levels
     gcp_project_id     = var.gcp_project_id
     filestore_ip       = google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]
 
@@ -53,6 +54,7 @@ resource "google_compute_instance_template" "iq_template" {
     opensearch_username        = var.opensearch_username
     opensearch_password_secret = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
     opensearch_index_replicas  = var.opensearch_index_replicas
+    opensearch_ca_secret       = local.opensearch_private_ca ? google_secret_manager_secret.opensearch_ca[0].secret_id : ""
   })
 
   labels = merge(var.common_tags, {

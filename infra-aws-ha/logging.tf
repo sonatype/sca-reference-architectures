@@ -69,7 +69,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
   description = "Fluent Bit configuration for Nexus IQ Server log parsing"
   type        = "String"
   tier        = "Advanced"
-  value       = <<-EOF
+  value = <<-EOF
 [SERVICE]
     Flush         5
     Grace         30
@@ -241,9 +241,9 @@ S3_OUTPUT
 : ""}
 EOF
 
-  tags = merge(var.common_tags, {
-    Name = "${var.cluster_name}-fluent-bit-config"
-  })
+tags = merge(var.common_tags, {
+  Name = "${var.cluster_name}-fluent-bit-config"
+})
 }
 
 
