@@ -420,15 +420,18 @@ Three things about that block are deliberate:
 **M and L are measured on Azure; XS, S and XL are not.** The measurements ran `Standard_D2ps_v6`
 data nodes at M and `Standard_D4ps_v6` at L. The data node types below are the published sizes,
 chosen at or above those, and storage per node is the published size, chosen at or above the
-measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
+managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
+at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
+measured VMs had, and takes half its RAM as heap.
 
-| Size | Data nodes | Data node | Storage per node | Shards ¹ | `opensearch_index_replicas` |
-|---|---|---|---|---|---|
-| XS | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 25 GB, on a P4 Premium SSD of 32 GiB | 1 | `0` |
-| S | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 50 GB, on a P6 Premium SSD of 64 GiB | 1 | `0` |
-| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 | `1` |
-| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 | `1` |
-| XL | 3 | `Standard_E8ps_v6`, 8 vCPU, 64 GB | 250 GB, on a P15 Premium SSD of 256 GiB | 3 | `1` |
+| Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
+|---|---|---|---|---|---|---|
+| XS | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 25 GB, on a P4 Premium SSD of 32 GiB | none | 1 | `0` |
+| S | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 50 GB, on a P6 Premium SSD of 64 GiB | none | 1 | `0` |
+| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
+| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
+| XL | 3 | `Standard_E8ps_v6`, 8 vCPU, 64 GB | 250 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB, 4 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
 
 Premium SSD is billed and performs by fixed tiers, so each storage figure sits on the smallest tier
 at or above it.
@@ -457,6 +460,8 @@ Other things the cluster needs, none of which this configuration sets for you:
   bootstrap admin.
 - **Heap at half of RAM and no more than about 31 GB**, set in `jvm.options`, which is the standard
   OpenSearch guidance and the reason the per-node memory above is not larger.
+- **Three dedicated cluster managers** at M and above, one per availability zone, holding no data, so
+  losing one leaves a quorum. XS and S run none: one data node is its own cluster manager.
 - **One node per availability zone** at M and above, so a zone outage costs one node rather than the
   cluster.
 - **A private subnet**, reachable from the subnet IQ Server runs in and from nowhere else. A network
@@ -464,6 +469,26 @@ Other things the cluster needs, none of which this configuration sets for you:
   from the IQ Server subnet by default.
 - **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
   index up, and a lost index means a full rebuild at the cost quoted above.
+
+**Put a Standard SKU internal load balancer in front of the data nodes at M, L and XL**, and set
+`opensearch_endpoint` to its frontend private IP, so IQ Server reaches one endpoint and replacing a data
+node does not change its configuration. This is how the Azure M and L measurements ran. Create:
+
+- **The load balancer** on the OpenSearch subnet, with a private frontend IP and a backend pool of the
+  data nodes' NICs. The cluster managers stay out of the pool.
+- **A TCP health probe on port 9200**, and a rule forwarding TCP 9200 to the pool through it. A TCP
+  probe rather than HTTPS, because the cluster's certificate is from a private authority the probe would
+  not trust.
+- **An NSG rule allowing the `AzureLoadBalancer` service tag on TCP 9200**, at a higher priority than
+  the subnet's deny-all rule. Without it the probes are refused and every backend reads as down.
+- **Outbound internet access for the OpenSearch VMs**, which they need to install and update packages.
+  A VM in a Standard internal load balancer's backend pool has no default outbound access, so the
+  measurements attached a NAT gateway to the OpenSearch subnet.
+
+Microsoft describes a Standard internal load balancer's backends and the NAT gateway they need for
+outbound access in [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).
+
+At XS and S, with one data node, `opensearch_endpoint` can name that node directly.
 
 ### TLS, and the JVM trust store
 
