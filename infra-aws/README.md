@@ -8,22 +8,17 @@ This directory contains Terraform configuration for deploying a **single-instanc
 
 This single-instance architecture supports sizes **XS**, **S**, and **M**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
-|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
 | **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) | Required ² |
 | **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) | Required ² |
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) | Required ² |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ² |
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing, which ran on a GCP ARM instance at 8 vCPU and 64 GB with a 48 GB heap rather than on a Fargate task. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
 
 > **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Raising it back to 48 GB removes most of that margin.
 
-> ² OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
 
@@ -68,6 +63,16 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 100                 # auto-scales to 500 GB
+
+# The M domain: three data nodes across three zones, which needs a third
+# private subnet. 10.0.30.0/24 is already db_subnet_cidrs[0].
+private_subnet_cidrs               = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 100
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
 ```
 </details>
 
@@ -83,8 +88,9 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 
 IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
 One list pages, typeahead, and dashboard, and **it is required at every size this architecture
-supports.** One cluster serves both features, through a single `search:` block in IQ Server's
-`config.yml`: one endpoint, one set of credentials, and nothing extra to switch on per feature.
+supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
 
 On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
 SigV4 signed by the ECS task role, so there is no password to store. The task role needs the
@@ -138,7 +144,7 @@ a rebuild is not a backup, are in the
 #### Per-size cluster specification
 
 The data node type and count, storage per node, shards and replicas for each size are in the
-[domain shape table](#domain-shape-per-size) below. At M, L and XL the component, violation and vulnerability indices are
+[domain shape table](#domain-shape-per-size) below. At M the component, violation and vulnerability indices are
 created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
 shard counts are set through the configuration API before the first build, as shown there.
 

@@ -8,29 +8,22 @@ This directory contains Terraform configuration for deploying Sonatype IQ Server
 
 This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
-|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) |
-
-> Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL), from performance testing of these sizes. That testing ran on GCP ARM instances, `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL, not on Fargate tasks. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
-
-> **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type | OpenSearch |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) | Required ¹ |
-| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) | Required ¹ |
-| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Fargate (16384 CPU / 131072 MEM) | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) | Required ¹ |
 
-> All sizes validated through performance testing. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL), from performance testing of these sizes. That testing ran on GCP ARM instances, `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL, not on Fargate tasks. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
+
+> **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
 
 <!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
      re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
      continuous monitoring running was added so a reader does not take them as general evaluation
      throughput. -->
 
-> ¹ OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
@@ -104,8 +97,9 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
 One list pages, typeahead, and dashboard, and **it is required at every size this architecture
-supports.** One cluster serves both features, through a single `search:` block in IQ Server's
-`config.yml`: one endpoint, one set of credentials, and nothing extra to switch on per feature.
+supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
 
 On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
 SigV4 signed by the deployment's own role, so there is no password to store. That role needs the
@@ -160,7 +154,7 @@ a rebuild is not a backup, are in the
 
 The data node type and count, storage per node, shards and replicas for each size are in the
 [domain shape table](#domain-shape-per-size) below. At M, L and XL the component, violation and vulnerability indices are
-created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
+created with 3 primary shards and every other index with 1. The
 shard counts are set through the configuration API before the first build, as shown there.
 
 See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.

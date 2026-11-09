@@ -103,8 +103,9 @@ storage_account_replication_type = "ZRS"
 
 IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
 One list pages, typeahead, and dashboard, and **both features need it at every size this architecture
-supports.** One cluster serves both, through a single `search:` block in IQ Server's `config.yml`: one
-endpoint, one set of credentials, and nothing extra to switch on per feature.
+supports.** One cluster serves both, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
 
 **The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
 a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
@@ -160,7 +161,7 @@ a rebuild is not a backup, are in the
 
 The data node type and count, storage per node, shards and replicas for each size are in the
 [cluster table](#specifying-the-cluster) below. At M, L and XL the component, violation and vulnerability indices are
-created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
+created with 3 primary shards and every other index with 1. The
 shard counts are set through the configuration API before the first build, as shown there.
 
 See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.

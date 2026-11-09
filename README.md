@@ -64,7 +64,7 @@ You need an active cloud account with permissions to create:
 
 | Tool | Version | Required For |
 |------|---------|--------------|
-| [Terraform](https://terraform.io/downloads) | >= 1.0 | All deployments |
+| [Terraform](https://terraform.io/downloads) | >= 1.2 | All deployments |
 | [AWS CLI](https://aws.amazon.com/cli/) | Latest | AWS deployments |
 | [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) | Latest | Azure deployments |
 | [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) | Latest | GCP deployments |
@@ -111,7 +111,6 @@ Choose your deployment size based on your application count and daily evaluation
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
 > **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
-<!-- TO BE ADDED (CLM-55937): a link from this sizing table to the generic architecture's help pages,
 <!-- TO BE ADDED (no ticket yet): a link from this sizing table to the generic architecture's help pages,
      and an XXS row, once both are published. The help pages do not exist yet, so there is no URL to
      link. The generic architecture and its H2 option are tracked separately. -->
@@ -143,7 +142,7 @@ Service domain for you; the six Azure and GCP ones cannot, so on those clouds bu
 self-managed cluster first and keep its endpoint, user name, and password to hand. The per-size
 cluster specification is in [Per-size cluster specification](#per-size-cluster-specification).
 
-Skipping this step gets you a running IQ Server whose search does not work.
+Skipping this step leaves IQ Server on its built-in search index, with no Nexus One index.
 
 ### Step 3: Configure Your Deployment
 
@@ -154,9 +153,11 @@ cd sca-reference-architectures/<your-chosen-architecture>
 # Copy and edit the example variables file
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values (region, instance sizes, passwords, etc.)
-# Point the deployment at your OpenSearch cluster here. Every architecture takes
-# variables for it, named in its own README: "OpenSearch for the Nexus One Index"
-# on AWS, "Advanced Search with OpenSearch" on Azure, "Search Backend" on GCP.
+# Set search_engine = "opensearch", because every example file ships with
+# "lucene". Then point the deployment at your OpenSearch cluster. Every
+# architecture takes variables for it, named in its own README: "OpenSearch for
+# the Nexus One Index" on AWS, "Advanced Search with OpenSearch" on Azure,
+# "Search Backend" on GCP.
 ```
 
 ### Step 4: Deploy
@@ -651,10 +652,11 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 
 ### OpenSearch
 
-OpenSearch is part of every reference architecture, not an optional extra, and it is required at every
-size in the sizing table. One cluster serves both of IQ Server's search features: Advanced Search and
-the Nexus One index behind the Nexus One list pages, typeahead, and dashboard. There is one `search:`
-block in IQ Server's `config.yml`, one endpoint, and one set of credentials.
+OpenSearch is part of every reference architecture, and it is required at every size in the sizing
+table, though each architecture leaves it off by default with `search_engine = "lucene"`. One cluster serves both of IQ Server's search features: Advanced Search and
+the Nexus One index behind the Nexus One list pages, typeahead, and dashboard. IQ Server's `config.yml`
+carries a `search:` block and a `nexusOne.connection` block, both naming the same endpoint and
+credentials.
 
 Only AWS offers a first-party managed OpenSearch service, so the three AWS architectures point IQ at an
 Amazon OpenSearch Service domain and authenticate with SigV4. The Azure and GCP architectures point IQ
@@ -740,7 +742,7 @@ costs the disk and the indexing work of that second copy.
 IQ Server's own default replica count depends on the release. Releases that include CLM-55924
 create Nexus One indices with **1** replica, or **0** on a cluster with exactly one data node. They
 also use 1 when they cannot read the data node count. Earlier releases use **0**, so on those an
-architecture that omits `search.nexusOneIndexReplicas` gets no replica. **Each architecture
+architecture that omits `nexusOne.connection.nexusOneIndexReplicas` gets no replica. **Each architecture
 therefore sets the value itself**, rather than relying on the default, and writes it explicitly so
 a reader can see it was chosen:
 
@@ -818,7 +820,7 @@ Two related things worth stating plainly:
 #### Per-size cluster specification
 
 **Measured:** every AWS size, Azure M and L, and GCP M. The other sizes are not measured on that
-cloud. Storage per node is the published size on every cloud, chosen at or above the measured use.
+cloud. The GCP M measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP. Storage per node is the published size on every cloud, chosen at or above the measured use.
 Every cloud's data node has the same vCPU and memory at each size. The measurements are on
 [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 Each architecture's README carries its own table with the variables that set them.
@@ -833,7 +835,8 @@ Each architecture's README carries its own table with the variables that set the
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index has 1.
 
-² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds.
+² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds. The measurement ran three, so
+that count is not measured.
 
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.

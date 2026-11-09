@@ -16,7 +16,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing on GCP ARM instances.
 
-> ² OpenSearch is part of this architecture at every size, not an optional extra. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **ARM instances recommended.** n4a costs 15% less on demand than the x86 n4 equivalent (`n4a-highmem-8` against `n4-highmem-8` in us-central1, list prices in November 2026).
 
@@ -74,8 +74,9 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 
 IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
 One list pages, typeahead, and dashboard, and **it is required at every size this architecture
-supports.** One cluster serves both features, through a single `search:` block in IQ Server's
-`config.yml`: one endpoint, one set of credentials, and nothing extra to switch on per feature.
+supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
 
 Google Cloud has no first-party managed OpenSearch service, so the cluster is **self-managed
 OpenSearch on Compute Engine instances** and IQ Server authenticates with a username and password. That
@@ -130,7 +131,7 @@ a rebuild is not a backup, are in the
 #### Per-size cluster specification
 
 The data node type and count, storage per node, shards and replicas for each size are in the
-[cluster table](#the-cluster-to-build) below. At M, L and XL the component, violation and vulnerability indices are
+[cluster table](#the-cluster-to-build) below. At M the component, violation and vulnerability indices are
 created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
 shard counts are set through the configuration API before the first build, as shown there.
 
