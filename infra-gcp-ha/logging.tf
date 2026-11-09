@@ -19,7 +19,7 @@ resource "google_logging_project_sink" "iq_ha_container_logs" {
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
+    labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
     logName:"docker"
   EOT
 
@@ -38,7 +38,7 @@ resource "google_logging_metric" "iq_ha_error_count" {
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
+    labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
     severity="ERROR"
   EOT
 
@@ -67,7 +67,7 @@ resource "google_logging_metric" "iq_ha_warning_count" {
 
   filter = <<-EOT
     resource.type="gce_instance"
-    labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
+    labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
     severity="WARNING"
   EOT
 
@@ -142,7 +142,7 @@ resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
     condition_matched_log {
       filter = <<-EOT
         resource.type="gce_instance"
-        labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
+        labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
         textPayload=~"Starting Nexus IQ Server HA Docker Installation"
       EOT
     }
@@ -177,7 +177,7 @@ resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
     condition_matched_log {
       filter = <<-EOT
         resource.type="gce_instance"
-        labels."compute.googleapis.com/resource_name"=~"${local.app_name}.*"
+        labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
         textPayload=~"FATAL: NFS mount failed after 5 attempts"
       EOT
     }

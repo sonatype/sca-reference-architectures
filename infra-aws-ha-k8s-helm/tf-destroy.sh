@@ -54,6 +54,8 @@ PLAN_OUTPUT=$(aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy 2>&1) || 
 
 if [[ $PLAN_STATUS -ne 0 ]]; then
     if grep -q "prevent_destroy" <<<"$PLAN_OUTPUT"; then
+        DOMAIN_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw opensearch_domain_name 2>/dev/null || true)
+        DOMAIN_NAME=${DOMAIN_NAME:-<the domain>}
         echo -e "${RED}❌ A resource carrying prevent_destroy is in the way${NC}"
         echo ""
         echo "The OpenSearch domain holds the Nexus One index, so Terraform refuses to"
@@ -62,7 +64,7 @@ if [[ $PLAN_STATUS -ne 0 ]]; then
         echo "interfaces sit in these subnets:"
         echo ""
         echo "  terraform state rm aws_opensearch_domain.nexus_one"
-        echo "  aws opensearch delete-domain --domain-name <the domain>"
+        echo "  aws opensearch delete-domain --domain-name ${DOMAIN_NAME}"
         echo "  # wait for the domain to finish deleting, then re-run this script"
         echo ""
         echo "See the OpenSearch section of README.md before doing any of that."

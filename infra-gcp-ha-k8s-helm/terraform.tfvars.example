@@ -44,7 +44,7 @@ cloud_armor_rate_limit_threshold = 1000
 
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
-helm_chart_version      = "195.0.0"
+helm_chart_version      = "201.0.0"
 # Not read on this root: the Helm chart renders the pod spec, so set iq_server.javaOpts in
 # helm-values.yaml instead, which is the value the pods get.
 java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
@@ -62,4 +62,8 @@ search_engine = "lucene"
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 1
-# opensearch_ca_certificate = file("opensearch-ca.pem")  # only for a private certificate authority
+# opensearch_ca_certificate = <<-EOT  # only for a private certificate authority
+#   -----BEGIN CERTIFICATE-----
+#   ...the authority's PEM certificate...
+#   -----END CERTIFICATE-----
+# EOT

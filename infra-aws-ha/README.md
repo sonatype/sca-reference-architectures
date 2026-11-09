@@ -126,16 +126,28 @@ one takes over an hour on a large estate. A destroy fails while it is in state,
 so removing it is deliberate:
 
 ```bash
+DOMAIN=$(terraform output -raw opensearch_domain_name)
 terraform state rm aws_opensearch_domain.nexus_one
-aws opensearch delete-domain --domain-name <the domain>
+aws opensearch delete-domain --domain-name "$DOMAIN"
 # wait for the domain to finish deleting, which releases its interfaces
-terraform destroy
+./tf-destroy.sh
 ```
+
+Read the name first, because `state rm` removes it from state along with the
+domain. `./tf-destroy.sh` rather than a bare `terraform destroy`, because the
+script also empties the backup vault and deletes the database secret, which a
+plain destroy leaves behind.
 
 The `state rm` is what gets past `prevent_destroy`. The delete is what lets the
 rest of the teardown finish: the domain's network interfaces sit in this VPC's
 private subnets and hold its security group, so destroying the VPC around a live
 domain fails on `DependencyViolation`.
+
+**Switching away from this domain takes the same steps.** Setting
+`search_engine = "lucene"`, or pointing `opensearch_domain_endpoint` at another
+domain, drops this one from the plan, so the plan fails on `prevent_destroy` in
+the same way. Read the name, `state rm`, delete the domain and wait, then run
+`terraform apply` with the new settings in place of `./tf-destroy.sh`.
 
 **To keep the index, keep this deployment standing.** A domain cannot outlive the
 VPC it was built in. A deployment that builds its own network can then name this
@@ -217,13 +229,15 @@ above allow for all three.
 
 ### Where the domain's own logs go
 
-Three CloudWatch log groups per domain, written by OpenSearch itself:
+Three CloudWatch log groups per domain, written by OpenSearch itself. `<domain>`
+is the `opensearch_domain_name` output, which is `cluster_name` cut to 18
+characters plus `-nexus-one`:
 
 | Log group | Holds |
 |---|---|
-| `/aws/opensearch/<cluster_name>-nexus-one/search_slow_logs` | Searches past the index's slow threshold |
-| `/aws/opensearch/<cluster_name>-nexus-one/index_slow_logs` | Writes past the index's slow threshold |
-| `/aws/opensearch/<cluster_name>-nexus-one/es_application_logs` | What the cluster itself saw: rejected writes, cluster state changes, errors behind a 5xx |
+| `/aws/opensearch/<domain>/search_slow_logs` | Searches past the index's slow threshold |
+| `/aws/opensearch/<domain>/index_slow_logs` | Writes past the index's slow threshold |
+| `/aws/opensearch/<domain>/es_application_logs` | What the cluster itself saw: rejected writes, cluster state changes, errors behind a 5xx |
 
 Retention is `opensearch_log_retention_days`, 30 days by default.
 
@@ -241,10 +255,17 @@ account is not a working configuration, the domain create then fails on the
 `log_publishing_options`.
 
 **The slow logs stay empty until a threshold is set.** OpenSearch ships with
-slow logging off per index, so set a threshold on the index to get any rows:
+slow logging off per index, so set a threshold on the index to get any rows.
+The domain only accepts HTTPS from the IQ Server task security group, and only requests signed with
+the IQ Server task role. A one-off ECS task started from the IQ Server
+task definition, in the private subnets with that security group, has both, so the request has to run from there and carry that role's temporary
+credentials. `--aws-sigv4` needs curl 7.75 or later:
 
 ```bash
-curl -XPUT "https://<endpoint>/<index>/_settings" -H 'Content-Type: application/json' -d '{
+curl --aws-sigv4 "aws:amz:<aws_region>:es" \
+  --user "<access key id>:<secret access key>" \
+  -H "x-amz-security-token: <session token>" \
+  -XPUT "https://<endpoint>/<index>/_settings" -H 'Content-Type: application/json' -d '{
   "index.search.slowlog.threshold.query.warn": "2s",
   "index.indexing.slowlog.threshold.index.warn": "2s"
 }'
@@ -300,9 +321,8 @@ curl -u admin -X PUT -H 'Content-Type: application/json' \
   https://<your IQ Server URL>/api/v2/config
 ```
 
-The other Nexus One indices and the Advanced Search index keep 1 shard, and XS
-and S keep 1 for every index. An index built before the change keeps its count
-until it is rebuilt.
+The other Nexus One indices and the Advanced Search index keep 1 shard. An
+index built before the change keeps its count until it is rebuilt.
 
 ---
 
@@ -315,7 +335,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access |
 | **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
 

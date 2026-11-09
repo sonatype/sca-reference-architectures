@@ -110,7 +110,11 @@ search_engine = "lucene"
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 1
-# opensearch_ca_certificate           = file("opensearch-ca.pem") # only for a private certificate authority
+# opensearch_ca_certificate = <<-EOT  # only for a private certificate authority
+#   -----BEGIN CERTIFICATE-----
+#   ...the authority's PEM certificate...
+#   -----END CERTIFICATE-----
+# EOT
 
 # The values above are Size L. The two blocks below are the other sizes this
 # root supports. See the README Sizing Guide for application and evaluation

@@ -55,10 +55,6 @@ resource "google_compute_instance" "iq_server" {
     scopes = ["cloud-platform"]
   }
 
-  lifecycle {
-    create_before_destroy = true
-  }
-
   depends_on = [
     google_project_service.required_apis,
     google_sql_database_instance.iq_db,

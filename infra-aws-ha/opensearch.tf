@@ -20,13 +20,16 @@
 # security group, so destroying the VPC around a live domain fails on
 # DependencyViolation. A teardown therefore deletes the domain too:
 #
+#     DOMAIN=$(terraform output -raw opensearch_domain_name)
 #     terraform state rm aws_opensearch_domain.nexus_one
-#     aws opensearch delete-domain --domain-name <the domain>
+#     aws opensearch delete-domain --domain-name "$DOMAIN"
 #     # wait for the domain to finish deleting, which releases its interfaces
-#     terraform destroy
+#     ./tf-destroy.sh
 #
 # The state rm is what gets past prevent_destroy; the delete is what releases the
-# subnets. To keep the index, keep the VPC with it: leave this deployment
+# subnets. Switching search_engine to "lucene", or pointing
+# opensearch_domain_endpoint at another domain, drops this domain from the plan
+# too, so it takes the same steps with terraform apply as the last one. To keep the index, keep the VPC with it: leave this deployment
 # standing, and name the domain through opensearch_domain_endpoint from any
 # deployment that builds its own network.
 #
@@ -126,9 +129,9 @@ resource "aws_security_group" "opensearch" {
     security_groups = [aws_security_group.ecs_tasks.id]
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-opensearch-sg"
-  }
+  })
 }
 
 # Domain-side logs, which are the only account of a failure the cluster itself saw. Without these a
@@ -265,8 +268,14 @@ resource "aws_opensearch_domain" "nexus_one" {
       {
         Effect    = "Allow"
         Principal = { AWS = aws_iam_role.ecs_task_role.arn }
-        Action    = "es:*"
-        Resource  = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_domain_name}/*"
+        Action = [
+          "es:ESHttpGet",
+          "es:ESHttpPost",
+          "es:ESHttpPut",
+          "es:ESHttpHead",
+          "es:ESHttpDelete"
+        ]
+        Resource = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_domain_name}/*"
       }
     ]
   })
@@ -294,7 +303,7 @@ resource "aws_opensearch_domain" "nexus_one" {
     }
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = local.opensearch_domain_name
-  }
+  })
 }

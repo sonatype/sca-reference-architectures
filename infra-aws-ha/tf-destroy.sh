@@ -54,6 +54,8 @@ PLAN_OUTPUT=$(aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy 2>&1) || 
 
 if [[ $PLAN_STATUS -ne 0 ]]; then
     if grep -q "prevent_destroy" <<<"$PLAN_OUTPUT"; then
+        DOMAIN_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw opensearch_domain_name 2>/dev/null || true)
+        DOMAIN_NAME=${DOMAIN_NAME:-<the domain>}
         echo -e "${RED}❌ A resource carrying prevent_destroy is in the way${NC}"
         echo ""
         echo "The OpenSearch domain holds the Nexus One index, so Terraform refuses to"
@@ -62,7 +64,7 @@ if [[ $PLAN_STATUS -ne 0 ]]; then
         echo "interfaces sit in these subnets:"
         echo ""
         echo "  terraform state rm aws_opensearch_domain.nexus_one"
-        echo "  aws opensearch delete-domain --domain-name <the domain>"
+        echo "  aws opensearch delete-domain --domain-name ${DOMAIN_NAME}"
         echo "  # wait for the domain to finish deleting, then re-run this script"
         echo ""
         echo "See the OpenSearch section of README.md before doing any of that."
@@ -98,14 +100,18 @@ echo "• Secrets will be force-deleted (no recovery)"
 echo "• This action CANNOT be undone"
 echo ""
 
-CLUSTER_NAME=$(grep '^cluster_name' terraform.tfvars | cut -d'"' -f2 || echo "ref-arch-iq-ha-cluster")
+# The secret and the vault are read from state rather than rebuilt from
+# cluster_name, which can also be set with -var, TF_VAR_cluster_name or a
+# *.auto.tfvars file.
+DB_SECRET_ARN=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw db_credentials_secret_arn 2>/dev/null || true)
+BACKUP_VAULT_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw backup_vault_name 2>/dev/null || true)
 
-aws-vault exec "$AWS_PROFILE" -- aws secretsmanager delete-secret \
-  --secret-id "${CLUSTER_NAME}-db-credentials" \
-  --force-delete-without-recovery \
-  --region $AWS_REGION 2>/dev/null || true
-
-BACKUP_VAULT_NAME="${CLUSTER_NAME}-efs-backup-vault"
+if [[ -n "$DB_SECRET_ARN" ]]; then
+  aws-vault exec "$AWS_PROFILE" -- aws secretsmanager delete-secret \
+    --secret-id "$DB_SECRET_ARN" \
+    --force-delete-without-recovery \
+    --region $AWS_REGION 2>/dev/null || true
+fi
 
 RECOVERY_POINTS=$(aws-vault exec "$AWS_PROFILE" -- aws backup list-recovery-points-by-backup-vault \
   --backup-vault-name "$BACKUP_VAULT_NAME" \

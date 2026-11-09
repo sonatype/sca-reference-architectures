@@ -250,7 +250,7 @@ variable "nexus_iq_admin_password" {
 variable "helm_chart_version" {
   description = "Nexus IQ Server Helm chart version"
   type        = string
-  default     = "195.0.0"
+  default     = "201.0.0"
 }
 
 variable "java_opts" {
@@ -318,20 +318,25 @@ variable "opensearch_username" {
   default     = ""
 
   validation {
-    condition     = !can(regex("[\\'\"$`\\\\]", var.opensearch_username))
-    error_message = "The OpenSearch user name may not hold a single quote, a double quote, a dollar sign, a backtick or a backslash. render-values.sh writes it into a single-quoted YAML scalar in the generated values file, and those five are the characters that would break it. Everything else, including | & : # and a space, is written through intact."
+    condition     = !can(regex("\\{\\{", var.opensearch_username))
+    error_message = "The OpenSearch user name may not contain {{. The chart runs iq_server.config through its template engine, so {{ would be read as the start of a template action, even inside a quoted value."
   }
 }
 
 variable "opensearch_password" {
-  description = "Password for opensearch_username. helm-install.sh reads this from a Terraform output and writes it into the generated values file, the same route the database password takes on this architecture. Required when search_engine is \"opensearch\"."
+  description = "Password for opensearch_username. render-values.sh reads this from a Terraform output and writes it into the generated values file, the same route the database password takes on this architecture. Required when search_engine is \"opensearch\"."
   type        = string
   default     = ""
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("\\{\\{", var.opensearch_password))
+    error_message = "The OpenSearch password may not contain {{. The chart runs iq_server.config through its template engine, so {{ would be read as the start of a template action, even inside a quoted value."
+  }
 }
 
 variable "opensearch_ca_certificate" {
-  description = "PEM certificate of a private authority that signed the OpenSearch cluster's certificates. When set with opensearch_use_tls, helm-install.sh and helm-upgrade.sh store it in the Kubernetes Secret nexus-iq-opensearch-ca, and each IQ Server pod adds it to a copy of the JVM trust store at start. Leave empty for a certificate from a public authority."
+  description = "PEM certificate of a private authority that signed the OpenSearch cluster's certificates. When set with opensearch_use_tls, render-values.sh stores it in the Kubernetes Secret nexus-iq-opensearch-ca, and each IQ Server pod adds it to a copy of the JVM trust store at start. Leave empty for a certificate from a public authority."
   type        = string
   default     = ""
 }
