@@ -1,5 +1,4 @@
-# The node AMI must match the instance architecture, so it is read from the
-# instance type rather than set by hand: Graviton types get the arm64 AMI.
+# The node AMI must match the instance architecture: Graviton types get the arm64 AMI.
 data "aws_ec2_instance_type" "node" {
   instance_type = var.node_instance_type
 }

@@ -305,10 +305,15 @@ cluster_name = "iq-xs"   # a distinct value per deployment
 ```
 
 **The default is empty, which reproduces the names this architecture has always published**, so a
-customer who sets nothing sees no change and nothing is renamed or replaced. That includes the two
+customer who sets nothing sees nothing renamed. That includes the two
 firewall rules that have always carried no prefix at all, `allow-egress-gce` and
 `allow-google-apis`: an empty `cluster_name` adds nothing to either, and a set one prefixes them
 like everything else.
+
+**The first apply after upgrading still replaces the VM**, because `scripts/startup.sh` is the
+instance's startup script and it changes in this version. The instance is destroyed before its
+replacement is created, so IQ Server is down until the new VM has started, and the data on
+Filestore and Cloud SQL is kept.
 
 Setting it moves the
 VPC, both subnets, the router, the Cloud NAT, the reserved address, every firewall rule, the load

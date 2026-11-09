@@ -123,9 +123,8 @@ resource "aws_iam_role_policy_attachment" "iq_server_cloudwatch" {
 # left empty. A customer who already runs a domain names it in that endpoint and
 # opensearch_domain_name instead, and nothing below is created.
 #
-# Defaults are the smallest supported shape rather than any published size, so a
-# value left unset is obviously too small rather than quietly wrong for the
-# estate it holds.
+# Defaults are the Size M shape on two nodes, so an L or XL deployment that
+# leaves them unset gets an M domain.
 
 locals {
   # Reading the endpoint rather than a separate flag keeps creating a domain and

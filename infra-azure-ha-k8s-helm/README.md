@@ -18,7 +18,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 6 GB of `110Gi`.
 
-> **ARM instances recommended.** Eps_v6 costs 47% less on demand than the x86 equivalent Esv7 (`Standard_E8ps_v6` against `Standard_E8s_v7` in eastus, list prices in November 2026).
+> **ARM instances recommended.** Eps_v6 costs 30% less on demand than the x86 equivalent of the same generation, Esv6 (`Standard_E8ps_v6` against `Standard_E8s_v6` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 

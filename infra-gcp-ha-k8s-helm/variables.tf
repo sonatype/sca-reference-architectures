@@ -60,12 +60,6 @@ variable "gke_master_cidr" {
   default     = "172.16.0.0/28"
 }
 
-variable "kubernetes_version" {
-  description = "Kubernetes version for GKE cluster"
-  type        = string
-  default     = "1.33"
-}
-
 variable "node_instance_type" {
   description = "Instance type for GKE nodes"
   type        = string
@@ -253,14 +247,6 @@ variable "helm_chart_version" {
   default     = "201.0.0"
 }
 
-variable "java_opts" {
-  # Nothing in this root passes this into the Helm release. The chart renders the pod spec, so the
-  # value the pods actually read is iq_server.javaOpts in helm-values.yaml, and that is the one to
-  # change. This variable is kept because existing terraform.tfvars files set it.
-  description = "Java options for Nexus IQ Server. Not read on this root: set iq_server.javaOpts in helm-values.yaml instead, which is what the chart puts on the pods."
-  type        = string
-  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-}
 # Search Backend
 #
 # search_engine chooses which engine the `search:` block in config.yml names. "opensearch" needs
