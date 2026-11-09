@@ -7,7 +7,7 @@
 # here.
 #
 # Unlike the two Compute Engine roots, the `search:` block is not written by a startup script. The
-# Helm chart renders config.yml inside the pod, so helm-install.sh reads the outputs below and
+# Helm chart renders config.yml inside the pod, so render-values.sh reads the outputs below and
 # writes them into a generated values file. See README.md, "Search Backend".
 
 locals {
@@ -49,7 +49,7 @@ resource "google_compute_firewall" "allow_opensearch" {
   description = "Allow Nexus IQ Server pods to reach a self-managed OpenSearch cluster in this VPC"
 
   # Checked here rather than in a variable validation block, because a validation comparing two
-  # variables needs Terraform 1.9 and this root sets required_version to >= 1.0.
+  # variables needs Terraform 1.9 and this root sets required_version to >= 1.2.
   lifecycle {
     precondition {
       condition     = length(var.opensearch_endpoint) > 0

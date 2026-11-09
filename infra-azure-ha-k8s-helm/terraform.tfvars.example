@@ -10,7 +10,7 @@ aks_subnet_cidr    = "10.1.10.0/23"  # /23 provides more IPs for AKS
 db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
-kubernetes_version      = "1.33.3"
+kubernetes_version      = "1.36"
 node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
 node_group_max_size     = 6
@@ -46,10 +46,9 @@ nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
-nexus_iq_memory_request  = "48Gi"
-nexus_iq_memory_limit    = "56Gi"
-nexus_iq_cpu_request     = "6"
-nexus_iq_cpu_limit       = "8"
+
+# Pod CPU, memory and heap are Helm chart settings, not Terraform inputs.
+# Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
 helm_chart_version      = "195.0.0"
@@ -77,9 +76,10 @@ ingress_tls_enabled = false
 # here. README.md carries the cluster specification, the build steps and the
 # trust store steps a private certificate authority needs.
 #
-# helm-install.sh reads these out of this file with grep, so it sees only what
-# is written here and never a variable default. Write every one of them when
-# search_engine is "opensearch".
+# helm-install.sh and helm-upgrade.sh read these out of this file, so they see
+# only what is written here. The port, TLS and replica settings fall back to
+# the variable defaults, and the endpoint, user name and password have to be
+# written here when search_engine is "opensearch".
 search_engine = "lucene"
 
 # opensearch_endpoint       = "opensearch.internal.example.com"

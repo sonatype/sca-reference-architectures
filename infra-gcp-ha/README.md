@@ -175,7 +175,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------  |
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **gcloud CLI** | Latest | [Install Guide](https://cloud.google.com/sdk/docs/install) | GCP API access |
 
 #### GCP Account Requirements
@@ -405,7 +405,7 @@ search_engine = "lucene"
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_index_replicas = 0
+# opensearch_index_replicas = 1
 ```
 
 **Important Settings:**
@@ -600,17 +600,18 @@ Keep the state backend private.
 
 ### Firewall
 
-This root denies all ingress at priority 65534 and allows egress only on 80, 443, 5432 and UDP 53.
-Both ends therefore need a rule:
+Google Cloud denies all ingress that no rule allows, and allows all egress unless a deny rule says
+otherwise. This root denies all ingress at priority 65534 and has no egress deny, so egress is open.
+Two rules follow from that:
 
 - **Ingress.** `search.tf` adds a rule letting instances tagged `nexus-iq-ha` reach instances
   tagged `nexus-iq-opensearch` on `opensearch_port`. **Tag each OpenSearch node
   `nexus-iq-opensearch`** or the cluster is unreachable from the servers. The rule matches on the
   network tag, not on the service account, so **anything in this VPC tagged `nexus-iq-ha` reaches
   the cluster's port**, not only this instance group.
-- **Egress.** `opensearch_port` is added to the `<cluster_name>-allow-outbound` rule. **This one is
-  required**, not merely declarative: that rule is the only egress rule in the root, so without the
-  port the servers cannot reach the cluster at all unless it listens on 80 or 443.
+- **Egress.** `opensearch_port` is added to the `<cluster_name>-allow-outbound` rule. That rule is
+  an allow rule, so today it changes nothing on its own, but it states the intent and keeps working
+  if you add an egress deny rule of your own.
 
 A cluster outside this VPC is reached over whatever path you have built to it, and the ingress rule
 has no effect on it. The egress rule still applies.
@@ -641,8 +642,8 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
 count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
-Storage per node is the published size, chosen at or above the measured use. XS, S, L and XL are
-not measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+Storage per node is the published size, chosen at or above the measured use. L and XL are not
+measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 The cluster managers are dedicated, so they hold no data and take no search traffic, and three of
 them keep a quorum when one is lost. **At M the cluster managers are measured**; at L and XL they
@@ -691,7 +692,11 @@ This root does the copy for you. Set the authority's PEM certificate:
 
 ```hcl
 opensearch_use_tls        = true
-opensearch_ca_certificate = file("opensearch-ca.pem")
+opensearch_ca_certificate = <<-EOT
+  -----BEGIN CERTIFICATE-----
+  ...the authority's PEM certificate...
+  -----END CERTIFICATE-----
+EOT
 ```
 
 Terraform stores it in a Secret Manager secret and grants the compute service account
@@ -761,9 +766,6 @@ curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Ty
   "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
 }'
 ```
-
-The node log records `"Application Default Credentials" will be in use` when the fallback is taken,
-which is how to confirm no key is being read.
 
 ### What running the cluster yourself costs you
 

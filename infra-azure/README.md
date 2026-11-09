@@ -149,7 +149,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **Azure CLI** | >= 2.0 | [Install Guide](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) | Azure API access |
 
 #### Azure Account Requirements
@@ -574,25 +574,30 @@ policy and vulnerability data while fixing OpenSearch.
 The steps, run against a copy of the container image or in a build that produces one:
 
 ```bash
-# 1. Copy the JVM's trust store out of the image.
-cp "$JAVA_HOME/lib/security/cacerts" /sonatype-work/iq-truststore.jks
+# The image sets no JAVA_HOME and puts no java or keytool on the PATH, so these
+# use the JVM bundled under /opt/sonatype/nexus-iq-server.
+
+# 1. Copy the JVM's trust store, outside the paths a volume is mounted over.
+cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /opt/sonatype/iq-truststore.jks
 
 # 2. Add your certificate authority to the copy. The default password is "changeit".
-keytool -importcert -noprompt \
-  -keystore /sonatype-work/iq-truststore.jks -storepass changeit \
+/opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
+  -keystore /opt/sonatype/iq-truststore.jks -storepass changeit \
   -alias opensearch-ca -file /path/to/ca.crt
 
 # 3. Confirm it is there, and that the public authorities still are.
-keytool -list -keystore /sonatype-work/iq-truststore.jks -storepass changeit | grep -c 'trustedCertEntry'
+/opt/sonatype/nexus-iq-server/bin/keytool -list -keystore /opt/sonatype/iq-truststore.jks -storepass changeit | grep -c 'trustedCertEntry'
 ```
 
 Then name the copy in `java_opts`, which this configuration passes to the container as `JAVA_OPTS`:
 
 ```hcl
-java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/sonatype-work/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
 ```
 
-`/sonatype-work` is the Azure Files share, so the store survives a revision replacing the container.
+The store is part of the image, so every container started from it has it. It is kept out of
+`/sonatype-work`, because the Azure Files share is mounted over that path when the container runs
+and would hide anything the image put there.
 
 **A certificate from a public authority needs none of this**, because the JVM already trusts it. That
 is the cheapest answer if your cluster can carry one.

@@ -60,10 +60,5 @@ resource "azurerm_key_vault_access_policy" "container_app" {
 }
 
 
-# The OpenSearch credentials are not kept here. The container app receives them
-# as container app secrets, set from the variables, and nothing reads them back
-# out of a vault, so a Key Vault copy would be a second place the password
-# lives and has to be rotated. The database password takes the same route.
-
 
 

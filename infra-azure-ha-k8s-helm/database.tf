@@ -64,6 +64,13 @@ resource "azurerm_postgresql_flexible_server" "iq_db" {
 
   create_mode = "Default"
 
+  # Auto-grow raises the disk, and with it the tier, outside Terraform. The
+  # provider refuses to shrink storage_mb, so without this every apply after a
+  # grow would fail. db_storage_mb and db_storage_tier set the starting size.
+  lifecycle {
+    ignore_changes = [storage_mb, storage_tier]
+  }
+
   tags = merge(local.common_tags, {
     Name = "psql-${var.cluster_name}"
   })

@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -51,6 +51,8 @@ locals {
   cluster_name        = var.cluster_name
   resource_group_name = "rg-${var.cluster_name}"
   availability_zones  = ["1", "2", "3"]
+  opensearch_enabled  = var.search_engine == "opensearch"
+  opensearch_uri      = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
 
   common_tags = merge({
     project     = "nexus-iq-server-ha"
@@ -66,6 +68,25 @@ resource "azurerm_resource_group" "iq_rg" {
   location = var.azure_region
 
   tags = local.common_tags
+
+  lifecycle {
+    # Preconditions rather than validations on the variables, because a
+    # validation that reads another variable needs Terraform 1.9.
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+    }
+  }
 }
 
 

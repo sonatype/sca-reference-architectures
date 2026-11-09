@@ -6,7 +6,7 @@ variable "azure_region" {
 }
 
 variable "cluster_name" {
-  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. The default reproduces the names this configuration has always used, so leaving it alone changes nothing. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, public IP and its DNS label, Application Gateway and its diagnostics, Key Vault, storage account, backup vault and policy, and PostgreSQL Flexible Server all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the longest names built from it are the storage account and the Key Vault, both of which strip the hyphens and add 8 random characters, and Azure caps each at 24."
+  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, public IP and its DNS label, Application Gateway and its diagnostics, Key Vault, storage account, backup vault and policy, and PostgreSQL Flexible Server all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the longest names built from it are the storage account and the Key Vault, both of which strip the hyphens and add 8 random characters, and Azure caps each at 24."
   type        = string
   default     = "ref-arch-iq-ha"
 
@@ -301,11 +301,6 @@ variable "opensearch_endpoint" {
   description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
-    error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_port" {
@@ -329,11 +324,6 @@ variable "opensearch_username" {
   description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
-    error_message = "opensearch_username must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_password" {
@@ -341,11 +331,6 @@ variable "opensearch_password" {
   type        = string
   default     = ""
   sensitive   = true
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
-    error_message = "opensearch_password must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "container_registry_server" {
@@ -371,6 +356,11 @@ variable "opensearch_ca_pem" {
   description = "The certificate authority that signed the OpenSearch cluster's certificate, base64 encoded, for a cluster using a private authority. IQ Server has no per-connection trust setting, so the entrypoint copies the JVM's own trust store, adds this authority to the copy, and names the copy with javax.net.ssl.trustStore. The JVM store is never replaced, because it also serves IQ Server's calls to the Sonatype data service. Leave empty for a certificate signed by a public authority. This is a public certificate and not a credential."
   type        = string
   default     = ""
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9+/=\\s]*$", var.opensearch_ca_pem))
+    error_message = "opensearch_ca_pem must be the certificate base64 encoded, for example base64 < ca.pem, not the PEM text itself. The entrypoint decodes it with base64 -d, which fails on a raw PEM and stops every replica from starting."
+  }
 }
 
 variable "opensearch_index_replicas" {

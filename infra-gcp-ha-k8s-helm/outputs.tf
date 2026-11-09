@@ -112,7 +112,7 @@ output "project_id" {
 }
 
 output "search_engine" {
-  description = "Search backend Nexus IQ Server is configured to use. helm-install.sh reads this to decide whether to write a search block."
+  description = "Search backend Nexus IQ Server is configured to use. render-values.sh reads this to decide whether to write a search block."
   value       = var.search_engine
 }
 

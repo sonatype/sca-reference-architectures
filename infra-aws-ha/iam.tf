@@ -157,5 +157,14 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
         ]
     }] : [])
   })
+
+  # A precondition rather than a validation on the variable, because a
+  # validation that reads another variable needs Terraform 1.9.
+  lifecycle {
+    precondition {
+      condition     = length(var.opensearch_domain_endpoint) == 0 || length(var.opensearch_domain_name) > 0
+      error_message = "opensearch_domain_name must be set when opensearch_domain_endpoint names an existing domain."
+    }
+  }
 }
 

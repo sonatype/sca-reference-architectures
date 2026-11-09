@@ -43,6 +43,19 @@ db_availability_type    = "REGIONAL"
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 1024             # 1 TiB
 ```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "6"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
 </details>
 
 <details>
@@ -58,6 +71,19 @@ db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type    = "REGIONAL"
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 2560             # 2.5 TiB
+```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "6"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -75,11 +101,26 @@ db_availability_type    = "REGIONAL"
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 10240            # 10 TiB
 ```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "12"
+      memory: "96Gi"
+    limits:
+      cpu: "16"
+      memory: "110Gi"
+  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
 </details>
 
-> `java_opts` above is not read on this root. The Helm chart renders the pod spec, so the heap each
-> pod gets is `iq_server.javaOpts` in `helm-values.yaml`: set the per-size value there, in the same
-> shape as the lines above.
+> The Helm chart renders the pod spec, so each pod's CPU, memory and heap come from
+> `iq_server.resources` and `iq_server.javaOpts` in `helm-values.yaml`, which ships with the M and L
+> values. The heap and `-XX:MaxDirectMemorySize` together stay under the memory limit, so metaspace,
+> thread stacks and code cache have room: 4 GB of the `56Gi` limit at M and L, and 6 GB of the
+> `110Gi` limit at XL, which fits under the memory an `n4a-highmem-16` node leaves for pods.
 
 ### Database Sizing (Cloud SQL PostgreSQL)
 
@@ -176,7 +217,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------  |
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **gcloud CLI** | Latest | [Install Guide](https://cloud.google.com/sdk/docs/install) | GCP API access |
 | **kubectl** | Latest | [Install Guide](https://kubernetes.io/docs/tasks/tools/) | Kubernetes cluster management |
 | **Helm** | >= 3.9.3 | [Install Guide](https://helm.sh/docs/intro/install/) | Application deployment |
@@ -339,7 +380,6 @@ gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
 # GKE Configuration
-kubernetes_version           = "1.33"
 node_instance_type           = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
 node_group_min_size          = 2
 node_group_max_size          = 5
@@ -369,7 +409,7 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 # Sonatype IQ Server HA Configuration
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
-helm_chart_version      = "195.0.0"
+helm_chart_version      = "201.0.0"
 # Not read on this root: set iq_server.javaOpts in helm-values.yaml, which the chart puts on the pods.
 java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 # Search Backend
@@ -381,7 +421,7 @@ search_engine = "lucene"
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_index_replicas = 0
+# opensearch_index_replicas = 1
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
@@ -639,8 +679,8 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
 count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
-Storage per node is the published size, chosen at or above the measured use. XS, S, L and XL are
-not measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+Storage per node is the published size, chosen at or above the measured use. L and XL are not
+measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 The cluster managers are dedicated, so they hold no data and take no search traffic, and three of
 them keep a quorum when one is lost. **At M the cluster managers are measured**; at L and XL they
@@ -692,7 +732,11 @@ This root does the copy for you. Set the authority's PEM certificate in `terrafo
 
 ```hcl
 opensearch_use_tls        = true
-opensearch_ca_certificate = file("opensearch-ca.pem")
+opensearch_ca_certificate = <<-EOT
+  -----BEGIN CERTIFICATE-----
+  ...the authority's PEM certificate...
+  -----END CERTIFICATE-----
+EOT
 ```
 
 After `terraform apply`, `helm-install.sh` or `helm-upgrade.sh` stores it in the Kubernetes
@@ -706,9 +750,8 @@ command. Keep the markers. To change the certificate, apply, run `helm-upgrade.s
 the pods with `kubectl rollout restart deployment -n nexus-iq`, since a pod reads the Secret only
 when it starts.
 
-The Secret reaches the pod as an environment variable rather than a mounted file because chart
-`195.0.0`, the version `helm_chart_version` pins, mounts no extra volumes into the IQ Server pod.
-Nothing has to be added to `javaOpts`.
+The Secret reaches the pod as an environment variable rather than a mounted file, so the pod
+needs no extra volume and nothing has to be added to `javaOpts`.
 
 **`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
 takes either one. The cost is that the basic auth password is sent unencrypted on every request.
@@ -770,9 +813,6 @@ curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Ty
   "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
 }'
 ```
-
-The node log records `"Application Default Credentials" will be in use` when the fallback is taken,
-which is how to confirm no key is being read.
 
 ### What running the cluster yourself costs you
 

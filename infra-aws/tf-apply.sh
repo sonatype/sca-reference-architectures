@@ -56,6 +56,11 @@ command -v aws-vault >/dev/null 2>&1 || {
     exit 1
 }
 
+command -v jq >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: jq not installed${NC}"
+    exit 1
+}
+
 echo "• Cloud Provider: AWS"
 echo "• AWS Profile: $AWS_PROFILE"
 echo "• Deployment: $DEPLOYMENT_NAME $DEPLOYMENT_TYPE"
@@ -69,8 +74,9 @@ echo ""
 echo "🚀 Proceeding with deployment..."
 echo ""
 
-CLUSTER_NAME=$(grep '^cluster_name' terraform.tfvars | cut -d'"' -f2 || echo "ref-arch")
-CLUSTER_NAME=${CLUSTER_NAME:-ref-arch}
+# Read from the saved plan, which holds cluster_name however it was set:
+# terraform.tfvars, -var, TF_VAR_cluster_name or a *.auto.tfvars file.
+CLUSTER_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform show -json tfplan | jq -r '.variables.cluster_name.value')
 LOG_GROUP_NAME="/ecs/${CLUSTER_NAME}-nexus-iq-server"
 
 LOG_GROUP_EXISTS=$(aws-vault exec "$AWS_PROFILE" -- aws logs describe-log-groups \
