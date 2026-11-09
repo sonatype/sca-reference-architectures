@@ -127,10 +127,8 @@ fi
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-# sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
-# pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
-# The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
-# which is tr's and is 0 even when grep matched nothing, so it never fired.
+# The capture stops at the digits, so a trailing comment on the line is not carried into the
+# values file. The default is a separate line so it applies when the key is absent.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 
@@ -140,9 +138,6 @@ sed -i.bak \
     -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
-# The search: block is appended after that sed, never before it. Those two
-# patterns carry no line anchor, so a password: key written earlier would be
-# overwritten with the database password.
 if ! write_search_block "$TEMP_VALUES_FILE"; then
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
     exit 1
