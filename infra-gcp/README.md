@@ -79,7 +79,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **gcloud CLI** | Latest | [Install Guide](https://cloud.google.com/sdk/docs/install) | GCP API access |
 
 #### GCP Account Requirements
@@ -493,8 +493,8 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
 count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
-Storage per node is the published size, chosen at or above the measured use. XS, S, L and XL are
-not measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+Storage per node is the published size, chosen at or above the measured use. XS and S are not
+measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 At M the cluster managers are dedicated, so they hold no data and take no search traffic, and
 three of them keep a quorum when one is lost. **They are measured at M**, and take half their RAM
@@ -519,7 +519,7 @@ Google describes the load balancer in
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
-an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with
+an index is created, so **at M set them before the Nexus One index is first built**, with
 one request to the configuration API as an administrator:
 
 ```bash
@@ -544,10 +544,15 @@ This root does the copy for you. Set the authority's PEM certificate:
 
 ```hcl
 opensearch_use_tls        = true
-opensearch_ca_certificate = file("opensearch-ca.pem")
+opensearch_ca_certificate = <<-EOT
+  -----BEGIN CERTIFICATE-----
+  ...the authority's PEM certificate...
+  -----END CERTIFICATE-----
+EOT
 ```
 
-Terraform stores it in a Secret Manager secret named `<cluster_name>-opensearch-ca`, which the
+Terraform stores it in a Secret Manager secret named `<cluster_name>-opensearch-ca`, or
+`nexus-iq-opensearch-ca` when `cluster_name` is left empty, which the
 instance reads at boot with the service account's existing `roles/secretmanager.secretAccessor`.
 The startup script mounts it into the container, and at every container start the entrypoint
 copies the image's JVM trust store to `/tmp/opensearch-cacerts`, adds the authority with the
@@ -614,9 +619,6 @@ curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Ty
   "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
 }'
 ```
-
-The node log records `"Application Default Credentials" will be in use` when the fallback is taken,
-which is how to confirm no key is being read.
 
 ### What running the cluster yourself costs you
 
