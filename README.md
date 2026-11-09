@@ -301,7 +301,7 @@ The following tables provide equivalent instance types across cloud providers fo
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 27% less on Azure (`Standard_E8ps_v6` against `Standard_E8_v5`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 30% less on Azure (`Standard_E8ps_v6` against `Standard_E8s_v6`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 
@@ -477,10 +477,8 @@ node_group_desired_size = 3                # 3 nodes
 node_group_min_size     = 2
 node_group_max_size     = 5
 nexus_iq_replica_count  = 3                # 3 IQ pods
-nexus_iq_memory_request = "48Gi"
-nexus_iq_memory_limit   = "56Gi"
-nexus_iq_cpu_request    = "6"
-nexus_iq_cpu_limit      = "8"
+# Pod CPU, memory and heap are Helm chart values in helm-values.yaml:
+# see the Size L block in infra-aws-ha-k8s-helm/README.md.
 aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
 ```
@@ -541,10 +539,8 @@ node_group_desired_size = 4                # 4 nodes
 node_group_min_size     = 3
 node_group_max_size     = 6
 nexus_iq_replica_count  = 4                # 4 IQ pods
-nexus_iq_memory_request = "96Gi"
-nexus_iq_memory_limit   = "112Gi"
-nexus_iq_cpu_request    = "12"
-nexus_iq_cpu_limit      = "16"
+# Pod CPU, memory and heap are Helm chart values in helm-values.yaml:
+# see the Size XL block in infra-aws-ha-k8s-helm/README.md.
 aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
 ```

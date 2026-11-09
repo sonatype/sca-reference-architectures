@@ -39,7 +39,6 @@ nexus_iq_replica_count = 3
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
-helm_namespace     = "nexus-iq"
 
 # Logging Configuration
 enable_fluentd        = true

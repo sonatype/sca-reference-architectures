@@ -37,9 +37,8 @@
 # deployment that builds its own network.
 #
 # SIZING. The shape each size needs is in the OpenSearch section of this
-# directory's README.md. The defaults are the smallest supported shape rather
-# than any published size, so a value left unset is obviously too small rather
-# than quietly wrong for the estate it holds.
+# directory's README.md. The defaults are the Size S shape, so an XS deployment
+# can shrink the storage and an M deployment sets its own values.
 
 locals {
   # Reading the endpoint rather than a separate flag keeps creating a domain and
