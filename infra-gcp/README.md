@@ -484,17 +484,38 @@ Verified against the OpenSearch source at tags `2.19.0` and `3.2.0`.
 
 Per size:
 
-| Size | Data nodes | Machine type | Storage per node | Shards ¹ | `opensearch_index_replicas` |
-|------|:----------:|:------------:|:----------------:|:--------:|:---------------------------:|
-| **XS** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 25 GB Hyperdisk Balanced | 1 | `0`. One data node cannot place a replica |
-| **S** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 50 GB Hyperdisk Balanced | 1 | `0`. One data node cannot place a replica |
-| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 | `1` |
+| Size | Data nodes | Machine type | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
+|------|:----------:|:------------:|:----------------:|:----------------:|:--------:|:---------------------------:|
+| **XS** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 25 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
+| **S** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 50 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
+| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
 count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
 Storage per node is the published size, chosen at or above the measured use. XS, S, L and XL are
 not measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+
+At M the cluster managers are dedicated, so they hold no data and take no search traffic, and
+three of them keep a quorum when one is lost. **They are measured at M**, and take half their RAM
+as heap, as the data nodes do. XS and S run none: one data node is its own cluster manager.
+
+**Put an internal passthrough Network Load Balancer in front of the data nodes at M**, and set
+`opensearch_endpoint` to its address, so Nexus IQ Server reaches one endpoint and replacing a data
+node does not change its configuration. This is how the GCP M measurement ran. Create:
+
+- **A regional TCP health check on port 9200.**
+- **A regional backend service** with `--load-balancing-scheme INTERNAL --protocol TCP` and that
+  health check, whose backends are one unmanaged instance group per zone holding that zone's data
+  nodes. The cluster managers stay out of it.
+- **A forwarding rule on a reserved private IP address** in this VPC, for TCP port 9200.
+- **A firewall rule allowing TCP 9200 from Google's health check ranges** `35.191.0.0/16` and
+  `130.211.0.0/22` to the `nexus-iq-opensearch` tag. Without it the backends never turn healthy.
+
+At XS and S, with one data node, `opensearch_endpoint` can name that node directly.
+
+Google describes the load balancer in
+[Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
