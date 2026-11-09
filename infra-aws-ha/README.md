@@ -301,10 +301,8 @@ nexusOne:
   fine-grained access control off has no way to check.
 - **`mode: OPENSEARCH`** is written out rather than left to default. The
   default is `HYBRID`, which also writes every batch to the built-in index.
-- **`nexusOneIndexReplicas`** is always written, because IQ Server's own
-  default depends on the release. Releases that include CLM-55924 use 1
-  replica, or 0 on a domain with exactly one data node. Earlier releases use
-  0. Writing the value gives the same count on every release.
+- **`nexusOneIndexReplicas`** is always written. When IQ Server is not given a
+  count, it uses 1.
 - **`nexusOne.connection` repeats the same fields** because it is the only
   block the Nexus One index reads. With `search:` set and this one absent, the
   index store has no transport and turning the feature on is refused. Both name
