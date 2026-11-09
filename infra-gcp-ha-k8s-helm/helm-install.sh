@@ -159,7 +159,8 @@ fi
 echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "195.0.0")
+CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+CHART_VERSION=${CHART_VERSION:-195.0.0}
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"

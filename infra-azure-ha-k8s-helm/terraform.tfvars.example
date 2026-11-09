@@ -19,7 +19,7 @@ node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA) - matching AWS Aurora specs
 postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS r8g.4xlarge)
+db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS db.r8g.4xlarge)
 db_high_availability_mode        = "ZoneRedundant"
 db_storage_mb                    = 65536 # 64GB
 db_storage_tier                  = "P6"

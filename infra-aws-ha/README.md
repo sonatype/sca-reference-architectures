@@ -241,6 +241,10 @@ Your IAM user/role needs these AWS service permissions:
 > |---|:---:|:---:|
 > | `iq_max_count` | 5 | 4 |
 > | `aurora_engine_version` | 15.10 | 15.19 |
+> | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
+>
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
 
 ### Configuration Variables
 

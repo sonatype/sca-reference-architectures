@@ -264,6 +264,14 @@ Your IAM user/role needs these AWS service permissions:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `aurora_engine_version` | 15.8 | 15.19 |
+> | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
+> | `node_instance_type` | m5d.2xlarge | m9gd.2xlarge |
+>
+> The next apply replaces the EKS node group: the node AMI moves from
+> `AL2_x86_64` to AL2023, and both the AMI type and the instance type force a
+> new node group.
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
 
 ### Configuration Variables
 

@@ -301,7 +301,7 @@ The following tables provide equivalent instance types across cloud providers fo
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 27% less on Azure (`Standard_E8ps_v6` against `Standard_E8_v5`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 30% less on Azure (`Standard_E8ps_v6` against `Standard_E8s_v6`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 

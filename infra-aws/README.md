@@ -221,6 +221,10 @@ Your IAM user/role needs these AWS service permissions:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `postgres_version` | 15.10 | 15.19 |
+> | `db_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
+>
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
 
 ### Configuration Variables
 
