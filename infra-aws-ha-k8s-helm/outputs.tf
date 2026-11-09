@@ -192,12 +192,17 @@ output "opensearch_domain_endpoint" {
   value       = var.search_engine == "opensearch" ? local.opensearch_endpoint : ""
 }
 
+output "opensearch_domain_name" {
+  description = "Name of the OpenSearch domain IQ Server is configured against, which the teardown steps in README.md pass to aws opensearch delete-domain. A created domain's name is cluster_name cut to 18 characters plus -nexus-one. Empty when search_engine is lucene"
+  value       = var.search_engine == "opensearch" ? local.opensearch_name : ""
+}
+
 output "opensearch_index_replicas" {
   description = "Replicas per shard written to config.yml as search.nexusOneIndexReplicas. Null when search_engine is lucene"
   value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
 }
 
 output "iq_server_irsa_role_arn" {
-  description = "IAM Role ARN the IQ Server pods assume to reach the OpenSearch domain, annotated by helm-install.sh onto the nexus-iq-sa ServiceAccount. Null when search_engine is lucene. Add this ARN to the domain's access policy"
+  description = "IAM Role ARN the IQ Server pods assume to reach the OpenSearch domain, annotated by helm-install.sh onto the nexus-iq-sa ServiceAccount. Null when search_engine is lucene. A domain created here already names this role. When opensearch_domain_endpoint names an existing domain, add this ARN to that domain's access policy"
   value       = var.search_engine == "opensearch" ? aws_iam_role.iq_server_irsa[0].arn : null
 }

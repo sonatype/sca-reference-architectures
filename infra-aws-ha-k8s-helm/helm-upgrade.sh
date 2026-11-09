@@ -170,7 +170,8 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     IQ_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw iq_server_irsa_role_arn 2>/dev/null || echo "")
     if [[ -z "$OPENSEARCH_ENDPOINT" || -z "$IQ_IRSA_ROLE_ARN" ]]; then
         echo -e "${RED}❌ Error: search_engine is 'opensearch' but the domain endpoint or the IQ Server role ARN is missing${NC}"
-        echo "   Re-run terraform apply with opensearch_domain_endpoint set."
+        echo "   Run terraform apply with search_engine = \"opensearch\" and check it created the domain."
+        echo "   Set opensearch_domain_endpoint only to use a domain you already run."
         rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
         exit 1
     fi

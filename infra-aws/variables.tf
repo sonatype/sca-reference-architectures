@@ -350,11 +350,6 @@ variable "opensearch_domain_name" {
   EOT
   type        = string
   default     = ""
-
-  validation {
-    condition     = length(var.opensearch_domain_endpoint) == 0 || length(var.opensearch_domain_name) > 0
-    error_message = "opensearch_domain_name must be set when opensearch_domain_endpoint names an existing domain."
-  }
 }
 
 variable "opensearch_log_retention_days" {
