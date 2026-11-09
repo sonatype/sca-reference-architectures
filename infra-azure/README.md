@@ -417,20 +417,20 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-**M and L are measured on Azure; XS, S and XL are not.** The measurements ran `Standard_D2ps_v6`
-data nodes at M and `Standard_D4ps_v6` at L. The data node types below are the published sizes,
-chosen at or above those, and storage per node is the published size, chosen at or above the
-measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
+**M and L are measured on Azure; XS, S and XL are not.** The data node types at M and L are the
+measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS and S use `Standard_D2ps_v6` and XL
+`Standard_E8ps_v6`, which give the same vCPU and memory as the AWS and GCP data nodes at those
+sizes. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
 managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
 at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
 measured VMs had, and takes half its RAM as heap.
 
 | Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |---|---|---|---|---|---|---|
-| XS | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 25 GB, on a P4 Premium SSD of 32 GiB | none | 1 | `0` |
-| S | 1 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 50 GB, on a P6 Premium SSD of 64 GiB | none | 1 | `0` |
-| M | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
-| L | 3 | `Standard_D8ps_v6`, 8 vCPU, 32 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
+| XS | 1 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 25 GB, on a P4 Premium SSD of 32 GiB | none | 1 | `0` |
+| S | 1 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 50 GB, on a P6 Premium SSD of 64 GiB | none | 1 | `0` |
+| M | 3 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
+| L | 3 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
 | XL | 3 | `Standard_E8ps_v6`, 8 vCPU, 64 GB | 250 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB, 4 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
 
 Premium SSD is billed and performs by fixed tiers, so each storage figure sits on the smallest tier
@@ -459,7 +459,8 @@ Other things the cluster needs, none of which this configuration sets for you:
 - **A user IQ Server owns**, with permission to create and write its own indices. Do not reuse the
   bootstrap admin.
 - **Heap at half of RAM and no more than about 31 GB**, set in `jvm.options`, which is the standard
-  OpenSearch guidance and the reason the per-node memory above is not larger.
+  OpenSearch guidance: 4 GB on `Standard_D2ps_v6`, 8 GB on `Standard_D4ps_v6`, and about 31 GB on
+  `Standard_E8ps_v6`, where half its RAM would pass the cap.
 - **Three dedicated cluster managers** at M and above, one per availability zone, holding no data, so
   losing one leaves a quorum. XS and S run none: one data node is its own cluster manager.
 - **One node per availability zone** at M and above, so a zone outage costs one node rather than the
