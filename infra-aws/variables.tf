@@ -16,7 +16,7 @@ variable "cluster_name" {
     load balancer, the target groups, the log group, the SSM parameters, the
     Secrets Manager secret and the RDS identifier among them, so two deployments
     that leave this at the default collide on the second apply. Running one
-    deployment per size, for example "ref-arch-xs" through "ref-arch-xl", is what
+    deployment per size, for example "ref-arch-xs" through "ref-arch-m", is what
     this is for.
 
     The default reproduces the names this root used before the variable existed, so
@@ -227,9 +227,8 @@ variable "log_archive_retention_days" {
 # opensearch.tf.
 #
 # Sizing: the shape each size needs is in the OpenSearch section of this
-# directory's README.md. The defaults are the smallest supported shape rather
-# than any published size, so a value left unset is obviously too small rather
-# than quietly wrong for the estate it holds.
+# directory's README.md. The defaults are the Size S shape, so an XS deployment
+# can shrink the storage and an M deployment sets its own values.
 
 variable "search_engine" {
   description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
@@ -257,7 +256,7 @@ variable "opensearch_instance_type" {
   description = <<-EOT
     Data node instance type for the created domain.
 
-    The default is the smallest type worth running rather than a published size.
+    The default is the published type for XS, S and M.
     Smaller types have been measured failing in ways that read as something
     else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
     6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and

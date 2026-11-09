@@ -598,6 +598,10 @@ The store is part of the image, so every container started from it has it. It is
 `/sonatype-work`, because the Azure Files share is mounted over that path when the container runs
 and would hide anything the image put there.
 
+This configuration passes no registry credentials, so the derived image has to be pullable without
+them. `infra-azure-ha` takes `container_registry_server`, `container_registry_username` and
+`container_registry_password` for a private registry.
+
 **A certificate from a public authority needs none of this**, because the JVM already trusts it. That
 is the cheapest answer if your cluster can carry one.
 

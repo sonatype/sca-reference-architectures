@@ -35,8 +35,8 @@ variable "cluster_name" {
     # an IAM role name prefix at 38 characters, so cluster_name can be at most 29.
     # Checked here so a too-long name fails the plan rather than the apply, after
     # the VPC and Aurora already exist.
-    condition     = length(var.cluster_name) <= 28
-    error_message = "cluster_name must be 28 characters or fewer, because the EKS cluster's IAM role is named with the prefix '<cluster_name>-cluster-' and AWS caps an IAM role name prefix at 38 characters."
+    condition     = length(var.cluster_name) <= 29
+    error_message = "cluster_name must be 29 characters or fewer, because the EKS cluster's IAM role is named with the prefix '<cluster_name>-cluster-' and AWS caps an IAM role name prefix at 38 characters."
   }
 
   validation {
@@ -58,7 +58,7 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_type" {
-  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture."
+  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture. Graviton5 types such as m9gd and r9g are not offered in every region, and the plan fails reading the type where it is missing: pick an x86 or an earlier Graviton type there."
   type        = string
   default     = "r9g.2xlarge"
 }
@@ -176,12 +176,6 @@ variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
   default     = "195.0.0"
-}
-
-variable "helm_namespace" {
-  description = "Kubernetes namespace for Nexus IQ Server deployment"
-  type        = string
-  default     = "nexus-iq"
 }
 
 variable "enable_fluentd" {
@@ -302,7 +296,7 @@ variable "opensearch_instance_type" {
   description = <<-EOT
     Data node instance type for the created domain.
 
-    The default is the smallest type worth running rather than a published size.
+    The default is the published type for Size M.
     Smaller types have been measured failing in ways that read as something
     else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
     6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and

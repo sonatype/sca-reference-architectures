@@ -61,7 +61,6 @@ alb_deletion_protection = false  # Set to true for production
 # EFS CONFIGURATION
 # ================================
 efs_throughput_mode                  = "elastic"
-efs_provisioned_throughput_in_mibps = 100
 
  
 # ================================

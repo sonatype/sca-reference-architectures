@@ -137,7 +137,7 @@ variable "db_edition" {
 }
 
 variable "db_disk_type" {
-  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED."
+  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED. Set it at create: changing it replaces the primary and the replica."
   type        = string
   default     = "PD_SSD"
 
@@ -279,6 +279,11 @@ variable "iq_log_levels" {
   description = "Extra logger levels written under logging.loggers in config.yml, as logger name to level, for example { \"com.sonatype.insight.brain.search\" = \"DEBUG\" } for a support case. Every line lands in clm-server.log on Filestore."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.iq_log_levels : can(regex("^[A-Za-z0-9_.$-]+$", k)) && contains(["ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"], upper(v))])
+    error_message = "iq_log_levels takes logger names and levels such as DEBUG or WARN."
+  }
 }
 
 # Storage Variables
