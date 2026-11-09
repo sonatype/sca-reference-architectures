@@ -206,7 +206,7 @@ variable "app_gateway_zones" {
 
 
 variable "log_share_quota_gb" {
-  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running."
+  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running. With storage_account_tier = \"Premium\" the share is billed on this full size and cannot be below 100."
   type        = number
   default     = 128
 }

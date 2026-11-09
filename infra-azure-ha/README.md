@@ -358,7 +358,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Monitoring and Logging
 
 - **Log Analytics**: Application logs centralized in Log Analytics workspace
-- **Log files**: `clm-server.log`, `request.log` and `audit.log` are written to the `iq-logs-ha` Azure Files share, mounted at `/var/log/nexus-iq-server`, one directory per replica. `clm-server.log` rolls hourly and keeps 24 archives. `log_share_quota_gb` sets the share's size, 128 GB by default
+- **Log files**: `clm-server.log`, `request.log` and `audit.log` are written to the `iq-logs-ha` Azure Files share, mounted at `/var/log/nexus-iq-server`, one directory per replica, and a replica that starts deletes any other replica's directory unchanged for 7 days. `clm-server.log` rolls hourly and keeps 24 archives. `log_share_quota_gb` sets the share's size, 128 GB by default
 - **Container App Logs**: Application and system logs with structured logging from all replicas
 - **Application Gateway Logs**: Access logs and diagnostic information
 - **Application Insights**: Optional APM monitoring for performance metrics

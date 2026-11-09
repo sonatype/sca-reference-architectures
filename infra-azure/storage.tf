@@ -44,6 +44,13 @@ resource "azurerm_storage_share" "iq_logs" {
   storage_account_name = azurerm_storage_account.iq_storage.name
   quota                = var.log_share_quota_gb
   enabled_protocol     = "SMB"
+
+  lifecycle {
+    precondition {
+      condition     = var.storage_account_tier != "Premium" || var.log_share_quota_gb >= 100
+      error_message = "log_share_quota_gb must be at least 100 on a Premium storage account, which provisions and bills a file share on its full size."
+    }
+  }
 }
 
 

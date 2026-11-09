@@ -84,9 +84,11 @@ resource "aws_ecs_task_definition" "iq_task" {
           # rolls its logs under its own host name rather than sharing one file.
           mkdir -p "/var/log/nexus-iq-server/$HOSTNAME"
           # A task that has gone leaves its directory behind, so delete any other
-          # task's directory unchanged for 7 days. A live one changes at least
-          # hourly, when its log rolls. aggregated is the Fluent Bit sidecar's.
+          # task's directory unchanged for 7 days. Each live task touches its own
+          # directory every hour, so an idle one is not taken for gone. aggregated
+          # is the Fluent Bit sidecar's.
           find /var/log/nexus-iq-server -mindepth 1 -maxdepth 1 -type d ! -name "$HOSTNAME" ! -name aggregated -mtime +7 -exec rm -rf {} + || true
+          ( while true; do touch "/var/log/nexus-iq-server/$HOSTNAME"; sleep 3600; done ) &
 
 
           mkdir -p /etc/nexus-iq-server
@@ -276,7 +278,14 @@ CONFIGEOF
         mkdir -p /fluent-bit/etc /fluent-bit/parsers /fluent-bit/state /var/log/nexus-iq-server/aggregated
 
 
-        echo "$FLUENT_BIT_CONFIG" > /fluent-bit/etc/fluent-bit.conf
+        # Every task mounts the same log directory, so the sidecar tails only its
+        # own task's, named by the host name the task's containers share.
+        TASK_HOST=$(cat /proc/sys/kernel/hostname)
+        echo "$FLUENT_BIT_CONFIG" | sed "s|/TASK_HOST/|/$TASK_HOST/|g" > /fluent-bit/etc/fluent-bit.conf
+        if grep -q '/TASK_HOST/' /fluent-bit/etc/fluent-bit.conf; then
+          echo "REFUSING: the task host name was not substituted into the tail paths"
+          exit 1
+        fi
         echo "$FLUENT_BIT_PARSERS" > /fluent-bit/parsers/parsers.conf
 
         echo "Configuration loaded successfully"

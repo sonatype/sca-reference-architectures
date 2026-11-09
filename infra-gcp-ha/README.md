@@ -245,6 +245,12 @@ Enable these APIs in your project:
 > deployment keeps the size it is running at and an apply will not resize it. Change the
 > size with `gcloud compute instance-groups managed resize`, or by removing that
 > lifecycle block.
+>
+> The server log rolls hourly, and logback deletes only names the hourly pattern
+> produces, so the daily archives an earlier version wrote stay in each instance's
+> log directory on Filestore. Delete them once, from any instance:
+> `sudo rm /mnt/filestore/clm-server-*/logs/clm-server-????-??-??.log.gz`. That name
+> never matches an hourly archive.
 
 ### Configuration Variables
 
