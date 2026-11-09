@@ -16,7 +16,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **ARM instances recommended.** Eps_v6 costs 27% less on demand than the x86 equivalent E_v5 (`Standard_E8ps_v6` against `Standard_E8_v5` in eastus, list prices in November 2026).
+> **ARM instances recommended.** Eps_v6 costs 30% less on demand than the x86 equivalent of the same generation, Esv6 (`Standard_E8ps_v6` against `Standard_E8s_v6` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 

@@ -480,6 +480,10 @@ Your IAM user/role needs these AWS service permissions:
 > | `aurora_engine_version` | 15.10 | 15.19 |
 > | `ecs_memory` | 32768 | 61440 |
 > | `java_opts` | 24 GB heap | 44 GB heap |
+> | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
+>
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
 
 ### Configuration Variables
 

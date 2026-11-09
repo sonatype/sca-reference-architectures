@@ -58,7 +58,7 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_type" {
-  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture."
+  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture. Graviton5 types such as m9gd and r9g are not offered in every region, and the plan fails reading the type where it is missing: pick an x86 or an earlier Graviton type there."
   type        = string
   default     = "r9g.2xlarge"
 }
