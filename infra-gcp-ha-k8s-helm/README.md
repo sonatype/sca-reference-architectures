@@ -17,9 +17,9 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 > All sizes validated through performance testing on GCP ARM instances. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
 <!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
-     re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
-     continuous monitoring running was added so a reader does not take them as general evaluation
-     throughput. -->
+     re-measurement. Leave the numbers alone until it lands, and keep the qualifier that they are
+     measured with continuous monitoring running, so a reader does not take them as general
+     evaluation throughput. -->
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -692,6 +692,10 @@ node does not change its configuration. This is how the GCP M measurement ran. C
 - **A forwarding rule on a reserved private IP address** in this VPC, for TCP port 9200.
 - **A firewall rule allowing TCP 9200 from Google's health check ranges** `35.191.0.0/16` and
   `130.211.0.0/22` to the `nexus-iq-opensearch` tag. Without it the backends never turn healthy.
+- **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
+  address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
+  certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
+  names.
 
 Run inside this GKE cluster with the operator instead, and the endpoint is the operator's service name
 rather than a load balancer.

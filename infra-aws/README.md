@@ -65,7 +65,9 @@ db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 100                 # auto-scales to 500 GB
 
 # The M domain: three data nodes across three zones, which needs a third
-# private subnet. 10.0.30.0/24 is already db_subnet_cidrs[0].
+# private subnet, and a third public one so the load balancer reaches a task in
+# that zone. 10.0.30.0/24 is already db_subnet_cidrs[0].
+public_subnet_cidrs                = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
 private_subnet_cidrs               = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
 search_engine                      = "opensearch"
 opensearch_instance_type           = "m8g.large.search"

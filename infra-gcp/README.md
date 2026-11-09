@@ -583,6 +583,10 @@ node does not change its configuration. This is how the GCP M measurement ran. C
 - **A forwarding rule on a reserved private IP address** in this VPC, for TCP port 9200.
 - **A firewall rule allowing TCP 9200 from Google's health check ranges** `35.191.0.0/16` and
   `130.211.0.0/22` to the `nexus-iq-opensearch` tag. Without it the backends never turn healthy.
+- **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
+  address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
+  certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
+  names.
 
 At XS and S, with one data node, `opensearch_endpoint` can name that node directly.
 

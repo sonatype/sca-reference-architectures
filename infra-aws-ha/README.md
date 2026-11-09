@@ -19,9 +19,9 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 > **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
 
 <!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
-     re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
-     continuous monitoring running was added so a reader does not take them as general evaluation
-     throughput. -->
+     re-measurement. Leave the numbers alone until it lands, and keep the qualifier that they are
+     measured with continuous monitoring running, so a reader does not take them as general
+     evaluation throughput. -->
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -58,6 +58,13 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.xlarge.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 150
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
 ```
 </details>
 
@@ -74,6 +81,14 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.4xlarge"   # 16 vCPU, 128 GB
 aurora_instances      = 2                  # Multi-AZ with automatic failover
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "r8g.2xlarge.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 250
+opensearch_availability_zone_count = 3
+opensearch_dedicated_master_type   = "m8g.large.search"
+opensearch_index_replicas          = 1
 ```
 </details>
 

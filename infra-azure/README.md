@@ -554,6 +554,10 @@ node does not change its configuration. This is how the Azure M and L measuremen
 - **Outbound internet access for the OpenSearch VMs**, which they need to install and update packages.
   A VM in a Standard internal load balancer's backend pool has no default outbound access, so the
   measurements attached a NAT gateway to the OpenSearch subnet.
+- **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
+  address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
+  certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
+  names.
 
 Microsoft describes a Standard internal load balancer's backends and the NAT gateway they need for
 outbound access in [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).

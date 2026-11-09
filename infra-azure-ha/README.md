@@ -17,9 +17,9 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 > All sizes validated through performance testing. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
 <!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
-     re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
-     continuous monitoring running was added so a reader does not take them as general evaluation
-     throughput. -->
+     re-measurement. Leave the numbers alone until it lands, and keep the qualifier that they are
+     measured with continuous monitoring running, so a reader does not take them as general
+     evaluation throughput. -->
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -629,6 +629,10 @@ node does not change its configuration. This is how the Azure M and L measuremen
 - **Outbound internet access for the OpenSearch VMs**, which they need to install and update packages.
   A VM in a Standard internal load balancer's backend pool has no default outbound access, so the
   measurements attached a NAT gateway to the OpenSearch subnet.
+- **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
+  address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
+  certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
+  names.
 
 Microsoft describes a Standard internal load balancer's backends and the NAT gateway they need for
 outbound access in [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).

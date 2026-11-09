@@ -826,8 +826,9 @@ that count is not measured.
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
 
-Three dedicated cluster managers run at every size with more than one data node, one per zone, and
-none at XS and S, where the one data node is its own cluster manager:
+Three dedicated cluster managers run at every size with more than one data node, one per zone where
+the architecture builds three zones, and none at XS and S, where the one data node is its own cluster
+manager:
 
 | Size | AWS | Azure | GCP |
 |------|:---:|:-----:|:---:|
@@ -835,6 +836,9 @@ none at XS and S, where the one data node is its own cluster manager:
 | **M** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
 | **L** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
 | **XL** | 3 x `m8g.large.search` | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
+
+On `infra-aws-ha-k8s-helm`, which builds two zones, one zone holds two of the three managers, so
+losing that zone loses their quorum.
 
 The AWS masters are measured at every size, the Azure managers at M and L, and the GCP managers at M.
 The rest are chosen at or above the AWS equivalent. Each manager takes half its RAM as heap. The Azure
@@ -853,6 +857,9 @@ disk.
   OpenSearch VMs also need outbound access to install and update packages, which the measurements
   gave them through a NAT gateway on the OpenSearch subnet. See
   [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).
+- **Both**, with `opensearch_use_tls = true`: each data node's certificate names the load balancer's
+  address in its subject alternative names. The load balancer passes TLS through, so IQ Server checks
+  the node's certificate against `opensearch_endpoint`.
 
 The architectures do not create these, because the cluster is yours to build. On AWS the domain's own
 endpoint is the one address IQ Server uses. Each architecture's README lists what to create.
@@ -888,8 +895,8 @@ Continuous Monitoring is one of the most resource-intensive operations. The bott
 
 <!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures below, and the three per-provider
      "Expected throughput" rows that repeat them, are awaiting a re-measurement. Leave the numbers
-     alone until it lands. The qualifier that they are measured with continuous monitoring running
-     was added to those three rows so a reader of a provider table does not take them as general
+     alone until it lands, and keep the qualifier on those three rows that they are measured with
+     continuous monitoring running, so a reader of a provider table does not take them as general
      evaluation throughput. -->
 
 | Instance | CM Threads | 1,000 Apps CM Duration | Concurrent Eval Throughput |

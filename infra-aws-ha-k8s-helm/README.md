@@ -17,9 +17,9 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 > All sizes validated through performance testing, which ran on GCP ARM instances at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
 <!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
-     re-measurement. Leave the numbers alone until it lands. The qualifier that they are measured with
-     continuous monitoring running was added so a reader does not take them as general evaluation
-     throughput. -->
+     re-measurement. Leave the numbers alone until it lands, and keep the qualifier that they are
+     measured with continuous monitoring running, so a reader does not take them as general
+     evaluation throughput. -->
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -69,6 +69,13 @@ node_group_max_size     = 5
 nexus_iq_replica_count  = 3                # 3 IQ pods
 aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.xlarge.search"
+opensearch_instance_count          = 2
+opensearch_volume_size_gb          = 150
+opensearch_availability_zone_count = 2
+opensearch_index_replicas          = 1
 ```
 In `helm-values.yaml`:
 
@@ -96,6 +103,14 @@ node_group_max_size     = 6
 nexus_iq_replica_count  = 4                # 4 IQ pods
 aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "r8g.2xlarge.search"
+opensearch_instance_count          = 2
+opensearch_volume_size_gb          = 250
+opensearch_availability_zone_count = 2
+opensearch_dedicated_master_type   = "m8g.large.search"
+opensearch_index_replicas          = 1
 ```
 In `helm-values.yaml`:
 
