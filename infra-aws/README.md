@@ -76,8 +76,9 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 
 ## OpenSearch for the Nexus One Index
 
-Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
-domain instead of the index built into the server. Set `search_engine` to
+Sonatype IQ Server keeps its Nexus One index in an AWS-managed OpenSearch
+domain. With `search_engine = "lucene"` there is no Nexus One index, and
+Advanced Search uses the index built into the server. Set `search_engine` to
 `opensearch` and this configuration creates the domain:
 
 ```hcl
@@ -320,6 +321,7 @@ Install these tools on your local machine:
 | **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access |
 | **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
+| **jq** | >= 1.6 | [Install Guide](https://jqlang.org/download/) | Read the plan in `tf-apply.sh` |
 
 #### AWS Account Requirements
 - AWS account with administrative access (or sufficient permissions listed below)

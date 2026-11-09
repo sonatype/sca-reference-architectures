@@ -35,8 +35,8 @@ variable "cluster_name" {
     # an IAM role name prefix at 38 characters, so cluster_name can be at most 29.
     # Checked here so a too-long name fails the plan rather than the apply, after
     # the VPC and Aurora already exist.
-    condition     = length(var.cluster_name) <= 28
-    error_message = "cluster_name must be 28 characters or fewer, because the EKS cluster's IAM role is named with the prefix '<cluster_name>-cluster-' and AWS caps an IAM role name prefix at 38 characters."
+    condition     = length(var.cluster_name) <= 29
+    error_message = "cluster_name must be 29 characters or fewer, because the EKS cluster's IAM role is named with the prefix '<cluster_name>-cluster-' and AWS caps an IAM role name prefix at 38 characters."
   }
 
   validation {
@@ -178,12 +178,6 @@ variable "helm_chart_version" {
   default     = "195.0.0"
 }
 
-variable "helm_namespace" {
-  description = "Kubernetes namespace for Nexus IQ Server deployment"
-  type        = string
-  default     = "nexus-iq"
-}
-
 variable "enable_fluentd" {
   description = "Enable Fluentd for log aggregation"
   type        = bool
@@ -234,18 +228,17 @@ variable "log_retention_days" {
 # iq_server.config block in helm-values.yaml, and helm-install.sh fills in or
 # removes the `search:` block there according to this variable.
 #
-# "opensearch" needs an OpenSearch domain that already exists, named in
-# opensearch_domain_name and reached at opensearch_domain_endpoint. This
-# configuration creates the domain unless you name one. The domain holds the
-# index, so keeping it outside Terraform means switching engines, replacing the
-# node group or destroying this stack never deletes the indexed data, and the
-# domain can be resized, upgraded and backed up on its own schedule.
+# "opensearch" uses an AWS-managed OpenSearch domain. This configuration creates
+# it, in opensearch.tf, unless opensearch_domain_endpoint and
+# opensearch_domain_name name one that already exists. The created domain
+# carries prevent_destroy, because it holds the index: see the note at the top
+# of opensearch.tf.
 #
 # Sizing the domain is a separate exercise. See the OpenSearch section of this
 # directory's README.md for the shape each size needs.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" points IQ Server at an existing AWS-managed OpenSearch domain."
+  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
   type        = string
   default     = "lucene"
 
@@ -295,7 +288,7 @@ variable "opensearch_instance_type" {
   description = <<-EOT
     Data node instance type for the created domain.
 
-    The default is the smallest type worth running rather than a published size.
+    The default is the published type for Size M.
     Smaller types have been measured failing in ways that read as something
     else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
     6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and
