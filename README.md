@@ -837,12 +837,36 @@ Each architecture's README carries its own table with the variables that set the
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
 
-The data node count, node size, JVM heap, and storage for each size are awaiting a per-size
-measurement. What is settled today is only the shape of the requirement: XS and S run one data node, M
-and above run more than one, and that is what decides whether a replica can be placed at all.
+Three dedicated cluster managers run at every size with more than one data node, one per zone, and
+none at XS and S, where the one data node is its own cluster manager:
 
-Where you need a cluster size before that measurement is published, size it against the planning rules
-above and your own estate, and treat the result as your own figure rather than a Sonatype one.
+| Size | AWS | Azure | GCP |
+|------|:---:|:-----:|:---:|
+| **XS**, **S** | none | none | none |
+| **M** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
+| **L** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
+| **XL** | 3 x `m8g.large.search` | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
+
+The AWS masters are measured at every size, the Azure managers at M and L, and the GCP managers at M.
+The rest are chosen at or above the AWS equivalent. Each manager takes half its RAM as heap. The Azure
+managers have a 30 GiB P4 Premium SSD OS disk, and the GCP managers a 20 GB Hyperdisk Balanced boot
+disk.
+
+**On Azure and GCP, put an internal load balancer in front of the data nodes at M and above**, and set
+`opensearch_endpoint` to its address, which is how those measurements ran:
+
+- **GCP**: an internal passthrough Network Load Balancer, with a regional TCP health check on 9200, a
+  regional backend service over the data nodes, a forwarding rule on a private IP, and a firewall rule
+  allowing TCP 9200 from Google's health check ranges `35.191.0.0/16` and `130.211.0.0/22`. See
+  [Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
+- **Azure**: a Standard SKU internal load balancer, with a TCP health probe on 9200 and an NSG rule
+  allowing the `AzureLoadBalancer` service tag on 9200 ahead of the subnet's deny-all rule. The
+  OpenSearch VMs also need outbound access to install and update packages, which the measurements
+  gave them through a NAT gateway on the OpenSearch subnet. See
+  [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).
+
+The architectures do not create these, because the cluster is yours to build. On AWS the domain's own
+endpoint is the one address IQ Server uses. Each architecture's README lists what to create.
 
 #### Checking it worked
 
