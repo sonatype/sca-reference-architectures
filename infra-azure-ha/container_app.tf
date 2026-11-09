@@ -28,6 +28,8 @@ resource "azurerm_application_insights" "iq_insights_ha" {
 
 locals {
   workload_profile_name = "${var.workload_profile_type}-Profile-HA"
+  opensearch_enabled    = var.search_engine == "opensearch"
+  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
 }
 
 resource "azurerm_container_app_environment" "iq_env_ha" {
@@ -128,10 +130,14 @@ resource "azurerm_container_app" "iq_app_ha" {
         <<-EOF
           set -e
           echo "Starting Nexus IQ Server HA instance - Replica: $HOSTNAME"
-%{if var.search_engine == "opensearch" && var.opensearch_use_tls}
+          # HeapDumpPath in java_opts names a directory, and the JVM writes the
+          # dump as a file of that name when the directory is missing.
+          mkdir -p /sonatype-work/Java_Heap_logs
+%{if local.opensearch_enabled && var.opensearch_use_tls}
 
           if [ -n "$OPENSEARCH_CA_PEM" ]; then
-            TRUST_STORE=/sonatype-work/iq-truststore-$HOSTNAME.jks
+            # On the container's own disk, rebuilt every start, so nothing collects on the share.
+            TRUST_STORE=/tmp/iq-truststore.jks
             JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
             KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
             if [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ]; then
@@ -243,18 +249,10 @@ CONFIGEOF
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
-%{if var.search_engine == "opensearch"}
+%{if local.opensearch_enabled}
 
-          # The OpenSearch credentials never pass through the template or
-          # through a sed replacement, so no character in them can change the
-          # file's structure. They are read from the container app secrets and
-          # written as single-quoted YAML scalars, which are literal: a |, &, \
-          # or # in a password is only that character. The one character YAML
-          # gives meaning to inside single quotes is ' itself, which doubles.
-          # That doubling is the only substitution, both its pattern and its
-          # replacement are fixed, and the value reaches sed on standard input
-          # rather than as part of the script. Appending after the $HOSTNAME
-          # replacement also keeps that replacement away from the password.
+          # Written from the container app secrets as single-quoted YAML scalars with
+          # ' doubled, after the $HOSTNAME sed, so nothing can change the file.
           os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
           os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
 
@@ -262,13 +260,13 @@ CONFIGEOF
             printf 'search:\n'
             printf '  type: http\n'
             printf '  mode: OPENSEARCH\n'
-            printf '  uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf '  uri: %s\n' '${local.opensearch_uri}'
             printf "  username: '%s'\n" "$os_user"
             printf "  password: '%s'\n" "$os_pass"
             printf 'nexusOne:\n'
             printf '  connection:\n'
             printf '    type: http\n'
-            printf '    uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf '    uri: %s\n' '${local.opensearch_uri}'
             printf "    username: '%s'\n" "$os_user"
             printf "    password: '%s'\n" "$os_pass"
             printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
@@ -349,7 +347,7 @@ CONFIGEOF
       }
 
       dynamic "env" {
-        for_each = var.search_engine == "opensearch" ? [1] : []
+        for_each = local.opensearch_enabled ? [1] : []
         content {
           name        = "OPENSEARCH_USERNAME"
           secret_name = "opensearch-username"
@@ -357,7 +355,7 @@ CONFIGEOF
       }
 
       dynamic "env" {
-        for_each = var.search_engine == "opensearch" ? [1] : []
+        for_each = local.opensearch_enabled ? [1] : []
         content {
           name        = "OPENSEARCH_PASSWORD"
           secret_name = "opensearch-password"
@@ -395,7 +393,7 @@ CONFIGEOF
   }
 
   dynamic "secret" {
-    for_each = var.search_engine == "opensearch" ? [1] : []
+    for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-username"
       value = var.opensearch_username
@@ -403,7 +401,7 @@ CONFIGEOF
   }
 
   dynamic "secret" {
-    for_each = var.search_engine == "opensearch" ? [1] : []
+    for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-password"
       value = var.opensearch_password
@@ -428,6 +426,30 @@ CONFIGEOF
     app_id       = "nexus-iq-ha"
     app_port     = 8070
     app_protocol = "http"
+  }
+
+  lifecycle {
+    # Preconditions rather than validations on the variables, because a
+    # validation that reads another variable needs Terraform 1.9.
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.container_registry_server == "" || (length(var.container_registry_username) > 0 && length(var.container_registry_password) > 0)
+      error_message = "container_registry_username and container_registry_password must both be set when container_registry_server is set."
+    }
   }
 
   tags = merge(var.common_tags, {

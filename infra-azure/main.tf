@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -23,9 +23,9 @@ resource "azurerm_resource_group" "iq_rg" {
   name     = "rg-${var.cluster_name}"
   location = var.azure_region
 
-  tags = merge(var.common_tags, {
+  tags = merge({
     project = "nexus-iq-server"
-  })
+  }, var.common_tags)
 }
 
 
@@ -35,10 +35,10 @@ resource "azurerm_virtual_network" "iq_vnet" {
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
 
-  tags = merge(var.common_tags, {
+  tags = merge({
     Name    = "vnet-${var.cluster_name}"
     project = "nexus-iq-server"
-  })
+  }, var.common_tags)
 }
 
 

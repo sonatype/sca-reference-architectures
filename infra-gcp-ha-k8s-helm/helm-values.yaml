@@ -1,5 +1,5 @@
 # NOTE: This file contains placeholder values that need to be populated during deployment.
-# The helm-install.sh script will substitute these placeholders with actual values from Terraform outputs.
+# render-values.sh, which helm-install.sh and helm-upgrade.sh both call, substitutes these placeholders with actual values from Terraform outputs.
 # Empty values marked with "" will be filled automatically by the deployment script.
 
 iq_server:
@@ -15,10 +15,14 @@ iq_server:
       cpu: "8"
       memory: "56Gi"
 
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
-  # GKE taints every Arm node with kubernetes.io/arch=arm64:NoSchedule. The IQ
-  # Server image is published for amd64 and arm64, so the pods tolerate it.
+  # GKE taints every Arm node with kubernetes.io/arch=arm64:NoSchedule, and this
+  # root's only node pool is Arm. The IQ Server image is published for amd64 and
+  # arm64, so the pods tolerate it. Chart 201.0.0 is the first to read this key,
+  # and the same toleration is set on iq_server_jobs, aggregateLogFileRetention
+  # and fluentd.aggregator below, because every pod the chart starts lands on
+  # that pool.
   tolerations:
     - key: "kubernetes.io/arch"
       operator: "Equal"
@@ -101,7 +105,7 @@ iq_server:
     # Search backend. This block is the one Nexus IQ Server reads to decide whether to use the
     # built-in index or an OpenSearch cluster, and it is what turns the Nexus One index on.
     #
-    # helm-install.sh fills the four placeholders below when search_engine is "opensearch" in
+    # render-values.sh fills the four placeholders below when search_engine is "opensearch" in
     # terraform.tfvars, and deletes everything between the two markers otherwise, so the default
     # deployment has no search block at all. The markers are what make that deletion safe: do not
     # remove them, and do not add anything between them that is not part of the block.
@@ -185,6 +189,22 @@ iq_server:
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
           archivedFileCount: 24
 
+# The database migration Job the chart always renders.
+iq_server_jobs:
+  tolerations:
+    - key: "kubernetes.io/arch"
+      operator: "Equal"
+      value: "arm64"
+      effect: "NoSchedule"
+
+# The CronJob that deletes aggregated log files older than maxLastModifiedDays.
+aggregateLogFileRetention:
+  tolerations:
+    - key: "kubernetes.io/arch"
+      operator: "Equal"
+      value: "arm64"
+      effect: "NoSchedule"
+
 serviceAccount:
   create: true
   name: "nexus-iq-sa"
@@ -232,6 +252,11 @@ fluentd:
 
   aggregator:
     enabled: true
+    tolerations:
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "arm64"
+        effect: "NoSchedule"
     serviceAccount:
       create: true
       name: "fluentd-aggregator-sa"

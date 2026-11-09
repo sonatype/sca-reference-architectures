@@ -726,7 +726,7 @@ show_final_summary() {
     echo ""
     print_warning "⚠️  Service Networking Connection may require manual cleanup:"
     print_warning "   gcloud services vpc-peerings delete \\"
-    print_warning "     --network=$(terraform output -raw vpc_name 2>/dev/null || echo '<your vpc name>') \\"
+    print_warning "     --network=${VPC_NAME:-<your vpc name>} \\"
     print_warning "     --service=servicenetworking.googleapis.com \\"
     print_warning "     --project=$project_id"
     echo ""
@@ -812,6 +812,9 @@ main() {
         echo ""
     fi
     
+    # Read before the destroy empties the state, for the clean-up hint in the summary.
+    VPC_NAME=$(terraform output -raw vpc_name 2>/dev/null || echo "")
+
     # Perform the HA destruction
     perform_destroy
     

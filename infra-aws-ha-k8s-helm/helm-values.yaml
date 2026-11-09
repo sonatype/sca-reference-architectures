@@ -12,7 +12,7 @@ iq_server:
       cpu: "8"
       memory: "56Gi"
 
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   env:
     - name: NXIQ_DATABASE_MIGRATION
@@ -66,10 +66,12 @@ iq_server:
     # these two markers when it is "lucene", which is the default. Leave the
     # markers, the indentation and the placeholder names alone.
     #
-    # The key names here avoid hostname, port, name, username, password and
-    # region on purpose. Both scripts substitute those names over the whole file
-    # for the database and for CloudWatch, with no line anchor, so a search key
-    # called hostname would be handed the database endpoint instead.
+    # The values here are placeholders on purpose. Both scripts first substitute
+    # default values over the whole file for the database and for CloudWatch,
+    # such as hostname: "" and region: "us-east-1", with no line anchor. A key
+    # here holding one of those defaults would be handed the database or
+    # CloudWatch value, so these keys hold placeholders that are filled in after
+    # those substitutions run.
     # Advanced Search reads this block.
     search:
       type: aws

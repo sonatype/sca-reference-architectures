@@ -11,7 +11,7 @@ variable "environment" {
 }
 
 variable "cluster_name" {
-  description = "Name of the AKS cluster and the prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. The default reproduces the names this configuration has always used, so leaving it alone changes nothing. Lowercase letters, digits and hyphens only, starting with a letter, and at most 18 characters once the hyphens are removed: the storage account name is built as st<cluster_name without hyphens>iqha, which Azure caps at 24. That name carries no random suffix, and a storage account name is globally unique across Azure, so a value nobody else has used is needed rather than merely one this subscription has not."
+  description = "Name of the AKS cluster and the prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. Lowercase letters, digits and hyphens only, starting with a letter, and at most 18 characters once the hyphens are removed: the storage account name is built as st<cluster_name without hyphens>iqha, which Azure caps at 24. That name carries no random suffix, and a storage account name is globally unique across Azure, so a value nobody else has used is needed rather than merely one this subscription has not."
   type        = string
   default     = "nexus-iq-ha"
 
@@ -55,7 +55,7 @@ variable "db_subnet_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for AKS cluster"
   type        = string
-  default     = "1.33.3"
+  default     = "1.36"
 }
 
 variable "node_instance_type" {
@@ -225,30 +225,6 @@ variable "nexus_iq_replica_count" {
   default     = 3
 }
 
-variable "nexus_iq_memory_request" {
-  description = "Memory request for Nexus IQ Server pods"
-  type        = string
-  default     = "48Gi"
-}
-
-variable "nexus_iq_memory_limit" {
-  description = "Memory limit for Nexus IQ Server pods"
-  type        = string
-  default     = "56Gi"
-}
-
-variable "nexus_iq_cpu_request" {
-  description = "CPU request for Nexus IQ Server pods"
-  type        = string
-  default     = "6"
-}
-
-variable "nexus_iq_cpu_limit" {
-  description = "CPU limit for Nexus IQ Server pods"
-  type        = string
-  default     = "8"
-}
-
 
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
@@ -312,10 +288,9 @@ variable "ingress_tls_enabled" {
 # =============================================================================
 # search_engine selects which engine IQ Server's config.yml should use. On this
 # root IQ Server's configuration comes from helm-values.yaml rather than from
-# Terraform, so these values are read out of terraform.tfvars by
-# helm-install.sh and substituted into helm-values-runtime.yaml, which is the
-# same route the database password already takes. Terraform itself only
-# validates them and adds the outbound network rule.
+# Terraform, so helm-install.sh and helm-upgrade.sh read these values out of
+# terraform.tfvars through search-values.sh and append the search: block to
+# helm-values-runtime.yaml. Terraform itself only checks them.
 #
 # Azure has no first-party managed OpenSearch, so "opensearch" means a cluster
 # you run yourself on Azure Virtual Machines and reach over basic auth. This
@@ -323,9 +298,10 @@ variable "ingress_tls_enabled" {
 # switching engines never destroys a cluster or its indexed data. README.md has
 # the cluster specification and the build steps.
 #
-# These are read by helm-install.sh with grep, which sees only what is written
-# in terraform.tfvars and never a default, so set every one of them there when
-# search_engine is "opensearch".
+# load_search_vars in search-values.sh reads terraform.tfvars, so it sees only
+# what is written there. It applies the same defaults these variables declare
+# to the port, TLS and replica settings, and the endpoint, user name and
+# password have to be written there when search_engine is "opensearch".
 
 variable "search_engine" {
   description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."
@@ -342,11 +318,6 @@ variable "opensearch_endpoint" {
   description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
-    error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_port" {
@@ -370,11 +341,6 @@ variable "opensearch_username" {
   description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
-    error_message = "opensearch_username must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_password" {
@@ -382,11 +348,6 @@ variable "opensearch_password" {
   type        = string
   default     = ""
   sensitive   = true
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
-    error_message = "opensearch_password must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_index_replicas" {

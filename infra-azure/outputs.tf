@@ -147,10 +147,10 @@ output "search_engine" {
 
 output "opensearch_uri" {
   description = "The OpenSearch URI written into IQ Server's config.yml. Null when search_engine is 'lucene'."
-  value       = var.search_engine == "opensearch" ? "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}" : null
+  value       = local.opensearch_enabled ? local.opensearch_uri : null
 }
 
 output "opensearch_index_replicas" {
-  description = "Replicas per Nexus One index shard written as search.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
-  value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
+  description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
+  value       = local.opensearch_enabled ? var.opensearch_index_replicas : null
 }

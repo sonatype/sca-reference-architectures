@@ -66,19 +66,13 @@ load_search_vars() {
     OPENSEARCH_USE_TLS=$(tfvar opensearch_use_tls)
     OPENSEARCH_USE_TLS=${OPENSEARCH_USE_TLS:-true}
     OPENSEARCH_INDEX_REPLICAS=$(tfvar opensearch_index_replicas)
-    OPENSEARCH_INDEX_REPLICAS=${OPENSEARCH_INDEX_REPLICAS:-0}
+    OPENSEARCH_INDEX_REPLICAS=${OPENSEARCH_INDEX_REPLICAS:-1}
 }
 
 # Appends the search: block to the values file named in $1, under
 # iq_server.config. Returns 0 and writes nothing when the engine is Lucene.
-#
-# The password never passes through a sed pattern, an awk -v assignment or a
-# template, so no character in it can change the file's structure. It is
-# written as a single-quoted YAML scalar, which is literal: a |, &, \ or # is
-# only that character. The one character YAML gives meaning to inside single
-# quotes is ' itself, which doubles, and that doubling is the only
-# substitution, with a fixed pattern, a fixed replacement, and the value
-# arriving on standard input rather than as part of the command.
+# The credentials are written as single-quoted YAML scalars with ' doubled, so
+# no character in them can change the file.
 write_search_block() {
     local values_file="$1"
     local anchor='    clusterDirectory: "/sonatype-work/clm-cluster"'

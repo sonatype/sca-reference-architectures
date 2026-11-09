@@ -12,6 +12,10 @@
 
 set -e
 
+# Every file written below holds the database and OpenSearch passwords, so each is created
+# owner-only rather than taking the default umask until a later chmod.
+umask 077
+
 RED='\033[0;31m'
 NC='\033[0m'
 

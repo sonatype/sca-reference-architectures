@@ -30,7 +30,6 @@ fi
 mkdir -p /mnt/sonatype-work/sonatype-work
 mkdir -p /mnt/sonatype-work/logs
 
-# Written once. An unconditional append adds another copy of the same entry on every boot.
 if ! grep -qF "$FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work" /etc/fstab; then
   cat >> /etc/fstab << FSTAB_EOF
 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work nfs defaults,_netdev 0 0

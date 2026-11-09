@@ -16,6 +16,8 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
+> **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 6 GB of `110Gi`.
+
 > **ARM instances recommended.** Eps_v6 costs 47% less on demand than the x86 equivalent Esv7 (`Standard_E8ps_v6` against `Standard_E8s_v7` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
@@ -31,12 +33,21 @@ node_group_min_size  = 2
 node_group_max_size  = 3
 node_group_desired_size = 2
 nexus_iq_replica_count = 2                 # 2 IQ pods
-nexus_iq_memory_request = "48Gi"
-nexus_iq_memory_limit   = "56Gi"
-nexus_iq_cpu_request    = "6"
-nexus_iq_cpu_limit      = "8"
 db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
+```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "6"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -49,12 +60,21 @@ node_group_min_size  = 2
 node_group_max_size  = 5
 node_group_desired_size = 3
 nexus_iq_replica_count = 3                 # 3 IQ pods
-nexus_iq_memory_request = "48Gi"
-nexus_iq_memory_limit   = "56Gi"
-nexus_iq_cpu_request    = "6"
-nexus_iq_cpu_limit      = "8"
 db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
+```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "6"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -71,6 +91,19 @@ db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier = "Premium"           # Required for NFS with AKS
 storage_account_replication_type = "ZRS"
+```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "12"
+      memory: "96Gi"
+    limits:
+      cpu: "16"
+      memory: "110Gi"
+  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -103,7 +136,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **Azure CLI** | >= 2.0 | [Install Guide](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) | Azure API access |
 | **kubectl** | Latest | [Install Guide](https://kubernetes.io/docs/tasks/tools/) | Kubernetes cluster management |
 | **Helm** | >= 3.9.3 | [Install Guide](https://helm.sh/docs/intro/install/) | Application deployment |
@@ -237,7 +270,7 @@ Your Azure account needs permissions for these services:
 > | Setting | Previous default | New default |
 > |---|:---:|:---:|
 > | `node_instance_type` | `Standard_D8s_v3` | `Standard_E8ps_v6` |
-> | `kubernetes_version` | `1.27` | `1.33.3` |
+> | `kubernetes_version` | `1.27` | `1.36` |
 > | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v6` |
 > | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, grows automatically |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
@@ -260,7 +293,7 @@ aks_subnet_cidr    = "10.1.10.0/23"  # /23 provides more IPs for AKS
 db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
-kubernetes_version      = "1.33.3"
+kubernetes_version      = "1.36"
 node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
 node_group_max_size     = 6
@@ -296,10 +329,9 @@ nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
-nexus_iq_memory_request  = "48Gi"
-nexus_iq_memory_limit    = "56Gi"
-nexus_iq_cpu_request     = "6"
-nexus_iq_cpu_limit       = "8"
+
+# Pod CPU, memory and heap are Helm chart settings, not Terraform inputs.
+# Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
@@ -615,16 +647,19 @@ policy and vulnerability data while fixing OpenSearch.
 The steps, run against a copy of the container image or in a build that produces one:
 
 ```bash
-# 1. Copy the JVM's trust store out of the image.
-cp "$JAVA_HOME/lib/security/cacerts" /sonatype-work/iq-truststore.jks
+# The image sets no JAVA_HOME and puts no java or keytool on the PATH, so these
+# use the JVM bundled under /opt/sonatype/nexus-iq-server.
+
+# 1. Copy the JVM's trust store, outside the paths a volume is mounted over.
+cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /opt/sonatype/iq-truststore.jks
 
 # 2. Add your certificate authority to the copy. The default password is "changeit".
-keytool -importcert -noprompt \
-  -keystore /sonatype-work/iq-truststore.jks -storepass changeit \
+/opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
+  -keystore /opt/sonatype/iq-truststore.jks -storepass changeit \
   -alias opensearch-ca -file /path/to/ca.crt
 
 # 3. Confirm it is there, and that the public authorities still are.
-keytool -list -keystore /sonatype-work/iq-truststore.jks -storepass changeit | grep -c 'trustedCertEntry'
+/opt/sonatype/nexus-iq-server/bin/keytool -list -keystore /opt/sonatype/iq-truststore.jks -storepass changeit | grep -c 'trustedCertEntry'
 ```
 
 Then name the copy in `iq_server.javaOpts` in `helm-values.yaml`, which the chart passes to the pod.
@@ -632,11 +667,11 @@ This root declares no `java_opts` variable, so the value is edited in that file:
 
 ```yaml
 iq_server:
-  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/sonatype-work/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
 ```
 
-`/sonatype-work` is the Azure Files share every pod mounts, so one copy of the store serves all of
-them and survives a pod being replaced.
+The store is part of the image, so every pod started from it has it. The chart mounts the Azure
+Files share only at `/sonatype-work/clm-cluster`, so the share does not carry the store.
 
 **A certificate from a public authority needs none of this**, because the JVM already trusts it. That
 is the cheapest answer if your cluster can carry one.

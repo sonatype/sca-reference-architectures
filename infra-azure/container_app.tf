@@ -1,4 +1,10 @@
 
+locals {
+  opensearch_enabled    = var.search_engine == "opensearch"
+  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
+  workload_profile_name = "${var.workload_profile_type}-Profile"
+}
+
 resource "azurerm_log_analytics_workspace" "iq_logs" {
   name                = "log-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
@@ -35,7 +41,7 @@ resource "azurerm_container_app_environment" "iq_env" {
 
 
   workload_profile {
-    name                  = "${var.workload_profile_type}-Profile"
+    name                  = local.workload_profile_name
     workload_profile_type = var.workload_profile_type
     minimum_count         = 1
     maximum_count         = 1
@@ -52,7 +58,7 @@ resource "azurerm_container_app" "iq_app" {
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "${var.workload_profile_type}-Profile"
+  workload_profile_name        = local.workload_profile_name
 
   identity {
     type = "SystemAssigned"
@@ -94,6 +100,9 @@ resource "azurerm_container_app" "iq_app" {
         "-c",
         <<-EOF
           set -e
+          # HeapDumpPath in java_opts names a directory, and the JVM writes the
+          # dump as a file of that name when the directory is missing.
+          mkdir -p /sonatype-work/Java_Heap_logs
           echo "Creating config.yml in proper /etc/nexus-iq-server location"
 
 
@@ -173,17 +182,10 @@ CONFIGEOF
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
-%{if var.search_engine == "opensearch"}
+%{if local.opensearch_enabled}
 
-          # The OpenSearch credentials never pass through the template or
-          # through a sed replacement, so no character in them can change the
-          # file's structure. They are read from the container app secrets and
-          # written as single-quoted YAML scalars, which are literal: a |, &, \
-          # or # in a password is only that character. The one character YAML
-          # gives meaning to inside single quotes is ' itself, which doubles.
-          # That doubling is the only substitution, both its pattern and its
-          # replacement are fixed, and the value reaches sed on standard input
-          # rather than as part of the script.
+          # Written from the container app secrets as single-quoted YAML scalars with
+          # ' doubled, so no character in the credentials can change the file.
           os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
           os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
 
@@ -191,13 +193,13 @@ CONFIGEOF
             printf 'search:\n'
             printf '  type: http\n'
             printf '  mode: OPENSEARCH\n'
-            printf '  uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf '  uri: %s\n' '${local.opensearch_uri}'
             printf "  username: '%s'\n" "$os_user"
             printf "  password: '%s'\n" "$os_pass"
             printf 'nexusOne:\n'
             printf '  connection:\n'
             printf '    type: http\n'
-            printf '    uri: %s\n' '${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}'
+            printf '    uri: %s\n' '${local.opensearch_uri}'
             printf "    username: '%s'\n" "$os_user"
             printf "    password: '%s'\n" "$os_pass"
             printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
@@ -256,7 +258,7 @@ CONFIGEOF
       }
 
       dynamic "env" {
-        for_each = var.search_engine == "opensearch" ? [1] : []
+        for_each = local.opensearch_enabled ? [1] : []
         content {
           name        = "OPENSEARCH_USERNAME"
           secret_name = "opensearch-username"
@@ -264,7 +266,7 @@ CONFIGEOF
       }
 
       dynamic "env" {
-        for_each = var.search_engine == "opensearch" ? [1] : []
+        for_each = local.opensearch_enabled ? [1] : []
         content {
           name        = "OPENSEARCH_PASSWORD"
           secret_name = "opensearch-password"
@@ -300,7 +302,7 @@ CONFIGEOF
   }
 
   dynamic "secret" {
-    for_each = var.search_engine == "opensearch" ? [1] : []
+    for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-username"
       value = var.opensearch_username
@@ -308,7 +310,7 @@ CONFIGEOF
   }
 
   dynamic "secret" {
-    for_each = var.search_engine == "opensearch" ? [1] : []
+    for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-password"
       value = var.opensearch_password
@@ -332,6 +334,23 @@ CONFIGEOF
     replace_triggered_by = [
       azurerm_container_app_environment_storage.iq_storage
     ]
+
+    # Preconditions rather than validations on the variables, because a
+    # validation that reads another variable needs Terraform 1.9.
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+    }
   }
 
   tags = merge(var.common_tags, {

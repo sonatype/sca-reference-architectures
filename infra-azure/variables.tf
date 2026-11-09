@@ -7,13 +7,13 @@ variable "azure_region" {
 
 
 variable "cluster_name" {
-  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. The default reproduces the names this configuration has always used, so leaving it alone changes nothing. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, public IP and its DNS label, Application Gateway, Key Vault, storage account, PostgreSQL Flexible Server and the private DNS zone link all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the Key Vault name is built as kv-<cluster_name>-<6 random characters> and Azure caps a Key Vault name at 24."
+  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, public IP and its DNS label, Application Gateway, Key Vault, storage account, PostgreSQL Flexible Server and the private DNS zone link all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the Key Vault name is built as kv-<cluster_name>-<6 random characters> and Azure caps a Key Vault name at 24."
   type        = string
   default     = "ref-arch-iq"
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.cluster_name))
-    error_message = "cluster_name must be lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit. The storage account name strips the hyphens and Azure allows only lowercase alphanumerics there."
+    condition     = can(regex("^[a-z][a-z0-9]*(-[a-z0-9]+)*$", var.cluster_name))
+    error_message = "cluster_name must be lowercase letters, digits and single hyphens, starting with a letter and ending with a letter or digit. The storage account name strips the hyphens and Azure allows only lowercase alphanumerics there, and the Key Vault name kv-<cluster_name>-<suffix> may not hold two hyphens in a row."
   }
 
   validation {
@@ -244,11 +244,6 @@ variable "opensearch_endpoint" {
   description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
-    error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_port" {
@@ -272,11 +267,6 @@ variable "opensearch_username" {
   description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
-    error_message = "opensearch_username must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_password" {
@@ -284,11 +274,6 @@ variable "opensearch_password" {
   type        = string
   default     = ""
   sensitive   = true
-
-  validation {
-    condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
-    error_message = "opensearch_password must be set when search_engine is 'opensearch'."
-  }
 }
 
 variable "opensearch_index_replicas" {
@@ -304,7 +289,7 @@ variable "opensearch_index_replicas" {
 
 
 variable "common_tags" {
-  description = "Tags merged into every resource this root creates, on top of the Name and project tags it sets itself. A key you supply with one of those names replaces it, which is why project is lowercase: Azure treats tag names as case-insensitive, so a map holding both Project and project would send one name twice. Put the values in terraform.tfvars, which is gitignored, rather than in terraform.tfvars.example."
+  description = "Tags merged into every resource this root creates, alongside the Name and project tags it sets itself. A project key you supply replaces this root's, and Name always stays this root's. project is lowercase because Azure treats tag names as case-insensitive, so a map holding both Project and project would send one name twice. Put the values in terraform.tfvars, which is gitignored, rather than in terraform.tfvars.example."
   type        = map(string)
   default     = {}
 }

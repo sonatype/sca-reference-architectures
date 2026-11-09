@@ -149,7 +149,7 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
     archivedFileCount: 24
 
-%{if var.search_engine == "opensearch"}
+%{if var.search_engine == "opensearch"~}
 # Advanced Search reads this block.
 search:
   type: aws
@@ -171,8 +171,8 @@ nexusOne:
     domain: https://${local.opensearch_endpoint}
     region: ${var.aws_region}
     nexusOneIndexReplicas: ${var.opensearch_index_replicas}
-%{endif}
 
+%{endif~}
 createSampleData: true
 CONFIGEOF
 

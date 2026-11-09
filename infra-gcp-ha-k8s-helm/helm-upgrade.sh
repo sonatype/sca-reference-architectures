@@ -23,7 +23,7 @@ REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
 
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
-CHART_VERSION=${CHART_VERSION:-195.0.0}
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo "Updating Helm repository..."
 helm repo update
