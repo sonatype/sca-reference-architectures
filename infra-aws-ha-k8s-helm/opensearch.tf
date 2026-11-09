@@ -34,9 +34,11 @@ resource "aws_iam_role" "iq_server_irsa" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           # Named down to the one service account the chart runs IQ Server under,
-          # rather than every service account in the namespace.
+          # rather than every service account in the namespace. The namespace is
+          # nexus-iq because helm-install.sh, helm-upgrade.sh and the namespace
+          # manifest all install there.
           StringEquals = {
-            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:${var.helm_namespace}:nexus-iq-sa"
+            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:nexus-iq:nexus-iq-sa"
             "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
           }
         }
@@ -44,11 +46,11 @@ resource "aws_iam_role" "iq_server_irsa" {
     ]
   })
 
-  tags = merge({
+  tags = merge(var.common_tags, {
     Name        = "${var.cluster_name}-iq-server-irsa-role"
     Environment = var.environment
     Project     = "nexus-iq-server-ha"
-  }, var.common_tags)
+  })
 }
 
 resource "aws_iam_policy" "iq_server_opensearch" {
@@ -80,11 +82,20 @@ resource "aws_iam_policy" "iq_server_opensearch" {
     ]
   })
 
-  tags = merge({
+  tags = merge(var.common_tags, {
     Name        = "${var.cluster_name}-iq-server-opensearch-policy"
     Environment = var.environment
     Project     = "nexus-iq-server-ha"
-  }, var.common_tags)
+  })
+
+  # A precondition rather than a validation on the variable, because a
+  # validation that reads another variable needs Terraform 1.9.
+  lifecycle {
+    precondition {
+      condition     = length(var.opensearch_domain_endpoint) == 0 || length(var.opensearch_domain_name) > 0
+      error_message = "opensearch_domain_name must be set when opensearch_domain_endpoint names an existing domain."
+    }
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "iq_server_opensearch" {
@@ -181,8 +192,8 @@ locals {
 
 # In the private subnets with the node group, so the domain is not reachable
 # from the internet and needs no IP allow list. A pod's traffic leaves through
-# its node, so the node security group is the source and nothing else in the VPC
-# reaches the domain.
+# its node, so the node security group the EKS module attaches to the managed
+# node group is the source, and nothing else in the VPC reaches the domain.
 resource "aws_security_group" "opensearch" {
   count = local.opensearch_create ? 1 : 0
 
@@ -190,25 +201,21 @@ resource "aws_security_group" "opensearch" {
   description = "HTTPS from the EKS nodes to the OpenSearch domain"
   vpc_id      = aws_vpc.iq_vpc.id
 
-  # Both node security groups, because a pod's traffic carries whichever one its
-  # node was launched with: the EKS module builds its own for the managed node
-  # group, and eks.tf declares a second one.
+  # The module's node security group only. eks.tf also declares an eks_nodes
+  # group, but nothing attaches it to the node group, so no pod traffic carries it.
   ingress {
-    description = "HTTPS from the EKS nodes"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    security_groups = [
-      aws_security_group.eks_nodes.id,
-      module.eks.node_security_group_id,
-    ]
+    description     = "HTTPS from the EKS nodes"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [module.eks.node_security_group_id]
   }
 
-  tags = merge({
+  tags = merge(var.common_tags, {
     Name        = "${var.cluster_name}-opensearch-sg"
     Environment = var.environment
     Project     = "nexus-iq-server-ha"
-  }, var.common_tags)
+  })
 }
 
 # Domain-side logs, which are the only account of a failure the cluster itself saw. Without these a
@@ -345,8 +352,14 @@ resource "aws_opensearch_domain" "nexus_one" {
       {
         Effect    = "Allow"
         Principal = { AWS = aws_iam_role.iq_server_irsa[0].arn }
-        Action    = "es:*"
-        Resource  = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_domain_name}/*"
+        Action = [
+          "es:ESHttpGet",
+          "es:ESHttpPost",
+          "es:ESHttpPut",
+          "es:ESHttpHead",
+          "es:ESHttpDelete"
+        ]
+        Resource = "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_domain_name}/*"
       }
     ]
   })
@@ -372,9 +385,9 @@ resource "aws_opensearch_domain" "nexus_one" {
     }
   }
 
-  tags = merge({
+  tags = merge(var.common_tags, {
     Name        = local.opensearch_domain_name
     Environment = var.environment
     Project     = "nexus-iq-server-ha"
-  }, var.common_tags)
+  })
 }

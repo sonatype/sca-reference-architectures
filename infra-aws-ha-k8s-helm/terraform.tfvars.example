@@ -8,7 +8,7 @@ vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
 kubernetes_version       = "1.30"
-node_instance_type      = "m9gd.2xlarge"
+node_instance_type      = "r9g.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
@@ -34,11 +34,8 @@ nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
 
-# Resource Limits (adjusted for node capacity)
-nexus_iq_memory_request = "48Gi"
-nexus_iq_memory_limit   = "56Gi"
-nexus_iq_cpu_request    = "6"
-nexus_iq_cpu_limit      = "8"
+# Pod CPU, memory and heap are Helm chart settings, not Terraform inputs.
+# Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
@@ -60,14 +57,16 @@ acm_certificate_arn  = ""
 # Search Backend (optional)
 # "lucene" (default) uses the index built into IQ Server and needs nothing else.
 # "opensearch" creates an AWS-managed domain here and points IQ Server at it.
-# The domain carries prevent_destroy, so a teardown is three steps:
+# The domain carries prevent_destroy, so a teardown takes these steps:
+#   DOMAIN=$(terraform output -raw opensearch_domain_name)
 #   terraform state rm aws_opensearch_domain.nexus_one
-#   aws opensearch delete-domain --domain-name <the domain>
+#   aws opensearch delete-domain --domain-name "$DOMAIN"
 #   # wait for the domain to finish deleting, which releases its interfaces
-#   terraform destroy
+#   ./tf-destroy.sh
 # The state rm gets past prevent_destroy; the delete releases the private
-# subnets, or destroying the VPC fails on DependencyViolation. See the
-# OpenSearch section of README.md before switching.
+# subnets, or destroying the VPC fails on DependencyViolation. Switching to
+# lucene or to another domain takes the same steps, ending in terraform apply.
+# See the OpenSearch section of README.md before switching.
 #
 # A VPC domain also needs the OpenSearch service-linked role in the account
 # before the first apply. One command, once per account:

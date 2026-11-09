@@ -30,13 +30,13 @@ variable "cluster_name" {
   default     = "nexus-iq-ha"
 
   validation {
-    # The longest name built from this that AWS length-limits is the load balancer,
-    # "<cluster_name>-alb", capped at 32 characters. The EKS cluster name itself is
-    # capped at 100, so the load balancer is the binding one. Checked here so a
-    # too-long name fails the plan rather than the apply, after the VPC and Aurora
-    # already exist.
+    # The tightest name built from this is the EKS cluster's IAM role, which the
+    # EKS module creates with the name prefix "<cluster_name>-cluster-". AWS caps
+    # an IAM role name prefix at 38 characters, so cluster_name can be at most 29.
+    # Checked here so a too-long name fails the plan rather than the apply, after
+    # the VPC and Aurora already exist.
     condition     = length(var.cluster_name) <= 28
-    error_message = "cluster_name must be 28 characters or fewer, to leave room for the 4-character '-alb' suffix under AWS's 32-character load balancer name limit."
+    error_message = "cluster_name must be 28 characters or fewer, because the EKS cluster's IAM role is named with the prefix '<cluster_name>-cluster-' and AWS caps an IAM role name prefix at 38 characters."
   }
 
   validation {
@@ -60,7 +60,7 @@ variable "kubernetes_version" {
 variable "node_instance_type" {
   description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture."
   type        = string
-  default     = "m9gd.2xlarge"
+  default     = "r9g.2xlarge"
 }
 
 variable "node_group_min_size" {
@@ -172,30 +172,6 @@ variable "nexus_iq_replica_count" {
   default     = 3
 }
 
-variable "nexus_iq_memory_request" {
-  description = "Memory request for Nexus IQ Server pods"
-  type        = string
-  default     = "48Gi"
-}
-
-variable "nexus_iq_memory_limit" {
-  description = "Memory limit for Nexus IQ Server pods"
-  type        = string
-  default     = "56Gi"
-}
-
-variable "nexus_iq_cpu_request" {
-  description = "CPU request for Nexus IQ Server pods"
-  type        = string
-  default     = "6"
-}
-
-variable "nexus_iq_cpu_limit" {
-  description = "CPU limit for Nexus IQ Server pods"
-  type        = string
-  default     = "8"
-}
-
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
@@ -302,11 +278,6 @@ variable "opensearch_domain_name" {
   EOT
   type        = string
   default     = ""
-
-  validation {
-    condition     = length(var.opensearch_domain_endpoint) == 0 || length(var.opensearch_domain_name) > 0
-    error_message = "opensearch_domain_name must be set when opensearch_domain_endpoint names an existing domain."
-  }
 }
 
 variable "opensearch_engine_version" {
