@@ -739,12 +739,8 @@ has. The order is: set the count, then rebuild the index.
 A replica is a full second copy of every shard. It is what makes losing a data node survivable, and it
 costs the disk and the indexing work of that second copy.
 
-IQ Server's own default replica count depends on the release. Releases that include CLM-55924
-create Nexus One indices with **1** replica, or **0** on a cluster with exactly one data node. They
-also use 1 when they cannot read the data node count. Earlier releases use **0**, so on those an
-architecture that omits `nexusOne.connection.nexusOneIndexReplicas` gets no replica. **Each architecture
-therefore sets the value itself**, rather than relying on the default, and writes it explicitly so
-a reader can see it was chosen:
+**Each architecture writes the replica count itself**, so a reader can see it was chosen. When IQ
+Server is not given one, it uses 1:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -761,13 +757,6 @@ takes writes, and returns correct reads, because yellow means every primary shar
 least one replica is not. Primaries serve every read and take every write. IQ Server reports no
 OpenSearch color as a failure, and the Index Manager's own `HEALTHY` / `WARNING` bands describe how far
 behind the index is rather than how the cluster placed its shards.
-
-**Releases that include CLM-55924 read `_cluster/health` once per new Nexus One index generation**,
-for the data node count, and only when `nexusOneIndexReplicas` is not set, to choose the replica
-count. Earlier releases do not read it. That read needs the `cluster:monitor/health` permission on
-IQ Server's OpenSearch user; without it IQ Server logs a warning and uses 1 replica. Every
-architecture here writes `nexusOneIndexReplicas`, so the read does not happen and the user needs no
-cluster permission for it.
 
 What a single-node tier does cost you is plain: **losing that node means rebuilding the index.** There
 is nothing to fail over to.
