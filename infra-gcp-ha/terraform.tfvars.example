@@ -110,7 +110,8 @@ search_engine = "lucene"
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 1
-# opensearch_ca_certificate = <<-EOT  # only for a private certificate authority
+# Only for a private certificate authority:
+# opensearch_ca_certificate = <<-EOT
 #   -----BEGIN CERTIFICATE-----
 #   ...the authority's PEM certificate...
 #   -----END CERTIFICATE-----

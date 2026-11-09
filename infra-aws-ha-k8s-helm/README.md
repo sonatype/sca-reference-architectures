@@ -127,8 +127,9 @@ All sizes use Amazon EFS with Elastic throughput mode. Enable lifecycle policies
 
 ## OpenSearch for the Nexus One Index
 
-Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
-domain instead of the index built into the server. Set `search_engine` to
+Sonatype IQ Server keeps its Nexus One index in an AWS-managed OpenSearch
+domain. With `search_engine = "lucene"` there is no Nexus One index, and
+Advanced Search uses the index built into the server. Set `search_engine` to
 `opensearch` and this configuration creates the domain:
 
 ```hcl
@@ -557,6 +558,15 @@ Your IAM user/role needs these AWS service permissions:
 > | `aurora_engine_version` | 15.8 | 15.19 |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
+> | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
+> | `node_instance_type` | m5d.2xlarge | r9g.2xlarge |
+>
+> The next apply replaces the EKS node group: the node AMI moves from
+> `AL2_x86_64` to AL2023, and both the AMI type and the instance type force a
+> new node group. A 32 GB node cannot hold the 48Gi pod request, and nothing here
+> adds nodes, so pods stay Pending on `helm-upgrade.sh` until the node type moves.
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
 
 ### Configuration Variables
 
@@ -604,7 +614,6 @@ nexus_iq_replica_count = 3
 
 # Helm Configuration
 helm_chart_version = "195.0.0"
-helm_namespace     = "nexus-iq"
 
 # Logging Configuration
 enable_fluentd        = true

@@ -335,8 +335,6 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "201.0.0"
-# Not read on this root: set iq_server.javaOpts in helm-values.yaml, which the chart puts on the pods.
-java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 # Search Backend
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
@@ -369,7 +367,6 @@ hpa:
 > | Setting | Previous default | New default |
 > |---|:---:|:---:|
 > | `node_instance_type` | `n2-standard-8` | `n4a-highmem-8` |
-> | `kubernetes_version` | `1.27` | `1.33` |
 > | `filestore_capacity_gb` | 1024 | 2560, and the share cannot shrink |
 > | `db_max_disk_size` | 500 | 1000 |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |

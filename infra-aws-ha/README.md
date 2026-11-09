@@ -90,8 +90,9 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 ## OpenSearch for the Nexus One Index
 
-Sonatype IQ Server can keep its Nexus One index in an AWS-managed OpenSearch
-domain instead of the index built into the server. Set `search_engine` to
+Sonatype IQ Server keeps its Nexus One index in an AWS-managed OpenSearch
+domain. With `search_engine = "lucene"` there is no Nexus One index, and
+Advanced Search uses the index built into the server. Set `search_engine` to
 `opensearch` and this configuration creates the domain:
 
 ```hcl
@@ -337,6 +338,7 @@ Install these tools on your local machine:
 | **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access |
 | **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
+| **jq** | >= 1.6 | [Install Guide](https://jqlang.org/download/) | Read the plan in `tf-apply.sh` |
 
 #### AWS Account Requirements
 - AWS account with administrative access (or sufficient permissions listed below)
@@ -480,12 +482,24 @@ Your IAM user/role needs these AWS service permissions:
 > | `aurora_engine_version` | 15.10 | 15.19 |
 > | `ecs_memory` | 32768 | 61440 |
 > | `java_opts` | 24 GB heap | 44 GB heap |
+> | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
 >
-> The server log rolls hourly, and logback deletes only names the hourly pattern
-> produces, so the daily archives an earlier version wrote stay at the top of
-> the log directory, where each task now writes under its own host name. Delete them once, from anything that mounts the logs EFS access
-> point: `rm /var/log/nexus-iq-server/clm-server-????-??-??.log.gz`. That name
-> never matches an hourly archive.
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
+>
+> The `Name` tags on the VPC, internet gateway, subnets, NAT gateways and their
+> addresses, and route tables follow `cluster_name`. A deployment that sets its
+> own `cluster_name` sees those tags renamed on the next apply. Only the tags change.
+>
+> Each task writes its logs under its own host name, so files an earlier version
+> wrote stay at the top of the log directory: `clm-server.log`, `request.log`,
+> `audit.log`, and their `clm-server-*`, `request-*` and `audit-*` archives. Delete
+> them once, from anything that mounts the logs EFS access point, keeping the
+> `audit-*` archives for as long as your retention needs:
+> `cd /var/log/nexus-iq-server && rm -f clm-server.log request.log audit.log clm-server-*.log.gz request-*.log.gz`.
+>
+> A task that has gone leaves its directory behind, and the next task to start
+> deletes any other task's directory unchanged for 7 days.
 
 ### Configuration Variables
 
@@ -537,7 +551,6 @@ alb_deletion_protection = false
 
 # EFS Configuration
 efs_throughput_mode                  = "elastic"
-efs_provisioned_throughput_in_mibps = 100
 
 # Monitoring Configuration
 enable_container_insights = true

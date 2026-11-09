@@ -104,13 +104,13 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
+  description = "PostgreSQL Flexible Server SKU. The Sizing Guide in README.md gives the SKU for XS, S and M; the default, 16 vCores, is larger than any of them."
   type        = string
   default     = "MO_Standard_E16ds_v6"
 }
 
 variable "db_storage_mb" {
-  description = "Database storage in MB"
+  description = "Database storage in MB when the server is created. Terraform ignores later changes, so raise a live server's storage with the Azure CLI or portal."
   type        = number
   default     = 524288
 }

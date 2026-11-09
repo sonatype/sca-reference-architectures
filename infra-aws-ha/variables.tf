@@ -15,7 +15,7 @@ variable "cluster_name" {
     Change it per deployment so several deployments can share one AWS account. Many
     of those names have to be unique across an account or a region, so two
     deployments that leave this at the default collide on the second apply. Running
-    one deployment per size, for example "ref-arch-xs-cluster" through
+    one deployment per size, for example "ref-arch-m-cluster" through
     "ref-arch-xl-cluster", is what this is for.
 
     The default reproduces the names this root has always used, so leaving it alone
@@ -311,9 +311,8 @@ variable "common_tags" {
 # therefore deliberate: see the note at the top of opensearch.tf.
 #
 # Sizing the domain: the shape each size needs is in the OpenSearch section of
-# this directory's README.md. The defaults below are the smallest supported
-# shape rather than any published size, so a value left unset is obviously too
-# small rather than quietly wrong for the estate it holds.
+# this directory's README.md. The defaults below are the Size M shape, so an L
+# or XL deployment that leaves them unset gets an M domain.
 
 variable "search_engine" {
   description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
@@ -341,7 +340,7 @@ variable "opensearch_instance_type" {
   description = <<-EOT
     Data node instance type for the created domain.
 
-    The default is the smallest type worth running rather than a published size.
+    The default is the published type for Size M.
     Smaller types have been measured failing in ways that read as something
     else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
     6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and

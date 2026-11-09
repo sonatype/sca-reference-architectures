@@ -34,9 +34,8 @@
 # deployment that builds its own network.
 #
 # SIZING. The shape each size needs is in the OpenSearch section of this
-# directory's README.md. The variables below default to the smallest supported
-# shape rather than to any published size, so a value left unset is obviously
-# too small rather than quietly wrong for the estate it is holding.
+# directory's README.md. The variables below default to the Size M shape, so an
+# L or XL deployment that leaves them unset gets an M domain.
 
 locals {
   # Whether to create the domain, as opposed to naming one the customer already
@@ -46,14 +45,14 @@ locals {
   opensearch_create = var.search_engine == "opensearch" && length(var.opensearch_domain_endpoint) == 0
 
   # AWS caps a domain name at 28 characters, and "-nexus-one" takes 10 of them,
-  # so cluster_name contributes at most 18. cluster_name is allowed to be longer
-  # than that because the names it has to fit elsewhere are longer, so the
-  # prefix is truncated here rather than the deployment being refused. Two
-  # deployments whose cluster_name shares its first 18 characters would ask for
-  # the same domain name, so keep that part distinct.
+  # so the network base name contributes at most 18. That base is cluster_name
+  # without a trailing "-cluster", and longer ones are truncated here rather
+  # than the deployment being refused. Two deployments whose base shares its
+  # first 18 characters would ask for the same domain name, so keep that part
+  # distinct.
   opensearch_domain_name = format(
     "%s-nexus-one",
-    replace(substr(var.cluster_name, 0, min(18, length(var.cluster_name))), "/-+$/", "")
+    replace(substr(local.network_name, 0, min(18, length(local.network_name))), "/-+$/", "")
   )
 
   # Dedicated master nodes are what keep a multi-node domain's cluster state off
