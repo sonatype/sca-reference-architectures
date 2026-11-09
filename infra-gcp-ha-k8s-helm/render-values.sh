@@ -112,9 +112,9 @@ else
 fi
 
 # A private certificate authority for the cluster reaches the pods as the Kubernetes Secret
-# nexus-iq-opensearch-ca, which the pods read through an environment variable. The chart version
-# this root pins mounts no extra volumes into the IQ Server pod. Without an authority, the blocks
-# between the opensearch-ca markers are deleted, so the pods run the image's own start command.
+# nexus-iq-opensearch-ca, which the pods read through an environment variable. Without an
+# authority, the blocks between the opensearch-ca markers are deleted, so the pods run the
+# image's own start command.
 if [[ "$SEARCH_ENGINE" == "opensearch" && -n "$OPENSEARCH_CA" ]]; then
     kubectl create secret generic nexus-iq-opensearch-ca \
         --from-literal=ca.pem="$OPENSEARCH_CA" \

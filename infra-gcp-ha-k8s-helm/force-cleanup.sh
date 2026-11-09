@@ -95,12 +95,9 @@ fi
 echo ""
 echo "Step 2: Checking for Filestore instances..."
 # Anchored on the whole instance name, which storage.tf builds as
-# "<cluster_name>-filestore-<8 lowercase alphanumerics>". An unanchored "$CLUSTER_NAME-filestore"
-# matches that name anywhere in the string, so cluster "iq" also matched another deployment's
-# "prod-iq-filestore-x" and the delete below passes --quiet. The Filestore API returns `name` as
-# the full resource path, so the match allows the "projects/.../instances/" part in front of it:
-# gcloud's own list table renders this column as name.basename() and takes LOCATION from
-# name.segment(3) (command_lib/filestore/instances/flags.py:30-40).
+# "<cluster_name>-filestore-<8 lowercase alphanumerics>", because the delete below passes
+# --quiet. The Filestore API returns `name` as the full resource path, so the match allows the
+# "projects/.../instances/" part in front of it.
 FILESTORE_NAME_PATTERN="(^|/)$CLUSTER_NAME-filestore-[a-z0-9]{8}$"
 FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$FILESTORE_NAME_PATTERN" || true)
 
