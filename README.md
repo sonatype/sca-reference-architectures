@@ -816,18 +816,17 @@ Two related things worth stating plainly:
 #### Per-size cluster specification
 
 **Measured:** every AWS size, Azure M and L, and GCP M. The other sizes are not measured on that
-cloud. Where a published value is larger than what was measured, it is the published size, chosen at
-or above the measurement: the Azure data node types, measured on `Standard_D2ps_v6` at M and
-`Standard_D4ps_v6` at L, and storage per node on every cloud. The measurements are on
+cloud. Storage per node is the published size on every cloud, chosen at or above the measured use.
+Every cloud's data node has the same vCPU and memory at each size. The measurements are on
 [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 Each architecture's README carries its own table with the variables that set them.
 
 | Size | Data nodes | AWS | Azure | GCP | Storage per node | Shards ¹ | Replicas |
 |------|:----------:|:---:|:-----:|:---:|:----------------:|:--------:|:--------:|
-| **XS** | 1 | `m8g.large.search` | `Standard_D4ps_v6` | `c4a-standard-2` | 25 GB | 1 | `0` |
-| **S** | 1 | `m8g.large.search` | `Standard_D4ps_v6` | `c4a-standard-2` | 50 GB | 1 | `0` |
-| **M** | 3 ² | `m8g.large.search` | `Standard_D8ps_v6` | `c4a-standard-2` | 100 GB | 3 | `1` |
-| **L** | 3 ² | `m8g.xlarge.search` | `Standard_D8ps_v6` | `c4a-standard-4` | 150 GB | 3 | `1` |
+| **XS** | 1 | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 25 GB | 1 | `0` |
+| **S** | 1 | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 50 GB | 1 | `0` |
+| **M** | 3 ² | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 100 GB | 3 | `1` |
+| **L** | 3 ² | `m8g.xlarge.search` | `Standard_D4ps_v6` | `c4a-standard-4` | 150 GB | 3 | `1` |
 | **XL** | 3 ² | `r8g.2xlarge.search` | `Standard_E8ps_v6` | `c4a-highmem-8` | 250 GB | 3 | `1` |
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index has 1.
