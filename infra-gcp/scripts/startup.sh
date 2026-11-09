@@ -130,7 +130,7 @@ logging:
     currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
     archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
-    archivedFileCount: 24
+    archivedFileCount: 1200
 
 createSampleData: true
 CONFIGEOF

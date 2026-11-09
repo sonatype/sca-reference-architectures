@@ -212,6 +212,12 @@ Enable these APIs in your project:
 > | `postgres_version` | POSTGRES_17 | POSTGRES_15 |
 > | `java_opts` | 48 GB heap, no direct memory cap | the Size M `java_opts` above |
 > | `gce_boot_image` | `debian-cloud/debian-12` | empty, which picks `debian-12-arm64` on an Arm machine type |
+>
+> The server log rolls hourly, and logback deletes only names the hourly pattern
+> produces, so the daily archives an earlier version wrote stay in the log
+> directory. Delete them once, on the VM:
+> `sudo rm /mnt/sonatype-work/logs/clm-server-????-??-??.log.gz`. That name
+> never matches an hourly archive.
 
 ### Configuration Variables
 

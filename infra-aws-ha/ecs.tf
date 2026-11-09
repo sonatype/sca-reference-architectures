@@ -80,6 +80,14 @@ resource "aws_ecs_task_definition" "iq_task" {
           mkdir -p "$UNIQUE_WORK"
           mkdir -p "/sonatype-work/clm-cluster"
 
+          # Every task mounts the same EFS log directory, so each one writes and
+          # rolls its logs under its own host name rather than sharing one file.
+          mkdir -p "/var/log/nexus-iq-server/$HOSTNAME"
+          # A task that has gone leaves its directory behind, so delete any other
+          # task's directory unchanged for 7 days. A live one changes at least
+          # hourly, when its log rolls. aggregated is the Fluent Bit sidecar's.
+          find /var/log/nexus-iq-server -mindepth 1 -maxdepth 1 -type d ! -name "$HOSTNAME" ! -name aggregated -mtime +7 -exec rm -rf {} + || true
+
 
           mkdir -p /etc/nexus-iq-server
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
@@ -106,8 +114,8 @@ server:
   requestLog:
     appenders:
     - type: file
-      currentLogFilename: "/var/log/nexus-iq-server/request.log"
-      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+      currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/request.log"
+      archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/request-%d.log.gz"
       archivedFileCount: 5
 
 logging:
@@ -135,8 +143,8 @@ logging:
     com.sonatype.insight.audit:
       appenders:
       - type: file
-        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/audit-%d.log.gz"
         archivedFileCount: 50
   appenders:
   - type: console
@@ -144,8 +152,8 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
   - type: file
     threshold: ALL
-    currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
+    currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/clm-server.log"
+    archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
     archivedFileCount: 24
 
@@ -178,6 +186,7 @@ CONFIGEOF
 
 
           sed -i "s|\$UNIQUE_WORK|$UNIQUE_WORK|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml

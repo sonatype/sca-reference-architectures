@@ -50,8 +50,8 @@ iq_server:
         - type: file
           threshold: ALL
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
-          currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server.log"
-          archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server-%d{yyyy-MM-dd-HH}.log.gz"
+          currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
+          archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
           archivedFileCount: 24
 
 

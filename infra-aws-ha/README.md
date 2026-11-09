@@ -482,6 +482,12 @@ Your IAM user/role needs these AWS service permissions:
 > | `aurora_engine_version` | 15.10 | 15.19 |
 > | `ecs_memory` | 32768 | 61440 |
 > | `java_opts` | 24 GB heap | 44 GB heap |
+>
+> The server log rolls hourly, and logback deletes only names the hourly pattern
+> produces, so the daily archives an earlier version wrote stay at the top of
+> the log directory, where each task now writes under its own host name. Delete them once, from anything that mounts the logs EFS access
+> point: `rm /var/log/nexus-iq-server/clm-server-????-??-??.log.gz`. That name
+> never matches an hourly archive.
 
 ### Configuration Variables
 
