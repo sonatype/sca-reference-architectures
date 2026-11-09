@@ -489,10 +489,8 @@ Four things about these blocks are deliberate:
 - **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
   connection from this block alone, and reads `nexusOneIndexReplicas` from it. With `search:` set
   and this block absent, enabling the `nexus-one` feature is refused.
-- **`nexusOneIndexReplicas` is stated rather than left out.** Nexus IQ Server's own default depends
-  on the release. Releases that include CLM-55924 use 1 replica, or 0 on a cluster with exactly one
-  data node. Earlier releases use 0. Stating it gives the same count on every release and keeps the
-  value visible next to the cluster it describes.
+- **`nexusOneIndexReplicas` is stated rather than left out.** When Nexus IQ Server is not given a
+  count, it uses 1. Stating it keeps the value visible next to the cluster it describes.
 
 ### How the password reaches the servers
 
