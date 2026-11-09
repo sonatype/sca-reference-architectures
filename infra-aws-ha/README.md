@@ -135,8 +135,9 @@ aws opensearch delete-domain --domain-name "$DOMAIN"
 
 Read the name first, because `state rm` removes it from state along with the
 domain. `./tf-destroy.sh` rather than a bare `terraform destroy`, because the
-script also empties the backup vault and deletes the database secret, which a
-plain destroy leaves behind.
+script also empties the EFS backup vault, which cannot be deleted while it holds
+a recovery point, and force-deletes the database secret, which a plain destroy
+leaves in its 7-day recovery window, blocking a re-apply under the same name.
 
 The `state rm` is what gets past `prevent_destroy`. The delete is what lets the
 rest of the teardown finish: the domain's network interfaces sit in this VPC's
