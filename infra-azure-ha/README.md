@@ -224,9 +224,14 @@ Your Azure account needs permissions for these services:
 > | `container_memory` | `8Gi` | `64Gi` |
 > | `java_opts` | 6 GB heap | 48 GB heap |
 > | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v6` |
-> | `db_storage_mb` | 65536, fixed | 131072, grows automatically |
+> | `db_storage_mb` | 65536, fixed | 131072 for a new server, then grows automatically. An existing server keeps its size |
 > | `file_share_quota_gb` | 200 | 512 |
 > | workload profile | `D4`, 1 to 3 nodes | `workload_profile_type`, default `E8`, `iq_min_replicas` to `iq_max_replicas` nodes |
+>
+> **Earlier versions did not read `cluster_name`**, though the example file set it. A deployment whose
+> `terraform.tfvars` sets it to anything other than `ref-arch-iq-ha` would have every resource renamed,
+> which replaces the resource group, the PostgreSQL server and the storage account, and the data in
+> them. Remove that line, or set it to `ref-arch-iq-ha`, before applying.
 
 ### Configuration Variables
 

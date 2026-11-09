@@ -124,9 +124,6 @@ resource "azurerm_container_app" "iq_app_ha" {
         <<-EOF
           set -e
           echo "Starting Nexus IQ Server HA instance - Replica: $HOSTNAME"
-          # HeapDumpPath in java_opts names a directory, and the JVM writes the
-          # dump as a file of that name when the directory is missing.
-          mkdir -p /sonatype-work/Java_Heap_logs
 %{if local.opensearch_enabled && var.opensearch_use_tls}
 
           if [ -n "$OPENSEARCH_CA_PEM" ]; then
@@ -156,6 +153,11 @@ resource "azurerm_container_app" "iq_app_ha" {
 
           echo "Creating unique work directory: $UNIQUE_WORK"
           mkdir -p "$UNIQUE_WORK"
+          # Every replica would otherwise dump into one directory on the share, and the
+          # JVM does not overwrite a dump of the same name. The JVM takes the last
+          # HeapDumpPath, so this one wins over the one in java_opts.
+          mkdir -p "$UNIQUE_WORK/Java_Heap_logs"
+          export JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=$UNIQUE_WORK/Java_Heap_logs"
 
           echo "Creating shared cluster directory: $CLUSTER_DIR"
           mkdir -p "$CLUSTER_DIR"
