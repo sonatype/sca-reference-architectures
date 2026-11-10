@@ -21,7 +21,7 @@ enable_nat_gateway     = true
 # ================================
 ecs_cpu                 = 8192   # 8 vCPU
 ecs_memory              = 61440  # 60 GB, the Size M and L value
-ecs_memory_reservation  = 24576  # 24 GB soft limit
+ecs_memory_reservation  = 53248  # 52 GB soft limit, the heap plus direct memory
  
 # ================================
 # IQ SERVER CONFIGURATION

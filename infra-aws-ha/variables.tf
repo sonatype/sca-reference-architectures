@@ -84,9 +84,9 @@ variable "ecs_memory" {
 }
 
 variable "ecs_memory_reservation" {
-  description = "Soft memory limit for ECS task in MiB"
+  description = "Soft memory limit for the IQ Server container in MiB. The default is the Size M and L heap plus direct memory, 44 GB and 8 GB."
   type        = number
-  default     = 24576
+  default     = 53248
 }
 
 variable "enable_container_insights" {

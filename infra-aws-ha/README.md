@@ -485,6 +485,7 @@ Your IAM user/role needs these AWS service permissions:
 > | `iq_max_count` | 5 | 4 |
 > | `aurora_engine_version` | 15.10 | 18.6 |
 > | `ecs_memory` | 32768 | 61440 |
+> | `ecs_memory_reservation` | 24576 | 53248 |
 > | `java_opts` | 24 GB heap | 44 GB heap |
 > | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
 >
@@ -515,7 +516,7 @@ enable_nat_gateway     = true
 # ECS Configuration
 ecs_cpu                 = 8192   # 8 vCPU
 ecs_memory              = 61440  # 60 GB, the Size M and L value
-ecs_memory_reservation  = 24576  # 24 GB soft limit
+ecs_memory_reservation  = 53248  # 52 GB soft limit, the heap plus direct memory
 
 # IQ Server Configuration
 iq_desired_count        = 3

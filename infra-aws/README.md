@@ -183,7 +183,7 @@ this architecture authenticates with the ECS task role and nothing else.
 
 | Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Shards ¹ | Replicas |
 |------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|:--------:|
-| **XS** | < 500 | 1 | `m8g.large.search` | 4 GiB | 25 GB | none | 1 | 1 | 0 |
+| **XS** | < 500 | 1 | `m8g.medium.search` | 2 GiB | 25 GB | none | 1 | 1 | 0 |
 | **S** | 500 - 2,000 | 1 | `m8g.large.search` | 4 GiB | 50 GB | none | 1 | 1 | 0 |
 | **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 100 GB | 3 x `m8g.medium.search` | 3 | 3 | 1 |
 

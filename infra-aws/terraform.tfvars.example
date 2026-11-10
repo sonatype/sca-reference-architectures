@@ -66,8 +66,8 @@ search_engine = "lucene"
 # replicas are the measured values; storage is the published size, at or
 # above the measured use.
 #
-# XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters. 25 GB
-# per node at XS, 50 GB at S:
+# XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters.
+# m8g.medium.search with 25 GB at XS, m8g.large.search with 50 GB at S:
 # opensearch_instance_type           = "m8g.large.search"
 # opensearch_instance_count          = 1
 # opensearch_volume_size_gb          = 50
