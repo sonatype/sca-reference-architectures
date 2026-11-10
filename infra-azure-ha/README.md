@@ -69,7 +69,7 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
-storage_account_tier             = "Premium"  # Required for NFS with AKS
+storage_account_tier             = "Premium"  # The quota is the provisioned and billed size
 storage_account_replication_type = "ZRS"
 ```
 </details>
@@ -84,11 +84,11 @@ storage_account_replication_type = "ZRS"
 
 ### Shared Storage (Azure Files)
 
-| Size | Tier | Protocol | Redundancy | Estimated Capacity |
+| Size | Tier | Protocol | Redundancy | Share quota (`file_share_quota_gb`) |
 |------|:-----|:--------:|:----------:|:------------------:|
-| **M** | Standard HDD | SMB 3.0 | ZRS | 100 GB initial |
-| **L** | Standard HDD | SMB 3.0 | ZRS | 500 GB – 1.5 TB |
-| **XL** | Premium SSD | SMB/NFS | ZRS | 1.5 TB – 4 TB |
+| **M** | Standard HDD | SMB 3.0 | ZRS | 500 GB |
+| **L** | Standard HDD | SMB 3.0 | ZRS | 1,536 GB |
+| **XL** | Premium SSD | SMB | ZRS | 4,096 GB, billed as provisioned |
 
 > Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
 
@@ -211,6 +211,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -264,7 +268,7 @@ scale_rule_concurrent_requests = 100  # Concurrent requests threshold for HTTP s
 db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version               = "15"
+postgres_version               = "18"
 db_sku_name                    = "MO_Standard_E16ds_v6"     # Memory Optimized: 16 vCores, 128GB RAM
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
@@ -277,7 +281,7 @@ app_gateway_capacity    = 2                # Number of instances
 app_gateway_zones       = ["1", "2", "3"] # Availability zones
 
 # Premium Storage Configuration (HA)
-storage_account_tier             = "Premium"  # Premium for better performance
+storage_account_tier             = "Standard"
 storage_account_replication_type = "ZRS"      # Zone-Redundant Storage
 file_share_quota_gb              = 512        # File share size in GB
 
@@ -366,7 +370,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
-- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data
+- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking

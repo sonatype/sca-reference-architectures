@@ -32,7 +32,7 @@ iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.t4g.medium"     # 2 vCPU, 4 GB (burstable)
-db_allocated_storage = 50
+db_allocated_storage = 64
 ```
 </details>
 
@@ -46,7 +46,7 @@ iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
-db_allocated_storage = 100
+db_allocated_storage = 128
 ```
 </details>
 
@@ -60,7 +60,7 @@ iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
-db_allocated_storage = 100                 # auto-scales to 500 GB
+db_allocated_storage = 128                 # auto-scales to 500 GB
 ```
 </details>
 
@@ -68,9 +68,9 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 
 | Size | DB Instance Class | vCPU | Memory | Storage |
 |------|:-----------------|:----:|:------:|:-------:|
-| **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 50 GB |
-| **S** | db.r8g.large | 2 | 16 GB | 100 GB |
-| **M** | db.r8g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+| **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 64 GB |
+| **S** | db.r8g.large | 2 | 16 GB | 128 GB |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | 128 GB (auto-scales to 500 GB) |
 
 ---
 
@@ -183,7 +183,7 @@ this architecture authenticates with the ECS task role and nothing else.
 
 | Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Shards ¹ | Replicas |
 |------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|:--------:|
-| **XS** | < 500 | 1 | `m8g.large.search` | 4 GiB | 25 GB | none | 1 | 1 | 0 |
+| **XS** | < 500 | 1 | `m8g.medium.search` | 2 GiB | 25 GB | none | 1 | 1 | 0 |
 | **S** | 500 - 2,000 | 1 | `m8g.large.search` | 4 GiB | 50 GB | none | 1 | 1 | 0 |
 | **M** | 2,000 - 10,000 | 3 | `m8g.large.search` | 4 GiB | 100 GB | 3 x `m8g.medium.search` | 3 | 3 | 1 |
 
@@ -449,6 +449,10 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -456,10 +460,12 @@ Your IAM user/role needs these AWS service permissions:
 >
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
-> | `postgres_version` | 15.10 | 15.19 |
+> | `postgres_version` | 15.10 | 18.6 |
 > | `ecs_memory` | 32768 | 61440 |
 > | `java_opts` | 24 GB heap | 44 GB heap |
 > | `db_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
+> | `db_allocated_storage` | 500 | 128. RDS cannot shrink storage, so an existing instance keeps its size here |
+> | `db_max_allocated_storage` | 1000 | 500 |
 >
 > An instance class change applies in the next maintenance window, because this
 > configuration does not set `apply_immediately`.
@@ -493,10 +499,10 @@ java_opts         = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-db_instance_class           = "db.r8g.4xlarge"
-db_allocated_storage        = 500
-db_max_allocated_storage    = 1000
-postgres_version            = "15.19"
+db_instance_class           = "db.r8g.2xlarge"
+db_allocated_storage        = 128
+db_max_allocated_storage    = 500
+postgres_version            = "18.6"
 db_backup_retention_period  = 7
 db_backup_window           = "03:00-04:00"
 db_maintenance_window      = "sun:04:00-sun:05:00"
@@ -585,7 +591,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ## Persistent Storage
 
 - **EFS File System**: Shared storage for `/sonatype-work` directory
-- **Database**: PostgreSQL RDS for application data
+- **Database**: PostgreSQL RDS for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: RDS storage scales automatically up to configured limit
 
 ## Networking
