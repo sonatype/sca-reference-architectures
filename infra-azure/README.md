@@ -28,7 +28,7 @@ container_cpu        = 2.0                 # 2 vCPU
 container_memory     = "16Gi"              # 16 GB
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
+db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 51200               # 50 GB
 ```
 </details>
@@ -63,7 +63,7 @@ db_storage_mb        = 102400              # 100 GB
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 50 GB |
+| **XS** | GP_Standard_D2ds_v6 | 2 | 8 GB | 50 GB |
 | **S** | GP_Standard_D2s_v3 | 2 | 8 GB | 100 GB |
 | **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow enabled) |
 
