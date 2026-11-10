@@ -42,21 +42,6 @@ output "db_subnet_id" {
 }
 
 
-output "application_gateway_public_ip" {
-  description = "Public IP address of the Application Gateway"
-  value       = azurerm_public_ip.app_gateway_pip.ip_address
-}
-
-output "application_gateway_fqdn" {
-  description = "FQDN of the Application Gateway"
-  value       = azurerm_public_ip.app_gateway_pip.fqdn
-}
-
-output "application_gateway_id" {
-  description = "ID of the Application Gateway"
-  value       = azurerm_application_gateway.iq_app_gateway.id
-}
-
 
 output "container_app_environment_id" {
   description = "ID of the Container App Environment"
@@ -120,7 +105,7 @@ output "application_insights_id" {
 
 output "application_url" {
   description = "URL to access Nexus IQ Server"
-  value       = azurerm_public_ip.app_gateway_pip.fqdn != null ? "http://${azurerm_public_ip.app_gateway_pip.fqdn}" : "http://${azurerm_public_ip.app_gateway_pip.ip_address}"
+  value       = "https://${azurerm_container_app.iq_app.ingress[0].fqdn}"
 }
 
 

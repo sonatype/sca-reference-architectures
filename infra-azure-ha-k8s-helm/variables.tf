@@ -73,7 +73,7 @@ variable "node_group_min_size" {
 variable "node_group_max_size" {
   description = "Maximum number of nodes in AKS node pool"
   type        = number
-  default     = 6
+  default     = 5
 }
 
 variable "node_group_desired_size" {
@@ -96,9 +96,9 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "PostgreSQL Flexible Server SKU. The default, 16 vCores, is the Size XL value; M and L use GP_Standard_D8ds_v6, as the Sizing Guide in README.md gives."
+  description = "PostgreSQL Flexible Server SKU. The default, 8 vCores and 64 GB, is the Size M and L value; XL uses MO_Standard_E16ds_v6, as the Sizing Guide in README.md gives."
   type        = string
-  default     = "MO_Standard_E16ds_v6"
+  default     = "MO_Standard_E8ds_v6"
 }
 
 variable "db_high_availability_mode" {
@@ -163,9 +163,9 @@ variable "storage_account_replication_type" {
 }
 
 variable "storage_share_quota_gb" {
-  description = "Quota in GB for Azure Files share"
+  description = "Quota in GB for the Azure Files share. The default is the Size M value; L uses 1536 and XL 4096, as README.md gives. The share is Premium, so the quota is the provisioned and billed size."
   type        = number
-  default     = 512
+  default     = 500
 }
 
 

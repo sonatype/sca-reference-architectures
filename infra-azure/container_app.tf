@@ -297,7 +297,7 @@ CONFIGEOF
 
   ingress {
     external_enabled           = true
-    allow_insecure_connections = true
+    allow_insecure_connections = false
     target_port                = 8070
     transport                  = "http"
 
