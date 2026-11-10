@@ -250,7 +250,7 @@ db_instance_tier                    = "db-perf-optimized-N-8"  # 8 vCPU, optimiz
 db_edition                          = "ENTERPRISE_PLUS"
 db_availability_type                = "ZONAL"
 db_disk_size                        = 128
-db_max_disk_size                    = 1000
+db_max_disk_size                    = 500
 db_backup_retention_count           = 8
 db_deletion_protection              = false
 

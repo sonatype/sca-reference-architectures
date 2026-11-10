@@ -149,9 +149,9 @@ variable "db_backup_start_time" {
 }
 
 variable "db_max_disk_size" {
-  description = "Maximum database disk size in GB"
+  description = "Maximum database disk size in GB, the ceiling auto-resize grows to. The default is the Size M value."
   type        = number
-  default     = 1000
+  default     = 500
 }
 
 variable "db_max_connections" {
