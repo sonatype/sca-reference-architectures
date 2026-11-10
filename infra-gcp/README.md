@@ -214,6 +214,8 @@ Enable these APIs in your project:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `postgres_version` | POSTGRES_17 | POSTGRES_18 |
+> | `db_disk_size` | 100 | 128, and the disk cannot shrink |
+> | `db_max_disk_size` | 1000 | 500. An instance already above 500 GB keeps its size here |
 
 ### Configuration Variables
 
