@@ -11,12 +11,12 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
 | **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) | Required ² |
-| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) | Required ² |
+| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) | Required ² |
 | **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ² |
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing, which ran on a GCP ARM instance at 8 vCPU and 64 GB with a 48 GB heap rather than on a Fargate task. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
 
-> **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Raising it back to 48 GB removes most of that margin.
+> **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Raising it back to 48 GB removes most of that margin. Size S is the same case: Fargate caps a 4 vCPU task at 30 GB, so S runs a 22 GB heap, which with `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 
 > ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -33,7 +33,7 @@ ecs_memory           = 16384               # 16 GB
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.t4g.medium"     # 2 vCPU, 4 GB (burstable)
+db_instance_class    = "db.m8g.large"      # 2 vCPU, 8 GB
 db_allocated_storage = 64
 ```
 </details>
@@ -43,10 +43,10 @@ db_allocated_storage = 64
 
 ```hcl
 ecs_cpu              = 4096                # 4 vCPU
-ecs_memory           = 32768               # 32 GB
+ecs_memory           = 30720               # 30 GB, the maximum at 4 vCPU
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms22g -Xmx22g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
 db_allocated_storage = 128
 ```
@@ -82,7 +82,7 @@ opensearch_index_replicas          = 1
 
 | Size | DB Instance Class | vCPU | Memory | Storage |
 |------|:-----------------|:----:|:------:|:-------:|
-| **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 64 GB |
+| **XS** | db.m8g.large | 2 | 8 GB | 64 GB |
 | **S** | db.r8g.large | 2 | 16 GB | 128 GB |
 | **M** | db.r8g.2xlarge | 8 | 64 GB | 128 GB (auto-scales to 500 GB) |
 
