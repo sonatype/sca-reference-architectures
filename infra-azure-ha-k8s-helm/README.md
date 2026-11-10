@@ -231,7 +231,7 @@ Install these tools on your local machine:
 - Azure subscription with Contributor access
 - Ability to create: Resource Groups, Virtual Networks, AKS, PostgreSQL, Application Gateway
 - Sufficient vCPU quota (48+ vCPUs required for production HA setup)
-- Zone-redundant resource support in target region (default: East US 2)
+- Zone-redundant resource support in target region (default: East US)
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
@@ -320,7 +320,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the Helm deployment.
 
-   Example: `http://nexus-iq-ha-abc123.eastus2.cloudapp.azure.com`
+   Example: `http://nexus-iq-ha-abc123.eastus.cloudapp.azure.com`
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -376,7 +376,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # Azure Configuration
-azure_region = "eastus2"
+azure_region = "eastus"
 environment  = "prod"
 cluster_name = "nexus-iq-ha"
 

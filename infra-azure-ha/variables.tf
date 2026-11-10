@@ -2,7 +2,7 @@
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
-  default     = "East US 2"
+  default     = "East US"
 }
 
 variable "cluster_name" {
