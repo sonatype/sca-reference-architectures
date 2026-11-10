@@ -29,7 +29,7 @@ container_memory     = "16Gi"              # 16 GB
 workload_profile_type = "D4"               # 4 cores, 16 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
+db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 65536               # 64 GB
 ```
 </details>
@@ -43,7 +43,7 @@ container_memory     = "32Gi"              # 32 GB
 workload_profile_type = "E4"               # 4 cores, 32 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
+db_sku_name          = "MO_Standard_E2ds_v6" # 2 vCores, 16 GB
 db_storage_mb        = 131072              # 128 GB
 ```
 </details>
@@ -67,8 +67,8 @@ file_share_quota     = 500                 # GB
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 64 GB |
-| **S** | GP_Standard_D2ds_v6 | 2 | 8 GB | 128 GB |
+| **XS** | GP_Standard_D2ds_v6 | 2 | 8 GB | 64 GB |
+| **S** | MO_Standard_E2ds_v6 | 2 | 16 GB | 128 GB |
 | **M** | MO_Standard_E8ds_v6 | 8 | 64 GB | 128 GB (auto-grow enabled) |
 
 ---
