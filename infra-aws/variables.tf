@@ -123,21 +123,21 @@ variable "db_instance_class" {
 }
 
 variable "db_allocated_storage" {
-  description = "Initial allocated storage for RDS in GB"
+  description = "Initial allocated storage for RDS in GB. The default is the Size M value."
+  type        = number
+  default     = 128
+}
+
+variable "db_max_allocated_storage" {
+  description = "Maximum allocated storage for RDS in GB, the ceiling storage autoscaling grows to"
   type        = number
   default     = 500
 }
 
-variable "db_max_allocated_storage" {
-  description = "Maximum allocated storage for RDS in GB"
-  type        = number
-  default     = 1000
-}
-
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL engine version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15.19"
+  default     = "18.6"
 }
 
 variable "db_backup_retention_period" {

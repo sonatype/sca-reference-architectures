@@ -133,15 +133,15 @@ variable "db_password" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {
-  description = "PostgreSQL Flexible Server SKU. The default, 16 vCores, is the Size XL value; M and L use GP_Standard_D8ds_v6, as the Sizing Guide in README.md gives."
+  description = "PostgreSQL Flexible Server SKU. The default, 8 vCores and 64 GB, is the Size M and L value; XL uses MO_Standard_E16ds_v6, as the Sizing Guide in README.md gives."
   type        = string
-  default     = "MO_Standard_E16ds_v6"
+  default     = "MO_Standard_E8ds_v6"
 }
 
 variable "db_storage_mb" {
@@ -218,9 +218,9 @@ variable "storage_account_replication_type" {
 }
 
 variable "file_share_quota_gb" {
-  description = "File share quota in GB for IQ Server data. The default is the low end of the Size L range in README.md."
+  description = "File share quota in GB for IQ Server data. The default is the Size M value; L uses 1536 and XL 4096, as README.md gives. On Premium the quota is the provisioned and billed size."
   type        = number
-  default     = 512
+  default     = 500
 }
 
 

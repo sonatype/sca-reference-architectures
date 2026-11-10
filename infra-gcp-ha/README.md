@@ -41,6 +41,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
+db_disk_size         = 128                 # GB
+db_max_disk_size     = 500
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024
 ```
@@ -58,6 +60,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
+db_disk_size         = 256                 # GB
+db_max_disk_size     = 1000
 filestore_tier       = "BASIC_HDD"         # 2.5 TiB
 filestore_capacity_gb = 2560
 ```
@@ -75,6 +79,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type = "REGIONAL"
+db_disk_size         = 512                 # GB
+db_max_disk_size     = 2000
 filestore_tier       = "BASIC_HDD"         # 10 TiB (1,000 read / 5,000 write IOPS)
 filestore_capacity_gb = 10240
 ```
@@ -84,9 +90,9 @@ filestore_capacity_gb = 10240
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 100 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 200 GB – 1 TB (auto-resize) | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 500 GB – 2 TB (auto-resize) | Regional |
+| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
 
 ### Shared Storage (Cloud Filestore)
 
@@ -187,7 +193,7 @@ Install these tools on your local machine:
 Your GCP account needs permissions for these services:
 - **Compute Engine**: Instances, instance templates, regional managed instance groups, health checks, routers, regional autoscalers, security policies (Cloud Armor)
 - **Networking**: VPC, subnets, firewall rules, Cloud NAT, Global Load Balancers, backend services, URL maps, target proxies, global forwarding rules, global addresses
-- **Database**: Cloud SQL instances (including read replicas), databases, users, SSL certificates
+- **Database**: Cloud SQL instances, databases, users, SSL certificates
 - **Storage**: Cloud Filestore instances, NFS shares
 - **Security**: Secret Manager secrets and secret versions, managed SSL certificates, IAM bindings for secrets
 - **IAM**: Service accounts, IAM policy bindings (roles assignment)
@@ -301,6 +307,10 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -310,7 +320,8 @@ Enable these APIs in your project:
 > |---|:---:|:---:|---|
 > | `iq_target_instances` | 2 | 3 | new deployments only, see below |
 > | `iq_max_instances` | 6 | 4 | every deployment |
-> | `db_disk_size` | 100 | 200 | every deployment, and the disk cannot shrink |
+> | `db_disk_size` | 100 | 256 | every deployment, and the disk cannot shrink |
+> | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay | every deployment |
 > | `filestore_capacity_gb` | 1024 | 2560 | every deployment, and the share cannot shrink |
 > | `java_opts` | 48 GB heap, no direct memory cap | the Size M and L `java_opts` above | every deployment, and it rolls the group |
 >
@@ -363,19 +374,16 @@ db_username = "nexusiq"
 db_password = "your-secure-database-password"  # Change this!
 
 # Database settings
-postgres_version       = "POSTGRES_15"
+postgres_version       = "POSTGRES_18"
 db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB, the Size L value
 db_edition            = "ENTERPRISE"
 db_disk_type          = "PD_SSD"
 db_availability_type  = "REGIONAL"          # REGIONAL for HA
-db_disk_size          = 200
+db_disk_size          = 256
 db_max_disk_size      = 1000
 db_max_connections    = "200"
 db_backup_retention_count  = 8
 db_deletion_protection     = true
-
-# Enable read replica for load distribution
-enable_read_replica = true
 
 # Cloud Filestore Configuration
 filestore_zone        = "us-central1-a"
@@ -412,7 +420,6 @@ search_engine = "lucene"
 - **`iq_max_instances = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
 - **`iq_target_instances = 3`** - Initial number of instances, the Size L value. Size M uses 2 and Size XL uses 4
 - **`db_availability_type = "REGIONAL"`** - Multi-AZ database with automatic failover
-- **`enable_read_replica = true`** - Database read replica for load distribution
 - **`filestore_capacity_gb = 2560`** - 2.5 TiB, the Size L capacity. Size M uses 1024 and Size XL uses 10240
 - **`gcp_project_id`** - Your GCP project ID (required)
 - **`db_password`** - Use a strong, unique password (required change)
@@ -479,7 +486,7 @@ legal. A value that breaks the rule fails at plan rather than part way through a
 
 | Name | Reuse after deletion |
 |---|---|
-| Cloud SQL instance, and its replica | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
+| Cloud SQL instance | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
 | Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
 | Everything else here | Immediate |
 
@@ -632,8 +639,8 @@ Per size:
 
 | Size | Data nodes | Machine type | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |------|:----------:|:------------:|:----------------:|:----------------:|:--------:|:---------------------------:|
-| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
-| **L** | 3 | `c4a-standard-4`, 4 vCPU, 16 GB | 150 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **L** | 3 | `c4a-standard-4`, 4 vCPU, 16 GB | 150 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 | **XL** | 3 | `c4a-highmem-8`, 8 vCPU, 64 GB | 250 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
@@ -643,9 +650,10 @@ Storage per node is the published size, chosen at or above the measured use. L a
 measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 The cluster managers are dedicated, so they hold no data and take no search traffic, and three of
-them keep a quorum when one is lost. **At M the cluster managers are measured**; at L and XL they
-are the same type, chosen at or above the AWS equivalent, which is `m8g.medium.search` at M and L
-and `m8g.large.search` at XL. Each takes half its RAM as heap, as the data nodes do.
+them keep a quorum when one is lost. At M and L they are `c4a-standard-1`, the same vCPU and
+memory as the AWS equivalent, `m8g.medium.search`. The GCP M measurement ran them on
+`c4a-standard-2`. At XL they are `c4a-standard-2`, at or above the AWS `m8g.large.search`. Each
+takes half its RAM as heap, as the data nodes do.
 
 **Put an internal passthrough Network Load Balancer in front of the data nodes**, and set
 `opensearch_endpoint` to its address, so Nexus IQ Server reaches one endpoint and replacing a data
@@ -808,7 +816,6 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Multi-Zone Deployment**: MIG distributes instances across 2 availability zones (us-central1-a and us-central1-b)
 - **Auto Scaling**: MIG autoscaler scales between the minimum and maximum instance counts for your size, based on CPU utilization and load balancer utilization. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
-- **Read Replica**: Optional read replica for load distribution
 - **Automatic Restart**: Docker container automatically restarts on failure
 - **Instance Auto-Healing**: MIG recreates failed instances automatically (15-minute initial delay for startup)
 - **Load Balancing**: Global load balancer distributes traffic across healthy instances
@@ -829,8 +836,8 @@ This is a **High Availability** deployment with comprehensive reliability featur
 
 ## Persistent Storage
 
-- **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (2.5 TB minimum for BASIC_SSD tier)
-- **Database**: Cloud SQL PostgreSQL 15 for application data
+- **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (1 TiB minimum on BASIC_HDD)
+- **Database**: Cloud SQL PostgreSQL for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 

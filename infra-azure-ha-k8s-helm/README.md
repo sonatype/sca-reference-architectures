@@ -29,7 +29,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 > `heap-dumps` on the Azure Files share, which overrides the `HeapDumpPath` in `javaOpts`. The pod's own
 > disk is the node's OS disk, `node_disk_size` GB, which cannot hold a 48 GB dump.
 
-> **ARM instances recommended.** Eps_v6 costs 30% less on demand than the x86 equivalent of the same generation, Esv6 (`Standard_E8ps_v6` against `Standard_E8s_v6` in eastus, list prices in November 2026).
+> **ARM instances recommended.** Eps_v6 costs 47% less on demand than Esv7, the x86 type the tables above give (`Standard_E8ps_v6` against `Standard_E8s_v7` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 
@@ -44,8 +44,10 @@ node_group_min_size  = 2
 node_group_max_size  = 3
 node_group_desired_size = 2
 nexus_iq_replica_count = 2                 # 2 IQ pods
-db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB, grows automatically
 db_high_availability_mode = "ZoneRedundant"
+storage_share_quota_gb = 500
 ```
 In `helm-values.yaml`:
 
@@ -71,8 +73,11 @@ node_group_min_size  = 2
 node_group_max_size  = 5
 node_group_desired_size = 3
 nexus_iq_replica_count = 3                 # 3 IQ pods
-db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 262144              # 256 GB, grows automatically
+db_storage_tier      = "P15"
 db_high_availability_mode = "ZoneRedundant"
+storage_share_quota_gb = 1536
 ```
 In `helm-values.yaml`:
 
@@ -99,8 +104,11 @@ node_group_max_size  = 5
 node_group_desired_size = 4
 nexus_iq_replica_count = 4                 # 4 IQ pods
 db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
+db_storage_mb        = 524288              # 512 GB, grows automatically
+db_storage_tier      = "P20"
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier = "Premium"           # Required for NFS with AKS
+storage_share_quota_gb = 4096
 storage_account_replication_type = "ZRS"
 ```
 In `helm-values.yaml`:
@@ -122,17 +130,19 @@ iq_server:
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **M** | GP_Standard_D8ds_v6 | 8 | 32 GB | 100 GB (auto-grow) |
-| **L** | GP_Standard_D8ds_v6 | 8 | 32 GB | 200 GB to 1 TB (auto-grow) |
-| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 500 GB to 2 TB (auto-grow) |
+| **M** | MO_Standard_E8ds_v6 | 8 | 64 GB | 128 GB (auto-grow) |
+| **L** | MO_Standard_E8ds_v6 | 8 | 64 GB | 256 GB, auto-grow to 1 TB |
+| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 512 GB, auto-grow to 2 TB |
 
 ### Shared Storage (Azure Files Premium ZRS)
 
-| Size | Tier | Protocol | Estimated Capacity |
+| Size | Tier | Protocol | Share quota (`storage_share_quota_gb`) |
 |------|:-----|:--------:|:------------------:|
-| **M** | Premium | SMB/NFS | 100 – 500 GB |
-| **L** | Premium | SMB/NFS | 500 GB – 1.5 TB |
-| **XL** | Premium | NFS (required) | 1.5 TB – 4 TB |
+| **M** | Premium | NFS | 500 GB |
+| **L** | Premium | NFS | 1,536 GB |
+| **XL** | Premium | NFS (required) | 4,096 GB |
+
+On Premium the quota is the provisioned and billed size.
 
 > Premium SSD with ZRS redundancy is recommended for AKS deployments requiring NFS access mode (ReadWriteMany).
 
@@ -340,6 +350,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable and value defaults changed. A deployment whose
 > `terraform.tfvars` does not set a variable picks up the new default on its next apply, and
 > `helm-upgrade.sh` applies the new `helm-values.yaml`. Set the values your deployment is running at
@@ -349,7 +363,9 @@ Your Azure account needs permissions for these services:
 > |---|:---:|:---:|
 > | `node_instance_type` | `Standard_D8s_v3` | `Standard_E8ps_v6` |
 > | `kubernetes_version` | `1.27` | `1.36` |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v6` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
+> | `storage_share_quota_gb` | 512 | 500 |
+> | `node_group_max_size` | 6 | 5 |
 > | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, for a new server, then grows automatically. An existing server keeps its size |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
@@ -374,13 +390,13 @@ db_subnet_cidr     = "10.1.20.0/24"
 kubernetes_version      = "1.36"
 node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
-node_group_max_size     = 6
+node_group_max_size     = 5
 node_group_desired_size = 3
 node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA)
-postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16ds_v6" # Memory Optimized: 16 vCores, 128GB RAM
+postgres_version                 = "18"
+db_sku_name                      = "MO_Standard_E8ds_v6" # Memory Optimized: 8 vCores, 64 GB
 db_high_availability_mode        = "ZoneRedundant"
 db_storage_mb                    = 131072 # 128GB, grows automatically
 db_storage_tier                  = "P10"
@@ -393,7 +409,7 @@ db_geo_redundant_backup_enabled  = false # Not supported in all regions
 # Azure Files Premium Storage (Zone-Redundant)
 storage_account_tier             = "Premium"
 storage_account_replication_type = "ZRS"
-storage_share_quota_gb           = 512
+storage_share_quota_gb           = 500
 
 # Application Gateway Configuration (Zone-Redundant)
 app_gateway_sku_name     = "Standard_v2"
@@ -412,7 +428,7 @@ nexus_iq_replica_count   = 3
 # Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
-helm_chart_version = "195.0.0"
+helm_chart_version = "201.0.0"
 helm_namespace     = "nexus-iq"
 
 # Search Backend (optional) - see "Advanced Search with OpenSearch" below
@@ -446,7 +462,7 @@ hpa:
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4. Requires an HA license
 - **`node_group_min_size = 2`** - Minimum AKS node capacity
-- **`node_group_max_size = 6`** - Maximum AKS node capacity
+- **`node_group_max_size = 5`** - Maximum AKS node capacity
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
 - **`storage_account_replication_type = "ZRS"`** - Zone-Redundant Storage for file share
 - **`database_password`** - Use a strong, unique password (required change)
@@ -505,7 +521,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
-- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data
+- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking
@@ -641,9 +657,10 @@ Three things about that block are deliberate:
 ### Specifying the cluster
 
 **M and L are measured on Azure; XS, S and XL are not.** The data node types at M and L are the
-measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS and S use `Standard_D2ps_v6` and XL
-`Standard_E8ps_v6`, which give the same vCPU and memory as the AWS and GCP data nodes at those
-sizes. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
+measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS uses `Standard_D2pls_v6`, S uses
+`Standard_D2ps_v6` and XL `Standard_E8ps_v6`, which give the same memory as the AWS and GCP data
+nodes at those sizes. At XS that is one more vCPU, since `Standard_D2pls_v6` is the smallest Dplsv6
+size. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
 managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
 at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
 measured VMs had, and takes half its RAM as heap.

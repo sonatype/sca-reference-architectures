@@ -99,7 +99,7 @@ variable "gke_maintenance_window_start" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "POSTGRES_15"
+  default     = "POSTGRES_18"
 }
 
 variable "db_instance_tier" {
@@ -115,9 +115,9 @@ variable "db_availability_type" {
 }
 
 variable "db_disk_size" {
-  description = "Database disk size in GB"
+  description = "Database disk size in GB. The default is the Size L value."
   type        = number
-  default     = 100
+  default     = 256
 }
 
 variable "db_max_disk_size" {
@@ -166,12 +166,6 @@ variable "db_deletion_protection" {
   description = "Enable deletion protection for database"
   type        = bool
   default     = false
-}
-
-variable "enable_read_replica" {
-  description = "Enable read replica for database"
-  type        = bool
-  default     = true
 }
 
 variable "db_name" {

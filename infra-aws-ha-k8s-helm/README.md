@@ -99,7 +99,7 @@ iq_server:
 node_instance_type      = "r9g.4xlarge"    # 16 vCPU, 128 GB (ARM)
 node_group_desired_size = 4
 node_group_min_size     = 3
-node_group_max_size     = 6
+node_group_max_size     = 5
 nexus_iq_replica_count  = 4                # 4 IQ pods
 aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
@@ -636,6 +636,10 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `aurora_engine_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -643,7 +647,7 @@ Your IAM user/role needs these AWS service permissions:
 >
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
-> | `aurora_engine_version` | 15.8 | 15.19 |
+> | `aurora_engine_version` | 15.8 | 18.6 |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 > | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
@@ -678,8 +682,8 @@ node_group_desired_size = 3
 node_disk_size          = 50
 
 # RDS Aurora Configuration
-aurora_engine_version   = "15.19"
-aurora_instance_class   = "db.r8g.4xlarge"
+aurora_engine_version   = "18.6"
+aurora_instance_class   = "db.r8g.2xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"
@@ -687,9 +691,6 @@ database_password       = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 backup_retention_period = 7
 skip_final_snapshot     = true
 deletion_protection     = false
-
-# EFS Configuration
-efs_provisioned_throughput = 100
 
 # Nexus IQ Server Configuration
 nexus_iq_version       = "1.195.0"
@@ -701,7 +702,7 @@ nexus_iq_replica_count = 3
 # Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
-helm_chart_version = "195.0.0"
+helm_chart_version = "201.0.0"
 
 # Logging Configuration
 enable_fluentd        = true
@@ -832,7 +833,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ## Persistent Storage
 
 - **EFS File System**: Shared storage for clustering with Kubernetes CSI driver
-- **Aurora Database**: PostgreSQL cluster for application data with continuous backups
+- **Aurora Database**: PostgreSQL cluster for application data with continuous backups. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Aurora storage scales automatically
 - **EBS Volumes**: Node storage encrypted at rest
 

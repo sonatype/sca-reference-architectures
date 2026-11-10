@@ -75,14 +75,14 @@ You need an active cloud account with permissions to create:
 
 - **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server))
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments
-- **PostgreSQL**: Version 15 or higher (provisioned automatically by Terraform)
+- **PostgreSQL**: Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18. Provisioned automatically by Terraform
 - **OpenSearch**: A reachable OpenSearch cluster, required at every size. The three AWS architectures can create the domain for you; on Azure and GCP you build the cluster yourself. See [OpenSearch](#opensearch).
 
 ### SSL Certificate (Optional)
 
 For HTTPS access, prepare:
 - **AWS**: ACM certificate ARN
-- **Azure**: Application Gateway certificate or Key Vault reference
+- **Azure**: a custom domain certificate on the Container App
 - **GCP**: Google-managed or self-managed SSL certificate
 
 ---
@@ -206,14 +206,15 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Deployment type** | Single Instance or HA | HA required | HA required |
 | **Expected throughput, with continuous monitoring running** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880 to 22,320/day total) | ~405 evals/hour/node (~29,160 to 38,880/day total) |
 | **Compute** | | | |
-| Instance type | r9g.2xlarge (ARM) or r8i.2xlarge (x86) | r9g.2xlarge (ARM) or r8i.2xlarge (x86) | r9g.4xlarge (ARM) or r8i.4xlarge (x86) |
+| Instance type | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM, r8g or newer) or r8i.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
 | Memory | 60 GB Fargate task, or 64 GB per EKS node | 60 GB Fargate task, or 64 GB per EKS node | 120 GB Fargate task, or 128 GB per EKS node |
 | Java Heap | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms96g -Xmx96g` |
 | **Database** | | | |
-| Service | RDS PostgreSQL 15+ or Aurora PostgreSQL | Aurora PostgreSQL 15+ (recommended) | Aurora PostgreSQL 15+ (strongly recommended) |
+| Service | RDS PostgreSQL or Aurora PostgreSQL | Aurora PostgreSQL (recommended) | Aurora PostgreSQL (strongly recommended) |
+| PostgreSQL version | Minimum 15, recommended and default 18 | Minimum 15, recommended and default 18 | Minimum 15, recommended and default 18 |
 | Instance class | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) |
-| Storage | 100 GB gp3, auto-scaling to 500 GB | 200 GB – 1 TB auto-scaling | 500 GB – 2 TB auto-scaling |
+| Storage | 128 GB gp3 on RDS, auto-scaling to 500 GB; Aurora grows on its own | Aurora, grows on its own up to 1 TB | Aurora, grows on its own up to 2 TB |
 | Multi-AZ | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
 | Service | Amazon EFS | Amazon EFS | Amazon EFS |
@@ -244,14 +245,15 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Deployment option | Azure Container Apps or AKS | Azure Container Apps or AKS | AKS recommended at this scale |
 | **Database** | | | |
 | Service | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server |
-| SKU | GP_Standard_D8ds_v6 (8 vCores, 32 GB) | GP_Standard_D8ds_v6 (8 vCores, 32 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
-| Storage | 100 GB with auto-scaling | 200 GB – 1 TB with auto-scaling | 500 GB – 2 TB with auto-scaling |
+| PostgreSQL version | Minimum 15, recommended and default 18 | Minimum 15, recommended and default 18 | Minimum 15, recommended and default 18 |
+| SKU | MO_Standard_E8ds_v6 (8 vCores, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
+| Storage | 128 GB, auto-grow | 256 GB, auto-grow to 1 TB | 512 GB, auto-grow to 2 TB |
 | Zone redundancy | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
 | Service | Azure Files — Standard HDD (pay-as-you-go) | Azure Files — Standard HDD (pay-as-you-go) | Azure Files — Standard HDD (SMB) or Premium SSD (NFS/AKS) |
 | Protocol | SMB 3.0 | SMB 3.0 | SMB 3.0 (Standard) or NFS (requires Premium) |
 | Redundancy | ZRS for HA deployments | ZRS | ZRS |
-| Estimated capacity | 100 GB initial, auto-scaling | 500 GB – 1.5 TB | 1.5 TB – 4 TB |
+| File share quota | 500 GB | 1,536 GB | 4,096 GB, on Premium the quota is the billed size |
 | **Terraform Templates** | [Single Instance](./infra-azure) &#124; [High Availability](./infra-azure-ha) &#124; [HA Kubernetes](./infra-azure-ha-k8s-helm) | [High Availability](./infra-azure-ha) &#124; [HA Kubernetes](./infra-azure-ha-k8s-helm) | [High Availability](./infra-azure-ha) &#124; [HA Kubernetes](./infra-azure-ha-k8s-helm) |
 
 > **Note on Azure storage tiers:** Standard HDD is the default recommendation based on performance testing (peak ~1,212 write ops/sec, well within Standard HDD limits). Use Premium SSD when: NFS protocol is required (AKS/Kubernetes deployments), or high sustained write volume makes per-transaction costs exceed SSD flat-rate pricing. At XL scale with AKS, Premium SSD is mandatory since NFS requires it.
@@ -275,10 +277,11 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Java Heap | `-Xms48g -Xmx48g` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
 | Deployment | GCE with Docker or GKE | GCE with Docker or GKE | GCE with Docker or GKE |
 | **Database** | | | |
-| Service | Cloud SQL PostgreSQL 15+ | Cloud SQL PostgreSQL 15+ | Cloud SQL PostgreSQL 15+ |
+| Service | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL |
+| PostgreSQL version | Minimum 15, recommended and default 18 | Minimum 15, recommended and default 18 | Minimum 15, recommended and default 18 |
 | Instance tier | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-16-65536 (16 vCPU, 64 GB) |
 | Edition | Enterprise | Enterprise | Enterprise |
-| Storage | 100 GB PD-SSD, auto-resize to 500 GB | 200 GB – 1 TB PD-SSD, auto-resize | 500 GB – 2 TB PD-SSD, auto-resize |
+| Storage | 128 GB PD-SSD, auto-resize to 500 GB | 256 GB PD-SSD, auto-resize to 1 TB | 512 GB PD-SSD, auto-resize to 2 TB |
 | Availability | Zonal (Regional for production) | Regional (automatic failover) | Regional with automatic failover |
 | **Storage** | | | |
 | Service | Cloud Filestore | Cloud Filestore | Cloud Filestore |
@@ -300,7 +303,7 @@ The following tables provide equivalent instance types across cloud providers fo
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
 | **GCP** | n4a-highmem-8 | ARM (Google Axion) |
-| **AWS** | r9g.2xlarge | ARM (Graviton5) |
+| **AWS** | r8g.2xlarge or newer, r9g.2xlarge on EKS | ARM (Graviton4 or newer) |
 | **AWS** | r8i.2xlarge | x86_64 |
 | **Azure** | Standard_E8ps_v6 | ARM (Azure Cobalt 100) |
 | **Azure** | Standard_E8s_v7 | x86_64 |
@@ -310,7 +313,7 @@ The following tables provide equivalent instance types across cloud providers fo
 | Cloud Provider | Instance Type | Architecture |
 |----------------|---------------|--------------|
 | **GCP** | n4a-highmem-16 | ARM (Google Axion) |
-| **AWS** | r9g.4xlarge | ARM (Graviton5) |
+| **AWS** | r8g.4xlarge or newer, r9g.4xlarge on EKS | ARM (Graviton4 or newer) |
 | **AWS** | r8i.4xlarge | x86_64 |
 | **Azure** | Standard_E16ps_v6 | ARM (Azure Cobalt 100) |
 | **Azure** | Standard_E16s_v7 | x86_64 |
@@ -319,13 +322,13 @@ The following tables provide equivalent instance types across cloud providers fo
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v6 (8 vCores, 32 GB) |
-| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8ds_v6 (8 vCores, 32 GB) |
+| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
+| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
 | **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 30% less on Azure (`Standard_E8ps_v6` against `Standard_E8s_v6`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 47% less on Azure (`Standard_E8ps_v6` against `Standard_E8s_v7`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 
@@ -346,7 +349,7 @@ iq_desired_count     = 1                   # Single instance
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.t4g.medium"     # 2 vCPU, 4 GB (burstable)
-db_allocated_storage = 50                  # GB
+db_allocated_storage = 64                  # GB
 ```
 
 **Azure (Container Apps):**
@@ -368,7 +371,7 @@ gce_machine_type     = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
-db_disk_size         = 50                  # GB
+db_disk_size         = 64                  # GB
 ```
 
 > ¹ Projected sizing estimate — not yet validated through performance testing.
@@ -388,7 +391,7 @@ iq_desired_count     = 1                   # Single instance
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
-db_allocated_storage = 100                 # GB
+db_allocated_storage = 128                 # GB
 ```
 
 **Azure (Container Apps):**
@@ -410,7 +413,7 @@ gce_machine_type     = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
-db_disk_size         = 100                 # GB
+db_disk_size         = 128                 # GB
 ```
 
 > ¹ Projected sizing estimate — not yet validated through performance testing.
@@ -430,7 +433,7 @@ iq_desired_count     = 1                   # Single instance (or 2 for HA)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
-db_allocated_storage = 100                 # GB, auto-scales to 500 GB
+db_allocated_storage = 128                 # GB, auto-scales to 500 GB
 ```
 
 **AWS (ECS Fargate — High Availability):**
@@ -457,8 +460,9 @@ iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is
 iq_max_replicas      = 3                   # infra-azure-ha only, Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
-db_storage_mb        = 524288              # 512 GB on infra-azure; infra-azure-ha starts at 131072 and grows automatically
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB, grows automatically
+file_share_quota_gb  = 500                 # infra-azure-ha; infra-azure names it file_share_quota
 ```
 
 **GCP (GCE Docker):**
@@ -470,7 +474,8 @@ gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
-db_disk_size         = 100                 # GB, auto-resize enabled
+db_disk_size         = 128                 # GB, auto-resize to 500 GB
+db_max_disk_size     = 500
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024               # 1 TiB minimum
 ```
@@ -518,8 +523,11 @@ iq_min_replicas      = 2                   # Minimum 2 for HA
 iq_max_replicas      = 4                   # Scale up to 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 262144              # 256 GB, grows automatically
+db_storage_tier      = "P15"
 db_high_availability_mode = "ZoneRedundant" # Required for L
+file_share_quota_gb  = 1536
 ```
 
 **GCP (MIG HA):**
@@ -533,6 +541,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"          # Required for L
+db_disk_size         = 256                 # GB, auto-resize to 1 TB
+db_max_disk_size     = 1000
 filestore_tier       = "BASIC_HDD"         # 2.5 TiB
 filestore_capacity_gb = 2560               # 2.5 TiB
 ```
@@ -563,7 +573,7 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 node_instance_type      = "r9g.4xlarge"    # 16 vCPU, 128 GB (ARM)
 node_group_desired_size = 4                # 4 nodes
 node_group_min_size     = 3
-node_group_max_size     = 6
+node_group_max_size     = 5
 nexus_iq_replica_count  = 4                # 4 IQ pods
 # Pod CPU, memory and heap are Helm chart values in helm-values.yaml:
 # see the Size XL block in infra-aws-ha-k8s-helm/README.md.
@@ -582,8 +592,11 @@ nexus_iq_replica_count = 4                 # 4 IQ pods
 # The container image and the Java heap are Helm chart values, set in
 # helm-values.yaml as iq_server.tag and iq_server.javaOpts.
 db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
+db_storage_mb        = 524288              # 512 GB, grows automatically
+db_storage_tier      = "P20"
 db_high_availability_mode = "ZoneRedundant" # Required
 storage_account_tier = "Premium"           # Required for NFS with AKS
+storage_share_quota_gb = 4096              # billed as provisioned on Premium
 ```
 
 **GCP (MIG HA):**
@@ -597,6 +610,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type = "REGIONAL"          # Required with automatic failover
+db_disk_size         = 512                 # GB, auto-resize to 2 TB
+db_max_disk_size     = 2000
 filestore_tier       = "BASIC_HDD"         # 10 TiB (1,000 read / 5,000 write IOPS)
 filestore_capacity_gb = 10240              # 10 TiB
 ```
@@ -613,6 +628,8 @@ nexus_iq_replica_count  = 4                # 4 IQ pods
 # helm-values.yaml as iq_server.tag and iq_server.javaOpts.
 db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 512              # GB, auto-resize to 2 TB
+db_max_disk_size        = 2000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 10240            # 10 TiB
 ```

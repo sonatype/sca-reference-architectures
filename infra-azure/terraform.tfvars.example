@@ -25,22 +25,13 @@ java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16ds_v6"
-db_storage_mb                    = 524288
+postgres_version                 = "18"
+db_sku_name                      = "MO_Standard_E8ds_v6"
+db_storage_mb                    = 131072
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
 db_geo_redundant_backup_enabled  = false
 db_high_availability_enabled     = false
-
-# Application Gateway Configuration
-app_gateway_sku_name    = "Standard_v2"
-app_gateway_sku_tier    = "Standard_v2"
-app_gateway_capacity    = 2
-
-# SSL Certificate Configuration (optional)
-# ssl_certificate_path     = "/path/to/certificate.pfx"
-# ssl_certificate_password = "certificate_password"
 
 # Storage Configuration
 storage_account_tier             = "Standard"

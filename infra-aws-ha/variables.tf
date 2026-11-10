@@ -84,9 +84,9 @@ variable "ecs_memory" {
 }
 
 variable "ecs_memory_reservation" {
-  description = "Soft memory limit for ECS task in MiB"
+  description = "Soft memory limit for the IQ Server container in MiB. The default is the Size M and L heap plus direct memory, 44 GB and 8 GB."
   type        = number
-  default     = 24576
+  default     = 53248
 }
 
 variable "enable_container_insights" {
@@ -168,9 +168,9 @@ variable "db_password" {
 }
 
 variable "aurora_engine_version" {
-  description = "Aurora PostgreSQL engine version"
+  description = "Aurora PostgreSQL engine version. The parameter group family follows its major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15.19"
+  default     = "18.6"
 }
 
 variable "aurora_instance_class" {
@@ -231,24 +231,6 @@ variable "alb_deletion_protection" {
   description = "Enable deletion protection for ALB"
   type        = bool
   default     = false
-}
-
-
-variable "efs_throughput_mode" {
-  description = "EFS throughput mode. Elastic is recommended for pay-per-use pricing with automatic scaling."
-  type        = string
-  default     = "elastic"
-
-  validation {
-    condition     = contains(["bursting", "provisioned", "elastic"], var.efs_throughput_mode)
-    error_message = "EFS throughput mode must be one of: 'bursting', 'provisioned', or 'elastic'."
-  }
-}
-
-variable "efs_provisioned_throughput_in_mibps" {
-  description = "EFS provisioned throughput in MiB/s"
-  type        = number
-  default     = 100
 }
 
 
