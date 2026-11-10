@@ -117,9 +117,9 @@ variable "db_password" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {

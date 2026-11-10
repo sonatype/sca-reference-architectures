@@ -116,7 +116,7 @@ variable "db_password" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "POSTGRES_15"
+  default     = "POSTGRES_18"
 }
 
 variable "db_instance_tier" {

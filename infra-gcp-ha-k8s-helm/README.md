@@ -33,6 +33,8 @@ node_group_desired_size = 2
 nexus_iq_replica_count  = 2                # 2 IQ pods
 db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 128              # GB
+db_max_disk_size        = 500
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 1024             # 1 TiB
 ```
@@ -49,6 +51,8 @@ node_group_desired_size = 3
 nexus_iq_replica_count  = 3                # 3 IQ pods
 db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 256              # GB
+db_max_disk_size        = 1000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 2560             # 2.5 TiB
 ```
@@ -65,6 +69,8 @@ node_group_desired_size = 4
 nexus_iq_replica_count  = 4                # 4 IQ pods
 db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 512              # GB
+db_max_disk_size        = 2000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 10240            # 10 TiB
 ```
@@ -74,9 +80,9 @@ filestore_capacity_gb   = 10240            # 10 TiB
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 100 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 200 GB – 1 TB (auto-resize) | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 500 GB – 2 TB (auto-resize) | Regional |
+| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
 
 ### Shared Storage (Cloud Filestore)
 
@@ -241,6 +247,10 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -269,10 +279,10 @@ node_disk_size               = 100
 gke_maintenance_window_start = "03:00"
 
 # PostgreSQL Configuration (Regional HA)
-postgres_version                   = "POSTGRES_15"
+postgres_version                   = "POSTGRES_18"
 db_instance_tier                   = "db-custom-8-30720"  # 8 vCPU, 30GB RAM
 db_availability_type               = "REGIONAL"
-db_disk_size                       = 100
+db_disk_size                       = 256
 db_max_disk_size                   = 1000
 db_max_connections                 = "400"
 db_backup_retention_count          = 8
@@ -374,7 +384,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Cloud Filestore (BASIC_SSD)**: Shared storage for `/sonatype-work` directory (2.5 TB minimum)
-- **Database**: Cloud SQL PostgreSQL 15 (regional) for application data
+- **Database**: Cloud SQL PostgreSQL (regional) for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 

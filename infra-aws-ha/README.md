@@ -232,6 +232,10 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `aurora_engine_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -240,7 +244,7 @@ Your IAM user/role needs these AWS service permissions:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `iq_max_count` | 5 | 4 |
-> | `aurora_engine_version` | 15.10 | 15.19 |
+> | `aurora_engine_version` | 15.10 | 18.6 |
 > | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
 >
 > An instance class change applies in the next maintenance window, because this
@@ -281,8 +285,8 @@ java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoo
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-aurora_engine_version       = "15.19"
-aurora_instance_class       = "db.r8g.4xlarge"
+aurora_engine_version       = "18.6"
+aurora_instance_class       = "db.r8g.2xlarge"
 aurora_instances            = 2
 db_backup_retention_period  = 7
 db_backup_window           = "03:00-04:00"
@@ -293,10 +297,6 @@ db_deletion_protection     = false
 # Load Balancer Configuration
 # ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
 alb_deletion_protection = false
-
-# EFS Configuration
-efs_throughput_mode                  = "provisioned"
-efs_provisioned_throughput_in_mibps = 100
 
 # Monitoring Configuration
 enable_container_insights = true
@@ -387,7 +387,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ## Persistent Storage
 
 - **EFS File System**: Shared storage for clustering with unique work directories
-- **Aurora Database**: PostgreSQL cluster for application data with continuous backups
+- **Aurora Database**: PostgreSQL cluster for application data with continuous backups. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Aurora storage scales automatically
 - **AWS Backup**: Automated EFS backup with daily/weekly retention policies
 

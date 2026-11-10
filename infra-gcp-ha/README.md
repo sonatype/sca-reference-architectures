@@ -34,6 +34,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
+db_disk_size         = 128                 # GB
+db_max_disk_size     = 500
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024
 ```
@@ -51,6 +53,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
+db_disk_size         = 256                 # GB
+db_max_disk_size     = 1000
 filestore_tier       = "BASIC_HDD"         # 2.5 TiB
 filestore_capacity_gb = 2560
 ```
@@ -68,6 +72,8 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type = "REGIONAL"
+db_disk_size         = 512                 # GB
+db_max_disk_size     = 2000
 filestore_tier       = "BASIC_HDD"         # 10 TiB (1,000 read / 5,000 write IOPS)
 filestore_capacity_gb = 10240
 ```
@@ -77,9 +83,9 @@ filestore_capacity_gb = 10240
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 100 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 200 GB – 1 TB (auto-resize) | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 500 GB – 2 TB (auto-resize) | Regional |
+| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
 
 ### Shared Storage (Cloud Filestore)
 
@@ -227,6 +233,10 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -282,7 +292,7 @@ db_username = "nexusiq"
 db_password = "your-secure-database-password"  # Change this!
 
 # Database settings
-postgres_version       = "POSTGRES_15"
+postgres_version       = "POSTGRES_18"
 db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB, the Size L value
 db_edition            = "ENTERPRISE"
 db_disk_type          = "PD_SSD"
@@ -393,8 +403,8 @@ This is a **High Availability** deployment with comprehensive reliability featur
 
 ## Persistent Storage
 
-- **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (2.5 TB minimum for BASIC_SSD tier)
-- **Database**: Cloud SQL PostgreSQL 15 for application data
+- **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (1 TiB minimum on BASIC_HDD)
+- **Database**: Cloud SQL PostgreSQL for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 

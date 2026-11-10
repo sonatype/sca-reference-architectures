@@ -59,9 +59,9 @@ variable "node_disk_size" {
 }
 
 variable "aurora_engine_version" {
-  description = "Aurora PostgreSQL engine version"
+  description = "Aurora PostgreSQL engine version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15.19"
+  default     = "18.6"
 }
 
 variable "aurora_instance_class" {
@@ -110,12 +110,6 @@ variable "deletion_protection" {
   description = "Enable deletion protection for RDS cluster"
   type        = bool
   default     = false
-}
-
-variable "efs_provisioned_throughput" {
-  description = "Provisioned throughput for EFS in MiB/s"
-  type        = number
-  default     = 100
 }
 
 variable "nexus_iq_version" {
@@ -170,7 +164,7 @@ variable "nexus_iq_cpu_limit" {
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
-  default     = "195.0.0"
+  default     = "201.0.0"
 }
 
 variable "helm_namespace" {

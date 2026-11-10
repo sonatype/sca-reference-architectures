@@ -36,7 +36,7 @@ db_username = "nexusiq"
 db_password = "your-secure-database-password" # Change this!
 
 # Database settings
-postgres_version     = "POSTGRES_15"
+postgres_version     = "POSTGRES_18"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_edition           = "ENTERPRISE"        # ENTERPRISE_PLUS for db-perf-optimized-N-* or db-c4a-highmem-*
 db_disk_type         = "PD_SSD"            # HYPERDISK_BALANCED for db-c4a-highmem-*
@@ -104,7 +104,7 @@ common_tags = {
 # iq_target_instances   = 2
 # db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 # db_availability_type  = "REGIONAL"
-# db_disk_size          = 100
+# db_disk_size          = 128
 # db_max_disk_size      = 500   # the Size L value above is 1000
 # filestore_tier        = "BASIC_HDD"
 # filestore_capacity_gb = 1024                # 1 TiB
@@ -118,7 +118,7 @@ common_tags = {
 # iq_target_instances   = 4
 # db_instance_tier      = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 # db_availability_type  = "REGIONAL"
-# db_disk_size          = 500
+# db_disk_size          = 512
 # db_max_disk_size      = 2000  # the Size L value above is 1000
 # filestore_tier        = "BASIC_HDD"
 # filestore_capacity_gb = 10240                # 10 TiB

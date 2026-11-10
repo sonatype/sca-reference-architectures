@@ -41,8 +41,8 @@ java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoo
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # CHANGE THIS!
-aurora_engine_version       = "15.19"
-aurora_instance_class       = "db.r8g.4xlarge"
+aurora_engine_version       = "18.6"
+aurora_instance_class       = "db.r8g.2xlarge"
 aurora_instances            = 2  # Minimum 2 for HA
 db_backup_retention_period  = 7 
 db_backup_window           = "03:00-04:00"
@@ -56,13 +56,6 @@ db_deletion_protection     = false  # Set to false for development
 # Uncomment and provide SSL certificate ARN for HTTPS
 # ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
 alb_deletion_protection = false  # Set to true for production
- 
-# ================================
-# EFS CONFIGURATION
-# ================================
-efs_throughput_mode                  = "provisioned"
-efs_provisioned_throughput_in_mibps = 100
-
  
 # ================================
 # MONITORING CONFIGURATION
@@ -98,8 +91,7 @@ common_tags = {
 # 1. ECS Fargate pricing based on vCPU and memory usage
 # 2. Use smaller task sizes (ecs_cpu/ecs_memory) for development
 # 3. Adjust backup retention periods based on requirements
-# 4. Use burstable EFS throughput mode if consistent high throughput isn't needed
-# 5. Consider using Fargate Spot for non-production workloads
+# 4. Consider using Fargate Spot for non-production workloads
  
 # ================================
 # HIGH AVAILABILITY NOTES

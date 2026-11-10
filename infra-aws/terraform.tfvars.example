@@ -21,10 +21,10 @@ java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/so
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-db_instance_class           = "db.r8g.4xlarge"
-db_allocated_storage        = 500
-db_max_allocated_storage    = 1000
-postgres_version            = "15.19"
+db_instance_class           = "db.r8g.2xlarge"
+db_allocated_storage        = 128
+db_max_allocated_storage    = 500
+postgres_version            = "18.6"
 db_backup_retention_period  = 7 
 db_backup_window           = "03:00-04:00"
 db_maintenance_window      = "sun:04:00-sun:05:00"
