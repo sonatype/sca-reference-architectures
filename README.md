@@ -378,7 +378,7 @@ container_memory     = "32Gi"              # 32 GB
 workload_profile_type = "E4"               # 4 cores, 32 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
+db_sku_name          = "MO_Standard_E2ds_v6" # 2 vCores, 16 GB
 db_storage_mb        = 131072              # 128 GB
 ```
 
