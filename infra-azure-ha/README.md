@@ -107,7 +107,7 @@ Install these tools on your local machine:
 - Azure subscription with Contributor access
 - Ability to create: Resource Groups, Virtual Networks, Container Apps, PostgreSQL, Application Gateway
 - Key Vault access for secrets management
-- Zone-redundant resource support in target region (default: East US 2)
+- Zone-redundant resource support in target region (default: East US)
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
@@ -185,7 +185,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the deployment.
 
-   Example: `http://ref-arch-iq-ha-abc123.eastus2.cloudapp.azure.com`
+   Example: `http://ref-arch-iq-ha-abc123.eastus.cloudapp.azure.com`
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -228,7 +228,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-azure_region  = "East US 2"
+azure_region  = "East US"
 cluster_name  = "ref-arch-iq-ha"
 
 # Network Configuration (Multi-zone for HA)

@@ -1,5 +1,5 @@
 # Azure Configuration
-azure_region = "eastus2"
+azure_region = "eastus"
 environment  = "prod"
 cluster_name = "nexus-iq-ha"
 
