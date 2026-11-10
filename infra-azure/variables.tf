@@ -75,9 +75,9 @@ variable "db_password" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {
@@ -87,9 +87,9 @@ variable "db_sku_name" {
 }
 
 variable "db_storage_mb" {
-  description = "Database storage in MB"
+  description = "Database storage in MB. Flexible Server accepts 32768, 65536, 131072, 262144, 524288 and larger powers of two. The default, 128 GB, is the Size M value."
   type        = number
-  default     = 524288
+  default     = 131072
 }
 
 variable "db_auto_grow_enabled" {

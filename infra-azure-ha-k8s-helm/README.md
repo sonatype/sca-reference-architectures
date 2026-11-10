@@ -84,11 +84,13 @@ storage_account_replication_type = "ZRS"
 
 ### Shared Storage (Azure Files Premium ZRS)
 
-| Size | Tier | Protocol | Estimated Capacity |
+| Size | Tier | Protocol | Share quota (`storage_share_quota_gb`) |
 |------|:-----|:--------:|:------------------:|
-| **M** | Premium | SMB/NFS | 100 – 500 GB |
-| **L** | Premium | SMB/NFS | 500 GB – 1.5 TB |
-| **XL** | Premium | NFS (required) | 1.5 TB – 4 TB |
+| **M** | Premium | NFS | 500 GB |
+| **L** | Premium | NFS | 1,536 GB |
+| **XL** | Premium | NFS (required) | 4,096 GB |
+
+On Premium the quota is the provisioned and billed size.
 
 > Premium SSD with ZRS redundancy is recommended for AKS deployments requiring NFS access mode (ReadWriteMany).
 
@@ -229,6 +231,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -254,7 +260,7 @@ node_group_desired_size = 3
 node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA)
-postgres_version                 = "15"
+postgres_version                 = "18"
 db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode        = "ZoneRedundant"
 db_storage_mb                    = 65536 # 64GB
@@ -288,7 +294,7 @@ nexus_iq_cpu_request     = "4"
 nexus_iq_cpu_limit       = "6"
 
 # Helm Configuration
-helm_chart_version = "195.0.0"
+helm_chart_version = "201.0.0"
 helm_namespace     = "nexus-iq"
 ```
 
@@ -369,7 +375,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
-- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data
+- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking

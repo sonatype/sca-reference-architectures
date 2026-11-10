@@ -184,6 +184,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -208,9 +212,9 @@ java_opts        = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/java
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version                 = "15"
+postgres_version                 = "18"
 db_sku_name                      = "MO_Standard_E16s_v3"  # Memory Optimized (16 vCores, 128GB RAM)
-db_storage_mb                    = 524288                 # 512GB storage
+db_storage_mb                    = 131072                 # 128 GB, the Size M value
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
 db_geo_redundant_backup_enabled  = false
@@ -270,7 +274,7 @@ This is a **single instance** deployment.
 ## Persistent Storage
 
 - **Azure File Share**: Shared storage for `/sonatype-work` directory using SMB protocol
-- **Database**: PostgreSQL Flexible Server for application data
+- **Database**: PostgreSQL Flexible Server for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking

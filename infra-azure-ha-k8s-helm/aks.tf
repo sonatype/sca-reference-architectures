@@ -7,23 +7,23 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
   kubernetes_version  = var.kubernetes_version
 
 
-  automatic_channel_upgrade = "stable"
+  automatic_upgrade_channel = "stable"
 
 
   default_node_pool {
-    name                = "system"
-    vm_size             = var.node_instance_type
-    vnet_subnet_id      = azurerm_subnet.aks_subnet.id
-    zones               = local.availability_zones
-    enable_auto_scaling = true
-    min_count           = var.node_group_min_size
-    max_count           = var.node_group_max_size
-    os_disk_size_gb     = var.node_disk_size
-    os_disk_type        = "Managed"
-    type                = "VirtualMachineScaleSets"
+    name                 = "system"
+    vm_size              = var.node_instance_type
+    vnet_subnet_id       = azurerm_subnet.aks_subnet.id
+    zones                = local.availability_zones
+    auto_scaling_enabled = true
+    min_count            = var.node_group_min_size
+    max_count            = var.node_group_max_size
+    os_disk_size_gb      = var.node_disk_size
+    os_disk_type         = "Managed"
+    type                 = "VirtualMachineScaleSets"
 
 
-    enable_node_public_ip = false
+    node_public_ip_enabled = false
 
 
     node_labels = {
@@ -88,7 +88,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   vm_size               = var.node_instance_type
   vnet_subnet_id        = azurerm_subnet.aks_subnet.id
   zones                 = local.availability_zones
-  enable_auto_scaling   = true
+  auto_scaling_enabled  = true
   min_count             = var.node_group_min_size
   max_count             = var.node_group_max_size
   os_disk_size_gb       = var.node_disk_size
