@@ -1,7 +1,7 @@
 variable "azure_region" {
   description = "Azure region for infrastructure deployment"
   type        = string
-  default     = "eastus2"
+  default     = "eastus"
 }
 
 variable "environment" {
