@@ -137,7 +137,7 @@ variable "db_edition" {
 }
 
 variable "db_disk_type" {
-  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED. Set it at create: changing it replaces the primary and the replica."
+  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED. Set it at create: changing it replaces the instance."
   type        = string
   default     = "PD_SSD"
 
@@ -161,7 +161,7 @@ variable "db_availability_type" {
 variable "db_disk_size" {
   description = "Database disk size in GB. The default is the Size L value."
   type        = number
-  default     = 200
+  default     = 256
 }
 
 variable "db_backup_start_time" {
@@ -208,12 +208,6 @@ variable "db_maintenance_window_hour" {
 
 variable "db_deletion_protection" {
   description = "Enable deletion protection for database"
-  type        = bool
-  default     = true
-}
-
-variable "enable_read_replica" {
-  description = "Enable read replica for database"
   type        = bool
   default     = true
 }

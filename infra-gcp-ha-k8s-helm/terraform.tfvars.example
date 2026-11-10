@@ -28,7 +28,6 @@ db_backup_retention_count          = 8
 db_maintenance_window_day          = 7
 db_maintenance_window_hour         = 3
 db_deletion_protection             = false
-enable_read_replica                = true
 db_name                            = "nexusiq"
 db_username                        = "nexusiq"
 db_password                        = "CHANGE_ME_STRONG_PASSWORD"

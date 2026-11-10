@@ -341,7 +341,7 @@ legal. A value that breaks the rule fails at plan rather than part way through a
 
 | Name | Reuse after deletion |
 |---|---|
-| Cloud SQL instance, and its replica | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
+| Cloud SQL instance | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
 | Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
 | Everything else here | Immediate |
 
@@ -493,9 +493,9 @@ Per size:
 
 | Size | Data nodes | Machine type | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |------|:----------:|:------------:|:----------------:|:----------------:|:--------:|:---------------------------:|
-| **XS** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 25 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
+| **XS** | 1 | `c4a-standard-1`, 1 vCPU, 4 GB | 25 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
 | **S** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 50 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
-| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
@@ -504,8 +504,9 @@ Storage per node is the published size, chosen at or above the measured use. XS 
 measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 At M the cluster managers are dedicated, so they hold no data and take no search traffic, and
-three of them keep a quorum when one is lost. **They are measured at M**, and take half their RAM
-as heap, as the data nodes do. XS and S run none: one data node is its own cluster manager.
+three of them keep a quorum when one is lost. They are `c4a-standard-1`, the same vCPU and memory
+as the AWS equivalent, `m8g.medium.search`, and take half their RAM as heap, as the data nodes do.
+The GCP M measurement ran them on `c4a-standard-2`. XS and S run none: one data node is its own cluster manager.
 
 **Put an internal passthrough Network Load Balancer in front of the data nodes at M**, and set
 `opensearch_endpoint` to its address, so Nexus IQ Server reaches one endpoint and replacing a data

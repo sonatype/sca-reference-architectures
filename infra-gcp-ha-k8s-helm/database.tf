@@ -74,56 +74,6 @@ resource "google_sql_user" "iq_ha_db_user" {
   project  = var.gcp_project_id
 }
 
-resource "google_sql_database_instance" "iq_ha_db_replica" {
-  count                = var.enable_read_replica ? 1 : 0
-  name                 = "${local.cluster_name}-db-replica-${random_string.suffix.result}"
-  database_version     = var.postgres_version
-  region               = var.gcp_region
-  project              = var.gcp_project_id
-  master_instance_name = google_sql_database_instance.iq_ha_db.name
-
-  replica_configuration {
-    failover_target = false
-  }
-
-  settings {
-    tier              = var.db_instance_tier
-    availability_type = "ZONAL"
-    disk_type         = "PD_SSD"
-    disk_size         = var.db_disk_size
-    disk_autoresize   = true
-
-    user_labels = merge(local.common_tags, {
-      component = "nexus-iq-ha-database-replica"
-    })
-
-    database_flags {
-      name  = "max_connections"
-      value = var.db_max_connections
-    }
-
-    ip_configuration {
-      ipv4_enabled    = false
-      private_network = google_compute_network.iq_vpc.id
-      ssl_mode        = "ENCRYPTED_ONLY"
-    }
-
-    insights_config {
-      query_insights_enabled  = true
-      query_string_length     = 1024
-      record_application_tags = true
-      record_client_address   = true
-    }
-  }
-
-  deletion_protection = false
-
-  depends_on = [
-    google_sql_database_instance.iq_ha_db,
-    google_service_networking_connection.private_vpc_connection
-  ]
-}
-
 resource "google_secret_manager_secret" "db_credentials" {
   secret_id = "${local.cluster_name}-db-credentials-${random_string.suffix.result}"
   project   = var.gcp_project_id

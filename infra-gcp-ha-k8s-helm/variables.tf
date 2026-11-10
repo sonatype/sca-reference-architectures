@@ -168,12 +168,6 @@ variable "db_deletion_protection" {
   default     = false
 }
 
-variable "enable_read_replica" {
-  description = "Enable read replica for database"
-  type        = bool
-  default     = true
-}
-
 variable "db_name" {
   description = "Database name"
   type        = string

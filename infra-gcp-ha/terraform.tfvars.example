@@ -47,7 +47,7 @@ db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_edition           = "ENTERPRISE"        # ENTERPRISE_PLUS for db-perf-optimized-N-* or db-c4a-highmem-*
 db_disk_type         = "PD_SSD"            # HYPERDISK_BALANCED for db-c4a-highmem-*
 db_availability_type = "REGIONAL"          # REGIONAL for HA, ZONAL for single-zone
-db_disk_size         = 200
+db_disk_size         = 256
 db_max_disk_size     = 1000
 db_max_connections   = "200"
 
@@ -58,9 +58,6 @@ db_backup_retention_count         = 8
 db_maintenance_window_day         = 7 # Sunday
 db_maintenance_window_hour        = 4 # 4 AM UTC
 db_deletion_protection            = true
-
-# Enable read replica for load distribution
-enable_read_replica = true
 
 # Shared Storage Configuration (Cloud Filestore)
 filestore_zone        = "us-central1-a"
@@ -134,7 +131,6 @@ search_engine = "lucene"
 # db_max_disk_size      = 500   # the Size L value above is 1000
 # filestore_tier        = "BASIC_HDD"
 # filestore_capacity_gb = 1024                # 1 TiB
-# enable_read_replica   = true
 # java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Size XL:
@@ -148,5 +144,4 @@ search_engine = "lucene"
 # db_max_disk_size      = 2000  # the Size L value above is 1000
 # filestore_tier        = "BASIC_HDD"
 # filestore_capacity_gb = 10240                # 10 TiB
-# enable_read_replica   = true
 # java_opts             = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"

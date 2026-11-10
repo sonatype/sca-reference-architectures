@@ -113,7 +113,7 @@ WARNING:
     HA Resources to be destroyed:
     • Managed instance groups (2 to 5 instances, depending on size)
     • Regional autoscaler and load balancers
-    • Cloud SQL regional database with read replicas
+    • Cloud SQL regional database
     • Regional persistent disks and file storage
     • VPC networking and firewall rules
     • Monitoring, logging, and alerting
@@ -383,7 +383,7 @@ show_destruction_summary() {
         echo "  • All Nexus IQ HA infrastructure resources"
         echo "  • Compute Engine managed instance groups (2 to 5 instances, depending on size)"
         echo "  • Regional autoscaler and load balancers"
-        echo "  • Cloud SQL regional database with read replicas"
+        echo "  • Cloud SQL regional database"
         echo "  • Regional persistent disks and file storage"
         echo "  • Monitoring, logging, and alerting configuration"
         echo "  • Service accounts and IAM bindings"
@@ -546,7 +546,7 @@ perform_destroy() {
         terraform state rm google_sql_user.iq_ha_db_user >> "$LOG_FILE" 2>&1 || print_warning "Database user removal from state failed"
     fi
     
-    # Destroy read replica first if it exists
+    # Destroy a read replica first, if the state still holds one from an earlier version
     if terraform state list 2>/dev/null | grep -q "google_sql_database_instance.iq_ha_db_replica"; then
         print_status "Destroying database read replica..."
         terraform destroy -target=google_sql_database_instance.iq_ha_db_replica \
