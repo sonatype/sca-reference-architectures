@@ -392,9 +392,8 @@ resource "aws_efs_file_system" "iq_efs" {
   creation_token = "${var.cluster_name}-iq-efs"
   encrypted      = true
 
-  performance_mode                = "generalPurpose"
-  throughput_mode                 = "provisioned"
-  provisioned_throughput_in_mibps = 100
+  performance_mode = "generalPurpose"
+  throughput_mode  = "elastic"
 
   tags = {
     Name = "${var.cluster_name}-iq-efs"

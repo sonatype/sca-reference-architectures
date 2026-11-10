@@ -16,10 +16,10 @@ node_group_desired_size      = 3
 node_disk_size               = 100
 gke_maintenance_window_start = "03:00"
 
-postgres_version                   = "POSTGRES_15"
+postgres_version                   = "POSTGRES_18"
 db_instance_tier                   = "db-custom-8-30720"
 db_availability_type               = "REGIONAL"
-db_disk_size                       = 100
+db_disk_size                       = 256
 db_max_disk_size                   = 1000
 db_max_connections                 = "400"
 db_backup_start_time               = "03:00"

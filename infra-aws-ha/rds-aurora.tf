@@ -159,9 +159,13 @@ resource "aws_iam_role_policy_attachment" "aurora_enhanced_monitoring" {
 
 
 resource "aws_rds_cluster_parameter_group" "iq_aurora_cluster_pg" {
-  family      = "aurora-postgresql15"
-  name        = "${var.cluster_name}-aurora-cluster-pg"
+  family      = "aurora-postgresql${split(".", var.aurora_engine_version)[0]}"
+  name_prefix = "${var.cluster_name}-aurora-cluster-pg-"
   description = "Aurora cluster parameter group for IQ Server HA"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
 
   parameter {
@@ -186,8 +190,12 @@ resource "aws_rds_cluster_parameter_group" "iq_aurora_cluster_pg" {
 }
 
 resource "aws_db_parameter_group" "iq_aurora_instance_pg" {
-  family = "aurora-postgresql15"
-  name   = "${var.cluster_name}-aurora-instance-pg"
+  family      = "aurora-postgresql${split(".", var.aurora_engine_version)[0]}"
+  name_prefix = "${var.cluster_name}-aurora-instance-pg-"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
 
   parameter {

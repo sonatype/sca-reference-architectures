@@ -80,9 +80,9 @@ variable "node_disk_size" {
 
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {
@@ -243,7 +243,7 @@ variable "nexus_iq_cpu_limit" {
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
-  default     = "195.0.0"
+  default     = "201.0.0"
 }
 
 variable "helm_namespace" {
