@@ -40,7 +40,7 @@ app_gateway_sku_tier    = "Standard_v2"    # v2 required for zone redundancy
 app_gateway_capacity    = 2                # Number of instances
 app_gateway_zones       = ["1", "2", "3"] # Availability zones
 
-# Premium Storage Configuration (HA)
+# Storage Configuration (HA)
 storage_account_tier            = "Standard"
 storage_account_replication_type = "ZRS"     # Zone-Redundant Storage
 file_share_quota_gb            = 200         # File share size in GB
