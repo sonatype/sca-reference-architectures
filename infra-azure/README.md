@@ -161,7 +161,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the deployment.
 
-   Example: `http://ref-arch-iq-abc123.westus2.cloudapp.azure.com`
+   Example: `http://ref-arch-iq-abc123.eastus.cloudapp.azure.com`
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -194,7 +194,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
+azure_region = "East US"
 
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
