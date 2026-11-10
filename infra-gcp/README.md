@@ -30,7 +30,7 @@ gce_machine_type     = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
-db_disk_size         = 50                  # GB
+db_disk_size         = 64                  # GB
 ```
 </details>
 
@@ -42,7 +42,7 @@ gce_machine_type     = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
-db_disk_size         = 100                 # GB
+db_disk_size         = 128                 # GB
 ```
 </details>
 
@@ -54,7 +54,7 @@ gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
-db_disk_size         = 100                 # GB, auto-resize enabled
+db_disk_size         = 128                 # GB, auto-resize enabled
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024               # 1 TiB minimum
 ```
@@ -64,9 +64,9 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 
 | Size | DB Tier | vCPU | Memory | Storage |
 |------|:--------|:----:|:------:|:-------:|
-| **XS** | db-custom-2-7680 | 2 | 7.5 GB | 50 GB |
-| **S** | db-custom-2-13312 | 2 | 13 GB | 100 GB |
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 100 GB (auto-resize to 500 GB) |
+| **XS** | db-custom-2-7680 | 2 | 7.5 GB | 64 GB |
+| **S** | db-custom-2-13312 | 2 | 13 GB | 128 GB |
+| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) |
 
 ---
 
@@ -202,6 +202,10 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -209,7 +213,9 @@ Enable these APIs in your project:
 >
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
-> | `postgres_version` | POSTGRES_17 | POSTGRES_15 |
+> | `postgres_version` | POSTGRES_17 | POSTGRES_18 |
+> | `db_disk_size` | 100 | 128, and the disk cannot shrink |
+> | `db_max_disk_size` | 1000 | 500. An instance already above 500 GB keeps its size here |
 > | `java_opts` | 48 GB heap, no direct memory cap | the Size M `java_opts` above |
 > | `gce_boot_image` | `debian-cloud/debian-12` | empty, which picks `debian-12-arm64` on an Arm machine type |
 >
@@ -253,12 +259,12 @@ java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -X
 db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version                    = "POSTGRES_15"
+postgres_version                    = "POSTGRES_18"
 db_instance_tier                    = "db-custom-8-30720"  # 8 vCPU, 30 GB (Enterprise)
 db_edition                          = "ENTERPRISE"
 db_availability_type                = "ZONAL"
-db_disk_size                        = 100
-db_max_disk_size                    = 1000
+db_disk_size                        = 128
+db_max_disk_size                    = 500
 db_backup_retention_count           = 8
 db_deletion_protection              = false
 
@@ -343,7 +349,7 @@ legal. A value that breaks the rule fails at plan rather than part way through a
 
 | Name | Reuse after deletion |
 |---|---|
-| Cloud SQL instance, and its replica | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
+| Cloud SQL instance | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
 | Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
 | Everything else here | Immediate |
 
@@ -495,9 +501,9 @@ Per size:
 
 | Size | Data nodes | Machine type | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |------|:----------:|:------------:|:----------------:|:----------------:|:--------:|:---------------------------:|
-| **XS** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 25 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
+| **XS** | 1 | `c4a-standard-1`, 1 vCPU, 4 GB | 25 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
 | **S** | 1 | `c4a-standard-2`, 2 vCPU, 8 GB | 50 GB Hyperdisk Balanced | none | 1 | `0`. One data node cannot place a replica |
-| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
@@ -506,8 +512,9 @@ Storage per node is the published size, chosen at or above the measured use. XS 
 measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 At M the cluster managers are dedicated, so they hold no data and take no search traffic, and
-three of them keep a quorum when one is lost. **They are measured at M**, and take half their RAM
-as heap, as the data nodes do. XS and S run none: one data node is its own cluster manager.
+three of them keep a quorum when one is lost. They are `c4a-standard-1`, the same vCPU and memory
+as the AWS equivalent, `m8g.medium.search`, and take half their RAM as heap, as the data nodes do.
+The GCP M measurement ran them on `c4a-standard-2`. XS and S run none: one data node is its own cluster manager.
 
 **Put an internal passthrough Network Load Balancer in front of the data nodes at M**, and set
 `opensearch_endpoint` to its address, so Nexus IQ Server reaches one endpoint and replacing a data
@@ -680,7 +687,7 @@ This is a **single instance** deployment.
 ## Persistent Storage
 
 - **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (1 TB minimum)
-- **Database**: Cloud SQL PostgreSQL 15 for application data
+- **Database**: Cloud SQL PostgreSQL for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 
 ## Networking

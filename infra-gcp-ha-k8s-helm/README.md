@@ -33,6 +33,8 @@ node_group_desired_size = 2
 nexus_iq_replica_count  = 2                # 2 IQ pods
 db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 128              # GB
+db_max_disk_size        = 500
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 1024             # 1 TiB
 ```
@@ -62,6 +64,8 @@ node_group_desired_size = 3
 nexus_iq_replica_count  = 3                # 3 IQ pods
 db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 256              # GB
+db_max_disk_size        = 1000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 2560             # 2.5 TiB
 ```
@@ -91,6 +95,8 @@ node_group_desired_size = 4
 nexus_iq_replica_count  = 4                # 4 IQ pods
 db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 512              # GB
+db_max_disk_size        = 2000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 10240            # 10 TiB
 ```
@@ -119,9 +125,9 @@ iq_server:
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 100 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 200 GB – 1 TB (auto-resize) | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 500 GB – 2 TB (auto-resize) | Regional |
+| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
 
 ### Shared Storage (Cloud Filestore)
 
@@ -161,7 +167,7 @@ Your GCP account needs permissions for these services:
 - **Compute Engine**: Routers, security policies (Cloud Armor)
 - **Networking**: VPC, subnets, firewall rules, Cloud NAT, global addresses
 - **Kubernetes Engine**: GKE clusters, node pools, cluster addons (HTTP load balancing, HPA, network policy, GCE persistent disk CSI driver), workload identity configurations
-- **Database**: Cloud SQL instances (including read replicas), databases, users, SSL certificates
+- **Database**: Cloud SQL instances, databases, users, SSL certificates
 - **Storage**: Cloud Filestore instances, NFS shares
 - **Security**: Secret Manager secrets and secret versions, IAM bindings for secrets (secretAccessor)
 - **IAM**: Service accounts, project-level IAM policy bindings (roles assignment), service account IAM bindings (Workload Identity user)
@@ -286,6 +292,10 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -313,15 +323,14 @@ node_disk_size               = 100
 gke_maintenance_window_start = "03:00"
 
 # PostgreSQL Configuration (Regional HA)
-postgres_version                   = "POSTGRES_15"
+postgres_version                   = "POSTGRES_18"
 db_instance_tier                   = "db-custom-8-30720"  # 8 vCPU, 30GB RAM
 db_availability_type               = "REGIONAL"
-db_disk_size                       = 100
+db_disk_size                       = 256
 db_max_disk_size                   = 1000
 db_max_connections                 = "400"
 db_backup_retention_count          = 8
 db_deletion_protection             = false
-enable_read_replica                = true
 db_name                            = "nexusiq"
 db_username                        = "nexusiq"
 db_password                        = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
@@ -369,6 +378,8 @@ hpa:
 > | `node_instance_type` | `n2-standard-8` | `n4a-highmem-8` |
 > | `filestore_capacity_gb` | 1024 | 2560, and the share cannot shrink |
 > | `db_max_disk_size` | 500 | 1000 |
+> | `db_disk_size` | 100 | 256, and the disk cannot shrink |
+> | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 
@@ -377,7 +388,6 @@ hpa:
 - **`node_group_max_size = 5`** - Maximum GKE node capacity
 - **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended, requires HA license)
 - **`db_availability_type = "REGIONAL"`** - Regional database with automatic failover
-- **`enable_read_replica = true`** - Database read replica for load distribution
 - **`filestore_capacity_gb = 2560`** - 2.5 TiB, the Size L capacity. Size M uses 1024 and Size XL uses 10240
 - **`gcp_project_id`** - Your GCP project ID (required)
 - **`db_password`** - Use a strong, unique password (required change)
@@ -432,7 +442,7 @@ legal. A value that breaks the rule fails at plan rather than part way through a
 
 | Name | Reuse after deletion |
 |---|---|
-| Cloud SQL instance, and its replica | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
+| Cloud SQL instance | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
 | Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
 | Everything else here | Immediate |
 
@@ -592,8 +602,8 @@ Per size:
 
 | Size | Data nodes | Machine type | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |------|:----------:|:------------:|:----------------:|:----------------:|:--------:|:---------------------------:|
-| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
-| **L** | 3 | `c4a-standard-4`, 4 vCPU, 16 GB | 150 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **L** | 3 | `c4a-standard-4`, 4 vCPU, 16 GB | 150 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 | **XL** | 3 | `c4a-highmem-8`, 8 vCPU, 64 GB | 250 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
@@ -603,9 +613,10 @@ Storage per node is the published size, chosen at or above the measured use. L a
 measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 
 The cluster managers are dedicated, so they hold no data and take no search traffic, and three of
-them keep a quorum when one is lost. **At M the cluster managers are measured**; at L and XL they
-are the same type, chosen at or above the AWS equivalent, which is `m8g.medium.search` at M and L
-and `m8g.large.search` at XL. Each takes half its RAM as heap, as the data nodes do.
+them keep a quorum when one is lost. At M and L they are `c4a-standard-1`, the same vCPU and
+memory as the AWS equivalent, `m8g.medium.search`. The GCP M measurement ran them on
+`c4a-standard-2`. At XL they are `c4a-standard-2`, at or above the AWS `m8g.large.search`. Each
+takes half its RAM as heap, as the data nodes do.
 
 **Put an internal passthrough Network Load Balancer in front of the data nodes**, and set
 `opensearch_endpoint` to its address, so Nexus IQ Server reaches one endpoint and replacing a data
@@ -776,7 +787,6 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Cluster Autoscaler**: GKE nodes scale from 2-5 based on pod resource requests
 - **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
-- **Read Replica**: Optional read replica for load distribution
 - **Automatic Restart**: Kubernetes automatically restarts failed pods
 - **Pod Disruption Budgets**: Maintains availability during updates and node maintenance
 - **Rolling Updates**: Zero-downtime updates with controlled rollout
@@ -796,7 +806,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Cloud Filestore (BASIC_HDD)**: Shared storage for `/sonatype-work` directory (1 TiB minimum)
-- **Database**: Cloud SQL PostgreSQL 15 (regional) for application data
+- **Database**: Cloud SQL PostgreSQL (regional) for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 

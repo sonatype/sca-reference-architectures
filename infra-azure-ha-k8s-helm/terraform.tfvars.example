@@ -13,13 +13,13 @@ db_subnet_cidr     = "10.1.20.0/24"
 kubernetes_version      = "1.36"
 node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
-node_group_max_size     = 6
+node_group_max_size     = 5
 node_group_desired_size = 3
 node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA) - matching AWS Aurora specs
-postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16ds_v6" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS db.r8g.4xlarge)
+postgres_version                 = "18"
+db_sku_name                      = "MO_Standard_E8ds_v6" # Memory Optimized: 8 vCores, 64 GB (matches AWS db.r8g.2xlarge)
 db_high_availability_mode        = "ZoneRedundant"
 db_storage_mb                    = 131072 # 128GB, grows automatically
 db_storage_tier                  = "P10"
@@ -32,7 +32,7 @@ db_geo_redundant_backup_enabled  = false # Not supported in all regions
 # Azure Files Premium Storage (Zone-Redundant)
 storage_account_tier             = "Premium"
 storage_account_replication_type = "ZRS"
-storage_share_quota_gb           = 512
+storage_share_quota_gb           = 500
 
 # Application Gateway Configuration (Zone-Redundant)
 app_gateway_sku_name     = "Standard_v2"
@@ -51,7 +51,7 @@ nexus_iq_replica_count   = 3
 # Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
-helm_chart_version      = "195.0.0"
+helm_chart_version      = "201.0.0"
 helm_namespace          = "nexus-iq"
 agic_helm_version       = "1.7.2"
 aad_pod_identity_version = "4.1.18"

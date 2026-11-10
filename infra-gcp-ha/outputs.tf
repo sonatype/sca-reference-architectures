@@ -31,11 +31,6 @@ output "database_name" {
   value       = google_sql_database.iq_ha_database.name
 }
 
-output "database_replica_connection_name" {
-  description = "Cloud SQL read replica connection name (if enabled)"
-  value       = var.enable_read_replica ? google_sql_database_instance.iq_ha_db_replica[0].connection_name : null
-}
-
 # Compute Engine outputs
 output "instance_group_manager_id" {
   description = "ID of the regional instance group manager"

@@ -57,8 +57,9 @@ container_memory     = "64Gi"              # 64 GB
 workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
-db_storage_mb        = 524288              # 512 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB
+file_share_quota     = 500                 # GB
 ```
 </details>
 
@@ -68,7 +69,7 @@ db_storage_mb        = 524288              # 512 GB
 |------|:-------|:------:|:------:|:-------:|
 | **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 64 GB |
 | **S** | GP_Standard_D2ds_v6 | 2 | 8 GB | 128 GB |
-| **M** | GP_Standard_D8ds_v6 | 8 | 32 GB | 512 GB (auto-grow enabled) |
+| **M** | MO_Standard_E8ds_v6 | 8 | 64 GB | 128 GB (auto-grow enabled) |
 
 ---
 
@@ -86,14 +87,14 @@ Install these tools on your local machine:
 
 #### Azure Account Requirements
 - Azure subscription with Contributor access
-- Ability to create: Resource Groups, Virtual Networks, Container Apps, PostgreSQL, Application Gateway
+- Ability to create: Resource Groups, Virtual Networks, Container Apps, PostgreSQL
 - Key Vault access for secrets management
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
 - **Resource Groups**: Create and manage resource groups
 - **Compute**: Container Apps, Container App Environments, Container App Environment Storage
-- **Networking**: Virtual Networks, subnets, Network Security Groups, Application Gateways, Public IPs, Private DNS Zones
+- **Networking**: Virtual Networks, subnets, Network Security Groups, Private DNS Zones
 - **Database**: Azure Database for PostgreSQL Flexible Server, databases, firewall rules
 - **Storage**: Storage Accounts, File Shares
 - **Security**: Key Vault, Key Vault access policies, Managed Identities (system-assigned)
@@ -164,7 +165,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the deployment.
 
-   Example: `http://ref-arch-iq-abc123.westus2.cloudapp.azure.com`
+   Example: `https://ca-ref-arch-iq.<environment domain>.westus2.azurecontainerapps.io`, the Container App's own address
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -187,6 +188,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed. A deployment whose
 > `terraform.tfvars` does not set a variable picks up the new default on its next apply. Set the
 > values your deployment is running at in `terraform.tfvars` before applying.
@@ -196,8 +201,13 @@ Your Azure account needs permissions for these services:
 > | `container_cpu` | 4.0 | 8.0 |
 > | `container_memory` | `8Gi` | `64Gi` |
 > | `java_opts` | 6 GB heap | 48 GB heap |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v6` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
+> | `db_storage_mb` | 524288 | 131072 for a new server. An existing server keeps its size |
 > | `workload_profile_type` | `D4`, fixed | `E8` |
+>
+> The Application Gateway, its public IP and the `app_gateway_*` variables are removed, so the
+> next apply deletes them. IQ Server is then reached on the Container App's own HTTPS address,
+> the `application_url` output, and the `application_gateway_*` outputs are gone.
 
 ### Configuration Variables
 
@@ -225,18 +235,13 @@ java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version                 = "15"
-db_sku_name                      = "MO_Standard_E16ds_v6"  # Memory Optimized (16 vCores, 128GB RAM)
-db_storage_mb                    = 524288                 # 512GB storage
+postgres_version                 = "18"
+db_sku_name                      = "MO_Standard_E8ds_v6"   # Memory Optimized (8 vCores, 64 GB), the Size M value
+db_storage_mb                    = 131072                 # 128 GB, the Size M value
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
 db_geo_redundant_backup_enabled  = false
 db_high_availability_enabled     = false
-
-# Application Gateway Configuration
-app_gateway_sku_name = "Standard_v2"
-app_gateway_sku_tier = "Standard_v2"
-app_gateway_capacity = 2
 
 # Storage Configuration
 storage_account_tier             = "Standard"
@@ -275,7 +280,7 @@ common_tags = {
 - **Encryption**:
   - Azure File Share encrypted at rest
   - PostgreSQL encrypted at rest
-  - Application Gateway SSL termination support
+  - HTTPS on the Container App's own address, with a certificate Azure manages. Plain HTTP is redirected to HTTPS
 - **Network Security Groups**: Least-privilege network access
 - **Managed Identity**: Container Apps use system-assigned identity for secure access
 
@@ -284,7 +289,7 @@ common_tags = {
 This is a **single instance** deployment.
 - **Single Instance**: One Container App replica running Sonatype IQ Server (runs in one zone at a time)
 - **Single Zone Database**: PostgreSQL Flexible Server runs in one availability zone (unless HA enabled)
-- **Zone Redundancy Available**: Infrastructure can be made zone-redundant (Application Gateway, database HA)
+- **Zone Redundancy Available**: Infrastructure can be made zone-redundant (database HA)
 - **Automatic Restart**: Container Apps automatically restarts the container if it fails (may restart in different zone, causing brief downtime)
 - **Database Backups**: Automated PostgreSQL backups with 7-day retention (configurable)
 - **File Share Persistence**: Application data stored on Azure File Share survives container restarts
@@ -294,19 +299,18 @@ This is a **single instance** deployment.
 - **Log Analytics**: Application logs centralized in Log Analytics workspace
 - **Log files**: `clm-server.log`, `request.log` and `audit.log` are written to the `nexus-iq-logs` Azure Files share, mounted at `/var/log/nexus-iq-server`. `clm-server.log` rolls hourly and keeps 24 archives. `log_share_quota_gb` sets the share's size, 128 GB by default
 - **Container App Logs**: Application and system logs with structured logging
-- **Application Gateway Logs**: Access logs and diagnostic information
 - **Azure Monitor**: Optional monitoring and alerting
 
 ## Persistent Storage
 
 - **Azure File Share**: Shared storage for `/sonatype-work` directory using SMB protocol
-- **Database**: PostgreSQL Flexible Server for application data
+- **Database**: PostgreSQL Flexible Server for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking
 
 ### Subnets
-- **Public Subnet**: Application Gateway
+- **Public Subnet**: Created with its NSG; nothing in this architecture is deployed into it
 - **Private Subnet**: Container Apps (delegated to Container Apps infrastructure)
 - **Database Subnet**: PostgreSQL Flexible Server (delegated to PostgreSQL)
 
@@ -419,16 +423,17 @@ Three things about that block are deliberate:
 ### Specifying the cluster
 
 **M and L are measured on Azure; XS, S and XL are not.** The data node types at M and L are the
-measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS and S use `Standard_D2ps_v6` and XL
-`Standard_E8ps_v6`, which give the same vCPU and memory as the AWS and GCP data nodes at those
-sizes. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
+measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS uses `Standard_D2pls_v6`, S uses
+`Standard_D2ps_v6` and XL `Standard_E8ps_v6`, which give the same memory as the AWS and GCP data
+nodes at those sizes. At XS that is one more vCPU, since `Standard_D2pls_v6` is the smallest Dplsv6
+size. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
 managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
 at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
 measured VMs had, and takes half its RAM as heap.
 
 | Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |---|---|---|---|---|---|---|
-| XS | 1 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 25 GB, on a P4 Premium SSD of 32 GiB | none | 1 | `0` |
+| XS | 1 | `Standard_D2pls_v6`, 2 vCPU, 4 GB | 25 GB, on a P4 Premium SSD of 32 GiB | none | 1 | `0` |
 | S | 1 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 50 GB, on a P6 Premium SSD of 64 GiB | none | 1 | `0` |
 | M | 3 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
 | L | 3 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
@@ -460,7 +465,7 @@ Other things the cluster needs, none of which this configuration sets for you:
 - **A user IQ Server owns**, with permission to create and write its own indices. Do not reuse the
   bootstrap admin.
 - **Heap at half of RAM and no more than about 31 GB**, set in `jvm.options`, which is the standard
-  OpenSearch guidance: 4 GB on `Standard_D2ps_v6`, 8 GB on `Standard_D4ps_v6`, and about 31 GB on
+  OpenSearch guidance: 2 GB on `Standard_D2pls_v6`, 4 GB on `Standard_D2ps_v6`, 8 GB on `Standard_D4ps_v6`, and about 31 GB on
   `Standard_E8ps_v6`, where half its RAM would pass the cap.
 - **Three dedicated cluster managers** at M and above, one per availability zone, holding no data, so
   losing one leaves a quorum. XS and S run none: one data node is its own cluster manager.
@@ -550,7 +555,7 @@ running, and treat it as a thing to undo.
 
 ## Important: Admin Port 8071 Not Exposed
 
-The admin port 8071 is configured within the IQ Server container but **not exposed externally** through the Application Gateway. Only the main application port 8070 is accessible via port 80.
+The admin port 8071 is configured within the IQ Server container but **not exposed externally**. The Container App's ingress reaches only the main application port 8070, over HTTPS on port 443.
 
 **Admin port access** is available through Container App console/exec sessions if needed for troubleshooting.
 

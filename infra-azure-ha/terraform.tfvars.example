@@ -31,8 +31,8 @@ scale_rule_concurrent_requests = 100  # Concurrent requests threshold
 db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version               = "15"
-db_sku_name                    = "MO_Standard_E16ds_v6"     # Memory Optimized: 16 vCores, 128GB RAM
+postgres_version               = "18"
+db_sku_name                    = "MO_Standard_E8ds_v6"      # Memory Optimized: 8 vCores, 64 GB, the Size M and L value
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
 db_high_availability_mode      = "ZoneRedundant"           # Zone-redundant HA
@@ -44,9 +44,9 @@ app_gateway_capacity    = 2                # Number of instances
 app_gateway_zones       = ["1", "2", "3"] # Availability zones
 
 # Premium Storage Configuration (HA)
-storage_account_tier            = "Premium"  # Premium for better performance
+storage_account_tier            = "Standard"
 storage_account_replication_type = "ZRS"     # Zone-Redundant Storage
-file_share_quota_gb            = 512         # File share size in GB
+file_share_quota_gb            = 500         # File share size in GB, the Size M value
 log_share_quota_gb             = 128         # Log share size in GB, mounted at /var/log/nexus-iq-server
 
 # Monitoring and Logging

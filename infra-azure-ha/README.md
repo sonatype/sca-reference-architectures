@@ -33,8 +33,10 @@ iq_min_replicas      = 2                   # 2 replicas for HA
 iq_max_replicas      = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB, grows automatically
 db_high_availability_mode = "ZoneRedundant"
+file_share_quota_gb  = 500
 ```
 </details>
 
@@ -49,8 +51,11 @@ iq_min_replicas      = 2
 iq_max_replicas      = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8ds_v6" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 262144              # 256 GB, grows automatically
+db_storage_tier      = "P15"
 db_high_availability_mode = "ZoneRedundant"
+file_share_quota_gb  = 1536
 storage_account_tier             = "Standard"
 storage_account_replication_type = "ZRS"
 ```
@@ -68,8 +73,11 @@ iq_max_replicas      = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
+db_storage_mb        = 524288              # 512 GB, grows automatically
+db_storage_tier      = "P20"
 db_high_availability_mode = "ZoneRedundant"
-storage_account_tier             = "Premium"  # Required for NFS with AKS
+file_share_quota_gb  = 4096
+storage_account_tier             = "Premium"  # The quota is the provisioned and billed size
 storage_account_replication_type = "ZRS"
 ```
 </details>
@@ -78,17 +86,17 @@ storage_account_replication_type = "ZRS"
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **M** | GP_Standard_D8ds_v6 | 8 | 32 GB | 100 GB (auto-grow) |
-| **L** | GP_Standard_D8ds_v6 | 8 | 32 GB | 200 GB to 1 TB (auto-grow) |
-| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 500 GB to 2 TB (auto-grow) |
+| **M** | MO_Standard_E8ds_v6 | 8 | 64 GB | 128 GB (auto-grow) |
+| **L** | MO_Standard_E8ds_v6 | 8 | 64 GB | 256 GB, auto-grow to 1 TB |
+| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 512 GB, auto-grow to 2 TB |
 
 ### Shared Storage (Azure Files)
 
-| Size | Tier | Protocol | Redundancy | Estimated Capacity |
+| Size | Tier | Protocol | Redundancy | Share quota (`file_share_quota_gb`) |
 |------|:-----|:--------:|:----------:|:------------------:|
-| **M** | Standard HDD | SMB 3.0 | ZRS | 100 GB initial |
-| **L** | Standard HDD | SMB 3.0 | ZRS | 500 GB – 1.5 TB |
-| **XL** | Premium SSD | SMB/NFS | ZRS | 1.5 TB – 4 TB |
+| **M** | Standard HDD | SMB 3.0 | ZRS | 500 GB |
+| **L** | Standard HDD | SMB 3.0 | ZRS | 1,536 GB |
+| **XL** | Premium SSD | SMB | ZRS | 4,096 GB, billed as provisioned |
 
 > Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
 
@@ -211,6 +219,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
+> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
 > picks up the new default on its next apply. Set the values your deployment is
@@ -223,9 +235,9 @@ Your Azure account needs permissions for these services:
 > | `container_cpu` | 4.0 | 8.0 |
 > | `container_memory` | `8Gi` | `64Gi` |
 > | `java_opts` | 6 GB heap | 48 GB heap |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E16ds_v6` |
+> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
 > | `db_storage_mb` | 65536, fixed | 131072 for a new server, then grows automatically. An existing server keeps its size |
-> | `file_share_quota_gb` | 200 | 512 |
+> | `file_share_quota_gb` | 200 | 500 |
 > | workload profile | `D4`, 1 to 3 nodes | `workload_profile_type`, default `E8`, `iq_min_replicas` to `iq_max_replicas` nodes |
 >
 > **Earlier versions did not read `cluster_name`**, though the example file set it. A deployment whose
@@ -264,8 +276,8 @@ scale_rule_concurrent_requests = 100  # Concurrent requests threshold for HTTP s
 db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version               = "15"
-db_sku_name                    = "MO_Standard_E16ds_v6"     # Memory Optimized: 16 vCores, 128GB RAM
+postgres_version               = "18"
+db_sku_name                    = "MO_Standard_E8ds_v6"      # Memory Optimized: 8 vCores, 64 GB, the Size M and L value
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
 db_high_availability_mode      = "ZoneRedundant"           # Zone-redundant HA
@@ -277,9 +289,9 @@ app_gateway_capacity    = 2                # Number of instances
 app_gateway_zones       = ["1", "2", "3"] # Availability zones
 
 # Premium Storage Configuration (HA)
-storage_account_tier             = "Premium"  # Premium for better performance
+storage_account_tier             = "Standard"
 storage_account_replication_type = "ZRS"      # Zone-Redundant Storage
-file_share_quota_gb              = 512        # File share size in GB
+file_share_quota_gb              = 500        # File share size in GB, the Size M value
 
 # Monitoring and Logging
 enable_monitoring         = true
@@ -367,7 +379,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
-- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data
+- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking
@@ -488,9 +500,10 @@ Three things about that block are deliberate:
 ### Specifying the cluster
 
 **M and L are measured on Azure; XS, S and XL are not.** The data node types at M and L are the
-measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS and S use `Standard_D2ps_v6` and XL
-`Standard_E8ps_v6`, which give the same vCPU and memory as the AWS and GCP data nodes at those
-sizes. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
+measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS uses `Standard_D2pls_v6`, S uses
+`Standard_D2ps_v6` and XL `Standard_E8ps_v6`, which give the same memory as the AWS and GCP data
+nodes at those sizes. At XS that is one more vCPU, since `Standard_D2pls_v6` is the smallest Dplsv6
+size. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
 managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
 at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
 measured VMs had, and takes half its RAM as heap.

@@ -103,9 +103,9 @@ variable "db_password" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version. Cloud SQL cannot downgrade a major version in place, so an instance already created on POSTGRES_17 has to keep that value set here."
+  description = "PostgreSQL major version. Cloud SQL cannot downgrade a major version in place, so an existing instance keeps the version it runs. Upgrading is the deployer's decision."
   type        = string
-  default     = "POSTGRES_15"
+  default     = "POSTGRES_18"
 }
 
 variable "db_instance_tier" {
@@ -137,9 +137,9 @@ variable "db_availability_type" {
 }
 
 variable "db_disk_size" {
-  description = "Database disk size in GB"
+  description = "Database disk size in GB. The default is the Size M value."
   type        = number
-  default     = 100
+  default     = 128
 }
 
 variable "db_backup_start_time" {
@@ -149,9 +149,9 @@ variable "db_backup_start_time" {
 }
 
 variable "db_max_disk_size" {
-  description = "Maximum database disk size in GB"
+  description = "Maximum database disk size in GB, the ceiling auto-resize grows to. The default is the Size M value."
   type        = number
-  default     = 1000
+  default     = 500
 }
 
 variable "db_max_connections" {

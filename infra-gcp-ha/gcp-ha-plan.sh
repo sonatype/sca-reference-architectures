@@ -424,7 +424,7 @@ estimate_costs() {
     
     warning "This HA deployment will create billable resources:"
     echo "  • Compute Engine instances (2 to 5 for the HA cluster, depending on size)"
-    echo "  • Cloud SQL regional instance + read replicas for HA"
+    echo "  • Cloud SQL regional instance with a standby in a second zone"
     echo "  • Regional persistent disks with replication"
     echo "  • Global load balancer with SSL certificates"
     echo "  • Cloud NAT gateway with external IP"

@@ -33,13 +33,13 @@ db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 # Cloud SQL cannot downgrade a major version in place. If an instance already exists
-# on POSTGRES_17, leave this at POSTGRES_17 rather than changing it to POSTGRES_15.
-postgres_version                    = "POSTGRES_15"
+# on another major version, set that version here.
+postgres_version                    = "POSTGRES_18"
 db_instance_tier                    = "db-custom-8-30720"
 db_edition                          = "ENTERPRISE"
 db_availability_type                = "ZONAL"
-db_disk_size                        = 100
-db_max_disk_size                    = 1000
+db_disk_size                        = 128
+db_max_disk_size                    = 500
 db_backup_start_time                = "03:00"
 db_max_connections                  = "200"
 db_transaction_log_retention_days   = 7

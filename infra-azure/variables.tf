@@ -7,7 +7,7 @@ variable "azure_region" {
 
 
 variable "cluster_name" {
-  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, public IP and its DNS label, Application Gateway, Key Vault, storage account, PostgreSQL Flexible Server and the private DNS zone link all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the Key Vault name is built as kv-<cluster_name>-<6 random characters> and Azure caps a Key Vault name at 24."
+  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, Key Vault, storage account, PostgreSQL Flexible Server and the private DNS zone link all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the Key Vault name is built as kv-<cluster_name>-<6 random characters> and Azure caps a Key Vault name at 24."
   type        = string
   default     = "ref-arch-iq"
 
@@ -30,7 +30,7 @@ variable "vnet_cidr" {
 }
 
 variable "public_subnet_cidr" {
-  description = "CIDR block for public subnet (Application Gateway)"
+  description = "CIDR block for the public subnet. It is created with its NSG and holds no resources."
   type        = string
   default     = "10.0.1.0/24"
 }
@@ -98,21 +98,21 @@ variable "db_password" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {
-  description = "PostgreSQL Flexible Server SKU. The Sizing Guide in README.md gives the SKU for XS, S and M; the default, 16 vCores, is larger than any of them."
+  description = "PostgreSQL Flexible Server SKU. The default, 8 vCores and 64 GB, is the Size M value; the Sizing Guide in README.md gives XS and S."
   type        = string
-  default     = "MO_Standard_E16ds_v6"
+  default     = "MO_Standard_E8ds_v6"
 }
 
 variable "db_storage_mb" {
-  description = "Database storage in MB when the server is created. Terraform ignores later changes, so raise a live server's storage with the Azure CLI or portal."
+  description = "Database storage in MB when the server is created. Flexible Server accepts 32768, 65536, 131072, 262144, 524288 and larger powers of two. The default, 128 GB, is the Size M value. Terraform ignores later changes, so raise a live server's storage with the Azure CLI or portal."
   type        = number
-  default     = 524288
+  default     = 131072
 }
 
 variable "db_auto_grow_enabled" {
@@ -139,37 +139,6 @@ variable "db_high_availability_enabled" {
   default     = false
 }
 
-
-variable "app_gateway_sku_name" {
-  description = "Application Gateway SKU name"
-  type        = string
-  default     = "Standard_v2"
-}
-
-variable "app_gateway_sku_tier" {
-  description = "Application Gateway SKU tier"
-  type        = string
-  default     = "Standard_v2"
-}
-
-variable "app_gateway_capacity" {
-  description = "Application Gateway capacity"
-  type        = number
-  default     = 2
-}
-
-variable "ssl_certificate_path" {
-  description = "Path to SSL certificate file (optional)"
-  type        = string
-  default     = ""
-}
-
-variable "ssl_certificate_password" {
-  description = "Password for SSL certificate (optional)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
 
 
 variable "log_share_quota_gb" {
