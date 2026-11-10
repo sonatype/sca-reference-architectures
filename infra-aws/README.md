@@ -464,6 +464,8 @@ Your IAM user/role needs these AWS service permissions:
 > | `ecs_memory` | 32768 | 61440 |
 > | `java_opts` | 24 GB heap | 44 GB heap |
 > | `db_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
+> | `db_allocated_storage` | 500 | 128. RDS cannot shrink storage, so an existing instance keeps its size here |
+> | `db_max_allocated_storage` | 1000 | 500 |
 >
 > An instance class change applies in the next maintenance window, because this
 > configuration does not set `apply_immediately`.

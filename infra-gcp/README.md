@@ -214,6 +214,8 @@ Enable these APIs in your project:
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
 > | `postgres_version` | POSTGRES_17 | POSTGRES_18 |
+> | `db_disk_size` | 100 | 128, and the disk cannot shrink |
+> | `db_max_disk_size` | 1000 | 500. An instance already above 500 GB keeps its size here |
 > | `java_opts` | 48 GB heap, no direct memory cap | the Size M `java_opts` above |
 > | `gce_boot_image` | `debian-cloud/debian-12` | empty, which picks `debian-12-arm64` on an Arm machine type |
 
