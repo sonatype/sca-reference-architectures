@@ -324,7 +324,7 @@ ecs_memory           = 16384               # 16 GB
 iq_desired_count     = 1                   # Single instance
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.t4g.medium"     # 2 vCPU, 4 GB (burstable)
+db_instance_class    = "db.m8g.large"      # 2 vCPU, 8 GB
 db_allocated_storage = 64                  # GB
 ```
 
@@ -335,7 +335,7 @@ container_cpu        = 2.0                 # 2 vCPU
 container_memory     = "16Gi"              # 16 GB
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
+db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 51200               # 50 GB
 ```
 
@@ -361,10 +361,10 @@ Single instance for small production environments with moderate evaluation volum
 ```hcl
 # infra-aws/terraform.tfvars — Size S
 ecs_cpu              = 4096                # 4 vCPU
-ecs_memory           = 32768              # 32 GB
+ecs_memory           = 30720              # 30 GB, the maximum at 4 vCPU
 iq_desired_count     = 1                   # Single instance
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms22g -Xmx22g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
 db_allocated_storage = 128                 # GB
 ```
@@ -626,7 +626,7 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 | **L** | 64 GB | 48 GB | 8 GB | 10 |
 | **XL** | 128 GB | 96 GB | 8 GB | 10 |
 
-> **On AWS Fargate, M and L run a 44 GB heap, not 48 GB.** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps its 96 GB heap, which leaves 16 GB of a 120 GB task.
+> **On AWS Fargate, M and L run a 44 GB heap, not 48 GB.** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps its 96 GB heap, which leaves 16 GB of a 120 GB task. S runs a 22 GB heap for the same reason: Fargate caps a 4 vCPU task at 30 GB, and 22 GB plus `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 
 ---
 
