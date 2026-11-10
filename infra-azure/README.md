@@ -165,7 +165,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the deployment.
 
-   Example: `https://ca-ref-arch-iq.<environment domain>.westus2.azurecontainerapps.io`, the Container App's own address
+   Example: `https://ca-ref-arch-iq.<environment domain>.eastus.azurecontainerapps.io`, the Container App's own address
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -215,7 +215,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
+azure_region = "East US"
 cluster_name = "ref-arch-iq" # Name prefix for every resource; change it to run several in one subscription
 
 # Network Configuration

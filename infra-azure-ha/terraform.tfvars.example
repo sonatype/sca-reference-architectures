@@ -2,7 +2,7 @@
 # Copy this file to terraform.tfvars and customize for your environment
 
 # General Configuration
-azure_region  = "East US 2"
+azure_region  = "East US"
 cluster_name  = "ref-arch-iq-ha"
 
 # Network Configuration (Multi-zone for HA)
