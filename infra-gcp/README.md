@@ -32,6 +32,7 @@ gce_machine_type     = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
+db_disk_type         = "PD_SSD"            # the db-custom-2-* tiers take PD_SSD, not Hyperdisk
 db_disk_size         = 64                  # GB
 ```
 </details>
@@ -44,6 +45,7 @@ gce_machine_type     = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
+db_disk_type         = "PD_SSD"            # the db-custom-2-* tiers take PD_SSD, not Hyperdisk
 db_disk_size         = 128                 # GB
 ```
 </details>
@@ -55,7 +57,9 @@ db_disk_size         = 128                 # GB
 gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_type         = "HYPERDISK_BALANCED"   # the only storage the N4 tiers take
+db_disk_provisioned_iops = 8000               # read and write combined
 db_disk_size         = 128                 # GB, auto-resize enabled
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024               # 1 TiB minimum
@@ -66,9 +70,11 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 
 | Size | DB Tier | vCPU | Memory | Storage |
 |------|:--------|:----:|:------:|:-------:|
-| **XS** | db-custom-2-7680 | 2 | 7.5 GB | 64 GB |
-| **S** | db-custom-2-13312 | 2 | 13 GB | 128 GB |
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) |
+| **XS** | db-custom-2-7680 | 2 | 7.5 GB | 64 GB PD-SSD |
+| **S** | db-custom-2-13312 | 2 | 13 GB | 128 GB PD-SSD |
+| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) |
+
+M uses the N4 series so the database has the same 64 GB as AWS and Azure at Size M. The classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, whose default for a disk up to 256 GB is 4,000 IOPS, so the IOPS are set to 8,000, above the 6,914 combined read and write operations a second measured at Size M. XS and S stay on the classic tiers on PD-SSD.
 
 ### OpenSearch
 
@@ -287,6 +293,11 @@ Enable these APIs in your project:
 > | `db_max_disk_size` | 1000 | 500. An instance already above 500 GB keeps its size here |
 > | `java_opts` | 48 GB heap, no direct memory cap | the Size M `java_opts` above |
 > | `gce_boot_image` | `debian-cloud/debian-12` | empty, which picks `debian-12-arm64` on an Arm machine type |
+> | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536 |
+> | `db_disk_type` | PD_SSD, fixed in `database.tf` | HYPERDISK_BALANCED, now a variable |
+> | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED |
+
+> **Existing deployments and the N4 database tiers.** The Size M database default moved from `db-custom-8-30720` on `PD_SSD` to `db-custom-N4-8-65536` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
 
 ### Configuration Variables
 
@@ -323,8 +334,10 @@ db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version                    = "POSTGRES_18"
-db_instance_tier                    = "db-custom-8-30720"  # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier                    = "db-custom-N4-8-65536"  # 8 vCPU, 64 GB, N4 series (Enterprise)
 db_edition                          = "ENTERPRISE"
+db_disk_type                        = "HYPERDISK_BALANCED"
+db_disk_provisioned_iops            = 8000
 db_availability_type                = "ZONAL"
 db_disk_size                        = 128
 db_max_disk_size                    = 500

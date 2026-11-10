@@ -42,14 +42,15 @@ db_username = "nexusiq"
 db_password = "your-secure-database-password" # Change this!
 
 # Database settings
-postgres_version     = "POSTGRES_18"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
-db_edition           = "ENTERPRISE"        # ENTERPRISE_PLUS for db-perf-optimized-N-* or db-c4a-highmem-*
-db_disk_type         = "PD_SSD"            # HYPERDISK_BALANCED for db-c4a-highmem-*
-db_availability_type = "REGIONAL"          # REGIONAL for HA, ZONAL for single-zone
-db_disk_size         = 256
-db_max_disk_size     = 1000
-db_max_connections   = "200"
+postgres_version         = "POSTGRES_18"
+db_instance_tier         = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_edition               = "ENTERPRISE"           # ENTERPRISE_PLUS for db-perf-optimized-N-* or db-c4a-highmem-*
+db_disk_type             = "HYPERDISK_BALANCED"   # the only storage the N4 tiers take
+db_disk_provisioned_iops = 8000                   # 10000 at Size XL
+db_availability_type     = "REGIONAL"             # REGIONAL for HA, ZONAL for single-zone
+db_disk_size             = 256
+db_max_disk_size         = 1000
+db_max_connections       = "200"
 
 # Database backup configuration
 db_backup_start_time              = "03:00" # UTC time
@@ -125,7 +126,8 @@ search_engine = "lucene"
 # iq_min_instances      = 2
 # iq_max_instances      = 3
 # iq_target_instances   = 2
-# db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+# db_instance_tier      = "db-custom-N4-8-65536" # 8 vCPU, 64 GB (Enterprise)
+# db_disk_provisioned_iops = 8000
 # db_availability_type  = "REGIONAL"
 # db_disk_size          = 128
 # db_max_disk_size      = 500   # the Size L value above is 1000
@@ -138,7 +140,8 @@ search_engine = "lucene"
 # iq_min_instances      = 3
 # iq_max_instances      = 5
 # iq_target_instances   = 4
-# db_instance_tier      = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+# db_instance_tier      = "db-custom-N4-16-131072" # 16 vCPU, 128 GB (Enterprise)
+# db_disk_provisioned_iops = 10000
 # db_availability_type  = "REGIONAL"
 # db_disk_size          = 512
 # db_max_disk_size      = 2000  # the Size L value above is 1000

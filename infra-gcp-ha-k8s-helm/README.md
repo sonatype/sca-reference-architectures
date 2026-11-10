@@ -38,7 +38,8 @@ node_group_min_size     = 2
 node_group_max_size     = 3
 node_group_desired_size = 2
 nexus_iq_replica_count  = 2                # 2 IQ pods
-db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 128              # GB
 db_max_disk_size        = 500
@@ -69,7 +70,8 @@ node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
 nexus_iq_replica_count  = 3                # 3 IQ pods
-db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 256              # GB
 db_max_disk_size        = 1000
@@ -100,7 +102,8 @@ node_group_min_size     = 3
 node_group_max_size     = 5
 node_group_desired_size = 4
 nexus_iq_replica_count  = 4                # 4 IQ pods
-db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 10000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 512              # GB
 db_max_disk_size        = 2000
@@ -132,9 +135,11 @@ iq_server:
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
+| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-N4-16-131072 (Enterprise) | 16 | 128 GB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB | Regional |
+
+The tiers are on the N4 series so the database has the same memory as AWS and Azure, 64 GB at M and L and 128 GB at XL. The classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL, above the 6,914 combined read and write operations a second measured at Size M. Throughput is left at the Hyperdisk default for the disk size.
 
 ### Shared Storage (Cloud Filestore)
 
@@ -398,7 +403,10 @@ gke_maintenance_window_start = "03:00"
 
 # PostgreSQL Configuration (Regional HA)
 postgres_version                   = "POSTGRES_18"
-db_instance_tier                   = "db-custom-8-30720"  # 8 vCPU, 30GB RAM
+db_instance_tier                   = "db-custom-N4-8-65536"  # 8 vCPU, 64 GB, the Size L value
+db_edition                         = "ENTERPRISE"
+db_disk_type                       = "HYPERDISK_BALANCED"
+db_disk_provisioned_iops           = 8000                    # 10000 at Size XL
 db_availability_type               = "REGIONAL"
 db_disk_size                       = 256
 db_max_disk_size                   = 1000
@@ -453,9 +461,15 @@ hpa:
 > | `filestore_capacity_gb` | 1024 | 2560, and the share cannot shrink |
 > | `db_max_disk_size` | 500 | 1000 |
 > | `db_disk_size` | 100 | 256, and the disk cannot shrink |
+> | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536, see the note below |
+> | `db_disk_type` | PD_SSD, fixed in `database.tf` | HYPERDISK_BALANCED, now a variable |
+> | `db_edition` | not set, so Cloud SQL chose | ENTERPRISE, now a variable |
+> | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED |
 > | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
+
+> **Existing deployments and the N4 database tiers.** The M, L and XL database defaults moved from `db-custom-8-30720` and `db-custom-16-65536` on `PD_SSD` to `db-custom-N4-8-65536` and `db-custom-N4-16-131072` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
 
 **Important Settings:**
 - **`node_group_min_size = 2`** - Minimum GKE node capacity

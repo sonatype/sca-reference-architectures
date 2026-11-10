@@ -39,7 +39,8 @@ iq_min_instances     = 2
 iq_max_instances     = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type = "REGIONAL"
 db_disk_size         = 128                 # GB
 db_max_disk_size     = 500
@@ -58,7 +59,8 @@ iq_min_instances     = 2
 iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type = "REGIONAL"
 db_disk_size         = 256                 # GB
 db_max_disk_size     = 1000
@@ -77,7 +79,8 @@ iq_min_instances     = 3
 iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 10000
 db_availability_type = "REGIONAL"
 db_disk_size         = 512                 # GB
 db_max_disk_size     = 2000
@@ -90,9 +93,11 @@ filestore_capacity_gb = 10240
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
+| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-N4-16-131072 (Enterprise) | 16 | 128 GB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB | Regional |
+
+The tiers are on the N4 series so the database has the same memory as AWS and Azure, 64 GB at M and L and 128 GB at XL. The classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL, above the 6,914 combined read and write operations a second measured at Size M. Throughput is left at the Hyperdisk default for the disk size.
 
 ### Shared Storage (Cloud Filestore)
 
@@ -324,12 +329,17 @@ Enable these APIs in your project:
 > | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay | every deployment |
 > | `filestore_capacity_gb` | 1024 | 2560 | every deployment, and the share cannot shrink |
 > | `java_opts` | 48 GB heap, no direct memory cap | the Size M and L `java_opts` above | every deployment, and it rolls the group |
+> | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536 | every deployment, see the note below |
+> | `db_disk_type` | PD_SSD | HYPERDISK_BALANCED | every deployment, see the note below |
+> | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED | every deployment |
 >
 > `iq_target_instances` reaches a group only when it is created: `compute.tf` sets
 > `ignore_changes = [target_size]` on the instance group manager, so an existing
 > deployment keeps the size it is running at and an apply will not resize it. Change the
 > size with `gcloud compute instance-groups managed resize`, or by removing that
 > lifecycle block.
+
+> **Existing deployments and the N4 database tiers.** The M, L and XL database defaults moved from `db-custom-8-30720` and `db-custom-16-65536` on `PD_SSD` to `db-custom-N4-8-65536` and `db-custom-N4-16-131072` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
 
 ### Configuration Variables
 
@@ -375,9 +385,10 @@ db_password = "your-secure-database-password"  # Change this!
 
 # Database settings
 postgres_version       = "POSTGRES_18"
-db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB, the Size L value
+db_instance_tier      = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, the Size L value
 db_edition            = "ENTERPRISE"
-db_disk_type          = "PD_SSD"
+db_disk_type          = "HYPERDISK_BALANCED"
+db_disk_provisioned_iops = 8000                 # 10000 at Size XL
 db_availability_type  = "REGIONAL"          # REGIONAL for HA
 db_disk_size          = 256
 db_max_disk_size      = 1000
@@ -425,7 +436,8 @@ search_engine = "lucene"
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = true`** - Set to `false` only for testing to allow database deletion
 - **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`). An image in Artifact Registry in the same project is pulled with the instances' service account, which holds `roles/artifactregistry.reader`
-- **`db_edition` and `db_disk_type`** - `ENTERPRISE` and `PD_SSD` suit the `db-custom-*` tiers. The newer Cloud SQL series need `ENTERPRISE_PLUS`, and `db-c4a-highmem-*` also needs `HYPERDISK_BALANCED`
+- **`db_edition` and `db_disk_type`** - `ENTERPRISE` and `HYPERDISK_BALANCED` suit the N4 tiers, and `PD_SSD` suits the classic `db-custom-*` tiers. The newer Cloud SQL series need `ENTERPRISE_PLUS`, and `db-c4a-highmem-*` also needs `HYPERDISK_BALANCED`
+- **`db_disk_provisioned_iops = 8000`** - IOPS for the Hyperdisk Balanced data disk, the Size M and L value. Size XL uses 10000. Ignored on `PD_SSD`
 - **`lb_backend_timeout_sec = 30`** - Seconds the load balancer waits for IQ Server before answering 502. Raise it if large scan uploads or report exports run longer
 - **`iq_log_levels`** - Extra logger levels written to `config.yml`, empty by default
 
