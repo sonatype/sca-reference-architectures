@@ -661,6 +661,8 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 
 > **On AWS Fargate, M and L run a 44 GB heap, not 48 GB.** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps its 96 GB heap, which leaves 16 GB of a 120 GB task.
 
+> **On the three Kubernetes architectures, M and L pods set `-XX:MaxDirectMemorySize=4g`, not 8g.** The pod's memory limit is 56 Gi, so a 48 GB heap plus 8 GB of direct memory would fill it and leave nothing for metaspace and thread stacks. XL pods keep 8g under a 112 Gi limit.
+
 ---
 
 ### OpenSearch
@@ -823,13 +825,13 @@ Two related things worth stating plainly:
 
 **Measured:** every AWS size, Azure M and L, and GCP M. The other sizes are not measured on that
 cloud. The GCP M measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP. Storage per node is the published size on every cloud, chosen at or above the measured use.
-Every cloud's data node has the same vCPU and memory at each size. The measurements are on
+Every cloud's data node has the same memory at each size, and the same vCPU everywhere except Azure at XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. The measurements are on
 [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
 Each architecture's README carries its own table with the variables that set them.
 
 | Size | Data nodes | AWS | Azure | GCP | Storage per node | Shards ¹ | Replicas |
 |------|:----------:|:---:|:-----:|:---:|:----------------:|:--------:|:--------:|
-| **XS** | 1 | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 25 GB | 1 | `0` |
+| **XS** | 1 | `m8g.medium.search` | `Standard_D2pls_v6` | `c4a-standard-1` | 25 GB | 1 | `0` |
 | **S** | 1 | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 50 GB | 1 | `0` |
 | **M** | 3 ² | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 100 GB | 3 | `1` |
 | **L** | 3 ² | `m8g.xlarge.search` | `Standard_D4ps_v6` | `c4a-standard-4` | 150 GB | 3 | `1` |
@@ -850,14 +852,15 @@ manager:
 | Size | AWS | Azure | GCP |
 |------|:---:|:-----:|:---:|
 | **XS**, **S** | none | none | none |
-| **M** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
-| **L** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
+| **M** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap |
+| **L** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap |
 | **XL** | 3 x `m8g.large.search` | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
 
 On `infra-aws-ha-k8s-helm`, which builds two zones, one zone holds two of the three managers, so
 losing that zone loses their quorum.
 
-The AWS masters are measured at every size, the Azure managers at M and L, and the GCP managers at M.
+The AWS masters are measured at every size and the Azure managers at M and L. The GCP M measurement
+ran its managers on `c4a-standard-2`; the published `c4a-standard-1` matches the AWS `m8g.medium.search`.
 The rest are chosen at or above the AWS equivalent. Each manager takes half its RAM as heap. The Azure
 managers have a 30 GiB P4 Premium SSD OS disk, and the GCP managers a 20 GB Hyperdisk Balanced boot
 disk.
