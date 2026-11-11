@@ -51,13 +51,13 @@ variable "vpc_cidr" {
 variable "public_subnet_cidrs" {
   description = "CIDR blocks for public subnets"
   type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+  default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   description = "CIDR blocks for private subnets"
   type        = list(string)
-  default     = ["10.0.10.0/24", "10.0.20.0/24"]
+  default     = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
 }
 
 variable "db_subnet_cidrs" {
@@ -117,7 +117,7 @@ variable "db_password" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
+  description = "RDS instance class. The default is the Size M value; XS uses db.m8g.large and S db.r8g.large."
   type        = string
   default     = "db.r8g.2xlarge"
 }
@@ -227,8 +227,8 @@ variable "log_archive_retention_days" {
 # opensearch.tf.
 #
 # Sizing: the shape each size needs is in the OpenSearch section of this
-# directory's README.md. The defaults are the Size S shape, so an XS deployment
-# can shrink the storage and an M deployment sets its own values.
+# directory's README.md. The defaults are the Size M shape, as the root's other
+# defaults are. XS and S set the values in their README blocks.
 
 variable "search_engine" {
   description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
@@ -256,11 +256,9 @@ variable "opensearch_instance_type" {
   description = <<-EOT
     Data node instance type for the created domain.
 
-    The default is the published type for XS, S and M.
-    Smaller types have been measured failing in ways that read as something
-    else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
-    6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and
-    swaps.
+    The default is the published type for S and M; XS uses m8g.medium.search.
+    Smaller types than the published ones have been measured failing in ways
+    that read as something else.
 
     See the OpenSearch section of this directory's README.md for the type each
     size needs.
@@ -275,9 +273,9 @@ variable "opensearch_instance_type" {
 }
 
 variable "opensearch_instance_count" {
-  description = "Data nodes in the created domain. One is the default here, matching this architecture's single IQ Server instance: a one-node domain has nowhere to place a replica and needs no dedicated masters. Raising it above 1 adds three masters and allows a replica."
+  description = "Data nodes in the created domain. The default, 3, is the Size M value; XS and S use 1, which has nowhere to place a replica and needs no dedicated masters. Above 1 the domain gets three masters."
   type        = number
-  default     = 1
+  default     = 3
 
   validation {
     condition     = var.opensearch_instance_count >= 1 && var.opensearch_instance_count <= 20
@@ -305,10 +303,10 @@ variable "opensearch_volume_size_gb" {
     after it cuts over. AWS also reserves 20% of each volume, capped at 20 GiB.
 
     See the OpenSearch section of this directory's README.md for the size each
-    tier needs.
+    tier needs. The default, 100, is the Size M value.
   EOT
   type        = number
-  default     = 50
+  default     = 100
 
   validation {
     condition     = var.opensearch_volume_size_gb >= 10 && var.opensearch_volume_size_gb <= 3000
@@ -317,9 +315,9 @@ variable "opensearch_volume_size_gb" {
 }
 
 variable "opensearch_availability_zone_count" {
-  description = "Availability zones the created domain's data nodes spread across. 1 is the default and disables zone awareness, matching this architecture's single instance. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot."
+  description = "Availability zones the created domain's data nodes spread across. The default, 3, is the Size M value and needs three private subnets, as the private_subnet_cidrs default has; XS and S use 1, which disables zone awareness. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot."
   type        = number
-  default     = 1
+  default     = 3
 
   validation {
     condition     = contains([1, 2, 3], var.opensearch_availability_zone_count)
@@ -384,9 +382,9 @@ variable "opensearch_create_log_resource_policy" {
 }
 
 variable "opensearch_index_replicas" {
-  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This architecture always writes it; when IQ Server is not given a count, it uses 1. Leave it at 0 on a domain with one data node, which has nowhere to put a replica."
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This architecture always writes it; when IQ Server is not given a count, it uses 1. The default, 1, is the Size M value; XS and S use 0, since a domain with one data node has nowhere to put a replica."
   type        = number
-  default     = 0
+  default     = 1
 
   validation {
     condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10

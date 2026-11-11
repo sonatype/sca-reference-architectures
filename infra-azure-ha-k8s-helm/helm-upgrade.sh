@@ -88,7 +88,7 @@ echo -e "${BLUE}📊 Infrastructure Details${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [[ -f "terraform.tfstate" ]]; then
-    DB_ENDPOINT=$(terraform output -raw postgres_fqdn 2>/dev/null)
+    DB_ENDPOINT=$(terraform output -raw postgres_server_fqdn 2>/dev/null)
     AZURE_REGION=$(terraform output -raw location 2>/dev/null || echo "eastus")
     CLUSTER_NAME=$(terraform output -raw aks_cluster_name 2>/dev/null)
     RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null)
@@ -106,7 +106,7 @@ echo ""
 helm repo update >/dev/null 2>&1
 
 CHART_VERSION=$(tfvar helm_chart_version)
-CHART_VERSION=${CHART_VERSION:-latest}
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"

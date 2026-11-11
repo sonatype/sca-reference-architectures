@@ -648,7 +648,7 @@ C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and 
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
 count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
 Storage per node is the published size, chosen at or above the measured use. L and XL are not
-measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+measured on GCP.
 
 The cluster managers are dedicated, so they hold no data and take no search traffic, and three of
 them keep a quorum when one is lost. At M and L they are `c4a-standard-1`, the same vCPU and
