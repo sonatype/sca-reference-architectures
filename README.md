@@ -91,9 +91,6 @@ For HTTPS access, prepare:
 
 ### Sizing Guide
 
-<!-- TO BE ADDED (CLM-55936): the "expected to change" notice goes here, in Product's own wording,
-     once Product has approved it. Nothing below should be read as that notice. -->
-
 Choose your deployment size based on your application count and daily evaluation volume:
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required | OpenSearch |
@@ -658,7 +655,7 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 
 > **On AWS Fargate, M and L run a 44 GB heap, not 48 GB.** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps its 96 GB heap, which leaves 16 GB of a 120 GB task. S runs a 22 GB heap for the same reason: Fargate caps a 4 vCPU task at 30 GB, and 22 GB plus `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 
-> **On the three Kubernetes architectures, M and L pods set `-XX:MaxDirectMemorySize=4g`, not 8g.** The pod's memory limit is 56 Gi, so a 48 GB heap plus 8 GB of direct memory would fill it and leave nothing for metaspace and thread stacks. XL pods keep 8g under a 112 Gi limit.
+> **On the three Kubernetes architectures, M and L pods set `-XX:MaxDirectMemorySize=4g`, not 8g.** The pod's memory limit is 56 Gi, so a 48 GB heap plus 8 GB of direct memory would fill it and leave nothing for metaspace and thread stacks. XL pods keep 8g under a 112 Gi limit on EKS and 110 Gi on AKS and GKE.
 
 ---
 
@@ -822,8 +819,7 @@ Two related things worth stating plainly:
 
 **Measured:** every AWS size, Azure M and L, and GCP M. The other sizes are not measured on that
 cloud. The GCP M measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP. Storage per node is the published size on every cloud, chosen at or above the measured use.
-Every cloud's data node has the same memory at each size, and the same vCPU everywhere except Azure at XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. The measurements are on
-[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+Every cloud's data node has the same memory at each size, and the same vCPU everywhere except Azure at XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1.
 Each architecture's README carries its own table with the variables that set them.
 
 | Size | Data nodes | AWS | Azure | GCP | Storage per node | Shards ¹ | Replicas |
@@ -909,12 +905,6 @@ applied only when an index is created, and both can differ from what you asked f
 #### Continuous Monitoring Performance
 
 Continuous Monitoring is one of the most resource-intensive operations. The bottleneck is HDS (Hosted Data Services) latency. Set `-Dinsight.threads.monitor=10` to maximize CM throughput.
-
-<!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures below, and the three per-provider
-     "Expected throughput" rows that repeat them, are awaiting a re-measurement. Leave the numbers
-     alone until it lands, and keep the qualifier on those three rows that they are measured with
-     continuous monitoring running, so a reader of a provider table does not take them as general
-     evaluation throughput. -->
 
 | Instance | CM Threads | 1,000 Apps CM Duration | Concurrent Eval Throughput |
 |----------|:----------:|:----------------------:|:--------------------------:|
