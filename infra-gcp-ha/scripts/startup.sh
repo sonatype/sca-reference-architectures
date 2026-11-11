@@ -53,8 +53,10 @@ NFS_SHARE="/nexus_iq_ha_data"
 # Create mount point
 mkdir -p "$${MOUNT_POINT}"
 
-# Mount the NFS share with retries. The fstab entry below can mount the share on a reboot,
-# and mounting it again fails with EBUSY, so check first.
+# Mount the NFS share with retries
+# The fstab entry written below survives a reboot, so on a later boot the share may already be
+# mounted here. Mounting the same share on the same mount point again is refused with EBUSY, which
+# this loop would read as five failed attempts and then exit, so check first.
 if mountpoint -q "$${MOUNT_POINT}"; then
   log "$${MOUNT_POINT} is already mounted, leaving it as it is"
 else
@@ -131,7 +133,8 @@ if ! docker info >/dev/null 2>&1; then
 fi
 log "Docker daemon is ready"
 
-# Artifact Registry images are pulled as the instance's service account, through gcloud.
+# An Artifact Registry image is pulled with the instance's service account, which the metadata
+# server supplies once docker is told to ask gcloud for it.
 case "$${IQ_DOCKER_IMAGE}" in
   *-docker.pkg.dev/*)
     log "Configuring docker to authenticate to $${IQ_DOCKER_IMAGE%%/*}"
@@ -276,9 +279,16 @@ sed -i "s|\$DB_PASSWORD|$${DB_PASSWORD}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/config.yml
 %{ if search_engine == "opensearch" ~}
 
-# The search block is appended rather than run through sed, which would mangle \, & and |
-# in the password. User name and password are single-quoted YAML scalars, with a single
-# quote written twice. opensearch_username refuses the five characters this cannot quote.
+# The search block is appended here rather than written into the heredoc above, so the password
+# never passes through sed. A sed replacement reads \ and & specially and ends at the | delimiter,
+# so a password containing any of those three is mangled with no error. The password is written as
+# a single-quoted YAML scalar, which takes every character literally with an embedded single quote
+# written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
+# of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
+# good a place as the middle.
+# The user name is written as a single-quoted scalar for the same reason. Its Terraform variable
+# refuses the single quote, double quote, dollar, backtick and backslash characters, which are the
+# five the quoting here cannot absorb, so | & ": " " #" and a leading indicator all survive intact.
 {
   echo "search:"
   echo "  type: http"
@@ -286,8 +296,8 @@ sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/conf
   echo "  uri: ${opensearch_uri}"
   echo "  username: '${opensearch_username}'"
   printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
-  # The Nexus One index reads only nexusOne.connection, including nexusOneIndexReplicas;
-  # without it, enabling the nexus-one feature is refused.
+  # The Nexus One index builds its connection from nexusOne.connection alone, and reads
+  # nexusOneIndexReplicas from it. Without this block enabling the nexus-one feature is refused.
   echo "nexusOne:"
   echo "  connection:"
   echo "    type: http"
@@ -299,8 +309,9 @@ sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/conf
 } >> /etc/nexus-iq-server/config.yml
 %{ if opensearch_ca_secret != "" ~}
 
-# A private certificate authority: add it to a copy of the image's JVM trust store on
-# Filestore and point the JVM at the copy, which keeps the default authorities.
+# A private certificate authority for the cluster: copy the image's JVM trust store onto Filestore,
+# add the authority to the copy, and point the JVM at the copy. Replacing the JVM's own store would
+# break IQ Server's calls to the Sonatype data services.
 log "Building the OpenSearch trust store on Filestore..."
 gcloud secrets versions access latest --secret="${opensearch_ca_secret}" --project="$${PROJECT_ID}" > /tmp/opensearch-ca.pem
 TRUSTSTORE_HOST="$${MOUNT_POINT}/opensearch-cacerts"

@@ -132,7 +132,7 @@ resource "azurerm_container_app" "iq_app_ha" {
 %{if local.opensearch_enabled && var.opensearch_use_tls}
 
           if [ -n "$OPENSEARCH_CA_PEM" ]; then
-            # On the container's own disk, so nothing collects on the share.
+            # On the container's own disk, rebuilt every start, so nothing collects on the share.
             TRUST_STORE=/tmp/iq-truststore.jks
             JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
             KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
@@ -158,8 +158,9 @@ resource "azurerm_container_app" "iq_app_ha" {
 
           echo "Creating unique work directory: $UNIQUE_WORK"
           mkdir -p "$UNIQUE_WORK"
-          # A directory per replica, since the JVM does not overwrite a dump of the same
-          # name. The JVM takes the last HeapDumpPath, so this one wins.
+          # Every replica would otherwise dump into one directory on the share, and the
+          # JVM does not overwrite a dump of the same name. The JVM takes the last
+          # HeapDumpPath, so this one wins over the one in java_opts.
           mkdir -p "$UNIQUE_WORK/Java_Heap_logs"
           export JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=$UNIQUE_WORK/Java_Heap_logs"
 
@@ -255,8 +256,8 @@ CONFIGEOF
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
 %{if local.opensearch_enabled}
 
-          # Single-quoted YAML scalars with ' doubled, written after the $HOSTNAME sed, so
-          # no character in the credentials can change the file.
+          # Written from the container app secrets as single-quoted YAML scalars with
+          # ' doubled, after the $HOSTNAME sed, so nothing can change the file.
           os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
           os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
 
