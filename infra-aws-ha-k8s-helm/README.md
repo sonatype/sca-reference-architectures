@@ -18,7 +18,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 8 GB of `112Gi`.
 
-> **ARM instances recommended.** r9g (Graviton5) costs 8% less than the x86 equivalent (r8i) on demand in us-east-1, at list prices in November 2026. The node AMI follows the instance architecture, so both ARM and x86 types deploy.
+> **ARM instances recommended.** r9g (Graviton5) costs less on demand than the x86 equivalent (r8i). The node AMI follows the instance architecture, so both ARM and x86 types deploy.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 

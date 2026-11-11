@@ -16,7 +16,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 > ¹ XS and S are projected sizing estimates. M has been validated through performance testing on GCP ARM instances.
 
-> **ARM instances recommended.** n4a costs 15% less on demand than the x86 n4 equivalent (`n4a-highmem-8` against `n4-highmem-8` in us-central1, list prices in November 2026).
+> **ARM instances recommended.** n4a costs less on demand than the x86 n4 equivalent.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-gcp-ha/) or [Kubernetes](../infra-gcp-ha-k8s-helm/) architectures.
 
