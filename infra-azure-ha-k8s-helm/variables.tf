@@ -339,7 +339,7 @@ variable "opensearch_password" {
 }
 
 variable "opensearch_index_replicas" {
-  description = "Replicas per Nexus One index shard, written as nexusOne.connection.nexusOneIndexReplicas. A single-data-node cluster cannot place a replica, so 0 is the only workable value there. Bounds-checked 0 to 10 by IQ Server itself."
+  description = "Replicas per Nexus One index shard, written as nexusOne.connection.nexusOneIndexReplicas. Use 0 on one data node: it cannot place a replica, and 1 would leave the index yellow, which still serves reads and writes. Bounds-checked 0 to 10 by IQ Server itself."
   type        = number
   default     = 1
 

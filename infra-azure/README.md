@@ -276,9 +276,10 @@ Your Azure account needs permissions for these services:
 > | `workload_profile_type` | `D4`, fixed | `E8` |
 > | `azure_region` | West US 2 | East US. A region change replaces every resource, so an existing deployment sets its region here |
 >
-> The Application Gateway, its public IP and the `app_gateway_*` variables are removed, so the
-> next apply deletes them. IQ Server is then reached on the Container App's own HTTPS address,
-> the `application_url` output, and the `application_gateway_*` outputs are gone.
+> The Application Gateway, its public IP, the public subnet and its NSG, and the `app_gateway_*`
+> and `public_subnet_cidr` variables are removed, so the next apply deletes them. IQ Server is then reached on the Container App's own HTTPS address,
+> the `application_url` output, and the `application_gateway_*`, `public_subnet_id` and
+> `public_nsg_id` outputs are gone.
 
 ### Configuration Variables
 
@@ -291,7 +292,6 @@ cluster_name = "ref-arch-iq" # Name prefix for every resource; change it to run 
 
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
-public_subnet_cidr  = "10.0.1.0/24"
 private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
@@ -323,7 +323,7 @@ file_share_quota                 = 500
 log_retention_days = 30
 enable_monitoring  = true
 
-# Search Backend (optional) - see "Advanced Search with OpenSearch" below
+# Search Backend, needed at every size - see "Advanced Search with OpenSearch" below
 search_engine = "lucene"
 
 # Tags merged into every resource
@@ -380,7 +380,6 @@ This is a **single instance** deployment.
 ## Networking
 
 ### Subnets
-- **Public Subnet**: Created with its NSG; nothing in this architecture is deployed into it
 - **Private Subnet**: Container Apps (delegated to Container Apps infrastructure)
 - **Database Subnet**: PostgreSQL Flexible Server (delegated to PostgreSQL)
 
@@ -411,7 +410,7 @@ Both carry a random suffix, so the global uniqueness is handled already and only
 That is why the variable is capped at 14 characters rather than at Azure's 24.
 
 **Two names do not move with `cluster_name`, and neither needs to.** The subnet names
-(`snet-public`, `snet-private`, `snet-database`) and the network security group names are scoped
+(`snet-private`, `snet-database`) and the network security group names are scoped
 inside the virtual network and the resource group, which do move, so they cannot collide across
 deployments. The private DNS zone `privatelink.postgres.database.azure.com` is Azure's own fixed name
 for that zone and is shared by design.
@@ -468,7 +467,7 @@ nexusOne:
     uri: https://opensearch.internal.example.com:9200
     username: 'iq-server'
     password: '<from the container app secret>'
-    nexusOneIndexReplicas: 0
+    nexusOneIndexReplicas: 1
 ```
 
 The two credentials are single-quoted, and the entrypoint appends them with `printf` rather than
@@ -489,7 +488,8 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes half its RAM as heap.
+M is measured; XS and S are not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+half its RAM as heap.
 
 | Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |---|---|---|---|---|---|---|
@@ -513,8 +513,8 @@ curl -u admin -X PUT -H 'Content-Type: application/json' \
 
 An index built before the change keeps its count until it is rebuilt.
 
-**`0` is the only workable value at XS and S**, because a single data node cannot place a replica:
-the shard stays unassigned and the cluster sits yellow for ever. At M, L and XL use `1`, so a lost
+**Use `0` at XS and S**: a single data node cannot place a replica, so `1` would leave the index
+yellow, which still serves reads and writes. At M, L and XL use `1`, so a lost
 data node leaves a complete copy of the index on the others.
 
 Other things the cluster needs, none of which this configuration sets for you:

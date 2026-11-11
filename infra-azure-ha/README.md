@@ -372,7 +372,7 @@ enable_container_insights = true
 # Backup Configuration
 enable_backup = true
 
-# Search Backend (optional) - see "Advanced Search with OpenSearch" below
+# Search Backend, needed at every size - see "Advanced Search with OpenSearch" below
 search_engine = "lucene"
 
 # Tags merged into every resource
@@ -566,7 +566,8 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes half its RAM as heap.
+M and L are measured; XL is not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+half its RAM as heap.
 
 This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
 validated at two or more, so their rows are in the single-instance root's README instead.
@@ -594,8 +595,8 @@ curl -u admin -X PUT -H 'Content-Type: application/json' \
 An index built before the change keeps its count until it is rebuilt.
 
 **Use `1` replica at every size here**, so a lost data node leaves a complete copy of the index on
-the others. `0` is the only workable value on a single data node, because that node cannot place a
-replica: the shard stays unassigned and the cluster sits yellow for ever.
+the others. Use `0` on a single data node: it cannot place a replica, so `1` would leave the index yellow,
+which still serves reads and writes.
 
 Other things the cluster needs, none of which this configuration sets for you:
 

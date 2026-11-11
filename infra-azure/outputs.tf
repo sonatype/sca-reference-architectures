@@ -26,11 +26,6 @@ output "vnet_address_space" {
 }
 
 
-output "public_subnet_id" {
-  description = "ID of the public subnet"
-  value       = azurerm_subnet.public_subnet.id
-}
-
 output "private_subnet_id" {
   description = "ID of the private subnet"
   value       = azurerm_subnet.private_subnet.id
@@ -108,11 +103,6 @@ output "application_url" {
   value       = "https://${azurerm_container_app.iq_app.ingress[0].fqdn}"
 }
 
-
-output "public_nsg_id" {
-  description = "ID of the public network security group"
-  value       = azurerm_network_security_group.public_nsg.id
-}
 
 output "private_nsg_id" {
   description = "ID of the private network security group"

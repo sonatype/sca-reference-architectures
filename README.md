@@ -915,7 +915,7 @@ Continuous Monitoring is one of the most resource-intensive operations. The bott
 ### Networking
 
 All architectures create their own VPC/VNet with:
-- Public subnets (load balancer; infra-azure creates the subnet and its NSG with nothing in it)
+- Public subnets (load balancer; infra-azure has none)
 - Private subnets (compute)
 - Database subnets (isolated)
 - NAT Gateway / Cloud NAT for outbound access

@@ -66,7 +66,7 @@ enable_monitoring  = true
 ingress_hostname    = "" # Optional: custom hostname
 ingress_tls_enabled = false
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
 # cluster you run on Azure Virtual Machines; this configuration does not create it.
 # README.md gives the cluster specification and the private certificate authority steps.
