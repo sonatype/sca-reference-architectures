@@ -395,7 +395,7 @@ nexusOne:
     uri: https://opensearch.internal.example.com:9200
     username: nexusiq
     password: <read from Secret Manager at boot>
-    nexusOneIndexReplicas: 0
+    nexusOneIndexReplicas: 1
 ```
 
 - **`type: http` with basic auth.** A user name and password are how the server authenticates.
@@ -468,6 +468,8 @@ Per size:
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
+
+M is measured, on 1 shard per index. XS, S and the 3 shards at M are not.
 
 At M the three cluster managers are dedicated: they hold no data, take no search traffic, and keep a
 quorum when one is lost. They take half their RAM as heap. XS and S run none: one data node is its

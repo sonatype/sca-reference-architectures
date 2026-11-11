@@ -58,7 +58,11 @@ resource "google_compute_instance" "iq_server" {
   depends_on = [
     google_project_service.required_apis,
     google_sql_database_instance.iq_db,
-    google_filestore_instance.iq_filestore
+    google_filestore_instance.iq_filestore,
+    google_secret_manager_secret_version.db_credentials,
+    google_secret_manager_secret_version.opensearch_password,
+    google_secret_manager_secret_version.opensearch_ca,
+    google_project_iam_member.iq_service_secret_accessor
   ]
 }
 

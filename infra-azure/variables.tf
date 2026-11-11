@@ -29,12 +29,6 @@ variable "vnet_cidr" {
   default     = "10.0.0.0/16"
 }
 
-variable "public_subnet_cidr" {
-  description = "CIDR block for the public subnet. It is created with its NSG and holds no resources."
-  type        = string
-  default     = "10.0.1.0/24"
-}
-
 variable "private_subnet_cidr" {
   description = "CIDR block for private subnet (Container Apps)"
   type        = string

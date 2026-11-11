@@ -60,7 +60,7 @@ enable_backup = true
 key_vault_sku_name                   = "standard"
 key_vault_soft_delete_retention_days = 7
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
 # cluster you run on Azure Virtual Machines; this configuration does not create it.
 # README.md gives the cluster specification and the private certificate authority steps.

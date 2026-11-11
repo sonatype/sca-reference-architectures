@@ -68,7 +68,15 @@ resource "google_compute_instance_template" "iq_template" {
   depends_on = [
     google_project_service.required_apis,
     google_sql_database_instance.iq_ha_db,
-    google_filestore_instance.iq_ha_filestore
+    google_filestore_instance.iq_ha_filestore,
+    google_secret_manager_secret_version.db_credentials,
+    google_secret_manager_secret_version.db_password,
+    google_secret_manager_secret_iam_member.iq_compute_db_credentials,
+    google_secret_manager_secret_iam_member.iq_compute_db_password,
+    google_secret_manager_secret_version.opensearch_password,
+    google_secret_manager_secret_iam_member.iq_compute_opensearch_password,
+    google_secret_manager_secret_version.opensearch_ca,
+    google_secret_manager_secret_iam_member.iq_compute_opensearch_ca
   ]
 }
 
