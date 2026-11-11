@@ -543,8 +543,7 @@ cluster_name = "iq-m-aks"   # one deployment
 cluster_name = "iq-l-aks"   # another, in the same subscription
 ```
 
-**The default reproduces the names this configuration has always used**, so a customer who sets
-nothing sees no change.
+**The default keeps the default names**, so nothing changes when it is not set.
 
 One Azure limit constrains the value, and the variable rejects a value that would break it:
 
@@ -567,10 +566,9 @@ Sonatype IQ Server can keep its Advanced Search index in OpenSearch instead of t
 index. Pointing it at OpenSearch is what turns the Nexus One index on: the `search:` block alone does
 it, and no other configuration key is involved.
 
-Azure has no first-party managed OpenSearch service, so **OpenSearch here is a cluster you run
-yourself on Azure Virtual Machines**. This configuration does not build that cluster. You build it,
-then supply its endpoint and credentials, which keeps the cluster's lifecycle and its indexed data
-independent of Terraform runs here.
+**OpenSearch here is a cluster you run yourself on Azure Virtual Machines.** This configuration does
+not build it: you supply its endpoint and credentials, so its indexed data is independent of
+Terraform runs here.
 
 ### Turning it on
 
@@ -598,8 +596,8 @@ opensearch_index_replicas = 1
 | `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
 | `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
 
-Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` is
-byte-identical to a deployment that never knew about this section.
+Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` has no
+`search:` block.
 
 ### What reaches IQ Server's configuration
 
@@ -643,9 +641,8 @@ reason.
 
 Three things about that block are deliberate:
 
-- **`type: http` with basic auth.** The `aws` connection type signs each request with an AWS
-  credential, and Azure has nothing to sign with, so the HTTP type with a user name and a password is
-  the only option. Both fields are mandatory and IQ Server refuses to start without them.
+- **`type: http` with basic auth.** A user name and a password are mandatory on this type, and IQ
+  Server refuses to start without them.
 - **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
   every batch to the embedded Lucene index as well and cannot revert an index generation.
 - **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
@@ -653,14 +650,7 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-**M and L are measured on Azure; XS, S and XL are not.** The data node types at M and L are the
-measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS uses `Standard_D2pls_v6`, S uses
-`Standard_D2ps_v6` and XL `Standard_E8ps_v6`, which give the same memory as the AWS and GCP data
-nodes at those sizes. At XS that is one more vCPU, since `Standard_D2pls_v6` is the smallest Dplsv6
-size. Storage per node is the published size, chosen at or above the measured use. The cluster
-managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
-at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
-measured VMs had, and takes half its RAM as heap.
+Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes half its RAM as heap.
 
 This root covers M, L and XL, so the XS and S rows are in the single-instance root's README instead.
 
@@ -706,11 +696,11 @@ Other things the cluster needs, none of which this configuration sets for you:
   on the OpenSearch subnet is what enforces that, since Azure allows outbound traffic from the AKS
   subnet by default.
 - **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
-  index up, and a lost index means a full rebuild at the cost quoted above.
+  index up, and a lost index means a full rebuild.
 
 **Put a Standard SKU internal load balancer in front of the data nodes**, and set
 `opensearch_endpoint` to its frontend private IP, so IQ Server reaches one endpoint and replacing a data
-node does not change its configuration. This is how the Azure M and L measurements ran. Create:
+node does not change its configuration. Create:
 
 - **The load balancer** on the OpenSearch subnet, with a private frontend IP and a backend pool of the
   data nodes' NICs. The cluster managers stay out of the pool.
@@ -720,8 +710,8 @@ node does not change its configuration. This is how the Azure M and L measuremen
 - **An NSG rule allowing the `AzureLoadBalancer` service tag on TCP 9200**, at a higher priority than
   the subnet's deny-all rule. Without it the probes are refused and every backend reads as down.
 - **Outbound internet access for the OpenSearch VMs**, which they need to install and update packages.
-  A VM in a Standard internal load balancer's backend pool has no default outbound access, so the
-  measurements attached a NAT gateway to the OpenSearch subnet.
+  A VM in a Standard internal load balancer's backend pool has no default outbound access, so attach
+  a NAT gateway to the OpenSearch subnet.
 - **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
   address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
   certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
@@ -776,12 +766,8 @@ is the cheapest answer if your cluster can carry one.
 entirely by setting `opensearch_use_tls = false`. That sends the basic-auth password in clear text on
 every request, and anything able to read traffic inside that subnet can read it.
 
-**The recommendation is TLS with a private certificate authority and a copied trust store.** The cost
-is one `keytool` command and one extra JVM argument, paid once. Plaintext puts a long-lived
-credential on the wire on every request, and a subnet is not a confidentiality boundary: a
-misconfigured peering, a diagnostic VM, or a later change to the network makes that traffic readable
-by something nobody intended. Use `opensearch_use_tls = false` only to get a proof of concept
-running, and treat it as a thing to undo.
+**Use TLS with a private certificate authority and a copied trust store.** Use
+`opensearch_use_tls = false` only for a proof of concept, and undo it afterwards.
 
 ## Important: Admin Port 8071 Not Exposed
 

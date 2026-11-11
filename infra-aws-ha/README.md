@@ -241,8 +241,7 @@ domain through `opensearch_domain_endpoint` and share the index with it.
 A VPC domain needs the OpenSearch service-linked role,
 `AWSServiceRoleForAmazonOpenSearchService`, which is what OpenSearch assumes to
 put the domain's network interfaces in the private subnets. AWS creates it on its
-own when a VPC domain is made through the console, so an account that has ever
-held one already has it. Otherwise, once per account:
+own when a VPC domain is made through the console. Otherwise, once per account:
 
 ```bash
 aws iam create-service-linked-role \
@@ -259,10 +258,8 @@ aws iam list-roles \
 
 The calling identity needs `iam:CreateServiceLinkedRole`. An account still
 carrying the legacy `AWSServiceRoleForAmazonElasticsearchService` role goes on
-using that one and needs nothing. This configuration deliberately does not create
-the role: AWS allows one per account while each deployment of this root is
-separate, so whichever deployment owned it would delete it out from under the
-others at teardown.
+using that one and needs nothing. This configuration does not create the role,
+because AWS allows one per account and every deployment's domain depends on it.
 
 What the created domain gets, none of which needs configuring:
 
@@ -275,10 +272,8 @@ What the created domain gets, none of which needs configuring:
   which keeps cluster state off the nodes serving queries.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
-index.** Turning it on gives the domain an internal user database and changes how
-every request is authenticated, so SigV4 alone no longer reaches it and IQ Server's
-`type: aws` configuration stops working. There is no credential to supply instead:
-this architecture authenticates with the ECS task role and nothing else.
+index.** With it on, SigV4 alone no longer reaches the domain, and IQ Server's
+`type: aws` configuration stops working.
 
 ### Domain shape per size
 
@@ -294,10 +289,6 @@ for how to set them.
 
 Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
 not a setting this configuration can change.
-
-**The data node type and count, masters, shards and replicas above are the
-measured values at every size.** Storage per node is the published size, chosen
-at or above the measured use.
 
 Three data nodes at every size, because three is the smallest count that both
 places a replica and spreads across three Availability Zones. At 0 replicas a
@@ -323,20 +314,17 @@ characters plus `-nexus-one`:
 Retention is `opensearch_log_retention_days`, 30 days by default.
 
 **An account at 10 CloudWatch Logs resource policies needs one written by
-hand.** OpenSearch writes these streams itself, so the service principal needs a
-resource policy granting it `logs:PutLogEvents` and `logs:CreateLogStream` on the
-groups. A resource policy is account-wide and AWS allows 10 per region, so a
-deployment into an account already at that quota fails with
-`LimitExceededException`. The answer is one policy covering every domain's log
-groups, written once outside Terraform, and `opensearch_create_log_resource_policy
-= false` in each deployment. That toggle skips the policy and nothing else: the
-log groups and the domain's `log_publishing_options` are still created, so the
-shared policy has groups to name. Setting it false with no such policy in the
-account is not a working configuration, the domain create then fails on the
-`log_publishing_options`.
+hand.** OpenSearch needs a resource policy granting it `logs:PutLogEvents` and
+`logs:CreateLogStream` on the groups, and AWS allows 10 per region, so a
+deployment into an account at that limit fails with `LimitExceededException`.
+Write one policy covering every domain's log groups outside Terraform, and set
+`opensearch_create_log_resource_policy = false` in each deployment. That skips
+the policy only; the log groups and `log_publishing_options` are still created.
+With no such policy in the account, the domain create fails.
 
 **The slow logs stay empty until a threshold is set.** OpenSearch ships with
 slow logging off per index, so set a threshold on the index to get any rows.
+
 The domain only accepts HTTPS from the IQ Server task security group, and only requests signed with
 the IQ Server task role. A one-off ECS task started from the IQ Server
 task definition, in the private subnets with that security group, has both, so the request has to run from there and carry that role's temporary
@@ -384,9 +372,7 @@ nexusOne:
 - **`nexusOneIndexReplicas`** is always written. When IQ Server is not given a
   count, it uses 1.
 - **`nexusOne.connection` repeats the same fields** because it is the only
-  block the Nexus One index reads. With `search:` set and this one absent, the
-  index store has no transport and turning the feature on is refused. Both name
-  the same domain.
+  block the Nexus One index reads. Without it, turning the feature on is refused.
 
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created. **At M, L and XL, set
