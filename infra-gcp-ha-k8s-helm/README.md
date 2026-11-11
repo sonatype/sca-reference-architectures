@@ -344,7 +344,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 ## Security Features
 
 - **Private GKE Cluster**: Nodes in private subnets with no public IPs
-- **Workload Identity**: Secure service account access without keys (GCP's equivalent to AWS IRSA)
+- **Workload Identity**: Secure service account access without keys
 - **Database Security**: Regional Cloud SQL in isolated database subnet with private DNS
 - **Secrets Management**: Database credentials stored in Kubernetes secrets
 - **Encryption**:
