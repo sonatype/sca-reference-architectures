@@ -137,7 +137,7 @@ iq_server:
 | **L** | BASIC_HDD | 2.5 TiB | 600 | 1,000 |
 | **XL** | BASIC_HDD | 10 TiB | 1,000 | 5,000 |
 
-> BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS (4x observed peak of ~1,212 ops/sec) at roughly the same cost as 2.5 TiB SSD. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
+> BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
 
 ### OpenSearch
 
