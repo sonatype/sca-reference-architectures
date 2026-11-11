@@ -35,7 +35,6 @@ resource "google_compute_firewall" "allow_opensearch" {
 
   description = "Allow Nexus IQ Server pods to reach a self-managed OpenSearch cluster in this VPC"
 
-  # A precondition, since a validation comparing two variables needs Terraform 1.9.
   lifecycle {
     precondition {
       condition     = length(var.opensearch_endpoint) > 0

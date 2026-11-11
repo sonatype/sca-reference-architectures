@@ -572,6 +572,8 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
 
+M is measured, on 1 shard per index. L, XL and the 3 shards at M are not.
+
 The cluster managers are dedicated: they hold no data, take no search traffic, and three of them
 keep a quorum when one is lost. Each takes half its RAM as heap.
 
@@ -697,7 +699,7 @@ None of this is handled by this configuration, and all of it has to be handled b
   an index rebuild stalls.
 - **Certificate renewal.** Both the cluster's certificate and the secret above.
 - **Monitoring.** Cluster status, unassigned shards, JVM heap pressure, rejected write threads.
-- **The password.** Rotating it and reinstalling the release.
+- **The password.** Rotating it with `terraform apply` and `./helm-upgrade.sh`.
 - **Keeping the cluster manager quorum.** Three managers, and never two.
 
 ### Rebuilding the index
