@@ -193,8 +193,9 @@ This displays the application URL, database endpoint, and other access details.
 
 ### Step 7: Set the Shard Counts at M, L and XL
 
-Before the Nexus One index is first built, send the request in
-[Shards](#shards-3-for-three-indices-at-m-and-above). XS and S need nothing.
+IQ Server does not build the Nexus One index on its own. The first build starts when an administrator
+starts it in the Index Manager, so send the request in
+[Shards](#shards-3-for-three-indices-at-m-and-above) before starting it. XS and S need nothing.
 
 ---
 
@@ -227,6 +228,9 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Estimated capacity | 200 GB – 500 GB | 500 GB – 1.5 TB | 1.5 TB – 4 TB |
 | Cost optimization | Enable lifecycle policies — move files older than 30 days to EFS Infrequent Access (IA) for ~92% storage savings | Enable lifecycle policies — move files older than 30 days to EFS IA | Enable lifecycle policies — move files older than 30 days to EFS IA |
 | **Terraform Templates** | [Single Instance](./infra-aws) &#124; [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) |
+
+> **XS and S on AWS.** Evaluations an hour on `infra-aws`'s 1 task, sustained in testing, not a limit:
+> 1,540 at XS and 2,650 at S.
 
 > **Note on AWS EFS:** EFS uses SSD-backed infrastructure — there is no HDD vs SSD tier choice. Cost optimization is achieved through lifecycle policies (moving infrequently accessed data to the IA storage class) and Elastic throughput mode (pay only for throughput consumed).
 

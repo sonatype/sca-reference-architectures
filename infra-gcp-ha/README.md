@@ -233,7 +233,7 @@ Enable these APIs in your project:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values:**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"` and your cluster's details, see [Search Backend](#search-backend)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -241,6 +241,7 @@ Enable these APIs in your project:
    **Required changes:**
    - `gcp_project_id` - Your GCP project ID
    - `db_password` - Strong, unique password
+   - `search_engine` - `"opensearch"`, with your cluster's details, see [Search Backend](#search-backend)
 
 ### Step 4: Deploy Infrastructure
 
