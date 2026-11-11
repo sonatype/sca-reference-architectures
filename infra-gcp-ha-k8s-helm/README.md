@@ -16,8 +16,6 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
-
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
 ### Recommended `terraform.tfvars` by Size
@@ -409,65 +407,47 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 
 ## Running Several Sizes in One Project
 
-Every resource name that has to be unique inside a Google Cloud project already derived from
-`cluster_name` in this root, which is why it needed no renaming work: the GKE cluster, the VPC, all
-four subnets, the router, the Cloud NAT, every firewall rule, the Cloud Armor policy, the ingress
-address, the node pool, both Workload Identity service accounts, both Cloud SQL instances,
-Filestore, both Secret Manager secrets, the log bucket, sink and metrics. Measured with a plan: 25
-of the 27 named attributes moved when `cluster_name` changed.
+Every resource name that has to be unique inside a Google Cloud project derives from
+`cluster_name`: the GKE cluster, the VPC, all four subnets, the router, the Cloud NAT, every firewall
+rule, the Cloud Armor policy, the ingress address, the node pool, both Workload Identity service
+accounts, the Cloud SQL instance, Filestore, both Secret Manager secrets, the log bucket, sink and
+metrics.
 
 ```hcl
 cluster_name = "iq-l"   # a distinct value per deployment
 ```
 
-Two things were added. `cluster_name` is now validated against what a Google Cloud resource name
-accepts, so a bad value fails at plan rather than at apply. And `force-cleanup.sh` now matches on
-this deployment's own `cluster_name` rather than the fixed string `nexus-iq-ha`: with several sizes
-in one project, a fixed prefix matched all of them, so the script could have deleted another size's
-Cloud SQL and Filestore instances.
+`force-cleanup.sh` matches on this deployment's own `cluster_name`, so it cannot delete another
+deployment's Cloud SQL and Filestore instances in the same project.
 
-What does not move, and does not need to: the database name and the database user, which are
+These are not renamed, and do not need to be: the database name and the database user, which are
 scoped to the Cloud SQL instance rather than to the project, and the Filestore share name, which
 is scoped to the Filestore instance. The Kubernetes namespace and Helm release name are also
 fixed, which is correct because each deployment has its own cluster.
 
 ### What a name may contain, and what cannot be reused
 
-**`cluster_name` is validated at plan time** against the narrower of the limits that apply:
-lowercase letters, numbers and hyphens, starting with a letter and ending with a letter or number,
-1 to 19 characters. A resource name itself allows 63, but a service account id allows only 30 and
-the longest suffix added to this prefix is 11 characters, so 19 is what keeps every derived name
-legal. A value that breaks the rule fails at plan rather than part way through an apply.
-
-**One name genuinely cannot be reused, and it is not the one usually warned about.**
+**`cluster_name` is validated at plan time**: lowercase letters, numbers and hyphens, starting with
+a letter and ending with a letter or number, 1 to 19 characters. A service account id allows 30, and
+the longest suffix added to this prefix is 11 characters.
 
 | Name | Reuse after deletion |
 |---|---|
-| Cloud SQL instance | **Immediate.** Google's own documentation now states "the deleted instance name can be reused immediately to create a new instance" |
+| Cloud SQL instance | Immediate |
 | Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
 | Everything else here | Immediate |
 
-So the thing to plan around when a size is torn down and rebuilt is **the service accounts**, not
-the database. Both Workload Identity accounts are recreated by the next apply and both have their
-roles and their Kubernetes bindings granted by the same apply, so a normal destroy and rebuild is
-fine. What is not fine is deleting an account by hand and expecting to undelete it afterwards:
-creating the replacement first makes the original unrecoverable.
+A normal destroy and rebuild recreates both Workload Identity accounts and grants their roles and
+Kubernetes bindings in the same apply. **Do not delete an account by hand and expect to undelete
+it**: creating the replacement makes the original unrecoverable.
 
-**A Cloud SQL instance name carries a random suffix anyway**, `<cluster_name>-db-<suffix>`, and the
-suffix is regenerated on every fresh apply because the `random_string` resource has no `keepers`.
-That predates this change and made the old reuse window a non-issue; it still means a rebuilt
-environment's database has a different name from the one before it.
+A Cloud SQL instance name carries a random suffix, `<cluster_name>-db-<suffix>`, regenerated on every
+fresh apply, so a rebuilt environment's database has a different name.
 
 ## Search Backend
 
-Nexus IQ Server ships with a built-in search index and needs nothing else running. Pointing it at
-OpenSearch instead moves the index off the pods, which is what the Nexus One features read. On this
-architecture it also gives every replica one shared index rather than a copy each.
-
-**Google Cloud has no managed OpenSearch service**, so there is no first-party cluster for this
-configuration to create. You run OpenSearch yourself, and this configuration takes the endpoint of
-a cluster you have already built. That keeps the cluster, and the index data in it, independent of
-Terraform runs here: switching `search_engine` back and forth never destroys an index.
+This configuration takes the endpoint of an OpenSearch cluster you run yourself and does not create
+one, so switching `search_engine` never destroys an index. Every replica shares the one index.
 
 ### Turning it on
 
@@ -484,11 +464,8 @@ opensearch_index_replicas = 1
 All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
 `search_engine` is `"opensearch"`, and the plan fails naming whichever is missing.
 
-`opensearch_username` may not hold a single quote, a double quote, a dollar sign, a
-backtick or a backslash, and the plan refuses one that does. `render-values.sh` writes it
-into a single-quoted YAML scalar in the generated values file, and those five are the only
-characters that would break it. Everything else is written through intact, including `|`,
-`&`, `: `, ` #` and a leading YAML indicator character.
+`opensearch_username` may not hold a single quote, a double quote, a dollar sign, a backtick or a
+backslash, and the plan refuses one that does.
 
 **Terraform alone does not apply this.** The `search:` block lives in the Helm values, so run
 `terraform apply` and then `./helm-install.sh`, or `./helm-upgrade.sh` on an existing release.
@@ -517,18 +494,12 @@ outputs, and the Helm chart renders the result as `config.yml` in every pod:
         nexusOneIndexReplicas: 1
 ```
 
-Four things about these blocks are deliberate:
-
-- **`type: http` with basic auth.** Google Cloud has no request signing for OpenSearch, so a user
-  name and password are how the pods authenticate.
-- **`mode: OPENSEARCH` is stated rather than left out.** Leaving it out defaults to `HYBRID`, which
-  writes every batch to the built-in index as well. That costs indexing time and cannot roll an
-  index generation back.
-- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
-  connection from this block alone, and reads `nexusOneIndexReplicas` from it. With `search:` set
-  and this block absent, enabling the `nexus-one` feature is refused.
-- **`nexusOneIndexReplicas` is stated rather than left out.** When Nexus IQ Server is not given a
-  count, it uses 1. Stating it keeps the value visible next to the cluster it describes.
+- **`type: http` with basic auth.** A user name and password are how the pods authenticate.
+- **`mode: OPENSEARCH`.** Left out, it defaults to `HYBRID`, which also writes every batch to the
+  built-in index.
+- **`nexusOne.connection`.** The Nexus One index reads its connection, and `nexusOneIndexReplicas`,
+  from this block alone. Without it, enabling the `nexus-one` feature is refused.
+- **`nexusOneIndexReplicas`.** Left out, it is 1.
 
 **Keep the two markers.** With `search_engine = "lucene"`, `helm-install.sh` deletes everything
 between them so the deployment has no `search:` or `nexusOne:` block at all, which is how the built-in index stays
@@ -538,12 +509,8 @@ because a literal `OPENSEARCH_URI_PLACEHOLDER` would be read as a host name.
 ### How the password reaches the pods
 
 `opensearch_password` is read by `helm-install.sh` from a Terraform output and written into
-`helm-values-runtime.yaml`, which is gitignored. That is the same route the database password
-already takes on this architecture, and it is a different route from the two Compute Engine roots,
-which read a Secret Manager secret at boot. The reason is the chart: it renders `config.yml` itself,
-so a value has to be in the Helm values rather than fetched by a startup script.
-
-Two consequences worth knowing:
+`helm-values-runtime.yaml`, which is gitignored, the same route the database password takes. The
+chart renders `config.yml` itself, so the value has to be in the Helm values.
 
 - **`helm-values-runtime.yaml` holds the password in clear while it exists.** Both
   `helm-install.sh` and `helm-upgrade.sh` render it from the current Terraform outputs at the start
@@ -579,12 +546,10 @@ effect on it.
 
 ### The cluster to build
 
-Verified against the OpenSearch source at tags `2.19.0` and `3.2.0`.
-
 | | What to run |
 |---|---|
 | OpenSearch version | 2.19 or later. The 2.19 line is the long-term support release |
-| Cluster managers | Three dedicated cluster manager nodes, so losing one leaves a quorum. This architecture is the HA one, and a single cluster manager undoes that |
+| Cluster managers | Three dedicated cluster manager nodes, so losing one leaves a quorum |
 | Data nodes | At least two, spread across zones, with `opensearch_index_replicas` at 1 or more so a lost node does not lose a shard |
 | Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
 | Disk | Hyperdisk Balanced on C4A, or SSD persistent disk on a series that takes it. The index is write-heavy during a rebuild |
@@ -592,12 +557,9 @@ Verified against the OpenSearch source at tags `2.19.0` and `3.2.0`.
 | Security | The OpenSearch security plugin, with a user for Nexus IQ Server that can create, read and write indices |
 | Snapshots | The `repository-gcs` plugin, on every node |
 
-**Running OpenSearch inside this GKE cluster is a third option** and this configuration does not do
-it. It would put the search cluster and the application on the same nodes, so a busy index rebuild
-and a busy evaluation queue would compete for the same CPU and the same page cache. Separate node
-pools fix that, and at that point the nodes may as well be their own instances. If you do run it in
-the cluster, use the OpenSearch Kubernetes operator and its own node pool, and the endpoint here
-becomes the operator's service name.
+**OpenSearch can also run inside this GKE cluster**, which this configuration does not do. Use the
+OpenSearch Kubernetes operator on its own node pool, so an index rebuild and the evaluation queue do
+not compete for CPU, and set the endpoint to the operator's service name.
 
 Per size:
 
@@ -608,20 +570,14 @@ Per size:
 | **XL** | 3 | `c4a-highmem-8`, 8 vCPU, 64 GB | 250 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
-volume. **At M, the machine type and node count are the measured values**, and so is the replica
-count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
-Storage per node is the published size, chosen at or above the measured use. L and XL are not
-measured on GCP.
+volume.
 
-The cluster managers are dedicated, so they hold no data and take no search traffic, and three of
-them keep a quorum when one is lost. At M and L they are `c4a-standard-1`, the same vCPU and
-memory as the AWS equivalent, `m8g.medium.search`. The GCP M measurement ran them on
-`c4a-standard-2`. At XL they are `c4a-standard-2`, at or above the AWS `m8g.large.search`. Each
-takes half its RAM as heap, as the data nodes do.
+The cluster managers are dedicated: they hold no data, take no search traffic, and three of them
+keep a quorum when one is lost. Each takes half its RAM as heap.
 
 **Put an internal passthrough Network Load Balancer in front of the data nodes**, and set
 `opensearch_endpoint` to its address, so Nexus IQ Server reaches one endpoint and replacing a data
-node does not change its configuration. This is how the GCP M measurement ran. Create:
+node does not change its configuration. Create:
 
 - **A regional TCP health check on port 9200.**
 - **A regional backend service** with `--load-balancing-scheme INTERNAL --protocol TCP` and that
@@ -630,9 +586,6 @@ node does not change its configuration. This is how the GCP M measurement ran. C
 - **A forwarding rule on a reserved private IP address** in this VPC, for TCP port 9200.
 - **A firewall rule allowing TCP 9200 from Google's health check ranges** `35.191.0.0/16` and
   `130.211.0.0/22` to the `nexus-iq-opensearch` tag. Without it the backends never turn healthy.
-
-Run inside this GKE cluster with the operator instead, and the endpoint is the operator's service name
-rather than a load balancer.
 
 Google describes the load balancer in
 [Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
@@ -698,19 +651,7 @@ in the OpenSearch keystore. On Compute Engine that resolves to the service accou
 instance; in GKE, to the Workload Identity service account bound to the pod's Kubernetes service
 account.
 
-**Do not add a key back.** Several widely read third-party guides state the opposite, that
-application default credentials are "not supported out of the box" and a key file is mandatory.
-They are wrong for this plugin, and the source says so. The cost of believing them is a credential
-that never expires, sits on every data node, and can write to every backup.
-
-The evidence, read in the OpenSearch source at tags `2.19.0` and `3.2.0`, which are identical here:
-
-- `GoogleCloudStorageClientSettings.loadCredential` returns `null` when
-  `gcs.client.<name>.credentials_file` is absent, with its own comment saying this is deliberate so
-  that "the default credential can be loaded later when creating the Storage client".
-- `GoogleCloudStorageService.createStorageOptions` then calls
-  `GoogleApplicationDefaultCredentials.get()`, which calls
-  `GoogleCredentials.getApplicationDefault()`.
+**Do not add a key.** A key never expires, sits on every data node, and can write to every backup.
 
 **Confirm it on your own cluster by reading the node log.** The plugin logs this line, at INFO, the
 first time it builds a client for the repository:
