@@ -287,7 +287,7 @@ search_engine = "lucene"
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
 # opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_index_replicas = 0
+# opensearch_index_replicas = 1
 ```
 
 **Important Settings:**
@@ -385,7 +385,7 @@ opensearch_port                     = 9200
 opensearch_use_tls                  = true
 opensearch_username                 = "nexusiq"
 opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
-opensearch_index_replicas = 0  # 1 at M, where the cluster has three data nodes
+opensearch_index_replicas = 1  # three data nodes at M; 0 at XS and S
 ```
 
 All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
@@ -510,7 +510,7 @@ C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and 
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
 count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
 Storage per node is the published size, chosen at or above the measured use. XS and S are not
-measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+measured on GCP.
 
 At M the cluster managers are dedicated, so they hold no data and take no search traffic, and
 three of them keep a quorum when one is lost. They are `c4a-standard-1`, the same vCPU and memory

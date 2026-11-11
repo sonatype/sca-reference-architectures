@@ -7,7 +7,7 @@ cluster_name = "nexus-iq-ha"
 vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
-kubernetes_version       = "1.30"
+kubernetes_version       = "1.36"
 node_instance_type      = "r9g.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5

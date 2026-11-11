@@ -74,9 +74,9 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 | Size | Aurora Instance Class | vCPU | Memory | Storage |
 |------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r8g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
-| **L** | db.r8g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
-| **XL** | db.r8g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, up to 500 GB |
+| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, up to 1 TB |
+| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, up to 2 TB |
 
 ### Shared Storage (EFS)
 
@@ -216,9 +216,7 @@ not a setting this configuration can change.
 
 **The data node type and count, masters, shards and replicas above are the
 measured values at every size.** Storage per node is the published size, chosen
-at or above the measured use. The measurements are on
-[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
-and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
+at or above the measured use.
 
 Three data nodes at every size, because three is the smallest count that both
 places a replica and spreads across three Availability Zones. At 0 replicas a

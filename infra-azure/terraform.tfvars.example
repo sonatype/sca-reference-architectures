@@ -60,7 +60,7 @@ search_engine = "lucene"
 # opensearch_use_tls        = true
 # opensearch_username       = "iq-server"
 # opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
-# opensearch_index_replicas = 0  # 0 for one data node at XS and S, 1 for three at M
+# opensearch_index_replicas = 1  # 1 for three data nodes at M, 0 for one at XS and S
 
 # Tags
 # Merged into every resource, on top of the Name and project tags this root

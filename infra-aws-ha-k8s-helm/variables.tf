@@ -54,7 +54,7 @@ variable "vpc_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.30"
+  default     = "1.36"
 }
 
 variable "node_instance_type" {
@@ -94,7 +94,7 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
+  description = "Aurora instance class. The default is the Size M and L value; Size XL uses db.r8g.4xlarge."
   type        = string
   default     = "db.r8g.2xlarge"
 }
@@ -283,10 +283,8 @@ variable "opensearch_instance_type" {
     Data node instance type for the created domain.
 
     The default is the published type for Size M.
-    Smaller types have been measured failing in ways that read as something
-    else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
-    6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and
-    swaps.
+    Smaller types than the published ones have been measured failing in ways
+    that read as something else.
 
     See the OpenSearch section of this directory's README.md for the type each
     size needs.
