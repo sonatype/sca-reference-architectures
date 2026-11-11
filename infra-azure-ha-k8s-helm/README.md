@@ -24,7 +24,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 > `heap-dumps` on the Azure Files share, which overrides the `HeapDumpPath` in `javaOpts`. The pod's own
 > disk is the node's OS disk, `node_disk_size` GB, which cannot hold a 48 GB dump.
 
-> **ARM instances recommended.** Eps_v6 costs 47% less on demand than Esv7, the x86 type the tables above give (`Standard_E8ps_v6` against `Standard_E8s_v7` in eastus, list prices in November 2026).
+> **ARM instances recommended.** Eps_v6 costs less on demand than Esv7, the x86 type the tables above give.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 

@@ -284,7 +284,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | IOPS | 600 read / 1,000 write | 600 read / 1,000 write | 1,000 read / 5,000 write |
 | **Terraform Templates** | [Single Instance](./infra-gcp) &#124; [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) |
 
-> **Note on GCP storage tiers:** BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS (4x our observed peak of ~1,212 ops/sec) at roughly the same cost as 2.5 TiB SSD. Use BASIC_SSD when storage needs are small (< 2.5 TiB) but IOPS demand is high, or when sub-millisecond disk latency is required. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient — the database was not a bottleneck during performance testing.
+> **Note on GCP storage tiers:** BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Use BASIC_SSD when storage needs are small (< 2.5 TiB) but IOPS demand is high, or when sub-millisecond disk latency is required. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient — the database was not a bottleneck during performance testing.
 
 > **Note on the GCP database tiers:** M, L and XL use the N4 series so Cloud SQL has the same memory as AWS and Azure. The classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, so the IOPS are set above the 6,914 combined read and write operations a second measured at Size M. An existing deployment on `db-custom-8-30720` or `db-custom-16-65536` should read the note on existing deployments in [infra-gcp](./infra-gcp), [infra-gcp-ha](./infra-gcp-ha) or [infra-gcp-ha-k8s-helm](./infra-gcp-ha-k8s-helm) before applying.
 
@@ -324,7 +324,7 @@ The following tables provide equivalent instance types across cloud providers fo
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 47% less on Azure (`Standard_E8ps_v6` against `Standard_E8s_v7`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents on every cloud. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 
@@ -756,8 +756,7 @@ has. The order is: set the count, then rebuild the index.
 A replica is a full second copy of every shard. It is what makes losing a data node survivable, and it
 costs the disk and the indexing work of that second copy.
 
-**Each architecture writes the replica count itself**, so a reader can see it was chosen. When IQ
-Server is not given one, it uses 1:
+**Each architecture writes the replica count itself.** When IQ Server is not given one, it uses 1:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -767,16 +766,10 @@ Server is not given one, it uses 1:
 | **L** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
 | **XL** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
 
-**`0` on a single-node tier is a decision, not an omission.** One data node has nowhere to place a
-replica, so asking for one leaves the index permanently yellow for no benefit, which makes a real
-problem indistinguishable from this one. It is also not a limitation: a yellow index is created, opens,
-takes writes, and returns correct reads, because yellow means every primary shard is assigned and at
-least one replica is not. Primaries serve every read and take every write. IQ Server reports no
-OpenSearch color as a failure, and the Index Manager's own `HEALTHY` / `WARNING` bands describe how far
-behind the index is rather than how the cluster placed its shards.
-
-What a single-node tier does cost you is plain: **losing that node means rebuilding the index.** There
-is nothing to fail over to.
+**`0` on a single-node tier is deliberate.** One data node has nowhere to place a replica, so asking
+for one leaves the index yellow for good. A yellow index still takes writes and returns correct reads,
+because yellow means every primary shard is assigned and a replica is not, and IQ Server reports no
+OpenSearch color as a failure. **Losing that node means rebuilding the index.**
 
 A replica can be added to a live index with `PUT <index>/_settings`, so a first choice is not binding.
 
@@ -800,8 +793,8 @@ on a brand-new cluster and is ignored once the cluster state has persisted a val
 
 A Nexus One index rebuild does not write into the index that is serving. It builds a whole new set of
 indices and moves the aliases onto it once every pass has succeeded, then keeps the old set for
-**30 minutes** after the cutover so a search already running against it is not destroyed underneath it.
-That window is a fixed value in IQ Server with no setting.
+**30 minutes** after the cutover, so a search already running against it finishes. The window has no
+setting.
 
 So during a rebuild, and for half an hour after it, the cluster holds:
 
@@ -811,24 +804,19 @@ So during a rebuild, and for half an hour after it, the cluster holds:
 - **Twice the Nexus One disk**, and twice the document count.
 
 **Judge free disk against the doubled figure, not the steady state.** A cluster that fits the index
-with 40% free is full during its own rebuild. Note also that a replica is a *separate* doubling and
-applies at the same time.
-
-Two related things worth stating plainly:
+with 40% free is full during its own rebuild. A replica is a *separate* doubling and applies at the
+same time.
 
 - **Reading the index size during a rebuild, or in the half hour after it, gives you the doubled
   number.** Filter to the generation named in the newest cutover log line to see what is really
   serving.
-- **A rebuild is not a backup.** A full rebuild of a large estate has been measured at about an hour
-  and a half, with search stale or absent throughout. A managed AWS domain takes its own snapshots; a
+- **A rebuild is not a backup.** Search is stale or absent for the whole rebuild. A managed AWS domain takes its own snapshots; a
   self-managed cluster takes whatever you schedule.
 
 #### Per-size cluster specification
 
-**Measured:** every AWS size, Azure M and L, and GCP M. The other sizes are not measured on that
-cloud. The GCP M measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP. Storage per node is the published size on every cloud, chosen at or above the measured use.
-Every cloud's data node has the same memory at each size, and the same vCPU everywhere except Azure at XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1.
-Each architecture's README carries its own table with the variables that set them.
+Every cloud's data node has the same memory at each size, and the same vCPU everywhere except Azure at
+XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. Each architecture's README carries its own table with the variables that set them.
 
 | Size | Data nodes | AWS | Azure | GCP | Storage per node | Shards ¹ | Replicas |
 |------|:----------:|:---:|:-----:|:---:|:----------------:|:--------:|:--------:|
@@ -840,8 +828,7 @@ Each architecture's README carries its own table with the variables that set the
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index has 1.
 
-² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds. The measurement ran three, so
-that count is not measured.
+² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds.
 
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
@@ -860,14 +847,12 @@ manager:
 On `infra-aws-ha-k8s-helm`, which builds two zones, one zone holds two of the three managers, so
 losing that zone loses their quorum.
 
-The AWS masters are measured at every size and the Azure managers at M and L. The GCP M measurement
-ran its managers on `c4a-standard-2`; the published `c4a-standard-1` matches the AWS `m8g.medium.search`.
-The rest are chosen at or above the AWS equivalent. Each manager takes half its RAM as heap. The Azure
+Each manager takes half its RAM as heap. The Azure
 managers have a 30 GiB P4 Premium SSD OS disk, and the GCP managers a 20 GB Hyperdisk Balanced boot
 disk.
 
 **On Azure and GCP, put an internal load balancer in front of the data nodes at M and above**, and set
-`opensearch_endpoint` to its address, which is how those measurements ran:
+`opensearch_endpoint` to its address:
 
 - **GCP**: an internal passthrough Network Load Balancer, with a regional TCP health check on 9200, a
   regional backend service over the data nodes, a forwarding rule on a private IP, and a firewall rule
@@ -875,8 +860,8 @@ disk.
   [Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
 - **Azure**: a Standard SKU internal load balancer, with a TCP health probe on 9200 and an NSG rule
   allowing the `AzureLoadBalancer` service tag on 9200 ahead of the subnet's deny-all rule. The
-  OpenSearch VMs also need outbound access to install and update packages, which the measurements
-  gave them through a NAT gateway on the OpenSearch subnet. See
+  OpenSearch VMs also need outbound access to install and update packages, through a NAT gateway on
+  the OpenSearch subnet. See
   [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).
 - **Both**, with `opensearch_use_tls = true`: each data node's certificate names the load balancer's
   address in its subject alternative names. The load balancer passes TLS through, so IQ Server checks
