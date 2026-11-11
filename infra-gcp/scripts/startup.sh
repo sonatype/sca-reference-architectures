@@ -16,8 +16,11 @@ mkdir -p /mnt/iq-logs
 FILESTORE_IP="${filestore_ip}"
 FILESTORE_SHARE="nexus_iq_data"
 
-# The fstab entry below can mount the share on a reboot, and mounting it again fails with
-# EBUSY under set -e, so mount only when it is not already mounted.
+# The fstab entry below survives a reboot, so on every boot after the first the share may already
+# be mounted here by the time this script runs. Mounting the same share on the same mount point a
+# second time is refused with EBUSY, and this script runs under `set -e`, so an unconditional
+# mount would end the boot here, before the container is recreated. A password rotation depends on
+# that recreation, so the mount has to tolerate a share that is already there.
 if mountpoint -q /mnt/sonatype-work; then
   echo "/mnt/sonatype-work is already mounted, leaving it as it is"
 else
@@ -128,9 +131,16 @@ sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 %{ if search_engine == "opensearch" ~}
 
-# The search block is appended rather than run through sed, which would mangle \, & and |
-# in the password. User name and password are single-quoted YAML scalars, with a single
-# quote written twice. opensearch_username refuses the five characters this cannot quote.
+# The search block is appended here rather than written into the heredoc above, so the password
+# never passes through sed. A sed replacement reads \ and & specially and ends at the | delimiter,
+# so a password containing any of those three is mangled with no error. The password is written as
+# a single-quoted YAML scalar, which takes every character literally with an embedded single quote
+# written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
+# of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
+# good a place as the middle.
+# The user name is written as a single-quoted scalar for the same reason. Its Terraform variable
+# refuses the single quote, double quote, dollar, backtick and backslash characters, which are the
+# five the quoting here cannot absorb, so | & ": " " #" and a leading indicator all survive intact.
 {
   echo "search:"
   echo "  type: http"
@@ -138,8 +148,8 @@ sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
   echo "  uri: ${opensearch_uri}"
   echo "  username: '${opensearch_username}'"
   printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
-  # The Nexus One index reads only nexusOne.connection, including nexusOneIndexReplicas;
-  # without it, enabling the nexus-one feature is refused.
+  # The Nexus One index builds its connection from nexusOne.connection alone, and reads
+  # nexusOneIndexReplicas from it. Without this block enabling the nexus-one feature is refused.
   echo "nexusOne:"
   echo "  connection:"
   echo "    type: http"
@@ -152,14 +162,17 @@ sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 %{ endif ~}
 
 echo "Successfully created config.yml with database configuration"
-# Password lines are redacted: this output reaches the serial console and Cloud Logging.
+# Every password line is redacted. This is the container's stdout, and scripts/startup.sh reads it
+# back with `docker logs`, so whatever is printed here also reaches the instance serial console and
+# Cloud Logging, where anyone holding roles/logging.viewer on the project could read it.
 echo "Generated config file contents, with passwords redacted:"
 sed 's/^\([[:space:]]*password:\).*/\1 <redacted>/' /etc/nexus-iq-server/config.yml
 
 %{ if opensearch_ca_secret != "" ~}
 
-# A private certificate authority: add it to a copy of the image's JVM trust store and
-# point the JVM at the copy, which keeps the default authorities IQ Server needs.
+# A private certificate authority for the cluster: copy the image's JVM trust store, add the
+# authority to the copy, and point the JVM at the copy. Replacing the JVM's own store would break
+# IQ Server's calls to the Sonatype data services. The copy is rebuilt at every container start.
 JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
 KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
 [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ] || { echo "cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"; exit 1; }
@@ -177,8 +190,10 @@ ENTRYPOINT_EOF
 chmod +x /opt/docker-entrypoint.sh
 
 echo "=== Starting Nexus IQ Server Docker Container ==="
-# Remove the container from an earlier boot, since docker run --name fails on a name
-# clash and a reset must start the container from current values.
+# Replace any container left by an earlier boot. `docker run --name` fails on a name clash, and
+# under `set -e` the script would end right here with the old container still running on its old
+# environment, so a password rotation followed by `gcloud compute instances reset` would not take
+# effect. Removing it first makes every boot build the container from current values.
 docker stop nexus-iq-server 2>/dev/null || true
 docker rm nexus-iq-server 2>/dev/null || true
 
@@ -210,7 +225,8 @@ docker run -d \
 echo "=== Verifying Docker container status ==="
 sleep 10
 docker ps -a | grep nexus-iq-server
-# Redact password lines, since this output reaches the serial console and Cloud Logging.
+# This output goes to the instance serial console and on to Cloud Logging, so any password line
+# the container happens to print is redacted on the way through.
 docker logs nexus-iq-server 2>&1 | sed 's/^\([[:space:]]*password:\).*/\1 <redacted>/'
 
 echo "=== Nexus IQ Server Docker Installation Complete ==="

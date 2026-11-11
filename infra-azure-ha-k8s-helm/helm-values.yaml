@@ -96,7 +96,9 @@ iq_server:
     service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
 
 
-  # IQ pods, the Size L value. helm-install.sh sets it from nexus_iq_replica_count.
+  # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
+  # This is the Size L value. Size M uses 2 and Size XL uses 4.
+  # helm-install.sh overwrites it with nexus_iq_replica_count from terraform.tfvars.
   replicas: 3
 
 
@@ -152,8 +154,11 @@ ingress:
   tls: []
 
 
-# Size L bounds. Memory stays disabled: the JVM holds its heap, so memory use sits
-# near the limit and would scale out without bound.
+# Horizontal pod autoscaler. The chart reads hpa.enabled, hpa.minReplicas and
+# hpa.maxReplicas, and renders the HPA only when a resource metric is enabled.
+# These are the Size L bounds. Size M is 2 to 3 and Size XL is 3 to 5.
+# Memory is left disabled because the JVM holds its heap, so memory utilization
+# stays near the limit and would scale out without bound.
 hpa:
   enabled: true
   minReplicas: 2
