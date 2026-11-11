@@ -204,6 +204,7 @@ Your Azure account needs permissions for these services:
 > | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
 > | `db_storage_mb` | 524288 | 131072 for a new server. An existing server keeps its size |
 > | `workload_profile_type` | `D4`, fixed | `E8` |
+> | `azure_region` | West US 2 | East US. A region change replaces every resource, so an existing deployment sets its region here |
 >
 > The Application Gateway, its public IP and the `app_gateway_*` variables are removed, so the
 > next apply deletes them. IQ Server is then reached on the Container App's own HTTPS address,
