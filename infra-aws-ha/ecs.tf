@@ -80,13 +80,10 @@ resource "aws_ecs_task_definition" "iq_task" {
           mkdir -p "$UNIQUE_WORK"
           mkdir -p "/sonatype-work/clm-cluster"
 
-          # Every task mounts the same EFS log directory, so each one writes and
-          # rolls its logs under its own host name rather than sharing one file.
+          # Each task writes and rolls its logs under its own host name on the shared EFS directory.
           mkdir -p "/var/log/nexus-iq-server/$HOSTNAME"
-          # A task that has gone leaves its directory behind, so delete any other
-          # task's directory unchanged for 7 days. Each live task touches its own
-          # directory every hour, so an idle one is not taken for gone. aggregated
-          # is the Fluent Bit sidecar's.
+          # Delete other tasks' directories unchanged for 7 days. A live task touches its own
+          # hourly, so it is kept. aggregated belongs to the Fluent Bit sidecar.
           find /var/log/nexus-iq-server -mindepth 1 -maxdepth 1 -type d ! -name "$HOSTNAME" ! -name aggregated -mtime +7 -exec rm -rf {} + || true
           ( while true; do touch "/var/log/nexus-iq-server/$HOSTNAME"; sleep 3600; done ) &
 
@@ -274,8 +271,7 @@ CONFIGEOF
         mkdir -p /fluent-bit/etc /fluent-bit/parsers /fluent-bit/state /var/log/nexus-iq-server/aggregated
 
 
-        # Every task mounts the same log directory, so the sidecar tails only its
-        # own task's, named by the host name the task's containers share.
+        # Tail only this task's directory, named by the host name its containers share.
         TASK_HOST=$(cat /proc/sys/kernel/hostname)
         echo "$FLUENT_BIT_CONFIG" | sed "s|/TASK_HOST/|/$TASK_HOST/|g" > /fluent-bit/etc/fluent-bit.conf
         if grep -q '/TASK_HOST/' /fluent-bit/etc/fluent-bit.conf; then
