@@ -156,11 +156,11 @@ For **Kubernetes deployments**, also run:
 terraform output
 ```
 
-This displays the load balancer URL, database endpoint, and other access details.
+This displays the application URL, database endpoint, and other access details.
 
 ### Step 5: Access IQ Server
 
-1. Navigate to the load balancer URL from the Terraform outputs
+1. Navigate to the application URL from the Terraform outputs
 2. Wait 5-15 minutes for the application to initialize
 3. Log in with default credentials:
    - **Username**: `admin`
@@ -677,7 +677,7 @@ Continuous Monitoring is one of the most resource-intensive operations. The bott
 ### Networking
 
 All architectures create their own VPC/VNet with:
-- Public subnets (load balancer)
+- Public subnets (load balancer; infra-azure creates the subnet and its NSG with nothing in it)
 - Private subnets (compute)
 - Database subnets (isolated)
 - NAT Gateway / Cloud NAT for outbound access

@@ -370,7 +370,7 @@ opensearch_port           = 9200
 opensearch_use_tls        = true
 opensearch_username       = "iq-server"
 opensearch_password       = "<strong password>"
-opensearch_index_replicas = 0
+opensearch_index_replicas = 1  # three data nodes at M; 0 at XS and S
 ```
 
 | Variable | Default | What it does |
@@ -381,7 +381,7 @@ opensearch_index_replicas = 0
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, the route `db_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `0` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
 
 Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` is
 byte-identical to a deployment that never knew about this section.
@@ -423,22 +423,18 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-**M and L are measured on Azure; XS, S and XL are not.** The data node types at M and L are the
-measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS uses `Standard_D2pls_v6`, S uses
-`Standard_D2ps_v6` and XL `Standard_E8ps_v6`, which give the same memory as the AWS and GCP data
-nodes at those sizes. At XS that is one more vCPU, since `Standard_D2pls_v6` is the smallest Dplsv6
-size. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
-managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
-at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
-measured VMs had, and takes half its RAM as heap.
+**M is measured on Azure; XS and S are not.** The data node type at M is the measured type,
+`Standard_D2ps_v6`. XS uses `Standard_D2pls_v6` and S `Standard_D2ps_v6`, which give the same memory as
+the AWS and GCP data nodes at those sizes. At XS that is one more vCPU, since `Standard_D2pls_v6` is the
+smallest Dplsv6 size. Storage per node is the published size, chosen at or above the measured use. The
+cluster managers are measured at M on `Standard_D2pls_v6`. Every manager has a 30 GiB P4 Premium SSD OS
+disk, as the measured VMs had, and takes half its RAM as heap.
 
 | Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
 |---|---|---|---|---|---|---|
 | XS | 1 | `Standard_D2pls_v6`, 2 vCPU, 4 GB | 25 GB, on a P4 Premium SSD of 32 GiB | none | 1 | `0` |
 | S | 1 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 50 GB, on a P6 Premium SSD of 64 GiB | none | 1 | `0` |
 | M | 3 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
-| L | 3 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
-| XL | 3 | `Standard_E8ps_v6`, 8 vCPU, 64 GB | 250 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB, 4 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
 
 Premium SSD is billed and performs by fixed tiers, so each storage figure sits on the smallest tier
 at or above it.

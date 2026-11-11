@@ -159,7 +159,7 @@ echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
 CHART_VERSION=$(tfvar helm_chart_version)
-CHART_VERSION=${CHART_VERSION:-latest}
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
