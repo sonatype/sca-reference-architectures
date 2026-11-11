@@ -366,6 +366,7 @@ Your Azure account needs permissions for these services:
 > | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
 > | `storage_share_quota_gb` | 512 | 500 |
 > | `node_group_max_size` | 6 | 5 |
+> | `azure_region` | `eastus2` | `eastus`. A region change replaces every resource, so an existing deployment sets its region here |
 > | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, for a new server, then grows automatically. An existing server keeps its size |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
