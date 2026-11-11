@@ -18,7 +18,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 8 GB of `112Gi`.
 
-> **ARM instances recommended.** r9g (Graviton5) costs 8% less than the x86 equivalent (r8i) on demand in us-east-1, at list prices in November 2026. The node AMI follows the instance architecture, so both ARM and x86 types deploy.
+> **ARM instances recommended.** r9g (Graviton5) costs less on demand than the x86 equivalent (r8i). The node AMI follows the instance architecture, so both ARM and x86 types deploy.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
@@ -158,9 +158,8 @@ index all the pods read and write.
 
 ### `terraform destroy` will not delete the domain
 
-The domain carries `prevent_destroy`, because it holds the index and rebuilding
-one takes an hour or more on a large estate. A destroy fails while it is in
-state, so removing it is deliberate:
+The domain carries `prevent_destroy`, because it holds the index. A destroy
+fails while it is in state, so removing it is deliberate:
 
 ```bash
 DOMAIN=$(terraform output -raw opensearch_domain_name)
@@ -193,8 +192,7 @@ domain through `opensearch_domain_endpoint` and share the index with it.
 A VPC domain needs the OpenSearch service-linked role,
 `AWSServiceRoleForAmazonOpenSearchService`, which is what OpenSearch assumes to
 put the domain's network interfaces in the private subnets. AWS creates it on its
-own when a VPC domain is made through the console, so an account that has ever
-held one already has it. Otherwise, once per account:
+own when a VPC domain is made through the console. Otherwise, once per account:
 
 ```bash
 aws iam create-service-linked-role \
@@ -211,10 +209,8 @@ aws iam list-roles \
 
 The calling identity needs `iam:CreateServiceLinkedRole`. An account still
 carrying the legacy `AWSServiceRoleForAmazonElasticsearchService` role goes on
-using that one and needs nothing. This configuration deliberately does not create
-the role: AWS allows one per account while each deployment of this root is
-separate, so whichever deployment owned it would delete it out from under the
-others at teardown.
+using that one and needs nothing. This configuration does not create the role,
+because AWS allows one per account and every deployment's domain depends on it.
 
 What the created domain gets, none of which needs configuring:
 
@@ -271,12 +267,6 @@ for how to set them.
 Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
 not a setting this configuration can change.
 
-**The data node type, masters, shards and replicas above are the measured
-values at every size.** The measurement ran three data nodes, one per zone;
-this architecture runs two because it builds two zones, and that count is not
-measured. Storage per node is the published size, chosen at or above the
-measured use.
-
 **Two zones, because that is what this architecture builds.** `main.tf` creates
 two private subnets, and the domain needs one subnet per zone, so two is the
 most it can spread across. Two nodes with one replica keeps a complete copy of
@@ -304,20 +294,17 @@ characters plus `-nexus-one`:
 Retention is `opensearch_log_retention_days`, 30 days by default.
 
 **An account at 10 CloudWatch Logs resource policies needs one written by
-hand.** OpenSearch writes these streams itself, so the service principal needs a
-resource policy granting it `logs:PutLogEvents` and `logs:CreateLogStream` on the
-groups. A resource policy is account-wide and AWS allows 10 per region, so a
-deployment into an account already at that quota fails with
-`LimitExceededException`. The answer is one policy covering every domain's log
-groups, written once outside Terraform, and `opensearch_create_log_resource_policy
-= false` in each deployment. That toggle skips the policy and nothing else: the
-log groups and the domain's `log_publishing_options` are still created, so the
-shared policy has groups to name. Setting it false with no such policy in the
-account is not a working configuration, the domain create then fails on the
-`log_publishing_options`.
+hand.** OpenSearch needs a resource policy granting it `logs:PutLogEvents` and
+`logs:CreateLogStream` on the groups, and AWS allows 10 per region, so a
+deployment into an account at that limit fails with `LimitExceededException`.
+Write one policy covering every domain's log groups outside Terraform, and set
+`opensearch_create_log_resource_policy = false` in each deployment. That skips
+the policy only; the log groups and `log_publishing_options` are still created.
+With no such policy in the account, the domain create fails.
 
 **The slow logs stay empty until a threshold is set.** OpenSearch ships with
 slow logging off per index, so set a threshold on the index to get any rows.
+
 The domain only accepts HTTPS from the EKS node security group, and only requests signed with
 the IQ Server IRSA role. An IQ Server pod, reached with `kubectl exec`, has
 both, so the request has to run from there and carry that role's temporary
@@ -365,9 +352,7 @@ nexusOne:
 - **`nexusOneIndexReplicas`** is always written. When IQ Server is not given a
   count, it uses 1.
 - **`nexusOne.connection` repeats the same fields** because it is the only
-  block the Nexus One index reads. With `search:` set and this one absent, the
-  index store has no transport and turning the feature on is refused. Both name
-  the same domain.
+  block the Nexus One index reads. Without it, turning the feature on is refused.
 
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created. **At M, L and XL, set
