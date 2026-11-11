@@ -217,10 +217,8 @@ else
 fi
 
 FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_role_arn 2>/dev/null || echo "")
-# sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
-# pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
-# The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
-# which is tr's and is 0 even when grep matched nothing, so it never fired.
+# sed rather than cut, which keeps a trailing comment. The default is on its own line because
+# `|| echo` after a pipe sees only the last command's status.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 SEARCH_ENGINE=$($TERRAFORM_PREFIX terraform output -raw search_engine 2>/dev/null || echo "lucene")
@@ -241,10 +239,8 @@ sed -i.bak \
     -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
-# The search: block in helm-values.yaml ships with placeholders between a BEGIN
-# and an END marker. Fill them in when the search backend is OpenSearch, and
-# delete the whole block when it is Lucene, which is the default. Done after the
-# database substitutions above so those patterns cannot see these lines.
+# Fill in or delete the search: block between its markers, after the database
+# substitutions above so their patterns cannot touch it.
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     if [[ -z "$OPENSEARCH_ENDPOINT" ]]; then
         echo -e "${RED}❌ Error: search_engine is 'opensearch' but no domain endpoint was found${NC}"
@@ -258,11 +254,8 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
         -e "s|OPENSEARCH_REGION_PLACEHOLDER|$AWS_REGION|" \
         -e "s|OPENSEARCH_REPLICAS_PLACEHOLDER|$OPENSEARCH_REPLICAS|" \
         "$TEMP_VALUES_FILE"
-    # The role-arn substitution above has no line anchor, so it has just put the
-    # Fluentd role on the nexus-iq-sa service account as well. Point that one at
-    # the role that can reach OpenSearch. Anchored to the top-level
-    # serviceAccount: block so the Fluentd aggregator's own annotation, which is
-    # nested deeper, is left alone.
+    # The unanchored role-arn substitution above also gave nexus-iq-sa the Fluentd
+    # role; point that service account at the OpenSearch role instead.
     IQ_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw iq_server_irsa_role_arn 2>/dev/null || echo "")
     if [[ -z "$IQ_IRSA_ROLE_ARN" ]]; then
         echo -e "${RED}❌ Error: no iq_server_irsa_role_arn output found${NC}"

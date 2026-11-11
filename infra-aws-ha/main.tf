@@ -19,11 +19,8 @@ data "aws_availability_zones" "available" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  # Base for the Name tags on the network resources below. Those tags read
-  # "ref-arch-iq-ha-*" while cluster_name defaults to "ref-arch-iq-ha-cluster", so
-  # the trailing "-cluster" comes off. That keeps the tags unchanged for anyone who
-  # leaves cluster_name alone, while a per-deployment cluster_name still reaches
-  # them, which is what lets two deployments be told apart in the console.
+  # Base for the network Name tags: cluster_name without a trailing "-cluster", which
+  # keeps the default tags at "ref-arch-iq-ha-*".
   network_name = trimsuffix(var.cluster_name, "-cluster")
 }
 

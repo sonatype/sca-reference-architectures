@@ -31,7 +31,7 @@ iq_docker_image = "sonatypecommunity/nexus-iq-server:latest"
 instance_machine_type = "n4a-highmem-8" # 8 vCPU, 64 GB (ARM)
 
 # High Availability Configuration
-# These are the Size L instance counts. See the README Sizing Guide for Size M (2/2/3) and Size XL (4/3/5).
+# Size L instance counts. README.md gives Size M and XL.
 iq_min_instances    = 2 # Minimum for HA
 iq_max_instances    = 4 # Maximum for scaling
 iq_target_instances = 3 # Initial target
@@ -114,13 +114,10 @@ search_engine = "lucene"
 #   -----END CERTIFICATE-----
 # EOT
 
-# The values above are Size L. The two blocks below are the other sizes this
-# root supports. See the README Sizing Guide for application and evaluation
-# volumes.
+# The values above are Size L. The blocks below are Size M and XL.
 
 # Size M:
-# Size M is the smallest HA shape. For fewer than 2,000 applications use infra-gcp instead,
-# since this root validates iq_min_instances and iq_max_instances at 2 or more.
+# Under 2,000 applications, use infra-gcp: this root requires at least 2 instances.
 # instance_machine_type = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 # iq_min_instances      = 2
 # iq_max_instances      = 3

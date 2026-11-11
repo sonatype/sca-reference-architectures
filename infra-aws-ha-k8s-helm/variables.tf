@@ -30,11 +30,8 @@ variable "cluster_name" {
   default     = "nexus-iq-ha"
 
   validation {
-    # The tightest name built from this is the EKS cluster's IAM role, which the
-    # EKS module creates with the name prefix "<cluster_name>-cluster-". AWS caps
-    # an IAM role name prefix at 38 characters, so cluster_name can be at most 29.
-    # Checked here so a too-long name fails the plan rather than the apply, after
-    # the VPC and Aurora already exist.
+    # The EKS module names the cluster IAM role "<cluster_name>-cluster-", and AWS caps a
+    # role name prefix at 38 characters, so cluster_name can be at most 29.
     condition     = length(var.cluster_name) <= 29
     error_message = "cluster_name must be 29 characters or fewer, because the EKS cluster's IAM role is named with the prefix '<cluster_name>-cluster-' and AWS caps an IAM role name prefix at 38 characters."
   }
@@ -217,19 +214,9 @@ variable "log_retention_days" {
 # =============================================================================
 # SEARCH BACKEND
 # =============================================================================
-# search_engine picks which search backend IQ Server's config.yml points at. On
-# this architecture config.yml is written by the Helm chart from the
-# iq_server.config block in helm-values.yaml, and helm-install.sh fills in or
-# removes the `search:` block there according to this variable.
-#
-# "opensearch" uses an AWS-managed OpenSearch domain. This configuration creates
-# it, in opensearch.tf, unless opensearch_domain_endpoint and
-# opensearch_domain_name name one that already exists. The created domain
-# carries prevent_destroy, because it holds the index: see the note at the top
-# of opensearch.tf.
-#
-# Sizing the domain is a separate exercise. See the OpenSearch section of this
-# directory's README.md for the shape each size needs.
+# search_engine decides whether helm-install.sh fills in or removes the search:
+# block in helm-values.yaml. "opensearch" creates a domain in opensearch.tf unless
+# opensearch_domain_endpoint names one. README.md gives the shape per size.
 
 variable "search_engine" {
   description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."

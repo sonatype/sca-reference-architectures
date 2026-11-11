@@ -74,8 +74,7 @@ echo ""
 echo "🚀 Proceeding with deployment..."
 echo ""
 
-# Read from the saved plan, which holds cluster_name however it was set:
-# terraform.tfvars, -var, TF_VAR_cluster_name or a *.auto.tfvars file.
+# Read from the saved plan, which holds cluster_name however it was set.
 CLUSTER_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform show -json tfplan | jq -r '.variables.cluster_name.value')
 LOG_GROUP_NAME="/ecs/${CLUSTER_NAME}-nexus-iq-server"
 

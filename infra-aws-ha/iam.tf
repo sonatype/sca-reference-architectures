@@ -140,9 +140,7 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
         ]
       }] : [],
       var.search_engine == "opensearch" ? [{
-        # One action per HTTP verb, because that is how AWS checks a signed
-        # OpenSearch request. The domain's access_policies in opensearch.tf says
-        # why a signed request is the only kind it accepts.
+        # AWS checks a signed OpenSearch request per HTTP verb.
         Effect = "Allow"
         Action = [
           "es:ESHttpGet",

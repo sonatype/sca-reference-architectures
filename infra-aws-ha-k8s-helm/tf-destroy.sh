@@ -44,11 +44,8 @@ echo ""
 echo -e "${BLUE}🔍 Checking Existing Infrastructure${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# `set -e` is on, so a failing plan would end the script before the check below
-# could read its status, and the script would exit non-zero having printed
-# nothing. PLAN_STATUS is assigned on the failure branch rather than read from
-# `$?` after a `|| true`, which would always be 0. The output is kept because a
-# plan fails for two very different reasons and they need different answers.
+# set -e is on, so the status is captured on the failure branch: `$?` after
+# `|| true` is always 0.
 PLAN_STATUS=0
 PLAN_OUTPUT=$(aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy 2>&1) || PLAN_STATUS=$?
 
