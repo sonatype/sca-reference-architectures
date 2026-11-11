@@ -213,7 +213,7 @@ fi
 
 echo -e "${BLUE}💾 Creating Backup${NC}"
 echo "━━━━━━━━━━━━━━━━━━"
-$HELM_PREFIX helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml"
+(umask 077; $HELM_PREFIX helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml")
 echo "• Saved: backup-values-revision-${CURRENT_REVISION}.yaml"
 echo ""
 

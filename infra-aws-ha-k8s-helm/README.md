@@ -274,6 +274,9 @@ the index in each zone, and a node count has to divide evenly by the zone count
 or AWS refuses the domain. Three zones needs a third private subnet in `main.tf`
 first; `opensearch.tf` refuses the plan rather than failing inside `slice()`.
 
+The data node types, masters, shards and replicas above are measured at every size, on three data
+nodes. The two-node domain here is not measured.
+
 **Storage holds more than one copy of the index.** A replica doubles it, a
 rebuild holds a second generation for the whole run and for 30 minutes after
 cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
