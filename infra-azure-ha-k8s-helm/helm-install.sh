@@ -14,8 +14,7 @@ HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
-# tfvar, load_search_vars and write_search_block. helm-upgrade.sh sources the
-# same file, so both paths write an identical search: block.
+# search-values.sh defines tfvar, load_search_vars and write_search_block.
 # shellcheck source=search-values.sh
 source "$(dirname "$0")/search-values.sh"
 

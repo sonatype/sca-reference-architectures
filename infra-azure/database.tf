@@ -54,9 +54,8 @@ resource "azurerm_postgresql_flexible_server" "iq_db" {
     password_auth_enabled         = true
   }
 
-  # Auto-grow raises the disk outside Terraform, and the provider refuses to
-  # shrink storage_mb, so without this every apply after a grow would fail.
-  # db_storage_mb therefore sets the size only when the server is created.
+  # Auto-grow raises the disk outside Terraform, and the provider refuses to shrink
+  # storage_mb, so db_storage_mb applies only at creation.
   lifecycle {
     ignore_changes = [storage_mb, storage_tier]
   }

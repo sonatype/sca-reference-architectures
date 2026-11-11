@@ -286,22 +286,10 @@ variable "ingress_tls_enabled" {
 # =============================================================================
 # SEARCH BACKEND (Lucene or self-managed OpenSearch)
 # =============================================================================
-# search_engine selects which engine IQ Server's config.yml should use. On this
-# root IQ Server's configuration comes from helm-values.yaml rather than from
-# Terraform, so helm-install.sh and helm-upgrade.sh read these values out of
-# terraform.tfvars through search-values.sh and append the search: block to
-# helm-values-runtime.yaml. Terraform itself only checks them.
-#
-# Azure has no first-party managed OpenSearch, so "opensearch" means a cluster
-# you run yourself on Azure Virtual Machines and reach over basic auth. This
-# configuration does not provision that cluster: you supply its endpoint, so
-# switching engines never destroys a cluster or its indexed data. README.md has
-# the cluster specification and the build steps.
-#
-# load_search_vars in search-values.sh reads terraform.tfvars, so it sees only
-# what is written there. It applies the same defaults these variables declare
-# to the port, TLS and replica settings, and the endpoint, user name and
-# password have to be written there when search_engine is "opensearch".
+# helm-install.sh and helm-upgrade.sh read these from terraform.tfvars through
+# search-values.sh and write the search: block; Terraform only checks them.
+# "opensearch" means a cluster you run on Azure Virtual Machines, reached over basic
+# auth and named by opensearch_endpoint; this configuration does not create it.
 
 variable "search_engine" {
   description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."

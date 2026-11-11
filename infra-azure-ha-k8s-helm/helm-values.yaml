@@ -17,9 +17,8 @@ iq_server:
       memory: "56Gi"
 
 
-  # A heap dump goes to this pod's own directory on the Azure Files share, because the pod's
-  # own disk is the node's OS disk, node_disk_size GB, too small for one. The HeapDumpPath added
-  # here comes after the one in javaOpts, and the JVM takes the last.
+  # Heap dumps go to this pod's directory on the Azure Files share, since the node's OS
+  # disk is too small. The JVM takes the last HeapDumpPath, so this one wins.
   command: ["/bin/sh", "-c"]
   args:
     - |
@@ -32,17 +31,10 @@ iq_server:
 
 
   config:
-    # Advanced Search backend. No search key is committed here: helm-install.sh
-    # and helm-upgrade.sh, through search-values.sh, append one to
-    # helm-values-runtime.yaml when search_engine is
-    # "opensearch" in terraform.tfvars, and appends nothing when it is
-    # "lucene".
-    #
-    # It is generated rather than committed because this file is rewritten by
-    # an unanchored sed that replaces every empty password value with the
-    # database password, so a committed OpenSearch password key would receive
-    # it. The generated search: and nexusOne.connection blocks carry the
-    # cluster's uri and credentials. README.md shows them in full.
+    # Advanced Search backend. search-values.sh appends the search: and
+    # nexusOne.connection blocks to helm-values-runtime.yaml when search_engine is
+    # "opensearch". They are not committed here, because the scripts' unanchored sed
+    # writes the database password into every empty password value.
     sonatypeWork: "/sonatype-work/clm-server"
     clusterDirectory: "/sonatype-work/clm-cluster"
 
