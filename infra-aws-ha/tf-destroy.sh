@@ -44,11 +44,8 @@ echo ""
 echo -e "${BLUE}🔍 Checking Existing Infrastructure${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# `set -e` is on, so a failing plan would end the script before the check below
-# could read its status, and the script would exit non-zero having printed
-# nothing. PLAN_STATUS is assigned on the failure branch rather than read from
-# `$?` after a `|| true`, which would always be 0. The output is kept because a
-# plan fails for two very different reasons and they need different answers.
+# set -e is on, so the status is captured on the failure branch: `$?` after
+# `|| true` is always 0.
 PLAN_STATUS=0
 PLAN_OUTPUT=$(aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy 2>&1) || PLAN_STATUS=$?
 
@@ -100,9 +97,7 @@ echo "• Secrets will be force-deleted (no recovery)"
 echo "• This action CANNOT be undone"
 echo ""
 
-# The secret and the vault are read from state rather than rebuilt from
-# cluster_name, which can also be set with -var, TF_VAR_cluster_name or a
-# *.auto.tfvars file.
+# Read from state, since cluster_name may also come from -var, TF_VAR_ or *.auto.tfvars.
 DB_SECRET_ARN=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw db_credentials_secret_arn 2>/dev/null || true)
 BACKUP_VAULT_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw backup_vault_name 2>/dev/null || true)
 

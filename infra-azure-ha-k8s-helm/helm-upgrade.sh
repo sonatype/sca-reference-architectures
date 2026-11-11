@@ -14,10 +14,9 @@ HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
-# tfvar, load_search_vars and write_search_block. helm-install.sh sources the
-# same file. An upgrade rebuilds helm-values-runtime.yaml from scratch and
-# passes no --reuse-values, so without this the search: block would be absent
-# from the upgraded release and IQ Server would fall back to Lucene.
+# search-values.sh defines tfvar, load_search_vars and write_search_block. The
+# upgrade rebuilds the values file without --reuse-values, so the search: block is
+# written here too.
 # shellcheck source=search-values.sh
 source "$(dirname "$0")/search-values.sh"
 
@@ -116,9 +115,7 @@ cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(tfvar database_password)
 REPLICA_COUNT=$(tfvar nexus_iq_replica_count)
-# tfvar prints nothing for a key that is not set, and an empty replica count makes the sed below
-# write "replicas:" with no value, which is invalid YAML. 3 is the Size L pod count this root
-# publishes.
+# An absent key gives an empty count, which would write an invalid "replicas:" line.
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then

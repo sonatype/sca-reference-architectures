@@ -16,8 +16,7 @@ container_cpu          = 8.0       # vCPU per replica, the Size M and L value
 container_memory       = "64Gi"    # Memory per replica, the Size M and L value
 iq_min_replicas        = 2         # Minimum replicas, the Size L value (must be >= 2)
 iq_max_replicas        = 4         # Maximum replicas for auto-scaling, the Size L value
-# Container Apps workload profile. E8 is 8 cores and 64 GB per node, for Size M
-# and L. Size XL uses E16, 16 cores and 128 GB.
+# Container Apps workload profile. E8 (8 cores, 64 GB) for Size M and L, E16 for XL.
 workload_profile_type  = "E8"
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
 java_opts              = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
@@ -61,12 +60,9 @@ key_vault_sku_name                   = "standard"
 key_vault_soft_delete_retention_days = 7
 
 # Search Backend (optional)
-# "lucene" (default) uses IQ Server's embedded index and needs nothing else.
-# "opensearch" points IQ Server at a self-managed OpenSearch cluster you run on
-# Azure Virtual Machines. This configuration does not provision that cluster,
-# so its lifecycle and its indexed data stay independent of Terraform runs
-# here. README.md carries the cluster specification, the build steps and the
-# trust store steps a private certificate authority needs.
+# "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
+# cluster you run on Azure Virtual Machines; this configuration does not create it.
+# README.md gives the cluster specification and the private certificate authority steps.
 search_engine = "lucene"
 
 # opensearch_endpoint       = "opensearch.internal.example.com"
@@ -76,26 +72,18 @@ search_engine = "lucene"
 # opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 1
 
-# For a cluster whose certificate comes from a private certificate authority,
-# that authority's certificate, base64 encoded. IQ Server has no per-connection
-# trust setting, so the entrypoint adds it to a copy of the JVM's own trust
-# store. Leave empty for a public authority. This is not a credential.
+# A private certificate authority's certificate, base64 encoded, added to a copy of the
+# JVM trust store. Leave empty for a public authority. Not a credential.
 # opensearch_ca_pem = ""
 
-# Private container registry holding iq_docker_image. Leave all three empty for
-# an image on a public registry. The password is delivered to the container app
-# as a secret, and belongs in terraform.tfvars, which is gitignored, never here.
+# Private registry holding iq_docker_image. Leave all three empty for a public image.
+# Put the password in terraform.tfvars, not here.
 # container_registry_server   = "myregistry.azurecr.io"
 # container_registry_username = "myregistry"
 # container_registry_password = "CHANGE_ME_REGISTRY_PASSWORD"
 
 # Tags
-# Replace every placeholder below with your own values. terraform.tfvars is
-# gitignored and this example file is not, so nothing naming a person or an
-# account belongs here.
-#
-# Azure treats tag names as case-insensitive, so do not add a second key that
-# differs from one of these only in capitalization.
+# Put real values in terraform.tfvars. Azure compares tag names case-insensitively.
 common_tags = {
   Environment    = "production"
   Terraform      = "true"

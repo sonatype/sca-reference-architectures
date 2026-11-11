@@ -184,13 +184,9 @@ variable "key_vault_sku_name" {
 # =============================================================================
 # SEARCH BACKEND (Lucene or self-managed OpenSearch)
 # =============================================================================
-# search_engine selects which engine IQ Server's config.yml points to, through
-# the conditional `search:` block in container_app.tf. Azure has no first-party
-# managed OpenSearch, so "opensearch" means a cluster you run yourself on Azure
-# Virtual Machines and reach over basic auth. This configuration does not
-# provision that cluster: you supply its endpoint, so switching engines never
-# destroys a cluster or its indexed data. README.md has the cluster
-# specification and the build steps.
+# search_engine picks the engine the conditional search: block in container_app.tf
+# names. "opensearch" means a cluster you run on Azure Virtual Machines, reached over
+# basic auth and named by opensearch_endpoint; this configuration does not create it.
 
 variable "search_engine" {
   description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."

@@ -25,10 +25,8 @@ variable "cluster_name" {
   default     = "ref-arch-iq-ha-cluster"
 
   validation {
-    # The longest name built from this that AWS length-limits is the target group,
-    # "<cluster_name>-iq-tg", and AWS caps a target group or load balancer name at
-    # 32 characters. Checked here so a too-long name fails the plan rather than the
-    # apply, after the VPC and Aurora already exist.
+    # The target group, "<cluster_name>-iq-tg", is the longest name, and AWS caps a
+    # target group name at 32 characters.
     condition     = length(var.cluster_name) <= 26
     error_message = "cluster_name must be 26 characters or fewer, to leave room for the 6-character '-iq-tg' suffix under AWS's 32-character target group name limit."
   }
@@ -279,22 +277,9 @@ variable "common_tags" {
 # =============================================================================
 # SEARCH BACKEND
 # =============================================================================
-# search_engine picks which search backend IQ Server's config.yml points at. It
-# switches the `search:` block in the config.yml heredoc in ecs.tf on and off.
-#
-# Setting it to "opensearch" uses an AWS-managed OpenSearch domain, and this
-# configuration creates that domain, in opensearch.tf, sized by the
-# opensearch_* variables below. A customer who already runs a domain names it
-# in opensearch_domain_endpoint and opensearch_domain_name instead, and nothing
-# is created.
-#
-# The created domain carries prevent_destroy, because it holds the index and
-# rebuilding that index on a large estate is measured in hours. Removing it is
-# therefore deliberate: see the note at the top of opensearch.tf.
-#
-# Sizing the domain: the shape each size needs is in the OpenSearch section of
-# this directory's README.md. The defaults below are the Size M shape, so an L
-# or XL deployment that leaves them unset gets an M domain.
+# search_engine switches the search: block in the config.yml heredoc in ecs.tf.
+# "opensearch" creates a domain in opensearch.tf unless opensearch_domain_endpoint
+# names one. The defaults are the Size M shape; README.md gives L and XL.
 
 variable "search_engine" {
   description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."

@@ -47,8 +47,7 @@ nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
 
-# Pod CPU, memory and heap are Helm chart settings, not Terraform inputs.
-# Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
+# Pod CPU, memory and heap are set by iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
 helm_chart_version      = "201.0.0"
@@ -61,25 +60,18 @@ log_retention_days = 30
 enable_fluentd     = true
 enable_monitoring  = true
 
-# Pod autoscaling is a Helm chart setting, not a Terraform input.
-# Set hpa.enabled, hpa.minReplicas and hpa.maxReplicas in helm-values.yaml.
+# Pod autoscaling is set by hpa.* in helm-values.yaml.
 
 # Ingress Configuration
 ingress_hostname    = "" # Optional: custom hostname
 ingress_tls_enabled = false
 
 # Search Backend (optional)
-# "lucene" (default) uses IQ Server's embedded index and needs nothing else.
-# "opensearch" points IQ Server at a self-managed OpenSearch cluster you run on
-# Azure Virtual Machines. This configuration does not provision that cluster,
-# so its lifecycle and its indexed data stay independent of Terraform runs
-# here. README.md carries the cluster specification, the build steps and the
-# trust store steps a private certificate authority needs.
-#
-# helm-install.sh and helm-upgrade.sh read these out of this file, so they see
-# only what is written here. The port, TLS and replica settings fall back to
-# the variable defaults, and the endpoint, user name and password have to be
-# written here when search_engine is "opensearch".
+# "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
+# cluster you run on Azure Virtual Machines; this configuration does not create it.
+# README.md gives the cluster specification and the private certificate authority steps.
+# The scripts read these from this file. Port, TLS and replicas default as the variables
+# do; the endpoint, user name and password must be set here for "opensearch".
 search_engine = "lucene"
 
 # opensearch_endpoint       = "opensearch.internal.example.com"
@@ -90,14 +82,8 @@ search_engine = "lucene"
 # opensearch_index_replicas = 1
 
 # Tags
-# Merged on top of the four tags this root sets itself: project, Environment,
-# ManagedBy and Purpose. A key below with the same name replaces that one.
-# Replace every placeholder with your own values. terraform.tfvars is
-# gitignored and this example file is not, so nothing naming a person or an
-# account belongs here.
-#
-# Azure treats tag names as case-insensitive, so do not add a key that differs
-# from one of those four only in capitalization.
+# Merged on top of the tags this root sets; a key with the same name replaces one.
+# Put real values in terraform.tfvars. Azure compares tag names case-insensitively.
 common_tags = {
   owner      = "CHANGE_ME_EMAIL"
   project    = "CHANGE_ME_PROJECT"

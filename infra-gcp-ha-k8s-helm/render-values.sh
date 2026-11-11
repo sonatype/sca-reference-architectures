@@ -1,19 +1,11 @@
 #!/bin/bash
 #
-# Renders helm-values.yaml into helm-values-runtime.yaml with the real infrastructure values.
-#
-# Both helm-install.sh and helm-upgrade.sh call this, so neither of them needs a clear-text values
-# file to survive between runs: each run builds its own from the current Terraform outputs and
-# removes it on exit. That is what makes a password rotation work on this root. Rotating means
-# changing the value in terraform.tfvars and applying, and the next helm-upgrade.sh then renders
-# the new value out of the state.
-#
-# Writes the file named by the single argument, mode 600. The caller owns removing it.
+# Renders helm-values.yaml with the infrastructure values into the file named by the single
+# argument, mode 600. helm-install.sh and helm-upgrade.sh call it and remove the file.
 
 set -e
 
-# Every file written below holds the database and OpenSearch passwords, so each is created
-# owner-only rather than taking the default umask until a later chmod.
+# The files written below hold the passwords, so they are created owner-only.
 umask 077
 
 RED='\033[0;31m'
@@ -57,8 +49,6 @@ fi
 
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-# The generated file carries the database and OpenSearch passwords in clear text, so it is readable
-# only by its owner.
 chmod 600 "$TEMP_VALUES_FILE"
 
 sed -i.bak "s|hostname: \"\"|hostname: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
@@ -77,12 +67,8 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     sed -i.bak "s|OPENSEARCH_URI_PLACEHOLDER|${OPENSEARCH_URI}|g" "$TEMP_VALUES_FILE"
     sed -i.bak "s|OPENSEARCH_REPLICAS_PLACEHOLDER|${OPENSEARCH_REPLICAS}|g" "$TEMP_VALUES_FILE"
 
-    # The user name and the password are both written as single-quoted YAML scalars, with an
-    # embedded single quote written twice, and both are substituted with awk rather than sed. A sed
-    # replacement reads \ and & specially and ends at the | delimiter, so a value containing any of
-    # those three is mangled with no error, and an unquoted scalar containing ": " " #" or a
-    # leading indicator character breaks the YAML. awk reads each value out of the environment, so
-    # nothing in it is read as a pattern or as an escape.
+    # User name and password are single-quoted YAML scalars, with a single quote written
+    # twice, and substituted with awk from the environment, since sed would mangle \, & and |.
     OPENSEARCH_USERNAME_YAML="'$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")'"
     OPENSEARCH_PASSWORD_YAML="'$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")'"
     export OPENSEARCH_USERNAME_YAML OPENSEARCH_PASSWORD_YAML
@@ -111,10 +97,8 @@ else
     sed -i.bak "/# search-block-begin/,/# search-block-end/d" "$TEMP_VALUES_FILE"
 fi
 
-# A private certificate authority for the cluster reaches the pods as the Kubernetes Secret
-# nexus-iq-opensearch-ca, which the pods read through an environment variable. Without an
-# authority, the blocks between the opensearch-ca markers are deleted, so the pods run the
-# image's own start command.
+# A private certificate authority reaches the pods as the Secret nexus-iq-opensearch-ca.
+# Without one, the blocks between the opensearch-ca markers are deleted.
 if [[ "$SEARCH_ENGINE" == "opensearch" && -n "$OPENSEARCH_CA" ]]; then
     kubectl create secret generic nexus-iq-opensearch-ca \
         --from-literal=ca.pem="$OPENSEARCH_CA" \
@@ -123,8 +107,7 @@ else
     sed -i.bak "/# opensearch-ca-begin/,/# opensearch-ca-end/d" "$TEMP_VALUES_FILE"
 fi
 
-# A placeholder left behind means a substitution did not run, and Nexus IQ Server would read the
-# literal text as a host name or a password.
+# A placeholder left behind would be read as a host name or a password.
 if grep -q "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
     echo -e "${RED}❌ Error: a search placeholder survived substitution in ${TEMP_VALUES_FILE}${NC}"
     exit 1

@@ -258,9 +258,8 @@ variable "java_opts" {
 
 # Search Backend
 #
-# search_engine chooses which engine the `search:` block in config.yml names. "opensearch" needs
-# a cluster you have already built, named by opensearch_endpoint: Google Cloud has no managed
-# OpenSearch service, so this configuration does not create one. See README.md, "Search Backend".
+# search_engine picks the engine the search: block in config.yml names. "opensearch"
+# needs a cluster you run yourself, named by opensearch_endpoint.
 
 variable "search_engine" {
   description = "Which search backend Nexus IQ Server uses: \"lucene\" (default, the built-in index, nothing else to run) or \"opensearch\" (a self-managed OpenSearch cluster, whose host must be supplied in opensearch_endpoint)."
@@ -279,11 +278,9 @@ variable "opensearch_endpoint" {
   default     = ""
 
   validation {
-    # search.tf builds the URI as "<scheme>://<endpoint>:<port>", so a value carrying its own
-    # scheme or port produces "https://https://host:9200:9200", which is accepted at plan and
-    # apply and only fails once Nexus IQ Server tries to open the connection. Empty passes,
-    # because that is the default and the search.tf precondition is what requires a value when
-    # search_engine is "opensearch".
+    # search.tf builds "<scheme>://<endpoint>:<port>", so a scheme or port here produces
+    # a URI that only fails when IQ Server connects. Empty is allowed; the precondition
+    # requires a value when search_engine is "opensearch".
     condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
     error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
   }
@@ -343,10 +340,8 @@ variable "opensearch_index_replicas" {
 
 # Resource Naming
 #
-# cluster_name is the one input that renames a deployment. Every name that has to be unique inside
-# a Google Cloud project derives from it, so setting it to a different value for each size lets
-# them live side by side in one project. Leaving it empty reproduces the names this architecture
-# has always published.
+# cluster_name prefixes every name that must be unique in a project, so deployments with
+# different values can share one. Empty keeps the default names.
 
 variable "cluster_name" {
   description = "Prefix for every resource name that has to be unique inside a Google Cloud project. Empty, the default, reproduces the names this architecture has always published, so an existing deployment is not renamed. Set it to a distinct value per deployment when several sizes share one project."
@@ -354,10 +349,8 @@ variable "cluster_name" {
   default     = ""
 
   validation {
-    # Google Cloud resource names take lowercase letters, numbers and hyphens, must start with a
-    # letter and end with a letter or number. 19 characters rather than the 63 a resource name
-    # allows, because a service account id is capped at 30 and the longest suffix added to this
-    # prefix is 11 characters.
+    # Google Cloud name rules. At most 19 characters, because a service account id is capped
+    # at 30 and the longest suffix added is 11.
     condition     = var.cluster_name == "" || can(regex("^[a-z]([a-z0-9-]{0,17}[a-z0-9])?$", var.cluster_name))
     error_message = "cluster_name must be empty, or 1 to 19 characters of lowercase letters, numbers and hyphens, starting with a letter and ending with a letter or number."
   }

@@ -23,20 +23,12 @@ provider "google-beta" {
 }
 
 locals {
-  # Every name that has to be unique inside a Google Cloud project derives from cluster_name.
-  #
-  # Two prefixes rather than one, because the names this architecture has always published use
-  # two: the network, firewall, load balancer and compute layers are "ref-arch-iq-ha" and the
-  # database, storage, logging and service accounts are "nexus-iq-ha". Leaving cluster_name empty
-  # reproduces both exactly, so an existing deployment is not renamed and therefore not replaced.
-  # Setting it collapses both onto the value you give, which is what lets several sizes of this
-  # architecture live in one project.
+  # Prefixes for every name that must be unique in a project. Empty cluster_name keeps the
+  # two default prefixes, so an existing deployment is not renamed or replaced.
   infra_name = var.cluster_name != "" ? var.cluster_name : "ref-arch-iq-ha"
   app_name   = var.cluster_name != "" ? var.cluster_name : "nexus-iq-ha"
 
-  # Alert policy display names are read by a person rather than matched by a machine, so the
-  # default keeps the prose title this architecture has always published and only a set
-  # cluster_name replaces it, which is what tells two deployments' alerts apart.
+  # Alert titles keep the default prose unless cluster_name is set.
   alert_prefix = var.cluster_name != "" ? var.cluster_name : "Nexus IQ HA"
 }
 

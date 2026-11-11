@@ -23,20 +23,13 @@ provider "google-beta" {
 }
 
 locals {
-  # Every name that has to be unique inside a Google Cloud project derives from cluster_name.
-  #
-  # Two prefixes rather than one, because the names this architecture has always published use
-  # two: the network layer is "ref-arch-iq" and everything else is "nexus-iq". Leaving
-  # cluster_name empty reproduces both exactly, so an existing deployment is not renamed and
-  # therefore not replaced. Setting it collapses both onto the value you give, which is what lets
-  # several sizes of this architecture live in one project.
+  # Prefixes for every name that must be unique in a project. Empty cluster_name keeps the
+  # two default prefixes, so an existing deployment is not renamed or replaced.
   infra_name = var.cluster_name != "" ? var.cluster_name : "ref-arch-iq"
   app_name   = var.cluster_name != "" ? var.cluster_name : "nexus-iq"
 
-  # Two firewall rules this architecture has always published carry no prefix at all, where every
-  # other name carries one. A firewall rule name cannot be changed in place, so appending the
-  # prefix to those two would replace both rules on an existing deployment. An empty cluster_name
-  # therefore adds nothing to them, and setting it prefixes them like everything else.
+  # Two firewall rule names carry no prefix by default, and a rule name cannot change in
+  # place, so an empty cluster_name adds nothing to them.
   bare_rule_suffix = var.cluster_name != "" ? "-${var.cluster_name}" : ""
 }
 

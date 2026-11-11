@@ -48,10 +48,8 @@ nexus_iq_admin_password = "admin123"
 helm_chart_version      = "201.0.0"
 
 # Search Backend
-# "lucene" (default) uses the built-in index and needs nothing else running.
-# "opensearch" points Nexus IQ Server at an OpenSearch cluster you run yourself. Google Cloud has
-# no managed OpenSearch service, so this configuration does not create one: build the cluster to
-# the specification in README.md, "Search Backend", and name its host here.
+# "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
+# you run yourself; build it to README.md, "Search Backend".
 search_engine = "lucene"
 
 # opensearch_endpoint                 = "opensearch.internal.example.com"

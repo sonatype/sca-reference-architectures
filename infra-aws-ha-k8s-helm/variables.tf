@@ -30,11 +30,8 @@ variable "cluster_name" {
   default     = "nexus-iq-ha"
 
   validation {
-    # The tightest name built from this is the EKS cluster's IAM role, which the
-    # EKS module creates with the name prefix "<cluster_name>-cluster-". AWS caps
-    # an IAM role name prefix at 38 characters, so cluster_name can be at most 29.
-    # Checked here so a too-long name fails the plan rather than the apply, after
-    # the VPC and Aurora already exist.
+    # The EKS module names the cluster IAM role "<cluster_name>-cluster-", and AWS caps a
+    # role name prefix at 38 characters, so cluster_name can be at most 29.
     condition     = length(var.cluster_name) <= 29
     error_message = "cluster_name must be 29 characters or fewer, because the EKS cluster's IAM role is named with the prefix '<cluster_name>-cluster-' and AWS caps an IAM role name prefix at 38 characters."
   }
@@ -217,27 +214,9 @@ variable "log_retention_days" {
 # =============================================================================
 # SEARCH BACKEND
 # =============================================================================
-# search_engine picks which search backend IQ Server's config.yml points at. On
-# this architecture config.yml is written by the Helm chart from the
-# iq_server.config block in helm-values.yaml, and helm-install.sh fills in or
-# removes the `search:` block there according to this variable.
-#
-# Setting it to "opensearch" uses an AWS-managed OpenSearch domain, and this
-# configuration creates that domain, in opensearch.tf, sized by the
-# opensearch_* variables below. A customer who already runs a domain names it
-# in opensearch_domain_endpoint and opensearch_domain_name instead, and nothing
-# is created.
-#
-# The domain is a resource of its own, so replacing the node group leaves the
-# indexed data alone, and the domain can be resized, upgraded and backed up on
-# its own schedule. A domain created here carries prevent_destroy, because it
-# holds the index and rebuilding that index on a large estate is measured in
-# hours, so switching engines or destroying this stack stops rather than
-# deleting it. Removing it is deliberate: see the note at the top of
-# opensearch.tf.
-#
-# Sizing the domain is a separate exercise. See the OpenSearch section of this
-# directory's README.md for the shape each size needs.
+# search_engine decides whether helm-install.sh fills in or removes the search:
+# block in helm-values.yaml. "opensearch" creates a domain in opensearch.tf unless
+# opensearch_domain_endpoint names one. README.md gives the shape per size.
 
 variable "search_engine" {
   description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."

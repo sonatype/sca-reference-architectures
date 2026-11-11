@@ -4,8 +4,8 @@
 # General Configuration
 azure_region = "East US"
 
-# Name prefix for every resource. Change it to run more than one of these in
-# one subscription. Lowercase letters, digits and hyphens, 3 to 14 characters.
+# Name prefix for every resource, 3 to 14 lowercase letters, digits and hyphens.
+# A distinct value lets several deployments share one subscription.
 cluster_name = "ref-arch-iq"
 
 # Network Configuration
@@ -46,12 +46,9 @@ enable_monitoring  = true
 key_vault_sku_name = "standard"
 
 # Search Backend (optional)
-# "lucene" (default) uses IQ Server's embedded index and needs nothing else.
-# "opensearch" points IQ Server at a self-managed OpenSearch cluster you run on
-# Azure Virtual Machines. This configuration does not provision that cluster,
-# so its lifecycle and its indexed data stay independent of Terraform runs
-# here. README.md carries the cluster specification, the build steps and the
-# trust store steps a private certificate authority needs.
+# "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
+# cluster you run on Azure Virtual Machines; this configuration does not create it.
+# README.md gives the cluster specification and the private certificate authority steps.
 search_engine = "lucene"
 
 # opensearch_endpoint       = "opensearch.internal.example.com"
@@ -62,13 +59,8 @@ search_engine = "lucene"
 # opensearch_index_replicas = 1  # 1 for three data nodes at M, 0 for one at XS and S
 
 # Tags
-# Merged into every resource, on top of the Name and project tags this root
-# sets itself. A key with one of those names replaces it. Replace every
-# placeholder with your own values. terraform.tfvars is gitignored and this
-# example file is not, so nothing naming a person or an account belongs here.
-#
-# Azure treats tag names as case-insensitive, so do not add a key that differs
-# from one of these only in capitalization.
+# Merged on top of the tags this root sets; a key with the same name replaces one.
+# Put real values in terraform.tfvars. Azure compares tag names case-insensitively.
 common_tags = {
   owner      = "CHANGE_ME_EMAIL"
   project    = "CHANGE_ME_PROJECT"
