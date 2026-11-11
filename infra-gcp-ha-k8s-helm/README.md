@@ -8,13 +8,15 @@ This directory contains Terraform configuration for deploying Sonatype IQ Server
 
 This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Machine Type |
-|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) |
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Machine Type | OpenSearch |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:------------:|:----------:|
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) | Required ¹ |
 
-> All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> All sizes validated through performance testing on GCP ARM instances. Evaluations an hour per instance, measured on `infra-gcp-ha` and sustained in testing, not a limit: 2,250 at M on 2 instances. L and XL are not measured.
+
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
@@ -29,7 +31,8 @@ node_group_min_size     = 2
 node_group_max_size     = 3
 node_group_desired_size = 2
 nexus_iq_replica_count  = 2                # 2 IQ pods
-db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 128              # GB
 db_max_disk_size        = 500
@@ -60,7 +63,8 @@ node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
 nexus_iq_replica_count  = 3                # 3 IQ pods
-db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 256              # GB
 db_max_disk_size        = 1000
@@ -91,7 +95,8 @@ node_group_min_size     = 3
 node_group_max_size     = 5
 node_group_desired_size = 4
 nexus_iq_replica_count  = 4                # 4 IQ pods
-db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 10000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 512              # GB
 db_max_disk_size        = 2000
@@ -123,9 +128,11 @@ iq_server:
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
+| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-N4-16-131072 (Enterprise) | 16 | 128 GB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB | Regional |
+
+The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL, above the peak measured at Size M. Throughput is left at the Hyperdisk default for the disk size.
 
 ### Shared Storage (Cloud Filestore)
 
@@ -136,6 +143,71 @@ iq_server:
 | **XL** | BASIC_HDD | 10 TiB | 1,000 | 5,000 |
 
 > BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
+
+Google Cloud has no first-party managed OpenSearch service, so the cluster is **self-managed
+OpenSearch on Compute Engine instances** and IQ Server authenticates with a username and password. That
+means you also choose the OpenSearch server version and own upgrades, snapshots, and node replacement.
+Use `https` on the cluster's REST layer: with no IAM to sign with, that password is the only thing
+protecting the index, and on plain `http` it crosses the network in clear text on every request.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
+`opensearch_endpoint`, `opensearch_username` and `opensearch_password`. Every variable and its default
+is in [Search Backend](#search-backend) below.
+
+**This architecture does not create the cluster.** It takes an endpoint and points IQ Server at it, so
+the cluster's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
+cluster has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
+index.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
+and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
+why a shard count can only be set when an index is created are the same on every cloud, so they are
+stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. This architecture writes `nexusOneIndexReplicas` itself. When IQ Server is not
+given a count, it uses 1:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **M** | 3 | `1` |
+| **L** | 3 | `1` |
+| **XL** | 3 | `1` |
+
+The rules behind this, including what a yellow index does and does not mean and how to give the
+Advanced Search index a matching replica count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
+after the cutover, so the cluster holds twice the Nexus One shards and twice the Nexus One disk for the
+whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+The data node type and count, storage per node, shards and replicas for each size are in the
+[cluster table](#the-cluster-to-build) below. At M, L and XL the component, violation and vulnerability indices are
+created with 3 primary shards and every other index with 1. The
+shard counts are set through the configuration API before the first build, as shown there.
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -213,7 +285,7 @@ Enable these APIs in your project:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"` and your cluster's details, see [Search Backend](#search-backend)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -272,6 +344,8 @@ Enable these APIs in your project:
 
 ## Teardown / Cleanup
 
+> **Your OpenSearch cluster is not part of this.** This architecture never creates the cluster, so `./tf-destroy.sh` does not delete it or its indices. Remove it separately when you no longer need it.
+
 **WARNING: This will delete ALL infrastructure and data!**
 
 1. **Uninstall the Helm deployment:**
@@ -323,7 +397,10 @@ gke_maintenance_window_start = "03:00"
 
 # PostgreSQL Configuration (Regional HA)
 postgres_version                   = "POSTGRES_18"
-db_instance_tier                   = "db-custom-8-30720"  # 8 vCPU, 30GB RAM
+db_instance_tier                   = "db-custom-N4-8-65536"  # 8 vCPU, 64 GB, the Size L value
+db_edition                         = "ENTERPRISE"
+db_disk_type                       = "HYPERDISK_BALANCED"
+db_disk_provisioned_iops           = 8000                    # 10000 at Size XL
 db_availability_type               = "REGIONAL"
 db_disk_size                       = 256
 db_max_disk_size                   = 1000
@@ -343,7 +420,7 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "201.0.0"
-# Search Backend
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"
@@ -378,9 +455,15 @@ hpa:
 > | `filestore_capacity_gb` | 1024 | 2560, and the share cannot shrink |
 > | `db_max_disk_size` | 500 | 1000 |
 > | `db_disk_size` | 100 | 256, and the disk cannot shrink |
+> | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536, see the note below |
+> | `db_disk_type` | PD_SSD, fixed in `database.tf` | HYPERDISK_BALANCED, now a variable |
+> | `db_edition` | ENTERPRISE, the provider 5.x default | ENTERPRISE, now a variable |
+> | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED |
 > | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
+
+> **Existing deployments and the N4 database tiers.** The M, L and XL database defaults moved from `db-custom-8-30720` and `db-custom-16-65536` on `PD_SSD` to `db-custom-N4-8-65536` and `db-custom-N4-16-131072` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
 
 **Important Settings:**
 - **`node_group_min_size = 2`** - Minimum GKE node capacity
@@ -588,20 +671,18 @@ node does not change its configuration. Create:
 - **A forwarding rule on a reserved private IP address** in this VPC, for TCP port 9200.
 - **A firewall rule allowing TCP 9200 from Google's health check ranges** `35.191.0.0/16` and
   `130.211.0.0/22` to the `nexus-iq-opensearch` tag. Without it the backends never turn healthy.
+- **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
+  address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
+  certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
+  names.
 
 Google describes the load balancer in
 [Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
-an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with
-one request to the configuration API as an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 

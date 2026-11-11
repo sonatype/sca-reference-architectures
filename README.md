@@ -39,6 +39,7 @@ Sonatype provides these configurations as reference examples. You are responsibl
 - Load balancing with health checks
 - Official Sonatype Helm chart integration (Kubernetes deployments)
 - ARM instance support, at a lower on-demand price than the x86 equivalents (see [Cross-Provider Instance Comparison](#cross-provider-instance-comparison))
+- OpenSearch configuration for Advanced Search and the Nexus One index, at every size
 
 ### Official Documentation
 
@@ -63,7 +64,7 @@ You need an active cloud account with permissions to create:
 
 | Tool | Version | Required For |
 |------|---------|--------------|
-| [Terraform](https://terraform.io/downloads) | >= 1.0 | All deployments |
+| [Terraform](https://terraform.io/downloads) | >= 1.2 | All deployments |
 | [AWS CLI](https://aws.amazon.com/cli/) | Latest | AWS deployments |
 | [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) | Latest | Azure deployments |
 | [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) | Latest | GCP deployments |
@@ -75,6 +76,7 @@ You need an active cloud account with permissions to create:
 - **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server))
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments
 - **PostgreSQL**: Minimum PostgreSQL 16. Recommended, and the default for new deployments, PostgreSQL 18. Provisioned automatically by Terraform
+- **OpenSearch**: A reachable OpenSearch cluster, required at every size. The three AWS architectures can create the domain for you; on Azure and GCP you build the cluster yourself. See [OpenSearch](#opensearch).
 
 ### SSL Certificate (Optional)
 
@@ -91,15 +93,17 @@ For HTTPS access, prepare:
 
 Choose your deployment size based on your application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required |
-|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-----------:|
-| **XS** ¹ | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required |
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required | OpenSearch |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-----------:|:----------:|
+| **XS** ¹ | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No | Required ² |
+| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No | Required ² |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended | Required ² |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required | Required ² |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required | Required ² |
 
 > ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing, which ran on the GCP ARM instances below: `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL.
+
+> ² OpenSearch is part of every size. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
@@ -125,7 +129,16 @@ Then navigate to the corresponding directory:
 | **Azure** | [`infra-azure`](./infra-azure/) | [`infra-azure-ha`](./infra-azure-ha/) | [`infra-azure-ha-k8s-helm`](./infra-azure-ha-k8s-helm/) |
 | **GCP** | [`infra-gcp`](./infra-gcp/) | [`infra-gcp-ha`](./infra-gcp-ha/) | [`infra-gcp-ha-k8s-helm`](./infra-gcp-ha-k8s-helm/) |
 
-### Step 2: Configure Your Deployment
+### Step 2: Provision an OpenSearch Cluster
+
+OpenSearch is required at every size. The three AWS architectures can create an Amazon OpenSearch
+Service domain for you; the six Azure and GCP ones cannot, so on those clouds build a reachable
+self-managed cluster first and keep its endpoint, user name, and password to hand. The per-size
+cluster specification is in [Per-size cluster specification](#per-size-cluster-specification).
+
+Skipping this step leaves IQ Server on its built-in search index, with no Nexus One index.
+
+### Step 3: Configure Your Deployment
 
 ```bash
 git clone https://github.com/sonatype/sca-reference-architectures.git
@@ -134,9 +147,14 @@ cd sca-reference-architectures/<your-chosen-architecture>
 # Copy and edit the example variables file
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values (region, instance sizes, passwords, etc.)
+# Set search_engine = "opensearch", because every example file ships with
+# "lucene". Then point the deployment at your OpenSearch cluster. Every
+# architecture takes variables for it, named in its own README: "OpenSearch for
+# the Nexus One Index" on AWS, "Advanced Search with OpenSearch" on Azure,
+# "Search Backend" on GCP.
 ```
 
-### Step 3: Deploy
+### Step 4: Deploy
 
 ```bash
 terraform init
@@ -150,7 +168,7 @@ For **Kubernetes deployments**, also run:
 ./helm-install.sh   # Deploy IQ Server via Helm chart
 ```
 
-### Step 4: Get Your Access Information
+### Step 5: Get Your Access Information
 
 ```bash
 terraform output
@@ -158,7 +176,7 @@ terraform output
 
 This displays the application URL, database endpoint, and other access details.
 
-### Step 5: Access IQ Server
+### Step 6: Access IQ Server
 
 1. Navigate to the application URL from the Terraform outputs
 2. Wait 5-15 minutes for the application to initialize
@@ -166,6 +184,12 @@ This displays the application URL, database endpoint, and other access details.
    - **Username**: `admin`
    - **Password**: `admin123`
 4. **Change the default password immediately**
+
+### Step 7: Set the Shard Counts at M, L and XL
+
+IQ Server does not build the Nexus One index on its own. The first build starts when an administrator
+starts it in the Index Manager, so send the request in
+[Shards](#shards-3-for-three-indices-at-m-and-above) before starting it. XS and S need nothing.
 
 ---
 
@@ -180,7 +204,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 1,630, on 2 tasks | about 3,700, on 3 tasks | 3,830, on 5 tasks |
 | **Compute** | | | |
 | Instance type | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM, r8g or newer) or r8i.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
@@ -199,6 +223,9 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Cost optimization | Enable lifecycle policies — move files older than 30 days to EFS Infrequent Access (IA) for ~92% storage savings | Enable lifecycle policies — move files older than 30 days to EFS IA | Enable lifecycle policies — move files older than 30 days to EFS IA |
 | **Terraform Templates** | [Single Instance](./infra-aws) &#124; [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) |
 
+> **XS and S on AWS.** Evaluations an hour on `infra-aws`'s 1 task, sustained in testing, not a limit:
+> 1,540 at XS and 2,650 at S.
+
 > **Note on AWS EFS:** EFS uses SSD-backed infrastructure — there is no HDD vs SSD tier choice. Cost optimization is achieved through lifecycle policies (moving infrequently accessed data to the IA storage class) and Elastic throughput mode (pay only for throughput consumed).
 
 ---
@@ -212,7 +239,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 890, on 2 replicas | 2,070, on 3 replicas | not measured |
 | **Compute** | | | |
 | Instance type | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) |
 | vCPUs | 8 | 8 | 16 |
@@ -245,7 +272,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 2,250, on 2 instances | not measured | not measured |
 | **Compute** | | | |
 | Machine type | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-16 (ARM Google Axion) |
 | vCPUs | 8 | 8 | 16 |
@@ -255,9 +282,9 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Database** | | | |
 | Service | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL |
 | PostgreSQL version | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 |
-| Instance tier | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-16-65536 (16 vCPU, 64 GB) |
+| Instance tier | db-custom-N4-8-65536 (8 vCPU, 64 GB) | db-custom-N4-8-65536 (8 vCPU, 64 GB) | db-custom-N4-16-131072 (16 vCPU, 128 GB) |
 | Edition | Enterprise | Enterprise | Enterprise |
-| Storage | 128 GB PD-SSD, auto-resize to 500 GB | 256 GB PD-SSD, auto-resize to 1 TB | 512 GB PD-SSD, auto-resize to 2 TB |
+| Storage | 128 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 500 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB |
 | Availability | Zonal (Regional for production) | Regional (automatic failover) | Regional with automatic failover |
 | **Storage** | | | |
 | Service | Cloud Filestore | Cloud Filestore | Cloud Filestore |
@@ -267,6 +294,8 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Terraform Templates** | [Single Instance](./infra-gcp) &#124; [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) |
 
 > **Note on GCP storage tiers:** BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Use BASIC_SSD when storage needs are small (< 2.5 TiB) but IOPS demand is high, or when sub-millisecond disk latency is required. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
+
+> **Note on the GCP database tiers:** M, L and XL use the N4 series, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, with provisioned IOPS set above the peak measured at Size M. An existing deployment on `db-custom-8-30720` or `db-custom-16-65536` should read the note on existing deployments in [infra-gcp](./infra-gcp), [infra-gcp-ha](./infra-gcp-ha) or [infra-gcp-ha-k8s-helm](./infra-gcp-ha-k8s-helm) before applying.
 
 ---
 
@@ -298,9 +327,9 @@ The following tables provide equivalent instance types across cloud providers fo
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
-| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
-| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
+| **M** (2 nodes) | db-custom-N4-8-65536 Enterprise (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
+| **L** (3 nodes) | db-custom-N4-8-65536 Enterprise (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
+| **XL** (4 nodes) | db-custom-N4-16-131072 Enterprise (16 vCPU, 128 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
@@ -347,6 +376,7 @@ gce_machine_type     = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
+db_disk_type         = "PD_SSD"            # the db-custom-2-* tiers take PD_SSD, not Hyperdisk
 db_disk_size         = 64                  # GB
 ```
 
@@ -389,6 +419,7 @@ gce_machine_type     = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
+db_disk_type         = "PD_SSD"            # the db-custom-2-* tiers take PD_SSD, not Hyperdisk
 db_disk_size         = 128                 # GB
 ```
 
@@ -460,7 +491,8 @@ file_share_quota_gb  = 500
 gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_disk_size         = 128                 # GB, auto-resize to 500 GB
 db_max_disk_size     = 500
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
@@ -526,7 +558,8 @@ iq_min_instances     = 2
 iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type = "REGIONAL"          # Required for L
 db_disk_size         = 256                 # GB, auto-resize to 1 TB
 db_max_disk_size     = 1000
@@ -595,7 +628,8 @@ iq_min_instances     = 3
 iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 10000
 db_availability_type = "REGIONAL"          # Required with automatic failover
 db_disk_size         = 512                 # GB, auto-resize to 2 TB
 db_max_disk_size     = 2000
@@ -613,7 +647,8 @@ node_group_desired_size = 4                # 4 nodes
 nexus_iq_replica_count  = 4                # 4 IQ pods
 # The container image and the Java heap are Helm chart values, set in
 # helm-values.yaml as iq_server.tag and iq_server.javaOpts.
-db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 10000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 512              # GB, auto-resize to 2 TB
 db_max_disk_size        = 2000
@@ -648,6 +683,231 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 
 > **On AWS Fargate, M and L run a 44 GB heap, not 48 GB.** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps its 96 GB heap, which leaves 16 GB of a 120 GB task. S runs a 22 GB heap for the same reason: Fargate caps a 4 vCPU task at 30 GB, and 22 GB plus `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 
+> **On the three Kubernetes architectures, M and L pods set `-XX:MaxDirectMemorySize=4g`, not 8g.** The pod's memory limit is 56 Gi, so a 48 GB heap plus 8 GB of direct memory would fill it and leave nothing for metaspace and thread stacks. XL pods keep 8g under a 112 Gi limit on EKS and 110 Gi on AKS and GKE.
+
+---
+
+### OpenSearch
+
+OpenSearch is part of every reference architecture, and it is required at every size in the sizing
+table, though each architecture leaves it off by default with `search_engine = "lucene"`. One cluster serves both of IQ Server's search features: Advanced Search and
+the Nexus One index behind the Nexus One list pages, typeahead, and dashboard. IQ Server's `config.yml`
+carries a `search:` block and a `nexusOne.connection` block, both naming the same endpoint and
+credentials.
+
+Only AWS offers a first-party managed OpenSearch service, so the three AWS architectures point IQ at an
+Amazon OpenSearch Service domain and authenticate with SigV4. The Azure and GCP architectures point IQ
+at a self-managed cluster on that cloud's own virtual machines and authenticate with a username and
+password, which means the customer also chooses the OpenSearch server version and owns upgrades,
+snapshots, and node replacement.
+
+#### Which configurations build the cluster, and which take an endpoint
+
+**The three AWS architectures create the domain; the six Azure and GCP ones do not.** With
+`search_engine = "opensearch"` and `opensearch_domain_endpoint` left empty, each AWS root creates the
+domain itself, and naming an existing domain in that variable creates nothing. Azure and GCP have no
+first-party managed OpenSearch service, so those six only take an endpoint and point IQ Server at it.
+
+- **Nothing turns it on for you.** `search_engine` defaults to `lucene` in all nine roots, so a
+  deployment that wants either search feature sets `search_engine = "opensearch"`.
+- **A cluster you supply has to exist before the deployment is useful.** IQ Server configured against
+  an endpoint that answers nothing will not serve search.
+- **An index on a cluster you supply survives `terraform destroy`.** Its lifecycle stays independent of
+  the IQ deployment, which is also why an upgrade or a redeployment costs no rebuild. A domain the AWS
+  roots created carries `prevent_destroy` instead, so a destroy stops rather than deleting the index.
+
+What the architecture needs from you is the endpoint, or on AWS the shape to build the domain at. What
+the specification below gives you is what to size it against.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
+and one for Advanced Search.
+
+| Index | What it holds |
+|-------|---------------|
+| `application` | Applications |
+| `violation` | Policy violations |
+| `waiver` | Policy waivers |
+| `component` | Components |
+| `vulnerability` | Vulnerabilities |
+| `entity` | Organizations, application categories, component labels, policies, users, and license threat groups, which share one index |
+| Advanced Search | The Advanced Search index, named from your own index configuration |
+
+The two halves of search behave differently on the same cluster, and it is worth knowing which is
+which: IQ Server sends an explicit shard count and replica count for the six Nexus One indices, and it
+sends **neither** for the Advanced Search index. So that one index is created on whatever your cluster
+would give any index with no settings of its own.
+
+#### Shards: 3 for three indices at M and above
+
+Every Nexus One index is created with **one primary shard** unless configured otherwise. Three of the
+six can be raised per tenant, through the configuration API rather than `config.yml`:
+
+| Setting | Index it applies to |
+|---------|---------------------|
+| `nexusOneIndexComponentShards` | `component` |
+| `nexusOneIndexViolationShards` | `violation` |
+| `nexusOneIndexVulnerabilityShards` | `vulnerability` |
+
+`application`, `entity`, and `waiver` have no such setting and always get one shard. The three that can
+be raised are capped by `nexusOneIndexMaxShards`, which defaults to **12**.
+
+**At M, L and XL, set these three to 3 shards**, and leave every other index at 1. At XS and S every
+index keeps 1. No architecture sets them for you: set the three before the Nexus One index is first
+built, with one request to the configuration API as an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+Going past 3 helps only when a read of that index misses its latency target *and*
+the cluster has idle CPU for the extra threads; a document count on its own is not evidence, and shard
+count sets the minimum heap the cluster needs, so extra shards on a small index spend heap for nothing.
+
+**A shard count applies only when an index is created.** OpenSearch fixes the primary shard count at
+creation and an index cannot be resharded, so raising one does nothing to the index a tenant already
+has. The order is: set the count, then rebuild the index.
+
+#### Replicas: each architecture sets the count
+
+A replica is a full second copy of every shard. It is what makes losing a data node survivable, and it
+costs the disk and the indexing work of that second copy.
+
+**Each architecture writes the replica count itself.** When IQ Server is not given one, it uses 1:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **XS** | 1 | `0` |
+| **S** | 1 | `0` |
+| **M** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
+| **L** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
+| **XL** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
+
+**`0` on a single-node tier is deliberate.** One data node has nowhere to place a replica, so asking
+for one leaves the index yellow for good. A yellow index still takes writes and returns correct reads,
+because yellow means every primary shard is assigned and a replica is not, and IQ Server reports no
+OpenSearch color as a failure. **Losing that node means rebuilding the index.**
+
+A replica can be added to a live index with `PUT <index>/_settings`, so a first choice is not binding.
+
+#### Your cluster's own shard and replica defaults are your choice, and they matter
+
+Because IQ Server sends no shard count and no replica count for the Advanced Search index, that index
+gets your cluster's default, or an index template whose pattern matches its name. On a managed AWS
+domain the default is AWS's. **On a self-managed cluster it is yours**, which makes it a setting to
+choose on purpose rather than one to inherit.
+
+Leave it alone and you can end up with a replica on the Advanced Search index while the Nexus One
+indices have none, on the same cluster, with nobody having chosen that. Nothing in IQ Server will tell
+you either way, because IQ Server never asks what the index got. Read it off the live index with
+`GET <index>/_settings`, never off `config.yml`.
+
+The route to setting it is an index template applied to the cluster, matching the Advanced Search index
+name. `cluster.default_number_of_replicas` in `opensearch.yml` is the wrong lever: it takes effect only
+on a brand-new cluster and is ignored once the cluster state has persisted a value.
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild does not write into the index that is serving. It builds a whole new set of
+indices and moves the aliases onto it once every pass has succeeded, then keeps the old set for
+**30 minutes** after the cutover, so a search already running against it finishes. The window has no
+setting.
+
+So during a rebuild, and for half an hour after it, the cluster holds:
+
+- **Twice the Nexus One shards.** At XS and S, one shard per index, that is 12 primaries rather than
+  6. At M, L and XL, with three indices at 3 shards, it is 24 rather than 12. Both are before replicas
+  and before the Advanced Search index's own shards.
+- **Twice the Nexus One disk**, and twice the document count.
+
+**Judge free disk against the doubled figure, not the steady state.** A cluster that fits the index
+with 40% free is full during its own rebuild. A replica is a *separate* doubling and applies at the
+same time.
+
+- **Reading the index size during a rebuild, or in the half hour after it, gives you the doubled
+  number.** Filter to the generation named in the newest cutover log line to see what is really
+  serving.
+- **A rebuild is not a backup.** Search is stale or absent for the whole rebuild. A managed AWS domain takes its own snapshots; a
+  self-managed cluster takes whatever you schedule.
+
+#### Per-size cluster specification
+
+Every cloud's data node has the same memory at each size, and the same vCPU everywhere except Azure at
+XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. Each architecture's README carries its own table with the variables that set them.
+
+| Size | Data nodes | AWS | Azure | GCP | Storage per node ³ | Shards ¹ | Replicas |
+|------|:----------:|:---:|:-----:|:---:|:----------------:|:--------:|:--------:|
+| **XS** | 1 | `m8g.medium.search` | `Standard_D2pls_v6` | `c4a-standard-1` | 25 GB | 1 | `0` |
+| **S** | 1 | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 50 GB | 1 | `0` |
+| **M** | 3 ² | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 100 GB | 3 | `1` |
+| **L** | 3 ² | `m8g.xlarge.search` | `Standard_D4ps_v6` | `c4a-standard-4` | 150 GB | 3 | `1` |
+| **XL** | 3 ² | `r8g.2xlarge.search` | `Standard_E8ps_v6` | `c4a-highmem-8` | 250 GB | 3 | `1` |
+
+¹ Primary shards for the component, violation and vulnerability indices. Every other index has 1.
+
+² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds.
+
+³ The volume to provision per node, covering a rebuild's second copy of the Nexus One indices.
+
+Measured: every AWS size, Azure M and L, and GCP M. The two-node domain on `infra-aws-ha-k8s-helm` and
+the 3 shards on GCP are not measured.
+
+The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
+tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
+
+Three dedicated cluster managers run at every size with more than one data node, one per zone where
+the architecture builds three zones, and none at XS and S, where the one data node is its own cluster
+manager:
+
+| Size | AWS | Azure | GCP |
+|------|:---:|:-----:|:---:|
+| **XS**, **S** | none | none | none |
+| **M** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap |
+| **L** | 3 x `m8g.medium.search` | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap |
+| **XL** | 3 x `m8g.large.search` | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB | 3 x `c4a-standard-2`, 2 vCPU, 8 GB |
+
+On `infra-aws-ha-k8s-helm`, which builds two zones, one zone holds two of the three managers, so
+losing that zone loses their quorum.
+
+Each manager takes half its RAM as heap. The Azure
+managers have a 30 GiB P4 Premium SSD OS disk, and the GCP managers a 20 GB Hyperdisk Balanced boot
+disk.
+
+**On Azure and GCP, put an internal load balancer in front of the data nodes at M and above**, and set
+`opensearch_endpoint` to its address:
+
+- **GCP**: an internal passthrough Network Load Balancer, with a regional TCP health check on 9200, a
+  regional backend service over the data nodes, a forwarding rule on a private IP, and a firewall rule
+  allowing TCP 9200 from Google's health check ranges `35.191.0.0/16` and `130.211.0.0/22`. See
+  [Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
+- **Azure**: a Standard SKU internal load balancer, with a TCP health probe on 9200 and an NSG rule
+  allowing the `AzureLoadBalancer` service tag on 9200 ahead of the subnet's deny-all rule. The
+  OpenSearch VMs also need outbound access to install and update packages, through a NAT gateway on
+  the OpenSearch subnet. See
+  [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).
+- **Both**, with `opensearch_use_tls = true`: each data node's certificate names the load balancer's
+  address in its subject alternative names. The load balancer passes TLS through, so IQ Server checks
+  the node's certificate against `opensearch_endpoint`.
+
+The architectures do not create these, because the cluster is yours to build. On AWS the domain's own
+endpoint is the one address IQ Server uses. Each architecture's README lists what to create.
+
+#### Checking it worked
+
+| Question | How to check |
+|----------|--------------|
+| Is search on OpenSearch? | The server log carries `Search backend: OPENSEARCH` at startup |
+| Did the indices get the replica count you set? | `GET <index>/_settings` on the cluster, and read `number_of_replicas` |
+| Did they get the shard count you set? | The same read, for `number_of_shards`. An out-of-range value is ignored with a warning and the index is created with one shard, so check the log too |
+| What did the Advanced Search index get? | The same read on it. IQ Server sends it nothing, so this is the only way to know |
+| Is the index healthy? | The Index Manager's Analyze view. Its `HEALTHY` and `WARNING` are about how far behind the index is, not how the cluster placed its shards |
+
+**Read the shard count and the replica count off the live index, never off the configuration.** Both are
+applied only when an index is created, and both can differ from what you asked for.
+
 ---
 
 ### Scaling Guidance
@@ -664,10 +924,10 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 
 Continuous Monitoring is one of the most resource-intensive operations. The bottleneck is HDS (Hosted Data Services) latency. Set `-Dinsight.threads.monitor=10` to maximize CM throughput.
 
-| Instance | CM Threads | 1,000 Apps CM Duration | Concurrent Eval Throughput |
-|----------|:----------:|:----------------------:|:--------------------------:|
-| 8 vCPU / 64 GB (M/L) | 10 | ~11.5 hours | ~310 evals/hour |
-| 16 vCPU / 128 GB (XL) | 10 | ~7.5 hours | ~405 evals/hour |
+| Instance | CM Threads | 1,000 Apps CM Duration |
+|----------|:----------:|:----------------------:|
+| 8 vCPU / 64 GB (M/L) | 10 | ~11.5 hours |
+| 16 vCPU / 128 GB (XL) | 10 | ~7.5 hours |
 
 ---
 
@@ -780,6 +1040,8 @@ To avoid ongoing cloud charges, destroy all resources when no longer needed:
 ```
 
 > **WARNING:** This permanently deletes all infrastructure and data. Ensure you have backups of any important data (database exports, reports, configuration) before proceeding.
+
+> **Your OpenSearch cluster is not deleted by this.** On Azure and GCP nothing here created the cluster, so `terraform destroy` does not delete it or its indices; remove it separately when you no longer need it. A domain the AWS architectures created carries `prevent_destroy`, so the destroy stops rather than deleting the index, and each AWS README's OpenSearch section has the steps that remove it deliberately.
 
 If `terraform destroy` fails due to deletion protection:
 1. Set `deletion_protection = false` in your variables

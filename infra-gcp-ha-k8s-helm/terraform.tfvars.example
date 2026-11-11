@@ -17,7 +17,10 @@ node_disk_size               = 100
 gke_maintenance_window_start = "03:00"
 
 postgres_version                   = "POSTGRES_18"
-db_instance_tier                   = "db-custom-8-30720"
+db_instance_tier                   = "db-custom-N4-8-65536" # 8 vCPU, 64 GB; db-custom-N4-16-131072 at Size XL
+db_edition                         = "ENTERPRISE"
+db_disk_type                       = "HYPERDISK_BALANCED"   # the only storage the N4 tiers take
+db_disk_provisioned_iops           = 8000                   # 10000 at Size XL
 db_availability_type               = "REGIONAL"
 db_disk_size                       = 256
 db_max_disk_size                   = 1000
@@ -44,7 +47,7 @@ nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "201.0.0"
 
-# Search Backend
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
 # you run yourself; build it to README.md, "Search Backend".
 search_engine = "lucene"

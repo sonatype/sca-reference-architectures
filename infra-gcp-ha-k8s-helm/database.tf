@@ -6,11 +6,15 @@ resource "google_sql_database_instance" "iq_ha_db" {
 
   settings {
     tier                  = var.db_instance_tier
+    edition               = var.db_edition
     availability_type     = var.db_availability_type
-    disk_type             = "PD_SSD"
+    disk_type             = var.db_disk_type
     disk_size             = var.db_disk_size
     disk_autoresize       = true
     disk_autoresize_limit = var.db_max_disk_size
+
+    # Cloud SQL accepts provisioned IOPS only on Hyperdisk Balanced.
+    data_disk_provisioned_iops = var.db_disk_type == "HYPERDISK_BALANCED" ? var.db_disk_provisioned_iops : null
 
     user_labels = merge(local.common_tags, {
       component = "nexus-iq-ha-database"
@@ -54,6 +58,17 @@ resource "google_sql_database_instance" "iq_ha_db" {
   }
 
   deletion_protection = var.db_deletion_protection
+
+  lifecycle {
+    precondition {
+      condition     = length(regexall("^db-custom-N4-", var.db_instance_tier)) == 0 || var.db_disk_type == "HYPERDISK_BALANCED"
+      error_message = "The N4 tiers (db-custom-N4-*) take only HYPERDISK_BALANCED storage, so db_disk_type must be HYPERDISK_BALANCED."
+    }
+    precondition {
+      condition     = length(regexall("^db-(custom-[0-9]|f1-|g1-)", var.db_instance_tier)) == 0 || var.db_disk_type != "HYPERDISK_BALANCED"
+      error_message = "The classic db-custom-*, db-f1-micro and db-g1-small tiers take PD_SSD or PD_HDD, so set db_disk_type to PD_SSD."
+    }
+  }
 
   depends_on = [
     google_service_networking_connection.private_vpc_connection,

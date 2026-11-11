@@ -8,15 +8,19 @@ This directory contains Terraform configuration for deploying a **single-instanc
 
 This single-instance architecture supports sizes **XS**, **S**, and **M**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
-|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
-| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) |
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
+| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
+|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
+| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) | Required ² |
+| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) | Required ² |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ² |
 
 > ¹ XS and S are projected sizing estimates. M was measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap.
 
+> **Evaluations an hour** on 1 task, sustained in testing, not a limit: 1,540 at XS and 2,650 at S.
+
 > **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Size S is the same case: Fargate caps a 4 vCPU task at 30 GB, so S runs a 22 GB heap, which with `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
+
+> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
 
@@ -75,6 +79,18 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 128                 # auto-scales to 500 GB
+
+# The M domain: three data nodes across three zones, which needs a third
+# private subnet, and a third public one so the load balancer reaches a task in
+# that zone. 10.0.30.0/24 is already db_subnet_cidrs[0].
+public_subnet_cidrs                = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnet_cidrs               = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 100
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
 ```
 </details>
 
@@ -85,6 +101,70 @@ db_allocated_storage = 128                 # auto-scales to 500 GB
 | **XS** | db.m8g.large | 2 | 8 GB | 64 GB |
 | **S** | db.r8g.large | 2 | 16 GB | 128 GB |
 | **M** | db.r8g.2xlarge | 8 | 64 GB | 128 GB (auto-scales to 500 GB) |
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
+
+On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
+SigV4 signed by the ECS task role, so there is no password to store. The task role needs the
+`es:ESHttpGet`, `es:ESHttpPost`, `es:ESHttpPut`, `es:ESHttpHead` and `es:ESHttpDelete` actions on the
+domain.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"`. Every variable and its
+default is in [OpenSearch for the Nexus One Index](#opensearch-for-the-nexus-one-index) below.
+
+**This architecture creates the domain unless you name one.** With `search_engine = "opensearch"` and
+`opensearch_domain_endpoint` left empty, the domain is created here. Set that endpoint and
+`opensearch_domain_name` to point at a domain you already run, and nothing is created. A domain created
+here carries `prevent_destroy`, so `terraform destroy` stops rather than deleting your index; a domain
+you named stays independent of this deployment entirely.
+
+#### Seven indices in one shared cluster
+
+A deployment running both features holds **seven indices on one domain**: six for the Nexus One index
+and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
+why a shard count can only be set when an index is created are the same on every cloud, so they are
+stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. This architecture writes `nexusOneIndexReplicas` itself. When IQ Server is not
+given a count, it uses 1:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **XS** | 1 | `0` |
+| **S** | 1 | `0` |
+| **M** | 3 | `1` |
+
+The rules behind this, including what a yellow index does and does not mean and how to give the
+Advanced Search index a matching replica count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
+
+#### Plan for twice the index during a rebuild
+
+A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
+after the cutover, so the domain holds twice the Nexus One shards and twice the Nexus One disk for the
+whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+The data node type and count, storage per node, shards and replicas for each size are in the
+[domain shape table](#domain-shape-per-size) below. At M the component, violation and vulnerability indices are
+created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
+shard counts are set through the configuration API before the first build, as shown there.
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -293,14 +373,8 @@ nexusOne:
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created. **At M, set the
 component, violation and vulnerability indices to 3 shards before the
-Nexus One index is first built**, with one request to the configuration API as
-an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 The other Nexus One indices and the Advanced Search index keep 1 shard, and XS
 and S keep 1 for every index. An index built before the change keeps its count
@@ -387,7 +461,7 @@ Your IAM user/role needs these AWS service permissions:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"`, see [OpenSearch](#opensearch-for-the-nexus-one-index)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -443,6 +517,8 @@ Your IAM user/role needs these AWS service permissions:
    ```
 
    > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+
+   > **Your OpenSearch domain is not deleted by this.** A domain this architecture created carries `prevent_destroy`, so `./tf-destroy.sh` stops rather than deleting it; the steps that remove it deliberately are in [`terraform destroy` will not delete the domain](#terraform-destroy-will-not-delete-the-domain). A domain named through `opensearch_domain_endpoint` was never created here and is not deleted here.
 
 ---
 
@@ -522,7 +598,7 @@ alb_deletion_protection = false
 # Logging Configuration
 log_retention_days = 30
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the index built into IQ Server. "opensearch" creates
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.

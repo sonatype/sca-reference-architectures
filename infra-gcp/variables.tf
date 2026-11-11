@@ -109,9 +109,26 @@ variable "postgres_version" {
 }
 
 variable "db_instance_tier" {
-  description = "Cloud SQL instance tier. Scale with number of IQ nodes: 8 vCPU for 1-3 nodes, 16 vCPU for 3-4 nodes."
+  description = "Cloud SQL instance tier. The default is the Size M value, 8 vCPU and 64 GB on the N4 series, which takes only HYPERDISK_BALANCED storage. XS and S use the db-custom-2-* tiers on PD_SSD."
   type        = string
-  default     = "db-custom-8-30720"
+  default     = "db-custom-N4-8-65536"
+}
+
+variable "db_disk_type" {
+  description = "Cloud SQL storage type. The N4 tiers (db-custom-N4-*) take only HYPERDISK_BALANCED; the db-custom-* tiers take PD_SSD or PD_HDD. On google provider 8.x a change is an in-place update, and Cloud SQL migrates the storage."
+  type        = string
+  default     = "HYPERDISK_BALANCED"
+
+  validation {
+    condition     = contains(["PD_SSD", "PD_HDD", "HYPERDISK_BALANCED"], var.db_disk_type)
+    error_message = "db_disk_type must be PD_SSD, PD_HDD or HYPERDISK_BALANCED."
+  }
+}
+
+variable "db_disk_provisioned_iops" {
+  description = "Provisioned IOPS for a HYPERDISK_BALANCED data disk, read and write combined. Ignored on PD_SSD and PD_HDD. The default is the Size M value. The Hyperdisk default for a disk up to 256 GB is 4,000. null leaves it to Cloud SQL: the Hyperdisk default for the disk size on a new instance, and the current value on an existing one."
+  type        = number
+  default     = 8000
 }
 
 variable "db_edition" {
