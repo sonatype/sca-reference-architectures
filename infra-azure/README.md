@@ -10,11 +10,15 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Container Apps (2.0 CPU / 16Gi) |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Container Apps (4.0 CPU / 32Gi) |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | Container Apps (8.0 CPU / 64Gi) |
+| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 14 GB | 8 GB | Container Apps (2.0 CPU / 14Gi) on D4 |
+| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 3.5 vCPU / 28 GB | 20 GB | Container Apps (3.5 CPU / 28Gi) on E4 |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 7.5 vCPU / 56 GB | 44 GB | Container Apps (7.5 CPU / 56Gi) on E8 |
 
-> ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
+> Each container is smaller than its node, because Container Apps keeps part of every node for itself
+> ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
+> The heap plus `MaxDirectMemorySize` leaves about 4 GB of the container for the JVM's own memory.
+
+> ¹ XS and S are projected sizing estimates. M was measured on `infra-azure-ha`, at 8 vCPU and 64 GB per replica.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
@@ -25,10 +29,10 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 ```hcl
 container_cpu        = 2.0                 # 2 vCPU
-container_memory     = "16Gi"              # 16 GB
+container_memory     = "14Gi"              # 14 GB, leaving 2 GB of the node
 workload_profile_type = "D4"               # 4 cores, 16 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms8g -Xmx8g -XX:MaxDirectMemorySize=2g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 65536               # 64 GB
 ```
@@ -38,11 +42,11 @@ db_storage_mb        = 65536               # 64 GB
 <summary><strong>Size S</strong> — Small (500 – 2,000 applications)</summary>
 
 ```hcl
-container_cpu        = 4.0                 # 4 vCPU
-container_memory     = "32Gi"              # 32 GB
+container_cpu        = 3.5                 # 3.5 vCPU, leaving 0.5 of the node
+container_memory     = "28Gi"              # 28 GB, leaving 4 GB of the node
 workload_profile_type = "E4"               # 4 cores, 32 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E2ds_v6" # 2 vCores, 16 GB
 db_storage_mb        = 131072              # 128 GB
 ```
@@ -52,11 +56,11 @@ db_storage_mb        = 131072              # 128 GB
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications)</summary>
 
 ```hcl
-container_cpu        = 8.0                 # 8 vCPU
-container_memory     = "64Gi"              # 64 GB
+container_cpu        = 7.5                 # 7.5 vCPU, leaving 0.5 of the node
+container_memory     = "56Gi"              # 56 GB, leaving 8 GB of the node
 workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 131072              # 128 GB
 file_share_quota     = 500                 # GB
@@ -199,9 +203,9 @@ Your Azure account needs permissions for these services:
 >
 > | Variable | Previous default | New default |
 > |---|:---:|:---:|
-> | `container_cpu` | 4.0 | 8.0 |
-> | `container_memory` | `8Gi` | `64Gi` |
-> | `java_opts` | 6 GB heap | 48 GB heap |
+> | `container_cpu` | 4.0 | 7.5 |
+> | `container_memory` | `8Gi` | `56Gi` |
+> | `java_opts` | 6 GB heap | 44 GB heap |
 > | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
 > | `db_storage_mb` | 524288 | 131072 for a new server. An existing server keeps its size |
 > | `workload_profile_type` | `D4`, fixed | `E8` |
@@ -227,11 +231,11 @@ private_subnet_cidr = "10.0.8.0/23"
 db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
-container_cpu         = 8.0           # 8 vCPU, Size M
-container_memory      = "64Gi"        # 64 GB, Size M
+container_cpu         = 7.5           # 7.5 vCPU, Size M
+container_memory      = "56Gi"        # 56 GB, Size M
 workload_profile_type = "E8"          # 8 cores, 64 GB per node
 iq_docker_image       = "sonatype/nexus-iq-server:latest"
-java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts             = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                          = "nexusiq"
@@ -517,7 +521,7 @@ cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /opt/sonatype/iq-truststor
 Then name the copy in `java_opts`, which this configuration passes to the container as `JAVA_OPTS`:
 
 ```hcl
-java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+java_opts = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
 ```
 
 The store is part of the image, so every container started from it has it. It is kept out of
