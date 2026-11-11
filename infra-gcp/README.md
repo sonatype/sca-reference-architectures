@@ -471,7 +471,7 @@ nexusOne:
     uri: https://opensearch.internal.example.com:9200
     username: nexusiq
     password: <read from Secret Manager at boot>
-    nexusOneIndexReplicas: 0
+    nexusOneIndexReplicas: 1
 ```
 
 - **`type: http` with basic auth.** A user name and password are how the server authenticates.
@@ -545,6 +545,8 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
 
+M is measured, on 1 shard per index. XS, S and the 3 shards at M are not.
+
 At M the three cluster managers are dedicated: they hold no data, take no search traffic, and keep a
 quorum when one is lost. They take half their RAM as heap. XS and S run none: one data node is its
 own cluster manager.
@@ -572,14 +574,8 @@ Google describes the load balancer in
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
-an index is created, so **at M set them before the Nexus One index is first built**, with
-one request to the configuration API as an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+an index is created, so **at M set them before the Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 

@@ -14,7 +14,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 | **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) | Required ² |
 | **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ² |
 
-> ¹ XS and S are projected sizing estimates. M has been validated through performance testing at 8 vCPU and 64 GB with a 48 GB heap. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative.
+> ¹ XS and S are projected sizing estimates. M was measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap.
 
 > **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Size S is the same case: Fargate caps a 4 vCPU task at 30 GB, so S runs a 22 GB heap, which with `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 
@@ -286,6 +286,8 @@ At 0 replicas a lost node means the index is rebuilt rather than recovered.
 **A one-node domain reports yellow and that is correct**: the index still takes writes and returns correct reads,
 because yellow means a replica is unassigned rather than that data is missing.
 
+The data node types, masters, shards and replicas above are measured at every size.
+
 **Storage holds more than one copy of the index.** A replica doubles it, a
 rebuild holds a second generation for the whole run and for 30 minutes after
 cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
@@ -369,14 +371,8 @@ nexusOne:
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created. **At M, set the
 component, violation and vulnerability indices to 3 shards before the
-Nexus One index is first built**, with one request to the configuration API as
-an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 The other Nexus One indices and the Advanced Search index keep 1 shard, and XS
 and S keep 1 for every index. An index built before the change keeps its count
@@ -463,7 +459,7 @@ Your IAM user/role needs these AWS service permissions:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"`, see [OpenSearch](#opensearch-for-the-nexus-one-index)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -594,7 +590,7 @@ alb_deletion_protection = false
 # Logging Configuration
 log_retention_days = 30
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the index built into IQ Server. "opensearch" creates
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.

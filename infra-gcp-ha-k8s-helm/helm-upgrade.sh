@@ -20,7 +20,11 @@ REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terrafo
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
 
+# Unset in terraform.tfvars, keep the chart version the release already runs.
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+if [ -z "$CHART_VERSION" ]; then
+  CHART_VERSION=$(helm list -n nexus-iq -f '^nexus-iq-server-ha$' -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+fi
 CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo "Updating Helm repository..."

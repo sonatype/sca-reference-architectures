@@ -57,6 +57,7 @@ filestore_capacity_gb = 1024
 # Load Balancer Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
+
 # Search Backend
 # "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
 # you run yourself; build it to README.md, "Search Backend".

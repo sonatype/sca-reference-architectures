@@ -91,6 +91,9 @@ For HTTPS access, prepare:
 
 ### Sizing Guide
 
+<!-- TO BE ADDED (CLM-55936): the "expected to change" notice goes here, in Product's own wording,
+     once Product has approved it. Nothing below should be read as that notice. -->
+
 Choose your deployment size based on your application count and daily evaluation volume:
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required | OpenSearch |
@@ -108,6 +111,9 @@ Choose your deployment size based on your application count and daily evaluation
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
 > **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 30 GB for 4 vCPU, 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` runs a 30 GB task with a 22 GB heap at S, `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and `infra-aws-ha` a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
+
+<!-- TO BE ADDED (CLM-55921, CLM-55935): a link from this sizing table to the generic architecture's help
+     pages, and an XXS row, once both are published. -->
 
 ### Step 1: Choose Your Reference Architecture
 
@@ -185,6 +191,11 @@ This displays the application URL, database endpoint, and other access details.
    - **Password**: `admin123`
 4. **Change the default password immediately**
 
+### Step 7: Set the Shard Counts at M, L and XL
+
+Before the Nexus One index is first built, send the request in
+[Shards](#shards-3-for-three-indices-at-m-and-above). XS and S need nothing.
+
 ---
 
 ## Reference Architectures — Detailed Specifications
@@ -198,7 +209,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Expected throughput, with continuous monitoring running** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880 to 22,320/day total) | ~405 evals/hour/node (~29,160 to 38,880/day total) |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 1,630, on 2 tasks | not measured | 3,830, on 5 tasks |
 | **Compute** | | | |
 | Instance type | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM, r8g or newer) or r8i.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
@@ -230,7 +241,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Expected throughput, with continuous monitoring running** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880 to 22,320/day total) | ~405 evals/hour/node (~29,160 to 38,880/day total) |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 890, on 2 replicas | 2,070, on 3 replicas | not measured |
 | **Compute** | | | |
 | Instance type | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) |
 | vCPUs | 8 | 8 | 16 |
@@ -263,7 +274,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Expected throughput, with continuous monitoring running** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880 to 22,320/day total) | ~405 evals/hour/node (~29,160 to 38,880/day total) |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 2,250, on 2 instances | not measured | not measured |
 | **Compute** | | | |
 | Machine type | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-16 (ARM Google Axion) |
 | vCPUs | 8 | 8 | 16 |
@@ -733,9 +744,9 @@ six can be raised per tenant, through the configuration API rather than `config.
 `application`, `entity`, and `waiver` have no such setting and always get one shard. The three that can
 be raised are capped by `nexusOneIndexMaxShards`, which defaults to **12**.
 
-**At M, L and XL every architecture creates these three indices with 3 shards**, and every other index
-with 1. At XS and S every index keeps 1. Set the three before the Nexus One index is first built, with
-one request to the configuration API as an administrator:
+**At M, L and XL, set these three to 3 shards**, and leave every other index at 1. At XS and S every
+index keeps 1. No architecture sets them for you: set the three before the Nexus One index is first
+built, with one request to the configuration API as an administrator:
 
 ```bash
 curl -u admin -X PUT -H 'Content-Type: application/json' \
@@ -818,7 +829,7 @@ same time.
 Every cloud's data node has the same memory at each size, and the same vCPU everywhere except Azure at
 XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. Each architecture's README carries its own table with the variables that set them.
 
-| Size | Data nodes | AWS | Azure | GCP | Storage per node | Shards ¹ | Replicas |
+| Size | Data nodes | AWS | Azure | GCP | Storage per node ³ | Shards ¹ | Replicas |
 |------|:----------:|:---:|:-----:|:---:|:----------------:|:--------:|:--------:|
 | **XS** | 1 | `m8g.medium.search` | `Standard_D2pls_v6` | `c4a-standard-1` | 25 GB | 1 | `0` |
 | **S** | 1 | `m8g.large.search` | `Standard_D2ps_v6` | `c4a-standard-2` | 50 GB | 1 | `0` |
@@ -829,6 +840,11 @@ XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. E
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index has 1.
 
 ² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds.
+
+³ The volume to provision per node, covering a rebuild's second copy of the Nexus One indices.
+
+Measured: every AWS size, Azure M and L, and GCP M. The two-node domain on `infra-aws-ha-k8s-helm` and
+the 3 shards on GCP are not measured.
 
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
@@ -899,10 +915,10 @@ applied only when an index is created, and both can differ from what you asked f
 
 Continuous Monitoring is one of the most resource-intensive operations. The bottleneck is HDS (Hosted Data Services) latency. Set `-Dinsight.threads.monitor=10` to maximize CM throughput.
 
-| Instance | CM Threads | 1,000 Apps CM Duration | Concurrent Eval Throughput |
-|----------|:----------:|:----------------------:|:--------------------------:|
-| 8 vCPU / 64 GB (M/L) | 10 | ~11.5 hours | ~310 evals/hour |
-| 16 vCPU / 128 GB (XL) | 10 | ~7.5 hours | ~405 evals/hour |
+| Instance | CM Threads | 1,000 Apps CM Duration |
+|----------|:----------:|:----------------------:|
+| 8 vCPU / 64 GB (M/L) | 10 | ~11.5 hours |
+| 16 vCPU / 128 GB (XL) | 10 | ~7.5 hours |
 
 ---
 
@@ -923,7 +939,7 @@ Continuous Monitoring is one of the most resource-intensive operations. The bott
 ### Networking
 
 All architectures create their own VPC/VNet with:
-- Public subnets (load balancer; infra-azure creates the subnet and its NSG with nothing in it)
+- Public subnets (load balancer; infra-azure has none)
 - Private subnets (compute)
 - Database subnets (isolated)
 - NAT Gateway / Cloud NAT for outbound access

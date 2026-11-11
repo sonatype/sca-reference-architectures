@@ -105,6 +105,10 @@ echo ""
 helm repo update >/dev/null 2>&1
 
 CHART_VERSION=$(tfvar helm_chart_version)
+# Unset in terraform.tfvars, keep the chart version the release already runs.
+if [[ -z "$CHART_VERSION" ]]; then
+    CHART_VERSION=$(helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+fi
 CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
@@ -158,7 +162,7 @@ fi
 
 echo -e "${BLUE}💾 Creating Backup${NC}"
 echo "━━━━━━━━━━━━━━━━━━"
-helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml"
+(umask 077; helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml")
 echo "• Saved: backup-values-revision-${CURRENT_REVISION}.yaml"
 echo ""
 

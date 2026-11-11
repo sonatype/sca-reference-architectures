@@ -407,7 +407,6 @@ CONFIGEOF
   }
 
   lifecycle {
-    # Preconditions, since a validation that reads another variable needs Terraform 1.9.
     precondition {
       condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
       error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."

@@ -14,7 +14,7 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | E8 workload profile | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | E16 workload profile | Required ¹ |
 
-> All sizes validated through performance testing. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> All sizes validated through performance testing. Evaluations an hour per replica, sustained in testing, not a limit: 890 at M on 2 replicas and 2,070 at L on 3 replicas. XL is not measured.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -225,7 +225,7 @@ Your Azure account needs permissions for these services:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"` and your cluster's details, see [Advanced Search with OpenSearch](#advanced-search-with-opensearch)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -372,7 +372,7 @@ enable_container_insights = true
 # Backup Configuration
 enable_backup = true
 
-# Search Backend (optional) - see "Advanced Search with OpenSearch" below
+# Search Backend, needed at every size - see "Advanced Search with OpenSearch" below
 search_engine = "lucene"
 
 # Tags merged into every resource
@@ -566,7 +566,8 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes half its RAM as heap.
+M and L are measured; XL is not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+half its RAM as heap.
 
 This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
 validated at two or more, so their rows are in the single-instance root's README instead.
@@ -582,20 +583,14 @@ at or above it.
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in IQ Server's database, not in `config.yml`, and only take effect when an
-index is created, so **at M, L and XL set them before the Nexus One index is first built**, with one
-request to the configuration API as an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 
 **Use `1` replica at every size here**, so a lost data node leaves a complete copy of the index on
-the others. `0` is the only workable value on a single data node, because that node cannot place a
-replica: the shard stays unassigned and the cluster sits yellow for ever.
+the others. Use `0` on a single data node: it cannot place a replica, so `1` would leave the index yellow,
+which still serves reads and writes.
 
 Other things the cluster needs, none of which this configuration sets for you:
 

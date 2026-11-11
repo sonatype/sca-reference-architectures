@@ -351,7 +351,7 @@ variable "opensearch_ca_certificate" {
 }
 
 variable "opensearch_index_replicas" {
-  description = "Replicas every Nexus One index is created with, written to config.yml as nexusOne.connection.nexusOneIndexReplicas, which is where the Nexus One index reads it. A single data node cannot place a replica, so 0 is the only workable value on a one-node cluster. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
+  description = "Replicas every Nexus One index is created with, written to config.yml as nexusOne.connection.nexusOneIndexReplicas, which is where the Nexus One index reads it. Use 0 on one data node: it cannot place a replica, and 1 would leave the index yellow, which still serves reads and writes. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
   type        = number
   default     = 1
 

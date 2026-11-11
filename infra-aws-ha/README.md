@@ -14,7 +14,7 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) | Required ¹ |
 
-> Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL), from performance testing at 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative.
+> M was measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap, and XL at 16 vCPU, 120 GB and a 96 GB heap. Evaluations an hour per task, sustained in testing, not a limit: 1,630 at M on 2 tasks and 3,830 at XL on 5 tasks. L is not measured.
 
 > **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
 
@@ -37,6 +37,13 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 100
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
 ```
 </details>
 
@@ -294,6 +301,8 @@ Three data nodes at every size, because three is the smallest count that both
 places a replica and spreads across three Availability Zones. At 0 replicas a
 lost node means the index is rebuilt rather than recovered.
 
+The data node types, masters, shards and replicas above are measured at every size.
+
 **Storage holds more than one copy of the index.** A replica doubles it, a
 rebuild holds a second generation for the whole run and for 30 minutes after
 cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
@@ -377,14 +386,8 @@ nexusOne:
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created. **At M, L and XL, set
 the component, violation and vulnerability indices to 3 shards before the
-Nexus One index is first built**, with one request to the configuration API as
-an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 The other Nexus One indices and the Advanced Search index keep 1 shard. An
 index built before the change keeps its count until it is rebuilt.
@@ -475,7 +478,7 @@ Your IAM user/role needs these AWS service permissions:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"`, see [OpenSearch](#opensearch-for-the-nexus-one-index)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -617,7 +620,7 @@ enable_container_insights = true
 enable_prometheus        = true
 log_retention_days       = 30
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the index built into IQ Server. "opensearch" creates
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.
