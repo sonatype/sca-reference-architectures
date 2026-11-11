@@ -103,7 +103,7 @@ Choose your deployment size based on your application count and daily evaluation
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
-> **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
+> **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 30 GB for 4 vCPU, 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` runs a 30 GB task with a 22 GB heap at S, `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and `infra-aws-ha` a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
 
 ### Step 1: Choose Your Reference Architecture
 
@@ -226,7 +226,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Storage | 128 GB, auto-grow | 256 GB, auto-grow to 1 TB | 512 GB, auto-grow to 2 TB |
 | Zone redundancy | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
-| Service | Azure Files — Standard HDD (pay-as-you-go) | Azure Files — Standard HDD (pay-as-you-go) | Azure Files — Standard HDD (SMB) or Premium SSD (NFS/AKS) |
+| Service | Azure Files, Standard HDD on Container Apps, Premium SSD with NFS on AKS | Azure Files, Standard HDD on Container Apps, Premium SSD with NFS on AKS | Azure Files, Premium SSD (SMB on Container Apps, NFS on AKS) |
 | Protocol | SMB 3.0 | SMB 3.0 | SMB 3.0 (Standard) or NFS (requires Premium) |
 | Redundancy | ZRS for HA deployments | ZRS | ZRS |
 | File share quota | 500 GB | 1,536 GB | 4,096 GB, on Premium the quota is the billed size |
