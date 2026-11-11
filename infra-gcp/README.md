@@ -342,7 +342,7 @@ filestore_capacity_gb = 1024  # 1 TB minimum
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 
-# Search Backend
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"

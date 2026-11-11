@@ -412,7 +412,7 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "201.0.0"
-# Search Backend
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"
