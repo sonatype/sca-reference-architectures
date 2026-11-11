@@ -221,6 +221,7 @@ Your Azure account needs permissions for these services:
 > |---|:---:|:---:|
 > | `iq_min_replicas` | 3 | 2 |
 > | `iq_max_replicas` | 5 | 4 |
+> | `azure_region` | East US 2 | East US. A region change replaces every resource, so an existing deployment sets its region here |
 
 ### Configuration Variables
 
