@@ -91,9 +91,6 @@ For HTTPS access, prepare:
 
 ### Sizing Guide
 
-<!-- TO BE ADDED (CLM-55936): the "expected to change" notice goes here, in Product's own wording,
-     once Product has approved it. Nothing below should be read as that notice. -->
-
 Choose your deployment size based on your application count and daily evaluation volume:
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required | OpenSearch |
@@ -111,9 +108,6 @@ Choose your deployment size based on your application count and daily evaluation
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
 > **AWS Fargate and Azure Container Apps are the exceptions to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 30 GB for 4 vCPU, 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` runs a 30 GB task with a 22 GB heap at S, `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and `infra-aws-ha` a 120 GB task with a 96 GB heap at XL. Container Apps keeps part of every node for itself, so `infra-azure` runs 14 GB with an 8 GB heap at XS, 28 GB with a 20 GB heap at S and 56 GB with a 44 GB heap at M, and `infra-azure-ha` 120 GB with a 96 GB heap at XL. `infra-azure-ha` at M and L, GCP, and the EKS and AKS node groups use the 64 GB and 128 GB sizes above.
-
-<!-- TO BE ADDED (CLM-55921, CLM-55935): a link from this sizing table to the generic architecture's help
-     pages, and an XXS row, once both are published. -->
 
 ### Step 1: Choose Your Reference Architecture
 
