@@ -74,7 +74,7 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 | **S** | db-custom-2-13312 | 2 | 13 GB | 128 GB PD-SSD |
 | **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) |
 
-M uses the N4 series for 64 GB, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, whose default for a disk up to 256 GB is 4,000 IOPS, so the IOPS are set to 8,000. XS and S stay on the classic tiers on PD-SSD.
+M uses the N4 series for 64 GB, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, whose default for a disk up to 256 GB is 4,000 IOPS, so the IOPS are set to 8,000, above the peak measured at Size M. XS and S stay on the classic tiers on PD-SSD.
 
 ### OpenSearch
 

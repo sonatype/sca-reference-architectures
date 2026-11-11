@@ -129,15 +129,9 @@ variable "db_disk_type" {
 }
 
 variable "db_disk_provisioned_iops" {
-  description = "Provisioned IOPS for a HYPERDISK_BALANCED data disk, read and write combined. Ignored on PD_SSD and PD_HDD. The default is the Size L value. The Hyperdisk default for a disk up to 256 GB is 4,000. Size XL uses 10000. null takes the Hyperdisk default for the disk size."
+  description = "Provisioned IOPS for a HYPERDISK_BALANCED data disk, read and write combined. Ignored on PD_SSD and PD_HDD. The default is the Size L value. The Hyperdisk default for a disk up to 256 GB is 4,000. Size XL uses 10000. null leaves it to Cloud SQL: the Hyperdisk default for the disk size on a new instance, and the current value on an existing one."
   type        = number
   default     = 8000
-}
-
-variable "db_disk_provisioned_throughput" {
-  description = "Provisioned throughput in MiB/s for a HYPERDISK_BALANCED data disk. Ignored on PD_SSD and PD_HDD. null takes the Hyperdisk default for the disk size, 170 MiB/s up to 256 GB and 240 MiB/s up to 512 GB."
-  type        = number
-  default     = null
 }
 
 variable "db_availability_type" {

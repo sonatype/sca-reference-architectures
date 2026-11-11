@@ -132,7 +132,7 @@ iq_server:
 | **L** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | Regional |
 | **XL** | db-custom-N4-16-131072 (Enterprise) | 16 | 128 GB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB | Regional |
 
-The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL. Throughput is left at the Hyperdisk default for the disk size.
+The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL, above the peak measured at Size M. Throughput is left at the Hyperdisk default for the disk size.
 
 ### Shared Storage (Cloud Filestore)
 
@@ -457,7 +457,7 @@ hpa:
 > | `db_disk_size` | 100 | 256, and the disk cannot shrink |
 > | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536, see the note below |
 > | `db_disk_type` | PD_SSD, fixed in `database.tf` | HYPERDISK_BALANCED, now a variable |
-> | `db_edition` | not set, so Cloud SQL chose | ENTERPRISE, now a variable |
+> | `db_edition` | ENTERPRISE, the provider 5.x default | ENTERPRISE, now a variable |
 > | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED |
 > | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay |
 > | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |

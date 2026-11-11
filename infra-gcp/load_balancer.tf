@@ -24,6 +24,7 @@ resource "google_compute_managed_ssl_certificate" "iq_ssl_cert" {
 resource "google_compute_backend_service" "iq_backend" {
   name                            = "${local.app_name}-backend"
   project                         = var.gcp_project_id
+  load_balancing_scheme           = "EXTERNAL"
   protocol                        = "HTTP"
   port_name                       = "http"
   timeout_sec                     = 30
