@@ -46,5 +46,4 @@ nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
 
-# The Java heap is a Helm chart setting, not a Terraform input.
-# Set iq_server.javaOpts in helm-values.yaml.
+# The Java heap is set by iq_server.javaOpts in helm-values.yaml.

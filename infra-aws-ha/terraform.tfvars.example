@@ -26,7 +26,7 @@ ecs_memory_reservation  = 53248  # 52 GB soft limit, the heap plus direct memory
 # ================================
 # IQ SERVER CONFIGURATION
 # ================================
-# These are the Size L task counts. See the README Sizing Guide for Size M (2/2/3) and Size XL (4/3/5).
+# Size L task counts. README.md gives Size M and XL.
 iq_desired_count        = 3  # 3 tasks for Size L
 iq_min_count           = 2  # Minimum for auto scaling
 iq_max_count           = 4  # Maximum for auto scaling

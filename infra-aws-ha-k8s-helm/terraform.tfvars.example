@@ -47,8 +47,7 @@ ingress_hostname     = "nexus-iq.yourdomain.com"
 ingress_tls_enabled  = false
 acm_certificate_arn  = ""
 
-# Pod autoscaling is a Helm chart setting, not a Terraform input.
-# Set hpa.enabled, hpa.minReplicas and hpa.maxReplicas in helm-values.yaml.
+# Pod autoscaling is set by hpa.* in helm-values.yaml.
 
 # Search Backend (optional)
 # "lucene" (default) uses the index built into IQ Server and needs nothing else.
