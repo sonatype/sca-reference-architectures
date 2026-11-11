@@ -43,15 +43,15 @@ variable "db_subnet_cidr" {
 
 
 variable "container_cpu" {
-  description = "vCPU for the IQ Server container. The default is the Size M value. It must fit on one node of workload_profile_type."
+  description = "vCPU for the IQ Server container. The default is the Size M value. It must be less than one node of workload_profile_type, because Container Apps keeps part of every node for itself."
   type        = number
-  default     = 8.0
+  default     = 7.5
 }
 
 variable "container_memory" {
-  description = "Memory for the IQ Server container. The default is the Size M value. It must fit on one node of workload_profile_type."
+  description = "Memory for the IQ Server container. The default is the Size M value. It must be less than one node of workload_profile_type, because Container Apps keeps part of every node for itself."
   type        = string
-  default     = "64Gi"
+  default     = "56Gi"
 }
 
 variable "workload_profile_type" {
@@ -69,7 +69,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 

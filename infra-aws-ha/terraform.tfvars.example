@@ -65,7 +65,7 @@ enable_prometheus        = true
 log_retention_days       = 30
  
 # ================================
-# SEARCH BACKEND (optional)
+# SEARCH BACKEND, needed for Advanced Search and the Nexus One index at every size
 # ================================
 # "lucene" (default) uses IQ Server's built-in index; "opensearch"
 # creates a domain here. The domain carries prevent_destroy; README.md gives the
