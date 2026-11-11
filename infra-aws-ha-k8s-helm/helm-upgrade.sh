@@ -157,10 +157,8 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
         "$TEMP_VALUES_FILE"
 fi
 
-# The search: block in helm-values.yaml ships with placeholders between a BEGIN
-# and an END marker. Fill them in when the search backend is OpenSearch, and
-# delete the whole block when it is Lucene, which is the default. Done after the
-# database substitutions above so those patterns cannot see these lines.
+# Fill in or delete the search: block between its markers, after the database
+# substitutions above so their patterns cannot touch it.
 SEARCH_ENGINE=$($TERRAFORM_PREFIX terraform output -raw search_engine 2>/dev/null || echo "lucene")
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     OPENSEARCH_ENDPOINT=$($TERRAFORM_PREFIX terraform output -raw opensearch_domain_endpoint 2>/dev/null || echo "")

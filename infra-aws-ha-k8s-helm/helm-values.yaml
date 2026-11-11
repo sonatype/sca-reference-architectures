@@ -59,17 +59,10 @@ iq_server:
     createSampleData: true
 
     # BEGIN search backend
-    # helm-install.sh and helm-upgrade.sh fill the three placeholders below from
-    # Terraform when search_engine is "opensearch", and delete everything between
-    # these two markers when it is "lucene", which is the default. Leave the
-    # markers, the indentation and the placeholder names alone.
-    #
-    # The values here are placeholders on purpose. Both scripts first substitute
-    # default values over the whole file for the database and for CloudWatch,
-    # such as hostname: "" and region: "us-east-1", with no line anchor. A key
-    # here holding one of those defaults would be handed the database or
-    # CloudWatch value, so these keys hold placeholders that are filled in after
-    # those substitutions run.
+    # The scripts fill the placeholders below when search_engine is "opensearch"
+    # and delete everything between the markers when it is "lucene". Keep the
+    # markers and placeholder names. The keys hold placeholders because the
+    # scripts' earlier unanchored substitutions would overwrite a real default.
     # Advanced Search reads this block.
     search:
       type: aws
@@ -78,11 +71,8 @@ iq_server:
       region: "OPENSEARCH_REGION_PLACEHOLDER"
       nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
 
-    # The Nexus One index reads this one, and only this one. Both name the same domain.
-    #
-    # Two separate blocks because IQ Server builds the Nexus One index's connection from
-    # nexusOne.connection alone: with search: set and this absent, the index store has no
-    # transport and enabling the nexus-one feature is refused.
+    # The Nexus One index reads only nexusOne.connection, so it names the same
+    # domain again; without it, enabling the nexus-one feature is refused.
     nexusOne:
       connection:
         type: aws

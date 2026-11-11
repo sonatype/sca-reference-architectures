@@ -1,22 +1,11 @@
 # =============================================================================
 # SEARCH BACKEND
 # =============================================================================
-# IAM for IQ Server pods when the Nexus One index lives in an AWS-managed
-# OpenSearch domain.
-#
-# The domain is created here too, at the bottom of this file, unless
-# opensearch_domain_endpoint names one that already exists. It carries
-# prevent_destroy because it holds the index, and its network interfaces sit in
-# this VPC's subnets, so a teardown deletes the domain before the VPC. See the
-# "terraform destroy will not delete the domain" section of this directory's
-# README.md for the sequence, and its OpenSearch section for the shape each size
-# needs.
-#
-# IQ Server reaches the domain by signing its requests with SigV4, so the pods
-# need an IAM role. On EKS that is IAM Roles for Service Accounts: the role
-# trusts the cluster's OIDC provider for one service account, and the chart
-# annotates that service account with the role ARN. helm-install.sh reads the
-# iq_server_irsa_role_arn output and writes it into the annotation.
+# IAM for the IQ Server pods, and the domain itself unless opensearch_domain_endpoint
+# names an existing one. The pods sign requests with SigV4 through IRSA: the role
+# trusts the cluster's OIDC provider for one service account, and helm-install.sh
+# writes the iq_server_irsa_role_arn output into that account's annotation.
+# README.md gives the teardown steps, since the domain carries prevent_destroy.
 
 resource "aws_iam_role" "iq_server_irsa" {
   count = var.search_engine == "opensearch" ? 1 : 0
@@ -33,10 +22,8 @@ resource "aws_iam_role" "iq_server_irsa" {
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
-          # Named down to the one service account the chart runs IQ Server under,
-          # rather than every service account in the namespace. The namespace is
-          # nexus-iq because helm-install.sh, helm-upgrade.sh and the namespace
-          # manifest all install there.
+          # Only the service account IQ Server runs under, in the nexus-iq
+          # namespace the scripts install to.
           StringEquals = {
             "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:nexus-iq:nexus-iq-sa"
             "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
@@ -63,9 +50,7 @@ resource "aws_iam_policy" "iq_server_opensearch" {
     Version = "2012-10-17"
     Statement = [
       {
-        # One action per HTTP verb, because that is how AWS checks a signed
-        # OpenSearch request. The domain's access_policies below says why a signed
-        # request is the only kind it accepts.
+        # AWS checks a signed OpenSearch request per HTTP verb.
         Effect = "Allow"
         Action = [
           "es:ESHttpGet",
@@ -105,10 +90,8 @@ resource "aws_iam_role_policy_attachment" "iq_server_opensearch" {
   policy_arn = aws_iam_policy.iq_server_opensearch[0].arn
 }
 
-# The nexus-iq-sa service account currently receives the Fluentd role, because
-# helm-install.sh substitutes every empty role-arn annotation with the same
-# value. Attaching the same CloudWatch policy here keeps what the pods can do
-# today, so turning OpenSearch on only ever adds permissions.
+# helm-install.sh gives nexus-iq-sa the Fluentd role too, so this role keeps the
+# same CloudWatch policy and OpenSearch only adds permissions.
 resource "aws_iam_role_policy_attachment" "iq_server_cloudwatch" {
   count = var.search_engine == "opensearch" ? 1 : 0
 
@@ -120,39 +103,27 @@ resource "aws_iam_role_policy_attachment" "iq_server_cloudwatch" {
 # THE DOMAIN
 # =============================================================================
 # Created when search_engine is "opensearch" and opensearch_domain_endpoint is
-# left empty. A customer who already runs a domain names it in that endpoint and
-# opensearch_domain_name instead, and nothing below is created.
-#
-# Defaults are the Size M shape on two nodes, so an L or XL deployment that
-# leaves them unset gets an M domain.
+# empty. The defaults are the Size M shape on two nodes.
 
 locals {
-  # Reading the endpoint rather than a separate flag keeps creating a domain and
-  # naming one mutually exclusive by construction.
+  # Naming an endpoint means use that domain, so creating and naming are exclusive.
   opensearch_create = var.search_engine == "opensearch" && length(var.opensearch_domain_endpoint) == 0
 
-  # AWS caps a domain name at 28 characters, and "-nexus-one" takes 10 of them,
-  # so cluster_name contributes at most 18. cluster_name is allowed to be longer
-  # than that because the names it has to fit elsewhere are longer, so the
-  # prefix is truncated here rather than the deployment being refused. Two
-  # deployments whose cluster_name shares its first 18 characters would ask for
-  # the same domain name, so keep that part distinct.
+  # AWS caps a domain name at 28 characters, so cluster_name contributes at most 18.
+  # Two deployments must differ within those 18.
   opensearch_domain_name = format(
     "%s-nexus-one",
     replace(substr(var.cluster_name, 0, min(18, length(var.cluster_name))), "/-+$/", "")
   )
 
-  # The log groups are created whenever the domain is, so a shared hand-written
-  # policy has groups to cover. Only the policy itself is behind
-  # opensearch_create_log_resource_policy.
+  # The log groups follow the domain; only the resource policy has its own switch.
   opensearch_logs = local.opensearch_create
 
   opensearch_dedicated_master = local.opensearch_create && var.opensearch_instance_count > 1
 
   opensearch_zone_aware = local.opensearch_create && var.opensearch_availability_zone_count > 1
 
-  # What the rest of this configuration reads, whichever way the domain arrived,
-  # so a created domain and a named one are indistinguishable downstream.
+  # The endpoint and name the rest of the configuration reads, created or named.
   opensearch_endpoint = local.opensearch_create ? (
     length(aws_opensearch_domain.nexus_one) > 0 ? aws_opensearch_domain.nexus_one[0].endpoint : ""
   ) : var.opensearch_domain_endpoint
@@ -162,37 +133,15 @@ locals {
   ) : var.opensearch_domain_name
 }
 
-# THE SERVICE-LINKED ROLE IS AN ACCOUNT-LEVEL PREREQUISITE, NOT A RESOURCE HERE.
-# OpenSearch assumes AWSServiceRoleForAmazonOpenSearchService to put a VPC
-# domain's network interfaces in these subnets, and the role has to exist in the
-# account before the first domain is created. AWS creates it on its own when a
-# VPC domain is created through the console, so an account that has ever held one
-# already has it.
-#
-# It is deliberately not a resource in this configuration. AWS allows one per
-# account, and this root is per deployment, so whichever deployment created it
-# would own an object every other deployment's domain depends on: its teardown
-# would try to delete the role out from under them. Create it once per account
-# instead, before the first apply:
+# The OpenSearch service-linked role must exist in the account before the first
+# domain. It is not managed here, because AWS allows one per account and every
+# deployment's domain depends on it. Create it once:
 #
 #     aws iam create-service-linked-role \
 #       --aws-service-name opensearchservice.amazonaws.com
-#
-# The command fails when the role is already there, saying the name is taken,
-# which is the one failure that means there is nothing to do. To check first:
-#
-#     aws iam list-roles \
-#       --path-prefix /aws-service-role/opensearchservice.amazonaws.com/ \
-#       --query 'Roles[].RoleName' --output text
-#
-# The calling identity needs iam:CreateServiceLinkedRole. An account still
-# carrying the legacy AWSServiceRoleForAmazonElasticsearchService role goes on
-# using that one and needs nothing.
 
-# In the private subnets with the node group, so the domain is not reachable
-# from the internet and needs no IP allow list. A pod's traffic leaves through
-# its node, so the node security group the EKS module attaches to the managed
-# node group is the source, and nothing else in the VPC reaches the domain.
+# Reachable only from the node group, inside the private subnets. Pod traffic
+# leaves through its node, so the module's node security group is the source.
 resource "aws_security_group" "opensearch" {
   count = local.opensearch_create ? 1 : 0
 
@@ -200,8 +149,7 @@ resource "aws_security_group" "opensearch" {
   description = "HTTPS from the EKS nodes to the OpenSearch domain"
   vpc_id      = aws_vpc.iq_vpc.id
 
-  # The module's node security group only. eks.tf also declares an eks_nodes
-  # group, but nothing attaches it to the node group, so no pod traffic carries it.
+  # eks.tf also declares an eks_nodes group, but nothing attaches it to the nodes.
   ingress {
     description     = "HTTPS from the EKS nodes"
     from_port       = 443
@@ -217,12 +165,8 @@ resource "aws_security_group" "opensearch" {
   })
 }
 
-# Domain-side logs, which are the only account of a failure the cluster itself saw. Without these a
-# 5xx returned to IQ Server leaves nothing on the OpenSearch side to read, and a slow search cannot
-# be told apart from a slow query.
-#
-# Audit logs are not here: they need fine-grained access control, which this architecture cannot turn
-# on without breaking SigV4.
+# Slow logs and the application log. Audit logs need fine-grained access control,
+# which stays off so that SigV4 requests work.
 resource "aws_cloudwatch_log_group" "opensearch" {
   for_each = local.opensearch_logs ? toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"]) : toset([])
 
@@ -234,15 +178,9 @@ resource "aws_cloudwatch_log_group" "opensearch" {
   })
 }
 
-# OpenSearch writes these streams itself, so the service principal needs its own grant on the log
-# groups. The domain's access policy governs requests to the domain and does not cover this.
-#
-# A resource policy is account-wide and AWS allows 10 per region, so an account at that quota takes
-# one hand-written policy covering every domain's log groups instead and sets
-# opensearch_create_log_resource_policy to false here. That leaves the log groups and the domain's
-# log_publishing_options in place, so the shared policy has groups to name and the domain keeps its
-# logs. With the toggle false and no such policy in the account, the domain create fails on the
-# log_publishing_options rather than coming up without logs.
+# Lets OpenSearch write to the log groups. AWS allows 10 log resource policies per
+# region; an account at that limit writes one shared policy and sets
+# opensearch_create_log_resource_policy = false.
 resource "aws_cloudwatch_log_resource_policy" "opensearch" {
   count = local.opensearch_logs && var.opensearch_create_log_resource_policy ? 1 : 0
 
@@ -288,8 +226,7 @@ resource "aws_opensearch_domain" "nexus_one" {
     }
   }
 
-  # The service-side grant has to exist before the domain tries to publish, or AWS rejects the
-  # log_publishing_options with a validation error rather than creating the domain without logs.
+  # The grant must exist first, or AWS rejects log_publishing_options.
   depends_on = [
     aws_cloudwatch_log_resource_policy.opensearch,
   ]
@@ -312,8 +249,7 @@ resource "aws_opensearch_domain" "nexus_one" {
     }
   }
 
-  # One subnet per zone the domain spreads across, and exactly one when it does
-  # not. More subnets than zones is refused by AWS.
+  # One subnet per zone, or exactly one without zone awareness.
   vpc_options {
     subnet_ids = local.opensearch_zone_aware ? slice(
       aws_subnet.private[*].id, 0, var.opensearch_availability_zone_count
@@ -340,11 +276,8 @@ resource "aws_opensearch_domain" "nexus_one" {
     tls_security_policy = "Policy-Min-TLS-1-2-2019-07"
   }
 
-  # The IRSA role the IQ Server pods assume, named rather than wildcarded, so
-  # only this deployment's own pods can reach the index. An IAM principal rather
-  # than a user and password, because fine-grained access control is off: the
-  # domain keeps no user database, so a SigV4-signed request is the only kind it
-  # can authenticate.
+  # The IRSA role the IQ Server pods assume, and no other. Fine-grained access
+  # control is off, so a SigV4-signed request is the only kind the domain accepts.
   access_policies = jsonencode({
     Version = "2012-10-17"
     Statement = [
