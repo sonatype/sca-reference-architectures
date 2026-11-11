@@ -110,7 +110,7 @@ Choose your deployment size based on your application count and daily evaluation
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
-> **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 30 GB for 4 vCPU, 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` runs a 30 GB task with a 22 GB heap at S, `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and `infra-aws-ha` a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
+> **AWS Fargate and Azure Container Apps are the exceptions to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 30 GB for 4 vCPU, 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` runs a 30 GB task with a 22 GB heap at S, `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and `infra-aws-ha` a 120 GB task with a 96 GB heap at XL. Container Apps keeps part of every node for itself, so `infra-azure` runs 14 GB with an 8 GB heap at XS, 28 GB with a 20 GB heap at S and 56 GB with a 44 GB heap at M, and `infra-azure-ha` 120 GB with a 96 GB heap at XL. `infra-azure-ha` at M and L, GCP, and the EKS and AKS node groups use the 64 GB and 128 GB sizes above.
 
 <!-- TO BE ADDED (CLM-55921, CLM-55935): a link from this sizing table to the generic architecture's help
      pages, and an XXS row, once both are published. -->
@@ -361,10 +361,10 @@ db_allocated_storage = 64                  # GB
 ```hcl
 # infra-azure/terraform.tfvars — Size XS
 container_cpu        = 2.0                 # 2 vCPU
-container_memory     = "16Gi"              # 16 GB
+container_memory     = "14Gi"              # 14 GB, leaving 2 GB of the node
 workload_profile_type = "D4"               # 4 cores, 16 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms8g -Xmx8g -XX:MaxDirectMemorySize=2g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 65536               # 64 GB
 ```
@@ -402,11 +402,11 @@ db_allocated_storage = 128                 # GB
 **Azure (Container Apps):**
 ```hcl
 # infra-azure/terraform.tfvars — Size S
-container_cpu        = 4.0                 # 4 vCPU
-container_memory     = "32Gi"              # 32 GB
+container_cpu        = 3.5                 # 3.5 vCPU, leaving 0.5 of the node
+container_memory     = "28Gi"              # 28 GB, leaving 4 GB of the node
 workload_profile_type = "E4"               # 4 cores, 32 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E2ds_v6" # 2 vCores, 16 GB
 db_storage_mb        = 131072              # 128 GB
 ```
@@ -458,16 +458,27 @@ aurora_instances      = 2                  # Multi-AZ
 **Azure (Container Apps):**
 ```hcl
 # infra-azure/terraform.tfvars — Size M (Single Instance)
+container_cpu        = 7.5                 # 7.5 vCPU, leaving 0.5 of the node
+container_memory     = "56Gi"              # 56 GB, leaving 8 GB of the node
+workload_profile_type = "E8"               # 8 cores, 64 GB per node
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB, grows automatically
+file_share_quota     = 500                 # GB
+```
+
+```hcl
 # infra-azure-ha/terraform.tfvars, Size M (HA)
-container_cpu        = 8.0                 # 8 vCPU
+container_cpu        = 8.0                 # 8 vCPU, scheduled on E8 in testing
 container_memory     = "64Gi"              # 64 GB
-iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is fixed at 1 replica
-iq_max_replicas      = 3                   # infra-azure-ha only, Size M ceiling
+iq_min_replicas      = 2
+iq_max_replicas      = 3                   # Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 131072              # 128 GB, grows automatically
-file_share_quota_gb  = 500                 # infra-azure-ha; infra-azure names it file_share_quota
+file_share_quota_gb  = 500
 ```
 
 **GCP (GCE Docker):**

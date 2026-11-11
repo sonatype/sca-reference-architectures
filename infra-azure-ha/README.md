@@ -12,11 +12,15 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
 | **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | E8 workload profile | Required ¹ |
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | E8 workload profile | Required ¹ |
-| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | E16 workload profile | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 15.5 vCPU / 120 GB | 96 GB | E16 workload profile | Required ¹ |
 
 > All sizes validated through performance testing. Evaluations an hour per replica, sustained in testing, not a limit: 890 at M on 2 replicas and 2,070 at L on 3 replicas. XL is not measured.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+
+> XL's replica is smaller than its `E16` node, because Container Apps keeps part of every node for itself
+> ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
+> M and L replicas at 8 vCPU and 64 GB scheduled on `E8` in testing.
 
 > **Note:** For XL scale, [AKS](../infra-azure-ha-k8s-helm/) is recommended over Container Apps.
 
@@ -67,8 +71,8 @@ storage_account_replication_type = "ZRS"
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-container_cpu        = 16.0                # 16 vCPU
-container_memory     = "128Gi"             # 128 GB
+container_cpu        = 15.5                # 15.5 vCPU, leaving 0.5 of the node
+container_memory     = "120Gi"             # 120 GB, leaving 8 GB of the node
 workload_profile_type = "E16"              # 16 cores, 128 GB per node
 iq_min_replicas      = 3
 iq_max_replicas      = 5
