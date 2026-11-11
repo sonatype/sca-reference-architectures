@@ -22,26 +22,26 @@ This will:
 
 ```bash
 # List all SQL instances in the project
-gcloud sql instances list --project=nxrm-support-gcp-deployments
+gcloud sql instances list --project=YOUR_PROJECT_ID
 
 # Delete any nexus-iq-ha instances
-gcloud sql instances delete INSTANCE_NAME --project=nxrm-support-gcp-deployments
+gcloud sql instances delete INSTANCE_NAME --project=YOUR_PROJECT_ID
 ```
 
 ### Step 2: Check for Filestore Instances
 
 ```bash
 # List Filestore instances
-gcloud filestore instances list --project=nxrm-support-gcp-deployments
+gcloud filestore instances list --project=YOUR_PROJECT_ID
 
 # Delete if found
-gcloud filestore instances delete INSTANCE_NAME --location=us-central1-a --project=nxrm-support-gcp-deployments
+gcloud filestore instances delete INSTANCE_NAME --location=us-central1-a --project=YOUR_PROJECT_ID
 ```
 
 ### Step 3: Remove Service Connection from Terraform State
 
 ```bash
-cd /Users/josemiguelromeroespitia/Documents/sonatype/sca-example-terraform/infra-gcp-ha-k8s-helm
+cd infra-gcp-ha-k8s-helm
 
 # Remove the problematic resource from Terraform state
 terraform state rm google_service_networking_connection.private_vpc_connection
@@ -54,7 +54,7 @@ terraform state rm google_service_networking_connection.private_vpc_connection
 gcloud services vpc-peerings delete \
   --service=servicenetworking.googleapis.com \
   --network=nexus-iq-ha-vpc \
-  --project=nxrm-support-gcp-deployments
+  --project=YOUR_PROJECT_ID
 ```
 
 ### Step 5: Run Terraform Destroy Again
@@ -100,11 +100,11 @@ Check what resources currently exist:
 terraform state list
 
 # Cloud SQL instances
-gcloud sql instances list --project=nxrm-support-gcp-deployments
+gcloud sql instances list --project=YOUR_PROJECT_ID
 
 # Filestore instances
-gcloud filestore instances list --project=nxrm-support-gcp-deployments
+gcloud filestore instances list --project=YOUR_PROJECT_ID
 
 # VPC networks
-gcloud compute networks list --project=nxrm-support-gcp-deployments
+gcloud compute networks list --project=YOUR_PROJECT_ID
 ```

@@ -82,7 +82,7 @@ variable "db_password" {
 }
 
 variable "db_instance_class" {
-  description = "RDS instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
+  description = "RDS instance class. The default is the Size M value; XS uses db.m8g.large and S db.r8g.large."
   type        = string
   default     = "db.r8g.2xlarge"
 }

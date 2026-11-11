@@ -25,7 +25,7 @@ variable "vpc_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.30"
+  default     = "1.36"
 }
 
 variable "node_instance_type" {
@@ -65,7 +65,7 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. Scale with number of IQ nodes: db.r8g.2xlarge for 1-3 nodes, db.r8g.4xlarge for 3-4 nodes."
+  description = "Aurora instance class. The default is the Size M and L value; Size XL uses db.r8g.4xlarge."
   type        = string
   default     = "db.r8g.2xlarge"
 }

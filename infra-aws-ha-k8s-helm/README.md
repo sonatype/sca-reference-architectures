@@ -80,9 +80,9 @@ aurora_instance_count   = 2
 
 | Size | Aurora Instance Class | vCPU | Memory | Storage |
 |------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r8g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
-| **L** | db.r8g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
-| **XL** | db.r8g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, up to 500 GB |
+| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, up to 1 TB |
+| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, up to 2 TB |
 
 ### Shared Storage (EFS)
 
@@ -271,6 +271,7 @@ Your IAM user/role needs these AWS service permissions:
 > | `aurora_engine_version` | 15.8 | 18.6 |
 > | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
 > | `node_instance_type` | m5d.2xlarge | m9gd.2xlarge |
+> | `kubernetes_version` | 1.30 | 1.36. EKS upgrades a cluster one minor version at a time, so an existing cluster sets the version it runs and steps up from there |
 >
 > The next apply replaces the EKS node group: the node AMI moves from
 > `AL2_x86_64` to AL2023, and both the AMI type and the instance type force a
@@ -292,7 +293,7 @@ cluster_name = "nexus-iq-ha"
 vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
-kubernetes_version       = "1.30"
+kubernetes_version       = "1.36"
 node_instance_type      = "m9gd.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
