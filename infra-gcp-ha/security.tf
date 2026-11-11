@@ -108,9 +108,7 @@ resource "google_compute_firewall" "allow_outbound" {
     ports    = ["53"] # DNS
   }
 
-  # Reaching a self-managed OpenSearch cluster on its own port. Google Cloud allows all egress
-  # that no deny rule blocks, and this root has no egress deny, so the port here changes nothing
-  # today. It states the intent and keeps working if an egress deny rule is added.
+  # Egress to the OpenSearch port, so an egress deny rule added later does not block it.
   dynamic "allow" {
     for_each = local.opensearch_enabled ? [1] : []
     content {

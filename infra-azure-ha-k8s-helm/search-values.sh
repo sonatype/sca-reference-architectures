@@ -1,34 +1,22 @@
 #!/bin/bash
 
-# Reads the search settings out of terraform.tfvars and writes the search:
-# block into a Helm values file. Sourced by both helm-install.sh and
-# helm-upgrade.sh, so an upgrade cannot rebuild the values file without the
-# block and silently put IQ Server back on Lucene.
+# Reads the search settings from terraform.tfvars and writes the search: block into a
+# Helm values file. Sourced by helm-install.sh and helm-upgrade.sh.
 
-# Reads one scalar from terraform.tfvars. Terraform accepts a quoted and an
-# unquoted form for every type, and allows a trailing # comment on either, so
-# neither cut -d'"' nor tr -d ' ' reads both: the first turns
-# `opensearch_port = 9200 # prod` into nothing useful and the second turns it
-# into 9200#prod, while `opensearch_use_tls = "false"` reaches a test for the
-# string false carrying its quotes.
-#
-# A quoted value is taken up to its closing quote, so a # inside it is part of
-# the value rather than a comment. HCL's two escapes inside a quoted string,
-# \" and \\, are then undone, which is what lets a password hold a quote or a
-# backslash. An unquoted value has any trailing comment and whitespace removed.
+# Reads one scalar from terraform.tfvars, quoted or unquoted, with or without a trailing
+# comment. A quoted value runs to its closing quote, so a # inside it is kept, and HCL's
+# \" and \\ escapes are undone. An unquoted value loses its trailing comment.
 tfvar() {
     local key="$1" file="${2:-terraform.tfvars}" raw
 
     [[ -f "$file" ]] || return 0
 
-    # The quoted form. The pattern consumes an escape pair or any character
-    # that is neither a quote nor a backslash, so it stops at the real closing
-    # quote and ignores everything after it.
+    # Quoted form: escape pairs or any character but a quote or backslash, up to the
+    # closing quote.
     raw=$(sed -n -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*\"((\\\\.|[^\"\\\\])*)\".*\$/\1/p" "$file" | head -n 1)
 
     if [[ -n "$raw" ]]; then
-        # Undo HCL's \" and \\ in one left-to-right pass, so a \\" in the file
-        # is a backslash followed by a quote rather than an escaped quote.
+        # One left-to-right pass, so \\" is a backslash then a quote.
         printf '%s' "$raw" | awk '{
             out = ""
             for (i = 1; i <= length($0); i++) {
@@ -44,8 +32,7 @@ tfvar() {
         return 0
     fi
 
-    # The unquoted form, and an empty quoted value, which the pattern above
-    # cannot tell apart from no match.
+    # Unquoted form, and an empty quoted value, which the pattern above cannot match.
     sed -n -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(.*)\$/\1/p" "$file" \
         | head -n 1 \
         | sed -E -e 's/[[:space:]]+#.*$//' -e 's/^#.*$//' \
@@ -53,8 +40,7 @@ tfvar() {
                  -e 's/^""$//'
 }
 
-# Loads every search setting into the environment, with the same defaults the
-# matching Terraform variables declare.
+# Loads every search setting, with the defaults the Terraform variables declare.
 load_search_vars() {
     SEARCH_ENGINE=$(tfvar search_engine)
     SEARCH_ENGINE=${SEARCH_ENGINE:-lucene}
@@ -69,10 +55,8 @@ load_search_vars() {
     OPENSEARCH_INDEX_REPLICAS=${OPENSEARCH_INDEX_REPLICAS:-1}
 }
 
-# Appends the search: block to the values file named in $1, under
-# iq_server.config. Returns 0 and writes nothing when the engine is Lucene.
-# The credentials are written as single-quoted YAML scalars with ' doubled, so
-# no character in them can change the file.
+# Appends the search: block under iq_server.config to the file named in $1, or nothing
+# for Lucene. Credentials are single-quoted YAML scalars with ' doubled.
 write_search_block() {
     local values_file="$1"
     local anchor='    clusterDirectory: "/sonatype-work/clm-cluster"'
@@ -107,8 +91,7 @@ write_search_block() {
     user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
     pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
 
-    # The block is read from a file descriptor rather than passed to awk as a
-    # -v assignment, because awk interprets a backslash escape in -v.
+    # Read from a file descriptor, since awk interprets backslash escapes in -v.
     {
         printf '    search:\n'
         printf '      type: http\n'
@@ -125,8 +108,7 @@ write_search_block() {
         printf '        nexusOneIndexReplicas: %s\n' "$OPENSEARCH_INDEX_REPLICAS"
     } > "${values_file}.searchblock"
 
-    # awk rather than sed, because appending a line is spelled differently by
-    # BSD and GNU sed and this script runs on both.
+    # awk, since BSD and GNU sed spell appending a line differently.
     awk -v anchor="$anchor" -v blockfile="${values_file}.searchblock" '
         { print }
         $0 == anchor {

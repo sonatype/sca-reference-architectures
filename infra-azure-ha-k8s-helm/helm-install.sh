@@ -14,8 +14,7 @@ HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
-# tfvar, load_search_vars and write_search_block. helm-upgrade.sh sources the
-# same file, so both paths write an identical search: block.
+# search-values.sh defines tfvar, load_search_vars and write_search_block.
 # shellcheck source=search-values.sh
 source "$(dirname "$0")/search-values.sh"
 
@@ -127,8 +126,7 @@ fi
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-# The capture stops at the digits, so a trailing comment on the line is not carried into the
-# values file. The default is a separate line so it applies when the key is absent.
+# sed rather than cut, which keeps a trailing comment. The default covers an absent key.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 

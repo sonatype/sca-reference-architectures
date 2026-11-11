@@ -21,10 +21,8 @@ variable "cluster_name" {
   default     = "nexus-iq-ha"
 
   validation {
-    # Google Cloud resource names take lowercase letters, numbers and hyphens, must start with a
-    # letter and end with a letter or number. 19 characters rather than the 63 a resource name
-    # allows, because a service account id is capped at 30 and the longest suffix added to this
-    # prefix is 11 characters.
+    # Google Cloud name rules. At most 19 characters, because a service account id is capped
+    # at 30 and the longest suffix added is 11.
     condition     = can(regex("^[a-z]([a-z0-9-]{0,17}[a-z0-9])?$", var.cluster_name))
     error_message = "cluster_name must be 1 to 19 characters of lowercase letters, numbers and hyphens, starting with a letter and ending with a letter or number."
   }
@@ -243,10 +241,9 @@ variable "helm_chart_version" {
 
 # Search Backend
 #
-# search_engine chooses which engine the `search:` block in config.yml names. "opensearch" needs
-# a cluster you have already built, named by opensearch_endpoint: Google Cloud has no managed
-# OpenSearch service, so this configuration does not create one. Every pod reads the same endpoint,
-# so they share one index. See README.md, "Search Backend".
+# search_engine picks the engine the search: block in config.yml names. "opensearch"
+# needs a cluster you run yourself, named by opensearch_endpoint.
+# Every pod reads the same endpoint, so they share one index.
 
 variable "search_engine" {
   description = "Which search backend Nexus IQ Server uses: \"lucene\" (default, the built-in index, nothing else to run) or \"opensearch\" (a self-managed OpenSearch cluster, whose host must be supplied in opensearch_endpoint)."
@@ -265,11 +262,9 @@ variable "opensearch_endpoint" {
   default     = ""
 
   validation {
-    # search.tf builds the URI as "<scheme>://<endpoint>:<port>", so a value carrying its own
-    # scheme or port produces "https://https://host:9200:9200", which is accepted at plan and
-    # apply and only fails once Nexus IQ Server tries to open the connection. Empty passes,
-    # because that is the default and the search.tf precondition is what requires a value when
-    # search_engine is "opensearch".
+    # search.tf builds "<scheme>://<endpoint>:<port>", so a scheme or port here produces
+    # a URI that only fails when IQ Server connects. Empty is allowed; the precondition
+    # requires a value when search_engine is "opensearch".
     condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
     error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
   }

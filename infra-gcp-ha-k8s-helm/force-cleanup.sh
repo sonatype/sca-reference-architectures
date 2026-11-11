@@ -14,21 +14,17 @@ echo ""
 
 PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || gcloud config get-value project)
 
-# Match on this deployment's own cluster_name, not a fixed prefix. Several sizes of this
-# architecture can share one project, and a fixed prefix would match all of them.
+# Match this deployment's own cluster_name, since several can share one project.
 CLUSTER_NAME=$(terraform output -raw gke_cluster_name 2>/dev/null || echo "")
 CLUSTER_NAME_SOURCE="terraform output"
 
-# terraform output needs usable state, and an unusable state is the case this script exists for, so
-# fall back to the value the deployment was applied with. The sed takes the first double-quoted
-# value on the cluster_name line and ignores anything after it, so a trailing comment such as
-# `cluster_name = "iq-m"  # size M` still reads as iq-m.
+# terraform output needs usable state, so fall back to terraform.tfvars. The sed takes
+# the first quoted value on the line, ignoring a trailing comment.
 if [ -z "$CLUSTER_NAME" ] && [ -f terraform.tfvars ]; then
     CLUSTER_NAME=$(sed -n 's/^[[:space:]]*cluster_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars | head -1)
     CLUSTER_NAME_SOURCE="terraform.tfvars"
 fi
 
-# Neither source named one, so the deployment ran on the variable's own default.
 if [ -z "$CLUSTER_NAME" ]; then
     CLUSTER_NAME="nexus-iq-ha"
     CLUSTER_NAME_SOURCE="the cluster_name default"
@@ -54,11 +50,9 @@ fi
 
 echo ""
 echo "Step 1: Finding Cloud SQL instances..."
-# Anchored on the whole instance name, which database.tf builds as
-# "<cluster_name>-db-<8 lowercase alphanumerics>" and "<cluster_name>-db-replica-<same>". A bare
-# "^$CLUSTER_NAME-db" prefix also matches another deployment whose own cluster_name starts with
-# "$CLUSTER_NAME-db", and the delete below passes --quiet. cluster_name is validated to lowercase
-# letters, numbers and hyphens, so it carries no regular expression metacharacter.
+# Anchored on the whole instance name database.tf builds, since the delete below
+# passes --quiet and a bare prefix also matches a deployment named "<cluster_name>-db...".
+# cluster_name allows no regular expression metacharacters.
 SQL_NAME_PATTERN="^$CLUSTER_NAME-db(-replica)?-[a-z0-9]{8}$"
 INSTANCES=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$SQL_NAME_PATTERN" || true)
 
@@ -94,10 +88,8 @@ fi
 
 echo ""
 echo "Step 2: Checking for Filestore instances..."
-# Anchored on the whole instance name, which storage.tf builds as
-# "<cluster_name>-filestore-<8 lowercase alphanumerics>", because the delete below passes
-# --quiet. The Filestore API returns `name` as the full resource path, so the match allows the
-# "projects/.../instances/" part in front of it.
+# Anchored on the whole instance name storage.tf builds, since the delete below passes
+# --quiet. The API returns the full resource path, so the projects/.../instances/ part is allowed.
 FILESTORE_NAME_PATTERN="(^|/)$CLUSTER_NAME-filestore-[a-z0-9]{8}$"
 FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$FILESTORE_NAME_PATTERN" || true)
 

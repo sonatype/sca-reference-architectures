@@ -75,9 +75,7 @@ resource "google_compute_firewall" "allow_egress_gce" {
     ports    = ["80", "443", "587", "25"] # HTTP, HTTPS, SMTP
   }
 
-  # Reaching a self-managed OpenSearch cluster on its own port. Google Cloud allows all egress
-  # unless a deny rule says otherwise, so this states the intent and keeps working if you add
-  # an egress deny rule of your own.
+  # Egress to the OpenSearch port, so an egress deny rule added later does not block it.
   dynamic "allow" {
     for_each = local.opensearch_enabled ? [1] : []
     content {

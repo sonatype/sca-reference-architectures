@@ -131,10 +131,8 @@ else
 fi
 
 FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_role_arn 2>/dev/null)
-# sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
-# pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
-# The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
-# which is tr's and is 0 even when grep matched nothing, so it never fired.
+# sed rather than cut, which keeps a trailing comment. The default is on its own line because
+# `|| echo` after a pipe sees only the last command's status.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 
@@ -159,10 +157,8 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
         "$TEMP_VALUES_FILE"
 fi
 
-# The search: block in helm-values.yaml ships with placeholders between a BEGIN
-# and an END marker. Fill them in when the search backend is OpenSearch, and
-# delete the whole block when it is Lucene, which is the default. Done after the
-# database substitutions above so those patterns cannot see these lines.
+# Fill in or delete the search: block between its markers, after the database
+# substitutions above so their patterns cannot touch it.
 SEARCH_ENGINE=$($TERRAFORM_PREFIX terraform output -raw search_engine 2>/dev/null || echo "lucene")
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     OPENSEARCH_ENDPOINT=$($TERRAFORM_PREFIX terraform output -raw opensearch_domain_endpoint 2>/dev/null || echo "")
