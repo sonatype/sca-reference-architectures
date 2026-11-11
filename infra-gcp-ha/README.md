@@ -16,11 +16,6 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing on GCP ARM instances. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-<!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
-     re-measurement. Leave the numbers alone until it lands, and keep the qualifier that they are
-     measured with continuous monitoring running, so a reader does not take them as general
-     evaluation throughput. -->
-
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **GCP was the primary test platform.** All performance data was validated on GCP ARM-based instances (Google Axion).
@@ -660,7 +655,7 @@ C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and 
 volume. **At M, the machine type and node count are the measured values**, and so is the replica
 count. That measurement ran 1 shard per index, so the 3 shards at M are not measured on GCP.
 Storage per node is the published size, chosen at or above the measured use. L and XL are not
-measured on GCP. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307).
+measured on GCP.
 
 The cluster managers are dedicated, so they hold no data and take no search traffic, and three of
 them keep a quorum when one is lost. At M and L they are `c4a-standard-1`, the same vCPU and

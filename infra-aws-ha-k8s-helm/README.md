@@ -16,11 +16,6 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing, which ran on GCP ARM instances at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-<!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
-     re-measurement. Leave the numbers alone until it lands, and keep the qualifier that they are
-     measured with continuous monitoring running, so a reader does not take them as general
-     evaluation throughput. -->
-
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 8 GB of `112Gi`.
@@ -131,9 +126,9 @@ iq_server:
 
 | Size | Aurora Instance Class | vCPU | Memory | Storage |
 |------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r8g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
-| **L** | db.r8g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
-| **XL** | db.r8g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, up to 500 GB |
+| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, up to 1 TB |
+| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, up to 2 TB |
 
 ### Shared Storage (EFS)
 
@@ -361,9 +356,7 @@ not a setting this configuration can change.
 values at every size.** The measurement ran three data nodes, one per zone;
 this architecture runs two because it builds two zones, and that count is not
 measured. Storage per node is the published size, chosen at or above the
-measured use. The measurements are on
-[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
-and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
+measured use.
 
 **Two zones, because that is what this architecture builds.** `main.tf` creates
 two private subnets, and the domain needs one subnet per zone, so two is the
@@ -653,6 +646,7 @@ Your IAM user/role needs these AWS service permissions:
 > | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 > | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
 > | `node_instance_type` | m5d.2xlarge | r9g.2xlarge |
+> | `kubernetes_version` | 1.30 | 1.36. EKS upgrades a cluster one minor version at a time, so an existing cluster sets the version it runs and steps up from there |
 >
 > The next apply replaces the EKS node group: the node AMI moves from
 > `AL2_x86_64` to AL2023, and both the AMI type and the instance type force a
@@ -675,7 +669,7 @@ cluster_name = "nexus-iq-ha"
 vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
-kubernetes_version       = "1.30"
+kubernetes_version       = "1.36"
 node_instance_type      = "r9g.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5

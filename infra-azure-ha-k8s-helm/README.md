@@ -16,11 +16,6 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-<!-- TO BE UPDATED (CLM-55927): the ~310 and ~405 evals/hour figures above are awaiting a
-     re-measurement. Leave the numbers alone until it lands, and keep the qualifier that they are
-     measured with continuous monitoring running, so a reader does not take them as general
-     evaluation throughput. -->
-
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 6 GB of `110Gi`.
@@ -662,7 +657,7 @@ Three things about that block are deliberate:
 measured types, `Standard_D2ps_v6` and `Standard_D4ps_v6`. XS uses `Standard_D2pls_v6`, S uses
 `Standard_D2ps_v6` and XL `Standard_E8ps_v6`, which give the same memory as the AWS and GCP data
 nodes at those sizes. At XS that is one more vCPU, since `Standard_D2pls_v6` is the smallest Dplsv6
-size. Storage per node is the published size, chosen at or above the measured use. The measurements are on [the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307). The cluster
+size. Storage per node is the published size, chosen at or above the measured use. The cluster
 managers are measured at M and L on `Standard_D2pls_v6`; the XL managers are `Standard_D2ps_v6`, chosen
 at the AWS equivalent, `m8g.large.search`. Every manager has a 30 GiB P4 Premium SSD OS disk, as the
 measured VMs had, and takes half its RAM as heap.

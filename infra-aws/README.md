@@ -35,6 +35,13 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.m8g.large"      # 2 vCPU, 8 GB
 db_allocated_storage = 64
+
+# One OpenSearch data node, set here because the defaults are the Size M shape
+opensearch_instance_type           = "m8g.medium.search"
+opensearch_instance_count          = 1
+opensearch_volume_size_gb          = 25
+opensearch_availability_zone_count = 1
+opensearch_index_replicas          = 0
 ```
 </details>
 
@@ -49,6 +56,13 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms22g -Xmx22g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
 db_allocated_storage = 128
+
+# One OpenSearch data node, set here because the defaults are the Size M shape
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 1
+opensearch_volume_size_gb          = 50
+opensearch_availability_zone_count = 1
+opensearch_index_replicas          = 0
 ```
 </details>
 
@@ -162,11 +176,14 @@ Advanced Search uses the index built into the server. Set `search_engine` to
 ```hcl
 search_engine                      = "opensearch"
 opensearch_instance_type           = "m8g.large.search"
-opensearch_instance_count          = 1
-opensearch_volume_size_gb          = 50
-opensearch_availability_zone_count = 1
-opensearch_index_replicas          = 0
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 100
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
 ```
+
+These are the Size M values and the defaults. XS and S set their own in the
+blocks above.
 
 `search_engine = "lucene"` is the default and needs none of the others.
 
@@ -247,9 +264,8 @@ What the created domain gets, none of which needs configuring:
 - **Encryption at rest and node to node**, and TLS 1.2 enforced.
 - **An access policy naming the ECS task role and no other principal.** IQ
   Server signs its requests with SigV4 through that role.
-- **No dedicated master nodes at one data node**, since there is no cluster
-  state worth separating. Raising `opensearch_instance_count` above 1 adds
-  three.
+- **Three dedicated master nodes at the default three data nodes**, and none
+  at one data node, since there is then no cluster state worth separating.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
 index.** Turning it on gives the domain an internal user database and changes how
@@ -274,9 +290,7 @@ not a setting this configuration can change.
 
 **The data node type and count, masters, shards and replicas above are the
 measured values at every size.** Storage per node is the published size, chosen
-at or above the measured use. The measurements are on
-[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
-and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
+at or above the measured use.
 
 At 0 replicas a lost node means the index is rebuilt rather than recovered.
 That is the trade a one-node domain makes, and it is part of why XS and S are
