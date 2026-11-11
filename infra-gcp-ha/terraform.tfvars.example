@@ -9,9 +9,8 @@ availability_zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
 environment = "prod"
 
 # Resource Naming
-# Every name that has to be unique inside a Google Cloud project derives from this. Leave it empty
-# to reproduce the names this architecture has always published. Set it to a distinct value per
-# deployment when several sizes share one project, for example "iq-m".
+# Prefix for every name that must be unique in a project. Empty keeps the default
+# names; set a distinct value per deployment when several share one project, for example "iq-m".
 cluster_name = ""
 
 # Network Configuration
@@ -95,10 +94,8 @@ common_tags = {
 }
 
 # Search Backend
-# "lucene" (default) uses the built-in index and needs nothing else running.
-# "opensearch" points Nexus IQ Server at an OpenSearch cluster you run yourself. Google Cloud has
-# no managed OpenSearch service, so this configuration does not create one: build the cluster to
-# the specification in README.md, "Search Backend", and name its host here.
+# "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
+# you run yourself; build it to README.md, "Search Backend".
 search_engine = "lucene"
 
 # opensearch_endpoint                 = "opensearch.internal.example.com"

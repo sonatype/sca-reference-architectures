@@ -8,10 +8,8 @@ echo "============================================="
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 
-# The values file is rendered here rather than reused from an earlier helm-install.sh run. It holds
-# the database and OpenSearch passwords in clear text, so both scripts remove it on exit, and a
-# rotation would otherwise have nothing to upgrade from: changing the password in terraform.tfvars
-# and applying puts the new value in the state, and this render is what carries it into the release.
+# Rendered fresh from Terraform outputs, since the values file holding the passwords is
+# removed after each run; this is how a rotated password reaches the release.
 trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE.bak" "$TEMP_VALUES_FILE.new"' EXIT INT TERM
 
 echo "Rendering values from the current Terraform outputs..."

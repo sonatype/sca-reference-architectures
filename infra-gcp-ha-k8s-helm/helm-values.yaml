@@ -1,6 +1,5 @@
-# NOTE: This file contains placeholder values that need to be populated during deployment.
-# render-values.sh, which helm-install.sh and helm-upgrade.sh both call, substitutes these placeholders with actual values from Terraform outputs.
-# Empty values marked with "" will be filled automatically by the deployment script.
+# Placeholder values. render-values.sh, called by helm-install.sh and helm-upgrade.sh,
+# fills them from Terraform outputs.
 
 iq_server:
   image: "sonatype/nexus-iq-server"
@@ -17,12 +16,9 @@ iq_server:
 
   javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
-  # GKE taints every Arm node with kubernetes.io/arch=arm64:NoSchedule, and this
-  # root's only node pool is Arm. The IQ Server image is published for amd64 and
-  # arm64, so the pods tolerate it. Chart 201.0.0 is the first to read this key,
-  # and the same toleration is set on iq_server_jobs, aggregateLogFileRetention
-  # and fluentd.aggregator below, because every pod the chart starts lands on
-  # that pool.
+  # GKE taints Arm nodes with kubernetes.io/arch=arm64:NoSchedule and this root's node
+  # pool is Arm, so every pod the chart starts tolerates it (iq_server_jobs,
+  # aggregateLogFileRetention and fluentd.aggregator below too).
   tolerations:
     - key: "kubernetes.io/arch"
       operator: "Equal"
@@ -72,11 +68,9 @@ iq_server:
 
   serviceType: "NodePort"
 
-  # A private certificate authority for the OpenSearch cluster. render-values.sh keeps the lines
-  # between the two markers only when opensearch_ca_certificate is set, and deletes them otherwise.
-  # Each pod copies the image's JVM trust store to /tmp, adds the authority to the copy, points the
-  # JVM at the copy, and then runs the image's own start script. Replacing the JVM's own store would
-  # break IQ Server's calls to the Sonatype data services.
+  # A private certificate authority for the OpenSearch cluster. render-values.sh keeps
+  # the lines between the markers only when opensearch_ca_certificate is set. Each pod adds
+  # the authority to a copy of the JVM trust store, which keeps the default authorities.
   # opensearch-ca-begin
   command: ["/bin/sh", "-c"]
   args:
@@ -100,15 +94,9 @@ iq_server:
     clusterDirectory: "/sonatype-work/clm-cluster"
     createSampleData: true
 
-    # Search backend. This block is the one Nexus IQ Server reads to decide whether to use the
-    # built-in index or an OpenSearch cluster, and it is what turns the Nexus One index on.
-    #
-    # render-values.sh fills the four placeholders below when search_engine is "opensearch" in
-    # terraform.tfvars, and deletes everything between the two markers otherwise, so the default
-    # deployment has no search block at all. The markers are what make that deletion safe: do not
-    # remove them, and do not add anything between them that is not part of the block.
-    #
-    # See README.md, "Search Backend".
+    # Search backend. render-values.sh fills the placeholders when search_engine is
+    # "opensearch" and deletes everything between the markers otherwise, so keep the markers
+    # and add nothing else between them.
     # search-block-begin
     search:
       type: http
@@ -116,8 +104,8 @@ iq_server:
       uri: OPENSEARCH_URI_PLACEHOLDER
       username: OPENSEARCH_USERNAME_PLACEHOLDER
       password: OPENSEARCH_PASSWORD_PLACEHOLDER
-    # The Nexus One index builds its connection from nexusOne.connection alone, and reads
-    # nexusOneIndexReplicas from it. Without this block enabling the nexus-one feature is refused.
+    # The Nexus One index reads only nexusOne.connection, including nexusOneIndexReplicas;
+    # without it, enabling the nexus-one feature is refused.
     nexusOne:
       connection:
         type: http

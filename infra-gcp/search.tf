@@ -1,29 +1,20 @@
-# Search backend for Sonatype IQ Server.
-#
-# IQ Server reads its search backend from the `search:` block in config.yml, written by
-# scripts/startup.sh. Setting search_engine to "opensearch" points IQ at an OpenSearch cluster
-# you run yourself: Google Cloud has no managed OpenSearch service, so there is no first-party
-# cluster to create here and this configuration does not provision one. You supply the endpoint
-# of a cluster you have already built, which keeps the cluster, and the index data in it,
-# independent of Terraform runs here.
-#
-# See README.md, "Search Backend", for the cluster specification to build against and for the
-# operational work a self-managed cluster carries.
+# Search backend. With search_engine = "opensearch", IQ Server uses an OpenSearch
+# cluster you run yourself, named by opensearch_endpoint; this configuration creates
+# none. scripts/startup.sh writes the search: block into config.yml.
+# README.md, "Search Backend", gives the cluster specification.
 
 locals {
   opensearch_enabled = var.search_engine == "opensearch"
 
-  # http or https decides whether IQ Server opens a TLS connection. With TLS, the cluster's
-  # certificate must be trusted by the JVM: see README.md, "Trusting a private certificate
-  # authority".
+  # https makes IQ Server open a TLS connection, and the JVM must trust the cluster's
+  # certificate: see README.md, "Trusting a private certificate authority".
   opensearch_scheme = var.opensearch_use_tls ? "https" : "http"
 
   opensearch_uri = "${local.opensearch_scheme}://${var.opensearch_endpoint}:${var.opensearch_port}"
 }
 
-# The OpenSearch password, held in Secret Manager and read by the instance at boot rather than
-# written into instance metadata. The GCE service account already holds
-# roles/secretmanager.secretAccessor project wide (iam.tf), so no further grant is needed.
+# The OpenSearch password, read from Secret Manager at boot rather than written into
+# instance metadata. The service account's project-wide secretAccessor grant covers it.
 resource "google_secret_manager_secret" "opensearch_password" {
   count     = local.opensearch_enabled ? 1 : 0
   secret_id = "${local.app_name}-opensearch-password"
@@ -42,9 +33,8 @@ resource "google_secret_manager_secret_version" "opensearch_password" {
   secret_data = var.opensearch_password
 }
 
-# A private certificate authority for the cluster, held in Secret Manager and read at boot. The GCE
-# service account's project-wide secretAccessor grant covers it. Not needed for a certificate from a
-# public authority.
+# A private certificate authority for the cluster, read from Secret Manager at boot.
+# Not needed for a certificate from a public authority.
 locals {
   opensearch_private_ca = local.opensearch_enabled && var.opensearch_use_tls && var.opensearch_ca_certificate != ""
 }
@@ -67,10 +57,8 @@ resource "google_secret_manager_secret_version" "opensearch_ca" {
   secret_data = var.opensearch_ca_certificate
 }
 
-# Google Cloud denies all ingress that no rule allows, so an OpenSearch cluster built inside this
-# VPC needs a rule of its own. Tag each OpenSearch node "nexus-iq-opensearch" to pick this up. A
-# cluster outside this VPC is reached over whatever path you have built to it, and this rule has
-# no effect on it.
+# Ingress to an OpenSearch cluster inside this VPC, on nodes tagged
+# "nexus-iq-opensearch". A cluster outside the VPC is not affected.
 resource "google_compute_firewall" "allow_opensearch" {
   count   = local.opensearch_enabled ? 1 : 0
   name    = "allow-opensearch-${local.app_name}"
@@ -87,8 +75,7 @@ resource "google_compute_firewall" "allow_opensearch" {
 
   description = "Allow Nexus IQ Server to reach a self-managed OpenSearch cluster in this VPC"
 
-  # Checked here rather than in a variable validation block, because a validation comparing two
-  # variables needs Terraform 1.9 and this root sets required_version to >= 1.2.
+  # A precondition, since a validation comparing two variables needs Terraform 1.9.
   lifecycle {
     precondition {
       condition     = length(var.opensearch_endpoint) > 0
