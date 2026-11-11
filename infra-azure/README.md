@@ -188,9 +188,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> **PostgreSQL version.** Minimum PostgreSQL 16. Recommended, and the default for new
 > deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
+> the minimum. Upgrading is the deployer's decision.
 
 > **Upgrading an existing deployment.** These variable defaults changed. A deployment whose
 > `terraform.tfvars` does not set a variable picks up the new default on its next apply. Set the
@@ -304,7 +305,7 @@ This is a **single instance** deployment.
 ## Persistent Storage
 
 - **Azure File Share**: Shared storage for `/sonatype-work` directory using SMB protocol
-- **Database**: PostgreSQL Flexible Server for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
+- **Database**: PostgreSQL Flexible Server for application data. Minimum PostgreSQL 16. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking
