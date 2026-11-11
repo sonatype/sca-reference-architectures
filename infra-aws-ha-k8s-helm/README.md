@@ -16,7 +16,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing, which ran on GCP ARM instances at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **ARM instances recommended.** r9g (Graviton5) costs 8% less than the x86 equivalent (r8i) on demand in us-east-1, at list prices in November 2026. The node AMI follows the instance architecture, so both ARM and x86 types deploy.
+> **ARM instances recommended.** r9g (Graviton5) costs less on demand than the x86 equivalent (r8i). The node AMI follows the instance architecture, so both ARM and x86 types deploy.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
