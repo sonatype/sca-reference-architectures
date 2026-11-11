@@ -42,8 +42,7 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
   infrastructure_subnet_id = azurerm_subnet.private_subnets[0].id
 
 
-  # One replica at the published sizes occupies one node, so the node count
-  # follows the replica count.
+  # One replica occupies one node at the published sizes.
   workload_profile {
     name                  = local.workload_profile_name
     workload_profile_type = var.workload_profile_type
@@ -133,7 +132,7 @@ resource "azurerm_container_app" "iq_app_ha" {
 %{if local.opensearch_enabled && var.opensearch_use_tls}
 
           if [ -n "$OPENSEARCH_CA_PEM" ]; then
-            # On the container's own disk, rebuilt every start, so nothing collects on the share.
+            # On the container's own disk, so nothing collects on the share.
             TRUST_STORE=/tmp/iq-truststore.jks
             JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
             KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
@@ -159,9 +158,8 @@ resource "azurerm_container_app" "iq_app_ha" {
 
           echo "Creating unique work directory: $UNIQUE_WORK"
           mkdir -p "$UNIQUE_WORK"
-          # Every replica would otherwise dump into one directory on the share, and the
-          # JVM does not overwrite a dump of the same name. The JVM takes the last
-          # HeapDumpPath, so this one wins over the one in java_opts.
+          # A directory per replica, since the JVM does not overwrite a dump of the same
+          # name. The JVM takes the last HeapDumpPath, so this one wins.
           mkdir -p "$UNIQUE_WORK/Java_Heap_logs"
           export JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=$UNIQUE_WORK/Java_Heap_logs"
 
@@ -259,8 +257,8 @@ CONFIGEOF
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
 %{if local.opensearch_enabled}
 
-          # Written from the container app secrets as single-quoted YAML scalars with
-          # ' doubled, after the $HOSTNAME sed, so nothing can change the file.
+          # Single-quoted YAML scalars with ' doubled, written after the $HOSTNAME sed, so
+          # no character in the credentials can change the file.
           os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
           os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
 
@@ -437,8 +435,7 @@ CONFIGEOF
   }
 
   lifecycle {
-    # Preconditions rather than validations on the variables, because a
-    # validation that reads another variable needs Terraform 1.9.
+    # Preconditions, since a validation that reads another variable needs Terraform 1.9.
     precondition {
       condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
       error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."

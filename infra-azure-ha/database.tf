@@ -64,10 +64,8 @@ resource "azurerm_postgresql_flexible_server" "iq_db_ha" {
     start_minute = 0
   }
 
-  # Auto-grow raises the disk, and with it the tier, outside Terraform, and the
-  # provider refuses to shrink storage_mb, so without this every apply after a
-  # grow would fail. db_storage_mb and db_storage_tier therefore set the size only
-  # when the server is created.
+  # Auto-grow raises the disk and tier outside Terraform, and the provider refuses to
+  # shrink storage_mb, so db_storage_mb and db_storage_tier apply only at creation.
   lifecycle {
     ignore_changes = [storage_mb, storage_tier]
   }

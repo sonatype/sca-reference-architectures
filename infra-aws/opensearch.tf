@@ -1,73 +1,40 @@
 # =============================================================================
 # OPENSEARCH DOMAIN
 # =============================================================================
-# The AWS-managed OpenSearch domain that holds the Nexus One index.
+# The domain that holds the Nexus One index. Created when search_engine is
+# "opensearch" and opensearch_domain_endpoint is empty; naming an existing domain
+# there creates nothing here.
 #
-# Created here when search_engine is "opensearch" and opensearch_domain_endpoint
-# is left empty. A customer who already runs a domain sets that endpoint and
-# opensearch_domain_name instead, and nothing in this file is created.
-#
-# This is the single-instance architecture, so the defaults are one data node
-# with no replica and no dedicated masters. Three masters exist to hold cluster
-# state off the data nodes and need a quorum, which one node cannot form, and a
-# single-node domain has nowhere to place a replica. A domain sized for more
-# than one node gets both, by raising opensearch_instance_count.
-#
-# THE DOMAIN IS PROTECTED RATHER THAN LEFT OUT OF TERRAFORM. It holds the index,
-# and rebuilding that index on a large estate is measured in hours, so it
-# carries prevent_destroy, which makes losing the index a decision rather than a
-# side effect.
-#
-# Keeping the domain while destroying everything else is not one of the choices.
-# The domain's network interfaces sit in this VPC's private subnets and hold its
-# security group, so destroying the VPC around a live domain fails on
-# DependencyViolation. A teardown therefore deletes the domain too:
+# The domain carries prevent_destroy, and its interfaces sit in this VPC, so a
+# teardown removes it from state and deletes it first:
 #
 #     DOMAIN=$(terraform output -raw opensearch_domain_name)
 #     terraform state rm aws_opensearch_domain.nexus_one
 #     aws opensearch delete-domain --domain-name "$DOMAIN"
-#     # wait for the domain to finish deleting, which releases its interfaces
+#     # wait for the delete to finish
 #     ./tf-destroy.sh
 #
-# The state rm is what gets past prevent_destroy; the delete is what releases the
-# subnets. Switching search_engine to "lucene", or pointing
-# opensearch_domain_endpoint at another domain, drops this domain from the plan
-# too, so it takes the same steps with terraform apply as the last one. To keep the index, keep the VPC with it: leave this deployment
-# standing, and name the domain through opensearch_domain_endpoint from any
-# deployment that builds its own network.
-#
-# SIZING. The shape each size needs is in the OpenSearch section of this
-# directory's README.md. The defaults are the Size S shape, so an XS deployment
-# can shrink the storage and an M deployment sets its own values.
+# Switching search_engine to "lucene", or to another domain, takes the same steps.
 
 locals {
-  # Reading the endpoint rather than a separate flag keeps creating a domain and
-  # naming one mutually exclusive by construction, so a customer cannot ask for
-  # both and get an apply that silently prefers one.
+  # Naming an endpoint means use that domain, so creating and naming are exclusive.
   opensearch_create = var.search_engine == "opensearch" && length(var.opensearch_domain_endpoint) == 0
 
-  # AWS caps a domain name at 28 characters, and "-nexus-one" takes 10 of them,
-  # so cluster_name contributes at most 18. cluster_name is allowed to be longer
-  # than that because the names it has to fit elsewhere are longer, so the
-  # prefix is truncated here rather than the deployment being refused. Two
-  # deployments whose cluster_name shares its first 18 characters would ask for
-  # the same domain name, so keep that part distinct.
+  # AWS caps a domain name at 28 characters, so cluster_name contributes at most 18.
+  # Two deployments must differ within those 18.
   opensearch_domain_name = format(
     "%s-nexus-one",
     replace(substr(var.cluster_name, 0, min(18, length(var.cluster_name))), "/-+$/", "")
   )
 
-  # The log groups are created whenever the domain is, so a shared hand-written
-  # policy has groups to cover. Only the policy itself is behind
-  # opensearch_create_log_resource_policy.
+  # The log groups follow the domain; only the resource policy has its own switch.
   opensearch_logs = local.opensearch_create
 
   opensearch_dedicated_master = local.opensearch_create && var.opensearch_instance_count > 1
 
   opensearch_zone_aware = local.opensearch_create && var.opensearch_availability_zone_count > 1
 
-  # What the rest of this configuration reads, whichever way the domain arrived,
-  # so a created domain and a named one are indistinguishable downstream.
+  # The endpoint and name the rest of the configuration reads, created or named.
   opensearch_endpoint = local.opensearch_create ? (
     length(aws_opensearch_domain.nexus_one) > 0 ? aws_opensearch_domain.nexus_one[0].endpoint : ""
   ) : var.opensearch_domain_endpoint
@@ -77,35 +44,14 @@ locals {
   ) : var.opensearch_domain_name
 }
 
-# THE SERVICE-LINKED ROLE IS AN ACCOUNT-LEVEL PREREQUISITE, NOT A RESOURCE HERE.
-# OpenSearch assumes AWSServiceRoleForAmazonOpenSearchService to put a VPC
-# domain's network interfaces in these subnets, and the role has to exist in the
-# account before the first domain is created. AWS creates it on its own when a
-# VPC domain is created through the console, so an account that has ever held one
-# already has it.
-#
-# It is deliberately not a resource in this configuration. AWS allows one per
-# account, and this root is per deployment, so whichever deployment created it
-# would own an object every other deployment's domain depends on: its teardown
-# would try to delete the role out from under them. Create it once per account
-# instead, before the first apply:
+# The OpenSearch service-linked role must exist in the account before the first
+# domain. It is not managed here, because AWS allows one per account and every
+# deployment's domain depends on it. Create it once:
 #
 #     aws iam create-service-linked-role \
 #       --aws-service-name opensearchservice.amazonaws.com
-#
-# The command fails when the role is already there, saying the name is taken,
-# which is the one failure that means there is nothing to do. To check first:
-#
-#     aws iam list-roles \
-#       --path-prefix /aws-service-role/opensearchservice.amazonaws.com/ \
-#       --query 'Roles[].RoleName' --output text
-#
-# The calling identity needs iam:CreateServiceLinkedRole. An account still
-# carrying the legacy AWSServiceRoleForAmazonElasticsearchService role goes on
-# using that one and needs nothing.
 
-# In the private subnets with the ECS task, so the domain is not reachable from
-# the internet and needs no IP allow list.
+# Reachable only from the IQ Server task, inside the private subnets.
 resource "aws_security_group" "opensearch" {
   count = local.opensearch_create ? 1 : 0
 
@@ -113,8 +59,6 @@ resource "aws_security_group" "opensearch" {
   description = "HTTPS from the IQ Server task to the OpenSearch domain"
   vpc_id      = aws_vpc.iq_vpc.id
 
-  # 443 only, and only from the task. enforce_https below refuses a plaintext
-  # request even on this port.
   ingress {
     description     = "HTTPS from the IQ Server ECS task"
     from_port       = 443
@@ -128,12 +72,8 @@ resource "aws_security_group" "opensearch" {
   }
 }
 
-# Domain-side logs, which are the only account of a failure the cluster itself saw. Without these a
-# 5xx returned to IQ Server leaves nothing on the OpenSearch side to read, and a slow search cannot
-# be told apart from a slow query.
-#
-# Audit logs are not here: they need fine-grained access control, which this architecture cannot turn
-# on without breaking SigV4.
+# Slow logs and the application log. Audit logs need fine-grained access control,
+# which stays off so that SigV4 requests work.
 resource "aws_cloudwatch_log_group" "opensearch" {
   for_each = local.opensearch_logs ? toset(["INDEX_SLOW_LOGS", "SEARCH_SLOW_LOGS", "ES_APPLICATION_LOGS"]) : toset([])
 
@@ -145,15 +85,9 @@ resource "aws_cloudwatch_log_group" "opensearch" {
   }
 }
 
-# OpenSearch writes these streams itself, so the service principal needs its own grant on the log
-# groups. The domain's access policy governs requests to the domain and does not cover this.
-#
-# A resource policy is account-wide and AWS allows 10 per region, so an account at that quota takes
-# one hand-written policy covering every domain's log groups instead and sets
-# opensearch_create_log_resource_policy to false here. That leaves the log groups and the domain's
-# log_publishing_options in place, so the shared policy has groups to name and the domain keeps its
-# logs. With the toggle false and no such policy in the account, the domain create fails on the
-# log_publishing_options rather than coming up without logs.
+# Lets OpenSearch write to the log groups. AWS allows 10 log resource policies per
+# region; an account at that limit writes one shared policy and sets
+# opensearch_create_log_resource_policy = false.
 resource "aws_cloudwatch_log_resource_policy" "opensearch" {
   count = local.opensearch_logs && var.opensearch_create_log_resource_policy ? 1 : 0
 
@@ -199,8 +133,7 @@ resource "aws_opensearch_domain" "nexus_one" {
     }
   }
 
-  # The service-side grant has to exist before the domain tries to publish, or AWS rejects the
-  # log_publishing_options with a validation error rather than creating the domain without logs.
+  # The grant must exist first, or AWS rejects log_publishing_options.
   depends_on = [
     aws_cloudwatch_log_resource_policy.opensearch,
   ]
@@ -223,8 +156,7 @@ resource "aws_opensearch_domain" "nexus_one" {
     }
   }
 
-  # One subnet per zone the domain spreads across, and exactly one when it does
-  # not. More subnets than zones is refused by AWS.
+  # One subnet per zone, or exactly one without zone awareness.
   vpc_options {
     subnet_ids = local.opensearch_zone_aware ? slice(
       aws_subnet.private_subnets[*].id, 0, var.opensearch_availability_zone_count
@@ -251,11 +183,8 @@ resource "aws_opensearch_domain" "nexus_one" {
     tls_security_policy = "Policy-Min-TLS-1-2-2019-07"
   }
 
-  # The IQ Server task role alone, named rather than wildcarded, so only this
-  # deployment's own task can reach the index. An IAM principal rather than a
-  # password, because fine-grained access control is off: the domain keeps no
-  # user database, so a SigV4-signed request is the only kind it can
-  # authenticate.
+  # This deployment's task role only. Fine-grained access control is off, so a
+  # SigV4-signed request is the only kind the domain accepts.
   access_policies = jsonencode({
     Version = "2012-10-17"
     Statement = [

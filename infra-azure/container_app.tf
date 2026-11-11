@@ -100,8 +100,7 @@ resource "azurerm_container_app" "iq_app" {
         "-c",
         <<-EOF
           set -e
-          # HeapDumpPath in java_opts names a directory, and the JVM writes the
-          # dump as a file of that name when the directory is missing.
+          # HeapDumpPath names a directory; without it the JVM writes a file of that name.
           mkdir -p /sonatype-work/Java_Heap_logs
           echo "Creating config.yml in proper /etc/nexus-iq-server location"
 
@@ -184,8 +183,8 @@ CONFIGEOF
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 %{if local.opensearch_enabled}
 
-          # Written from the container app secrets as single-quoted YAML scalars with
-          # ' doubled, so no character in the credentials can change the file.
+          # Single-quoted YAML scalars with ' doubled, so no character in the credentials
+          # can change the file.
           os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
           os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
 
@@ -335,8 +334,7 @@ CONFIGEOF
       azurerm_container_app_environment_storage.iq_storage
     ]
 
-    # Preconditions rather than validations on the variables, because a
-    # validation that reads another variable needs Terraform 1.9.
+    # Preconditions, since a validation that reads another variable needs Terraform 1.9.
     precondition {
       condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
       error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
