@@ -123,7 +123,8 @@ if ! docker info >/dev/null 2>&1; then
 fi
 log "Docker daemon is ready"
 
-# Artifact Registry images are pulled as the instance's service account, through gcloud.
+# An Artifact Registry image is pulled with the instance's service account, which the metadata
+# server supplies once docker is told to ask gcloud for it.
 case "$${IQ_DOCKER_IMAGE}" in
   *-docker.pkg.dev/*)
     log "Configuring docker to authenticate to $${IQ_DOCKER_IMAGE%%/*}"
