@@ -127,8 +127,7 @@ fi
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-# The capture stops at the digits, so a trailing comment on the line is not carried into the
-# values file. The default is a separate line so it applies when the key is absent.
+# sed rather than cut, which keeps a trailing comment. The default covers an absent key.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 

@@ -113,10 +113,8 @@ resource "google_compute_region_instance_group_manager" "iq_mig" {
     max_unavailable_fixed        = 0
   }
 
-  # The autoscaler below targets this same group, so it owns the live size once
-  # it starts acting. Terraform would otherwise reset the group to
-  # iq_target_instances on every apply, undoing a scaling decision and resizing
-  # a running deployment whose terraform.tfvars omits the variable.
+  # The autoscaler owns the live size, so target_size is ignored after create.
+  # Otherwise every apply would reset the group to iq_target_instances.
   lifecycle {
     ignore_changes = [target_size]
   }

@@ -128,20 +128,15 @@ fi
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 
-# render-values.sh writes this file, mode 600, from the current Terraform outputs, and
-# helm-upgrade.sh calls the same script. Neither needs the file to survive the run, so the trap
-# removes it however this script ends, including on an error or a Ctrl-C.
+# render-values.sh writes this file, mode 600, and the trap removes it however the script ends.
 trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE.bak" "$TEMP_VALUES_FILE.new"' EXIT INT TERM
 
 ./render-values.sh "$TEMP_VALUES_FILE"
 
-# AFTER render-values.sh, not before: it copies helm-values.yaml over the temp file, so a
-# substitution made first would be overwritten. The chart reads iq_server.replicas, and without
-# this the pod count in terraform.tfvars never reaches it.
-# sed, not cut and tr: a trailing comment survives cut, so `nexus_iq_replica_count = 2  # 2 IQ
-# pods` became `replicas: 2#2IQpods` in the values file. The capture stops at the digits.
-# The default is a separate line because `|| echo` after a pipe tests the LAST command's status,
-# which is tr's and is 0 even when grep matched nothing, so it never fired.
+# After render-values.sh, which copies helm-values.yaml over the file and would undo it.
+# Carries nexus_iq_replica_count into iq_server.replicas. sed rather than cut, which keeps a
+# trailing comment; the default is its own line because `|| echo` after a pipe sees only the
+# last command's status.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"

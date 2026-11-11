@@ -116,9 +116,7 @@ cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(tfvar database_password)
 REPLICA_COUNT=$(tfvar nexus_iq_replica_count)
-# tfvar prints nothing for a key that is not set, and an empty replica count makes the sed below
-# write "replicas:" with no value, which is invalid YAML. 3 is the Size L pod count this root
-# publishes.
+# An absent key gives an empty count, which would write an invalid "replicas:" line.
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
