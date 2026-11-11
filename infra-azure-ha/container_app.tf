@@ -167,8 +167,10 @@ resource "azurerm_container_app" "iq_app_ha" {
           echo "Creating shared cluster directory: $CLUSTER_DIR"
           mkdir -p "$CLUSTER_DIR"
           mkdir -p "/var/log/nexus-iq-server/$HOSTNAME"
-          # Each replica logs under its own host name. Delete other replicas' directories
-          # unchanged for 7 days; a live replica touches its own hourly, so it is kept.
+          # Each replica logs under its own host name. A replica that has gone
+          # leaves its directory behind, so delete any other replica's directory
+          # unchanged for 7 days. Each live replica touches its own directory every
+          # hour, so an idle one is not taken for gone.
           find /var/log/nexus-iq-server -mindepth 1 -maxdepth 1 -type d ! -name "$HOSTNAME" -mtime +7 -exec rm -rf {} + || true
           ( while true; do touch "/var/log/nexus-iq-server/$HOSTNAME"; sleep 3600; done ) &
 
