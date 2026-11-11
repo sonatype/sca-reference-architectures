@@ -256,9 +256,10 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> **PostgreSQL version.** Minimum PostgreSQL 16. Recommended, and the default for new
 > deployments, PostgreSQL 18. An existing deployment sets `aurora_engine_version` in
-> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
+> the minimum. Upgrading is the deployer's decision.
 
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
@@ -431,7 +432,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ## Persistent Storage
 
 - **EFS File System**: Shared storage for clustering with Kubernetes CSI driver
-- **Aurora Database**: PostgreSQL cluster for application data with continuous backups. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
+- **Aurora Database**: PostgreSQL cluster for application data with continuous backups. Minimum PostgreSQL 16. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Aurora storage scales automatically
 - **EBS Volumes**: Node storage encrypted at rest
 
