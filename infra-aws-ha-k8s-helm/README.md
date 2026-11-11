@@ -14,7 +14,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r9g.4xlarge (ARM) | Required ¹ |
 
-> All sizes validated through performance testing at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> M was measured on Fargate, in `infra-aws-ha`, at 8 vCPU, 60 GB and a 44 GB heap, and XL at 16 vCPU, 120 GB and a 96 GB heap. Evaluations an hour per task there, sustained in testing, not a limit: 1,630 at M on 2 tasks and 3,830 at XL on 5 tasks. L is not measured.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -37,6 +37,13 @@ node_group_max_size     = 3
 nexus_iq_replica_count  = 2                # 2 IQ pods
 aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 2
+opensearch_volume_size_gb          = 100
+opensearch_availability_zone_count = 2
+opensearch_index_replicas          = 1
 ```
 In `helm-values.yaml`:
 
@@ -441,14 +448,8 @@ nexusOne:
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created. **At M, L and XL, set
 the component, violation and vulnerability indices to 3 shards before the
-Nexus One index is first built**, with one request to the configuration API as
-an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 The other Nexus One indices and the Advanced Search index keep 1 shard. An
 index built before the change keeps its count until it is rebuilt.
@@ -538,7 +539,7 @@ Your IAM user/role needs these AWS service permissions:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"`, see [OpenSearch](#opensearch-for-the-nexus-one-index)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -697,7 +698,7 @@ ingress_hostname     = "nexus-iq.yourdomain.com"
 ingress_tls_enabled  = false
 acm_certificate_arn  = ""
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the index built into IQ Server. "opensearch" creates
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.

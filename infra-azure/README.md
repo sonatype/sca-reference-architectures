@@ -194,7 +194,7 @@ Your Azure account needs permissions for these services:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"` and your cluster's details, see [Advanced Search with OpenSearch](#advanced-search-with-opensearch)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -502,14 +502,8 @@ at or above it.
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in IQ Server's database, not in `config.yml`, and only take effect when an
-index is created, so **at M, L and XL set them before the Nexus One index is first built**, with one
-request to the configuration API as an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 

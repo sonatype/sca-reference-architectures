@@ -371,14 +371,8 @@ nexusOne:
 Shard counts are held in IQ Server's database, not in `config.yml`, and a
 shard count only takes effect when an index is created. **At M, set the
 component, violation and vulnerability indices to 3 shards before the
-Nexus One index is first built**, with one request to the configuration API as
-an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 The other Nexus One indices and the Advanced Search index keep 1 shard, and XS
 and S keep 1 for every index. An index built before the change keeps its count
@@ -465,7 +459,7 @@ Your IAM user/role needs these AWS service permissions:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"`, see [OpenSearch](#opensearch-for-the-nexus-one-index)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -596,7 +590,7 @@ alb_deletion_protection = false
 # Logging Configuration
 log_retention_days = 30
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the index built into IQ Server. "opensearch" creates
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.

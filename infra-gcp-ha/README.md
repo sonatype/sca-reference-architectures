@@ -14,7 +14,7 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) | Required ¹ |
 
-> All sizes validated through performance testing on GCP ARM instances. Expected evaluation throughput with continuous monitoring running: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> All sizes validated through performance testing on GCP ARM instances. Evaluations an hour per instance, sustained in testing, not a limit: 2,250 at M on 2 instances. L and XL are not measured.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -630,14 +630,8 @@ Google describes the load balancer in
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
-an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with
-one request to the configuration API as an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 
