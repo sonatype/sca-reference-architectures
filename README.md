@@ -284,7 +284,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | IOPS | 600 read / 1,000 write | 600 read / 1,000 write | 1,000 read / 5,000 write |
 | **Terraform Templates** | [Single Instance](./infra-gcp) &#124; [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) |
 
-> **Note on GCP storage tiers:** BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Use BASIC_SSD when storage needs are small (< 2.5 TiB) but IOPS demand is high, or when sub-millisecond disk latency is required. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient — the database was not a bottleneck during performance testing.
+> **Note on GCP storage tiers:** BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Use BASIC_SSD when storage needs are small (< 2.5 TiB) but IOPS demand is high, or when sub-millisecond disk latency is required. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
 
 > **Note on the GCP database tiers:** M, L and XL use the N4 series, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, with provisioned IOPS set per size. An existing deployment on `db-custom-8-30720` or `db-custom-16-65536` should read the note on existing deployments in [infra-gcp](./infra-gcp), [infra-gcp-ha](./infra-gcp-ha) or [infra-gcp-ha-k8s-helm](./infra-gcp-ha-k8s-helm) before applying.
 
