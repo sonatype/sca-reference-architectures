@@ -115,7 +115,7 @@ Your Azure account needs permissions for these services:
 - **Compute**: Container Apps, Container App Environments, Container App Environment Storage
 - **Networking**: Virtual Networks, subnets (multi-zone), Network Security Groups, Application Gateways (zone-redundant), Public IPs, Private DNS Zones
 - **Database**: Azure Database for PostgreSQL Flexible Server (zone-redundant with HA mode), databases, firewall rules, server configurations
-- **Storage**: Storage Accounts (Premium ZRS), File Shares, Blob Storage
+- **Storage**: Storage Accounts (Standard ZRS at M and L, Premium ZRS at XL), File Shares, Blob Storage
 - **Security**: Key Vault, Key Vault access policies, Key Vault secrets, Managed Identities (system-assigned)
 - **Monitoring**: Log Analytics workspaces, Application Insights, Monitor diagnostic settings
 - **Backup**: Data Protection Backup Vaults, Backup Policies (if enabled)
@@ -298,7 +298,7 @@ This deployment uses Azure Container Apps for IQ Server clustering:
 - **Unique Work Directories**: Each replica gets isolated `/sonatype-work/clm-server-${HOSTNAME}`
 - **Shared Cluster Directory**: Coordination through `/sonatype-work/clm-cluster`
 - **Database Sharing**: All replicas connect to the shared zone-redundant PostgreSQL cluster
-- **Premium Storage**: Azure Files Premium (ZRS) provides consistent storage across all replicas
+- **Shared Storage**: Azure Files (ZRS) provides consistent storage across all replicas, Standard at M and L and Premium at XL
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -308,7 +308,7 @@ This deployment uses Azure Container Apps for IQ Server clustering:
 - **Database Security**: Zone-redundant PostgreSQL in isolated database subnet with private DNS
 - **Secrets Management**: Database credentials stored in Azure Key Vault
 - **Encryption**:
-  - Azure File Share (Premium ZRS) encrypted at rest
+  - Azure File Share (ZRS) encrypted at rest
   - PostgreSQL encrypted at rest
   - Application Gateway SSL termination support
 - **Network Security Groups**: Least-privilege network access
@@ -322,11 +322,11 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Auto Scaling**: Container App replicas scale between the minimum and maximum for your size based on concurrent HTTP request load. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Zone-Redundant Database**: PostgreSQL Flexible Server with automatic failover (~30 seconds) between zones
 - **Automatic Restart**: Container Apps automatically restarts failed replicas
-- **Zone-Redundant Storage**: Premium Azure Files (ZRS) provides 99.9999999999% durability
+- **Zone-Redundant Storage**: Azure Files (ZRS) provides 99.9999999999% durability
 - **Load Balancing**: Application Gateway distributes traffic with health probes
 - **Database Backups**: Automated PostgreSQL backups with 7-day retention (configurable)
 - **Geo-Redundant Backups**: Optional geo-redundant backups for disaster recovery
-- **File Share Persistence**: Application data stored on Premium Azure Files survives replica restarts
+- **File Share Persistence**: Application data stored on Azure Files survives replica restarts
 
 ## Monitoring and Logging
 
@@ -338,7 +338,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 
 ## Persistent Storage
 
-- **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
+- **Azure File Share (ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
 - **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 16. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
