@@ -249,8 +249,8 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Compute** | | | |
 | Instance type | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) |
 | vCPUs | 8 | 8 | 16 |
-| Memory | 64 GB | 64 GB | 128 GB |
-| Java Heap | `-Xms48g -Xmx48g` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
+| Memory | 64 GB, with a 56 GB container on `infra-azure` | 64 GB | 128 GB, with a 120 GB container on `infra-azure-ha` |
+| Java Heap | `-Xms48g -Xmx48g`, or `-Xms44g -Xmx44g` on `infra-azure` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
 | Deployment option | Azure Container Apps or AKS | Azure Container Apps or AKS | AKS recommended at this scale |
 | **Database** | | | |
 | Service | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server |
