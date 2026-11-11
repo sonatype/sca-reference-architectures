@@ -10,8 +10,8 @@ cluster_name = "ref-arch"
  
 # Network Configuration
 vpc_cidr               = "10.0.0.0/16"
-public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24"]
-private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24"]
+public_subnet_cidrs    = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnet_cidrs   = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
 db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
  
 # ECS Configuration
@@ -66,6 +66,17 @@ search_engine = "lucene"
 # replicas are the measured values; storage is the published size, at or
 # above the measured use.
 #
+# M (2,000 - 10,000 apps) is the default: three data nodes across three zones,
+# which needs one private subnet per zone, and a third public subnet so the load
+# balancer reaches a task in that zone. The subnet lists above have three each;
+# 10.0.30.0/24 is already db_subnet_cidrs[0], so the third private one is
+# 10.0.50.0/24:
+# opensearch_instance_type           = "m8g.large.search"
+# opensearch_instance_count          = 3
+# opensearch_volume_size_gb          = 100
+# opensearch_availability_zone_count = 3
+# opensearch_index_replicas          = 1
+#
 # XS (< 500 apps) and S (500 - 2,000 apps), one data node, no masters.
 # m8g.medium.search with 25 GB at XS, m8g.large.search with 50 GB at S:
 # opensearch_instance_type           = "m8g.large.search"
@@ -73,19 +84,6 @@ search_engine = "lucene"
 # opensearch_volume_size_gb          = 50
 # opensearch_availability_zone_count = 1
 # opensearch_index_replicas          = 0
-#
-# M (2,000 - 10,000 apps), three data nodes across three zones. The domain needs
-# one private subnet per zone, and private_subnet_cidrs above has two, so this
-# shape needs a third. Edit the private_subnet_cidrs line above rather than
-# adding a second one here, which Terraform refuses as a redefined attribute,
-# and pick a range no other subnet list uses: 10.0.30.0/24 is already
-# db_subnet_cidrs[0]. For example:
-#   private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
-# opensearch_instance_type           = "m8g.large.search"
-# opensearch_instance_count          = 3
-# opensearch_volume_size_gb          = 100
-# opensearch_availability_zone_count = 3
-# opensearch_index_replicas          = 1
 #
 # An account already at the region's 10 CloudWatch Logs resource policies writes
 # one policy by hand covering every domain's log groups and sets this false. The

@@ -216,9 +216,7 @@ not a setting this configuration can change.
 
 **The data node type and count, masters, shards and replicas above are the
 measured values at every size.** Storage per node is the published size, chosen
-at or above the measured use. The measurements are on
-[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
-and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
+at or above the measured use.
 
 Three data nodes at every size, because three is the smallest count that both
 places a replica and spreads across three Availability Zones. At 0 replicas a

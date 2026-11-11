@@ -283,10 +283,8 @@ variable "opensearch_instance_type" {
     Data node instance type for the created domain.
 
     The default is the published type for Size M.
-    Smaller types have been measured failing in ways that read as something
-    else: a 1 vCPU node decayed 36 times over on the write path, from 223k to
-    6.2k documents a second, and a 2 GiB node gives about 1.5 GiB to the JVM and
-    swaps.
+    Smaller types than the published ones have been measured failing in ways
+    that read as something else.
 
     See the OpenSearch section of this directory's README.md for the type each
     size needs.

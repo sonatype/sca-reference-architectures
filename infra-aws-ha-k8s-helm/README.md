@@ -275,9 +275,7 @@ not a setting this configuration can change.
 values at every size.** The measurement ran three data nodes, one per zone;
 this architecture runs two because it builds two zones, and that count is not
 measured. Storage per node is the published size, chosen at or above the
-measured use. The measurements are on
-[the OpenSearch sizing pages](https://sonatype.atlassian.net/wiki/spaces/INSIGHT/pages/2866971307)
-and [CLM-55930](https://sonatype.atlassian.net/browse/CLM-55930).
+measured use.
 
 **Two zones, because that is what this architecture builds.** `main.tf` creates
 two private subnets, and the domain needs one subnet per zone, so two is the
