@@ -307,9 +307,10 @@ Enable these APIs in your project:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 15. Recommended, and the default for new
+> **PostgreSQL version.** Minimum PostgreSQL 16. Recommended, and the default for new
 > deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today. Upgrading is the deployer's decision.
+> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
+> the minimum. Upgrading is the deployer's decision.
 
 > **Upgrading an existing deployment.** These variable defaults changed with the
 > published sizing. A deployment whose `terraform.tfvars` does not set a variable
@@ -837,7 +838,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Cloud Filestore**: NFS-mounted shared storage for `/sonatype-work` directory (1 TiB minimum on BASIC_HDD)
-- **Database**: Cloud SQL PostgreSQL for application data. Minimum PostgreSQL 15. Recommended, and the default for new deployments, PostgreSQL 18
+- **Database**: Cloud SQL PostgreSQL for application data. Minimum PostgreSQL 16. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 
