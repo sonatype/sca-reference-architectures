@@ -239,6 +239,7 @@ Your Azure account needs permissions for these services:
 > | `db_storage_mb` | 65536, fixed | 131072 for a new server, then grows automatically. An existing server keeps its size |
 > | `file_share_quota_gb` | 200 | 500 |
 > | workload profile | `D4`, 1 to 3 nodes | `workload_profile_type`, default `E8`, `iq_min_replicas` to `iq_max_replicas` nodes |
+> | `azure_region` | East US 2 | East US. A region change replaces every resource, so an existing deployment sets its region here |
 >
 > **Earlier versions did not read `cluster_name`**, though the example file set it. A deployment whose
 > `terraform.tfvars` sets it to anything other than `ref-arch-iq-ha` would have every resource renamed,
