@@ -209,7 +209,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Evaluations an hour per node, sustained in testing, not a limit** | 1,630, on 2 tasks | not measured | 3,830, on 5 tasks |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 1,630, on 2 tasks | about 3,700, on 3 tasks | 3,830, on 5 tasks |
 | **Compute** | | | |
 | Instance type | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM, r8g or newer) or r8i.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |

@@ -14,7 +14,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r9g.4xlarge (ARM) | Required ¹ |
 
-> M was measured on Fargate, in `infra-aws-ha`, at 8 vCPU, 60 GB and a 44 GB heap, and XL at 16 vCPU, 120 GB and a 96 GB heap. Evaluations an hour per task there, sustained in testing, not a limit: 1,630 at M on 2 tasks and 3,830 at XL on 5 tasks. L is not measured.
+> M and L were measured on Fargate, in `infra-aws-ha`, at 8 vCPU, 60 GB and a 44 GB heap, and XL at 16 vCPU, 120 GB and a 96 GB heap. Evaluations an hour per task there, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL on 5 tasks.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
