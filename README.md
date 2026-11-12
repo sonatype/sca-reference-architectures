@@ -813,7 +813,6 @@ the Nexus One index, not the steady state.** A cluster that fits the index with 
 during its own rebuild. A replica is a separate doubling and applies at the same time.
 
 - **An index size read during a rebuild, or just after it, includes both copies.**
-
 - **A rebuild is not a backup.** Rebuilding a lost index leaves search unavailable until it finishes. A managed AWS domain takes its own snapshots; a
   self-managed cluster takes whatever you schedule.
 
