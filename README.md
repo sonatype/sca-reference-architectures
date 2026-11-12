@@ -691,7 +691,8 @@ OpenSearch is part of every reference architecture, and it is required at every 
 table, though each architecture leaves it off by default with `search_engine = "lucene"`. One cluster serves both of IQ Server's search features: Advanced Search and
 the Nexus One index behind the Nexus One list pages, typeahead, and dashboard. IQ Server's `config.yml`
 carries a `search:` block and a `nexusOne.connection` block, both naming the same endpoint and
-credentials. The Terraform writes them like this:
+credentials. The Terraform writes them like this, though the Azure architectures leave `mode` out of
+`nexusOne.connection`, which IQ Server accepts:
 
 ```yaml
 search:
@@ -732,8 +733,9 @@ first-party managed OpenSearch service, so those six only take an endpoint and p
 - **A cluster you supply has to exist before the deployment is useful.** IQ Server configured against
   an endpoint that answers nothing will not serve search.
 - **An index on a cluster you supply survives `terraform destroy`.** Its lifecycle stays independent of
-  the IQ deployment, which is also why an upgrade or a redeployment costs no rebuild. A domain the AWS
-  roots created carries `prevent_destroy` instead, so a destroy stops rather than deleting the index.
+  the IQ deployment, so a redeployment costs no rebuild. An IQ Server upgrade that changes the Nexus
+  One index layout still needs one. A domain the AWS roots created carries `prevent_destroy` instead,
+  so a destroy stops rather than deleting the index.
 
 What the architecture needs from you is the endpoint, or on AWS the shape to build the domain at. What
 the specification below gives you is what to size it against.
@@ -743,8 +745,8 @@ the specification below gives you is what to size it against.
 A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
 and one for Advanced Search.
 
-| Index | What it holds |
-|-------|---------------|
+| Index type | What it holds |
+|------------|---------------|
 | `application` | Applications |
 | `violation` | Policy violations |
 | `waiver` | Policy waivers |
@@ -752,6 +754,8 @@ and one for Advanced Search.
 | `vulnerability` | Vulnerabilities |
 | `entity` | Organizations, application categories, component labels, policies, users, and license threat groups, which share one index |
 | Advanced Search | The Advanced Search index, named from your own index configuration |
+
+Each Nexus One index is named `<index name>-nexus-one-<generation>-<type>` and read through an alias.
 
 The two halves of search behave differently on the same cluster, and it is worth knowing which is
 which: IQ Server sends an explicit shard count and replica count for the six Nexus One indices, and it
@@ -821,8 +825,8 @@ choose on purpose rather than one to inherit.
 
 Leave it alone and you can end up with a replica on the Advanced Search index while the Nexus One
 indices have none, on the same cluster, with nobody having chosen that. Nothing in IQ Server will tell
-you either way, because IQ Server never asks what the index got. Read it off the live index with
-`GET <index>/_settings`, never off `config.yml`.
+you either way, because IQ Server never checks the shard or replica count that index got. Read it off
+the live index with `GET <index>/_settings`, never off `config.yml`.
 
 The route to setting it is an index template applied to the cluster, matching the Advanced Search index
 name. `cluster.default_number_of_replicas` in `opensearch.yml` is the wrong lever: it takes effect only
@@ -849,7 +853,7 @@ same time.
 - **Reading the index size during a rebuild, or in the half hour after it, gives you the doubled
   number.** Filter to the generation named in the newest cutover log line to see what is really
   serving.
-- **A rebuild is not a backup.** Search is stale or absent for the whole rebuild. A managed AWS domain takes its own snapshots; a
+- **A rebuild is not a backup.** Rebuilding a lost index leaves search unavailable until it finishes. A managed AWS domain takes its own snapshots; a
   self-managed cluster takes whatever you schedule.
 
 #### Per-size cluster specification
@@ -873,7 +877,8 @@ XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. E
 
 Measured: every AWS size, Azure M and L, and GCP M. Not measured: the two-node domain on
 `infra-aws-ha-k8s-helm`, the 3 shards on Azure M and GCP M, and the `c4a-standard-1` cluster managers
-on GCP M, which ran `c4a-standard-2`.
+on GCP M, which ran `c4a-standard-2`. AWS L and XL, Azure M and L, and GCP M ran on smaller volumes
+than the storage per node above.
 
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
@@ -919,9 +924,9 @@ endpoint is the one address IQ Server uses. Each architecture's README lists wha
 
 | Question | How to check |
 |----------|--------------|
-| Is search on OpenSearch? | The server log carries `Search backend: OPENSEARCH` at startup |
+| Is search on OpenSearch? | `config.yml` carries both blocks, and `GET _cat/indices` lists the Advanced Search index and, after the first build, the six `-nexus-one-` indices. The startup line `Search backend: OPENSEARCH` appears even without a cluster, so it is not proof |
 | Did the indices get the replica count you set? | `GET <index>/_settings` on the cluster, and read `number_of_replicas` |
-| Did they get the shard count you set? | The same read, for `number_of_shards`. An out-of-range value is ignored with a warning and the index is created with one shard, so check the log too |
+| Did they get the shard count you set? | The same read, for `number_of_shards`. The API refuses an out-of-range value with a 400. A stored value that later falls out of range, for example after `nexusOneIndexMaxShards` is lowered, is ignored with a warning and the index is created with one shard, so check the log too |
 | What did the Advanced Search index get? | The same read on it. IQ Server sends it nothing, so this is the only way to know |
 | Is the index healthy? | The Index Manager's Analyze view. Its `HEALTHY` and `WARNING` are about how far behind the index is, not how the cluster placed its shards |
 
