@@ -550,6 +550,7 @@ search:
 nexusOne:
   connection:
     type: http
+    mode: OPENSEARCH
     uri: https://opensearch.internal.example.com:9200
     username: 'iq-server'
     password: '<from the container app secret>'

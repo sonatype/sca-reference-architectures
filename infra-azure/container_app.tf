@@ -196,6 +196,7 @@ CONFIGEOF
             printf 'nexusOne:\n'
             printf '  connection:\n'
             printf '    type: http\n'
+            printf '    mode: OPENSEARCH\n'
             printf '    uri: %s\n' '${local.opensearch_uri}'
             printf "    username: '%s'\n" "$os_user"
             printf "    password: '%s'\n" "$os_pass"
