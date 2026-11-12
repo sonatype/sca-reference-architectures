@@ -10,15 +10,15 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
-| **XS** | < 500 | < 1,000 | 2 vCPU / 14 GB | 8 GB | Container Apps (2.0 CPU / 14Gi) on D4 | Required ² |
-| **S** | 500 - 2,000 | 1,000 - 5,000 | 3.5 vCPU / 28 GB | 20 GB | Container Apps (3.5 CPU / 28Gi) on E4 | Required ² |
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 7.5 vCPU / 56 GB | 44 GB | Container Apps (7.5 CPU / 56Gi) on E8 | Required ² |
+| **XS** | < 500 | < 1,000 | 2 vCPU / 14 GB | 8 GB | Container Apps (2.0 CPU / 14Gi) on D4 | Required ¹ |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 3.5 vCPU / 28 GB | 20 GB | Container Apps (3.5 CPU / 28Gi) on E4 | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 7.5 vCPU / 56 GB | 44 GB | Container Apps (7.5 CPU / 56Gi) on E8 | Required ¹ |
 
 > Each container is smaller than its node, because Container Apps keeps part of every node for itself
 > ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
 > The heap plus `MaxDirectMemorySize` leaves about 4 GB of the container for the JVM's own memory.
 
-> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 

@@ -95,13 +95,13 @@ Choose your deployment size based on your application count and daily evaluation
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required | OpenSearch |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-----------:|:----------:|
-| **XS** | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No | Required ² |
-| **S** | 500 - 2,000 | 1,000 - 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No | Required ² |
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended | Required ² |
-| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required | Required ² |
-| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required | Required ² |
+| **XS** | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No | Required ¹ |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required | Required ¹ |
 
-> ² OpenSearch is part of every size. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
+> ¹ OpenSearch is part of every size. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
@@ -226,7 +226,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Terraform Templates** | [Single Instance](./infra-aws) &#124; [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) |
 
 > **XS and S on AWS.** Evaluations an hour on `infra-aws`'s 1 task, sustained in testing, not a limit:
-> 1,540 at XS, measured with an `m8g.large.search` data node, and 2,650 at S.
+> 1,540 at XS and 2,650 at S.
 
 > **Note on AWS EFS:** EFS uses SSD-backed infrastructure — there is no HDD vs SSD tier choice. Cost optimization is achieved through lifecycle policies (moving infrequently accessed data to the IA storage class) and Elastic throughput mode (pay only for throughput consumed).
 
@@ -241,7 +241,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Evaluations an hour per node, sustained in testing, not a limit** | 890, on 2 replicas | 2,070, on 3 replicas | not measured |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 890, on 2 replicas | 2,070, on 3 replicas | - |
 | **Compute** | | | |
 | Instance type | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) |
 | vCPUs | 8 | 8 | 16 |
@@ -274,7 +274,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | Single Instance or HA | HA required | HA required |
-| **Evaluations an hour per node, sustained in testing, not a limit** | 2,250, on 2 instances | not measured | not measured |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 2,250, on 2 instances | - | - |
 | **Compute** | | | |
 | Machine type | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-16 (ARM Google Axion) |
 | vCPUs | 8 | 8 | 16 |
@@ -826,8 +826,6 @@ XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. E
 ² Two on `infra-aws-ha-k8s-helm`, one in each of the two zones it builds.
 
 ³ The volume to provision per node, covering a rebuild's second copy of the Nexus One indices.
-
-Measured on every AWS size, Azure M and L, and GCP M.
 
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
