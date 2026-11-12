@@ -114,6 +114,10 @@ opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com
 opensearch_domain_name     = "CHANGE_ME-search-domain"
 ```
 
+IQ Server needs OpenSearch 3.x. A domain created here runs `OpenSearch_3.7`, set by
+`opensearch_engine_version`, the newest version Amazon OpenSearch Service offers as of November 2026.
+A domain you name should run 3.x as well.
+
 **On this architecture OpenSearch is the index that every task shares.** The
 built-in index lives on each task's own storage, so a cluster of tasks keeps a
 copy each and each copy is rebuilt separately. An OpenSearch domain is one
