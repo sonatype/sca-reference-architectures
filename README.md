@@ -95,13 +95,15 @@ Choose your deployment size based on your application count and daily evaluation
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required | OpenSearch |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-----------:|:----------:|
-| **XS** | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No | Required ¹ |
-| **S** | 500 - 2,000 | 1,000 - 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No | Required ¹ |
+| **XS** | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No | Required ¹ ² |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No | Required ¹ ² |
 | **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended | Required ¹ |
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required | Required ¹ |
 
 > ¹ OpenSearch is part of every size. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
+
+> ² A future IQ Server release is expected to let smaller deployments run Nexus One without OpenSearch. Until then, OpenSearch is required as described below.
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
