@@ -507,7 +507,7 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-M is measured; XS and S are not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+M is measured, on 1 shard per index. XS, S and the 3 shards at M are not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 | Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
