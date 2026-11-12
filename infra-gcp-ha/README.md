@@ -535,7 +535,7 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
 
-M is measured, on 1 shard per index. L, XL and the 3 shards at M are not.
+M is measured, on 1 shard per index with `c4a-standard-2` cluster managers. L, XL, and at M the 3 shards and the `c4a-standard-1` cluster managers, are not.
 
 The cluster managers are dedicated: they hold no data, take no search traffic, and three of them
 keep a quorum when one is lost. Each takes half its RAM as heap.
