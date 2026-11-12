@@ -20,6 +20,8 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
+> **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
+
 ### Recommended `terraform.tfvars` by Size
 
 <details>
