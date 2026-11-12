@@ -638,7 +638,7 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-Measured at M and L. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 This root covers M, L and XL, so the XS and S rows are in the single-instance root's README instead.

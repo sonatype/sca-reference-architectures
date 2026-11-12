@@ -292,8 +292,6 @@ Three data nodes at every size, because three is the smallest count that both
 places a replica and spreads across three Availability Zones. At 0 replicas a
 lost node means the index is rebuilt rather than recovered.
 
-The data node types, masters, shards and replicas above are measured at every size.
-
 **Storage holds more than one copy of the index.** A replica doubles it, a rebuild holds a second copy while it runs, and AWS reserves 20% of each volume capped at 20 GiB. The figures
 above allow for all three.
 

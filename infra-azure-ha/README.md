@@ -20,7 +20,7 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 > XL's replica is smaller than its `E16` node, because Container Apps keeps part of every node for itself
 > ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
-> M and L replicas at 8 vCPU and 64 GB scheduled on `E8` in testing.
+> M and L replicas are 8 vCPU and 64 GB on `E8`.
 
 > **Note:** For XL scale, [AKS](../infra-azure-ha-k8s-helm/) is recommended over Container Apps.
 
@@ -108,7 +108,7 @@ storage_account_replication_type = "ZRS"
 | **L** | Standard HDD | SMB 3.0 | ZRS | 1,536 GB |
 | **XL** | Premium SSD | SMB | ZRS | 4,096 GB, billed as provisioned |
 
-> Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
+> Standard HDD is the default recommendation. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
 
 ### OpenSearch
 
@@ -568,7 +568,7 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-Measured at M and L. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
