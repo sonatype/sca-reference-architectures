@@ -52,7 +52,7 @@ db_disk_size         = 128                 # GB
 ```hcl
 gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_disk_size         = 128                 # GB, auto-resize enabled
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
