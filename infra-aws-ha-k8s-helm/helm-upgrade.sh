@@ -98,13 +98,19 @@ if [[ -f "terraform.tfstate" ]]; then
     echo "• Region: $AWS_REGION"
     echo "• Cluster: $CLUSTER_NAME"
 else
-    AWS_REGION=$(grep '^aws_region' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "us-east-1")
+    AWS_REGION=$(sed -n 's/^aws_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+    AWS_REGION=${AWS_REGION:-us-east-1}
 fi
 echo ""
 
 $HELM_PREFIX helm repo update >/dev/null 2>&1
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
+# Unset in terraform.tfvars, keep the chart version the release already runs.
+CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+if [[ -z "$CHART_VERSION" ]]; then
+    CHART_VERSION=$($HELM_PREFIX helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+fi
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"

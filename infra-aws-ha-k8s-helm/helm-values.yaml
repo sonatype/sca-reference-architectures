@@ -15,8 +15,6 @@ iq_server:
   javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   env:
-    - name: NXIQ_DATABASE_MIGRATION
-      value: "true"
     - name: CLUSTER_DIRECTORY
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD

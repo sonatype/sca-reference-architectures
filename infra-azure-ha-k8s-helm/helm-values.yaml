@@ -26,8 +26,6 @@ iq_server:
 
 
   env:
-    - name: NXIQ_DATABASE_MIGRATION
-      value: "true"
     - name: CLUSTER_DIRECTORY
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
@@ -67,10 +65,6 @@ iq_server:
     storageClassName: "azurefile-nfs"
     accessModes:
       - ReadWriteMany
-
-
-  securityContext:
-    readOnlyRootFilesystem: false
 
 
   serviceAccountName: "nexus-iq-sa"
