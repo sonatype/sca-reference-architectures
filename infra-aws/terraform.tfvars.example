@@ -70,5 +70,5 @@ search_engine = "lucene"
 # opensearch_create_log_resource_policy = false
 #
 # To use a domain you already run, set these two instead and nothing is created:
-# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-# opensearch_domain_name     = "my-domain"
+# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "CHANGE_ME-search-domain"

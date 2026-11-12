@@ -291,6 +291,14 @@ sed -i '' \
     -e "/name: DB_PORT/{n;s/value: \"5432\"/value: \"$DB_PORT\"/;}" \
     "$TEMP_VALUES_FILE"
 
+# A CHANGE_ME from terraform.tfvars, such as the database password, stops the install here.
+if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
+    echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
+    grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
 if $HELM_PREFIX helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"

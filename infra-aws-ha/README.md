@@ -110,8 +110,8 @@ To use a domain you already run, name it instead and nothing is created:
 
 ```hcl
 search_engine              = "opensearch"
-opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-opensearch_domain_name     = "my-domain"
+opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+opensearch_domain_name     = "CHANGE_ME-search-domain"
 ```
 
 **On this architecture OpenSearch is the index that every task shares.** The
@@ -541,8 +541,8 @@ log_retention_days       = 30
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.
 search_engine = "lucene"
-# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-# opensearch_domain_name     = "my-domain"
+# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "CHANGE_ME-search-domain"
 # opensearch_index_replicas  = 1
 ```
 

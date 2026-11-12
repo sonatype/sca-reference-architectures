@@ -237,6 +237,11 @@ variable "opensearch_domain_endpoint" {
   description = "Host name of an OpenSearch domain that already exists, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Setting this means the domain is NOT created here and this one is used instead. Leave empty to have this configuration create the domain."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_domain_endpoint))
+    error_message = "opensearch_domain_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_domain_name" {
@@ -256,6 +261,11 @@ variable "opensearch_domain_name" {
   EOT
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_domain_name))
+    error_message = "opensearch_domain_name still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_engine_version" {
@@ -389,4 +399,9 @@ variable "common_tags" {
   description = "Extra tags merged onto the resources this configuration creates for the search backend. Keep the keys lowercase: AWS treats tag keys as case-insensitive when it checks for duplicates, so a key differing only in case from one already set fails the apply. Values name a deployment or a person, so set them in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }

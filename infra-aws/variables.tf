@@ -323,6 +323,11 @@ variable "opensearch_domain_endpoint" {
   description = "Host name of an OpenSearch domain that already exists, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Setting this means the domain is NOT created here and this one is used instead. Leave empty to have this configuration create the domain."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_domain_endpoint))
+    error_message = "opensearch_domain_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_domain_name" {
@@ -341,6 +346,11 @@ variable "opensearch_domain_name" {
   EOT
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_domain_name))
+    error_message = "opensearch_domain_name still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_log_retention_days" {
