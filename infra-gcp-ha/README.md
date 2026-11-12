@@ -141,7 +141,7 @@ survivable. Set `opensearch_index_replicas` per size:
 | **L** | 3 | `1` |
 | **XL** | 3 | `1` |
 
-Why XS and S use `0`, and how to give the Advanced Search index the same count, are in the
+When to use `0`, and how to give the Advanced Search index the same count, are in the
 [top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
 
 #### Plan for twice the index during a rebuild
