@@ -236,13 +236,13 @@ variable "search_engine" {
 }
 
 variable "opensearch_engine_version" {
-  description = "OpenSearch engine version for the created domain, as AWS names it. Pinned rather than tracking the newest, so two bring-ups run the same engine and a measurement describes a known version."
+  description = "OpenSearch engine version for the created domain, as AWS names it. Pinned rather than tracking the newest, so two bring-ups run the same engine and a measurement describes a known version. IQ Server needs 3.x."
   type        = string
   default     = "OpenSearch_3.7"
 
   validation {
-    condition     = can(regex("^OpenSearch_[0-9]+\\.[0-9]+$", var.opensearch_engine_version))
-    error_message = "opensearch_engine_version must look like \"OpenSearch_3.7\"."
+    condition     = can(regex("^OpenSearch_3\\.[0-9]+$", var.opensearch_engine_version))
+    error_message = "opensearch_engine_version must be an OpenSearch 3.x version, such as \"OpenSearch_3.7\"."
   }
 }
 
