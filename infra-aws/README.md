@@ -210,8 +210,6 @@ At 0 replicas a lost node means the index is rebuilt rather than recovered.
 **A one-node domain reports yellow and that is correct**: the index still takes writes and returns correct reads,
 because yellow means a replica is unassigned rather than that data is missing.
 
-The data node types, masters, shards and replicas above are measured at every size.
-
 **Storage holds more than one copy of the index.** A replica doubles it, a rebuild holds a second copy while it runs, and AWS reserves 20% of each volume capped at 20 GiB. The figures
 above allow for all three.
 
