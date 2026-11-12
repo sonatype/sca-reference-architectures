@@ -610,7 +610,7 @@ has no effect on it. The egress rule still applies.
 
 | | What to run |
 |---|---|
-| OpenSearch version | 2.19 or later. The 2.19 line is the long-term support release |
+| OpenSearch version | 3.x, and 3.8 recommended |
 | Cluster managers | Three dedicated cluster manager nodes, so losing one leaves a quorum |
 | Data nodes | At least two, spread across the zones in `availability_zones`, with `opensearch_index_replicas` at 1 or more so a lost node does not lose a shard |
 | Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
