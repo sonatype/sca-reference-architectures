@@ -137,6 +137,11 @@ variable "db_password" {
   description = "Database master password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "aurora_engine_version" {
@@ -197,6 +202,11 @@ variable "ssl_certificate_arn" {
   description = "ARN of SSL certificate for ALB HTTPS listener"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.ssl_certificate_arn))
+    error_message = "ssl_certificate_arn still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "alb_deletion_protection" {
@@ -245,5 +255,10 @@ variable "common_tags" {
     Project     = "nexus-iq-server-ha"
     Environment = "production"
     Terraform   = "true"
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }

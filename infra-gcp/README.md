@@ -224,7 +224,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 gcp_zone       = "us-central1-a"
 environment    = "dev"

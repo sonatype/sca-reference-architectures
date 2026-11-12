@@ -258,7 +258,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # GCP Project Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 
 # Availability zones for multi-zone deployment
@@ -288,7 +288,7 @@ iq_target_instances = 3  # Initial target, the Size L value
 # Database Configuration
 db_name     = "nexusiq"
 db_username = "nexusiq"
-db_password = "your-secure-database-password"  # Change this!
+db_password = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 
 # Database settings
 postgres_version       = "POSTGRES_18"

@@ -114,6 +114,11 @@ variable "db_password" {
   description = "Database administrator password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "postgres_version" {
@@ -243,5 +248,10 @@ variable "common_tags" {
     Environment    = "production"
     Terraform      = "true"
     DeploymentType = "high-availability"
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }

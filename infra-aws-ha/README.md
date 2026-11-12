@@ -296,7 +296,7 @@ db_skip_final_snapshot     = true
 db_deletion_protection     = false
 
 # Load Balancer Configuration
-# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:CHANGE_ME:certificate/CHANGE_ME"
 alb_deletion_protection = false
 
 # Monitoring Configuration

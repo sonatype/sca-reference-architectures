@@ -125,6 +125,11 @@ variable "database_password" {
   description = "Password for PostgreSQL database"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.database_password))
+    error_message = "database_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "backup_retention_period" {

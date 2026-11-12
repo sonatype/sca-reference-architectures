@@ -2,6 +2,11 @@
 variable "gcp_project_id" {
   description = "GCP Project ID"
   type        = string
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.gcp_project_id))
+    error_message = "gcp_project_id still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "gcp_region" {
@@ -57,6 +62,11 @@ variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed for SSH access"
   type        = list(string)
   default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = alltrue([for v in var.allowed_ssh_cidrs : !can(regex("CHANGE_ME", v))])
+    error_message = "allowed_ssh_cidrs still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 # Compute Engine Variables
@@ -111,6 +121,11 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "postgres_version" {
@@ -229,6 +244,11 @@ variable "domain_name" {
   description = "Domain name for SSL certificate"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.domain_name))
+    error_message = "domain_name still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "lb_backend_timeout_sec" {
@@ -325,5 +345,10 @@ variable "common_tags" {
     "managed-by"  = "terraform"
     "team"        = "platform"
     "cost-center" = "engineering"
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }

@@ -256,7 +256,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # GCP Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "prod"
 cluster_name   = "nexus-iq-ha"

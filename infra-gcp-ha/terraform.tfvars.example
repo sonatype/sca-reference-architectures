@@ -1,5 +1,5 @@
 # GCP Project Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 
 # Availability zones for multi-zone deployment
@@ -16,7 +16,7 @@ private_subnet_cidrs = ["10.200.10.0/24", "10.200.11.0/24", "10.200.12.0/24"]
 db_subnet_cidr       = "10.200.20.0/24"
 
 # Security - SSH access (restrict to your IP range)
-allowed_ssh_cidrs = ["0.0.0.0/0"] # Change this to your IP range for security
+allowed_ssh_cidrs = ["CHANGE_ME/32"] # the range allowed to SSH to the instances
 
 # Nexus IQ Server Configuration
 iq_docker_image = "sonatype/nexus-iq-server:latest"
@@ -33,7 +33,7 @@ iq_target_instances = 3 # Initial target
 # Database Configuration
 db_name     = "nexusiq"
 db_username = "nexusiq"
-db_password = "your-secure-database-password" # Change this!
+db_password = "CHANGE_ME_STRONG_PASSWORD" # Change this!
 
 # Database settings
 postgres_version     = "POSTGRES_18"
