@@ -87,7 +87,7 @@ storage_account_replication_type = "ZRS"
 | **L** | Standard HDD | SMB 3.0 | ZRS | 1,536 GB |
 | **XL** | Premium SSD | SMB | ZRS | 4,096 GB, billed as provisioned |
 
-> Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
+> Standard HDD is the default recommendation. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
 
 ---
 
