@@ -26,6 +26,10 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 ### Recommended `terraform.tfvars` by Size
 
+> **Heap dumps.** At M, L and XL the first out-of-memory error writes a heap dump to
+> `/sonatype-work/heap-dump.hprof` and the JVM exits; a later one skips the dump while that file
+> exists, so delete it to allow another.
+
 <details>
 <summary><strong>Size XS</strong> — Extra Small (< 500 applications)</summary>
 
@@ -480,7 +484,10 @@ Your IAM user/role needs these AWS service permissions:
    ./tf-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash

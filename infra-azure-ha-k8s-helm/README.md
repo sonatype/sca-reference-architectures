@@ -20,9 +20,10 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 6 GB of `110Gi`.
 
-> **Heap dumps.** `javaOpts` writes a heap dump to `/sonatype-work/clm-cluster/heap-dump.hprof`, which
-> is on the Azure Files share. The pod's own disk is the node's OS disk, `node_disk_size` GB, which
-> cannot hold a 48 GB dump.
+> **Heap dumps.** At M, L and XL the first out-of-memory error in any pod writes a heap dump to
+> `/sonatype-work/clm-cluster/heap-dump.hprof`, one file on the Azure Files share, and the JVM exits;
+> a later one skips the dump while that file exists, so delete it to allow another. The pod's own
+> disk is the node's OS disk, `node_disk_size` GB, which cannot hold a 48 GB dump.
 
 > **ARM instances recommended.** Eps_v6 costs less on demand than Esv7, the x86 type the tables above give.
 
@@ -292,7 +293,10 @@ Your Azure account needs permissions for these services:
    ./tf-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash

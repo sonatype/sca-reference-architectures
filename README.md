@@ -162,6 +162,10 @@ terraform init
 ./tf-apply.sh   # Deploy infrastructure
 ```
 
+On GCP the scripts are `./gcp-plan.sh` and `./gcp-apply.sh` in `infra-gcp`, and `./gcp-ha-plan.sh` and
+`./gcp-ha-apply.sh` in `infra-gcp-ha`. Every plan script stops if an uncommented line in
+`terraform.tfvars` still holds `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too.
+
 For **Kubernetes deployments**, also run:
 
 ```bash
@@ -664,6 +668,8 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 -XX:+ExitOnOutOfMemoryError
 -Dinsight.threads.monitor=10
 ```
+
+The first out-of-memory error writes a heap dump to that file and the JVM exits; a later one skips the dump while the file exists, so delete it to allow another. The Kubernetes architectures name `/sonatype-work/clm-cluster/heap-dump.hprof`, because only that directory is on the shared storage in a pod.
 
 | Size | Instance Memory | Recommended Heap (-Xms/-Xmx) | MaxDirectMemory | CM Threads |
 |------|:--------------:|:----------------------------:|:---------------:|:----------:|
