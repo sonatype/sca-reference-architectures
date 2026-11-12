@@ -177,7 +177,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
-| **Deployment type** | Single Instance or HA | HA required | HA required |
+| **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
 | Instance type | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM, r8g or newer) or r8i.4xlarge (x86) |
@@ -209,7 +209,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
-| **Deployment type** | Single Instance or HA | HA required | HA required |
+| **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
 | Instance type | Standard_E8ps_v6 (ARM) or Standard_E8_v5 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8_v5 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16_v5 (x86) |
@@ -242,7 +242,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
-| **Deployment type** | Single Instance or HA | HA required | HA required |
+| **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
 | Machine type | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-16 (ARM Google Axion) |
