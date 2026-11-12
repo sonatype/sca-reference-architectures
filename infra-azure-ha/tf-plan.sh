@@ -79,7 +79,8 @@ fi
 
 echo -e "${GREEN}✅ Configuration validated${NC}"
 
-MIN_REPLICAS=$(grep '^iq_min_replicas' terraform.tfvars | grep -o '[0-9]\+' || echo "0")
+MIN_REPLICAS=$(sed -n 's/^iq_min_replicas *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+MIN_REPLICAS=${MIN_REPLICAS:-0}
 DB_HA_MODE=$(grep '^db_high_availability_mode' terraform.tfvars | cut -d'"' -f2 || echo "")
 STORAGE_REPLICATION=$(grep '^storage_account_replication_type' terraform.tfvars | cut -d'"' -f2 || echo "")
 
