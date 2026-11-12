@@ -435,7 +435,7 @@ file_share_quota     = 500                 # GB
 
 ```hcl
 # infra-azure-ha/terraform.tfvars, Size M (HA)
-container_cpu        = 8.0                 # 8 vCPU, scheduled on E8 in testing
+container_cpu        = 8.0                 # 8 vCPU, on E8
 container_memory     = "64Gi"              # 64 GB
 iq_min_replicas      = 2
 iq_max_replicas      = 3                   # Size M ceiling

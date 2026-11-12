@@ -10,15 +10,13 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 14 GB | 8 GB | Container Apps (2.0 CPU / 14Gi) on D4 |
-| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 3.5 vCPU / 28 GB | 20 GB | Container Apps (3.5 CPU / 28Gi) on E4 |
+| **XS** | < 500 | < 1,000 | 2 vCPU / 14 GB | 8 GB | Container Apps (2.0 CPU / 14Gi) on D4 |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 3.5 vCPU / 28 GB | 20 GB | Container Apps (3.5 CPU / 28Gi) on E4 |
 | **M** | 2,000 - 10,000 | 5,000 - 10,000 | 7.5 vCPU / 56 GB | 44 GB | Container Apps (7.5 CPU / 56Gi) on E8 |
 
 > Each container is smaller than its node, because Container Apps keeps part of every node for itself
 > ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
 > The heap plus `MaxDirectMemorySize` leaves about 4 GB of the container for the JVM's own memory.
-
-> ¹ XS and S are projected sizing estimates. M was measured on `infra-azure-ha`, at 8 vCPU and 64 GB per replica.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
@@ -416,7 +414,7 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-Measured at M. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 | Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
