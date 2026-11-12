@@ -390,7 +390,7 @@ db_disk_size         = 128                 # GB
 
 #### Size M — Medium (2,000 – 10,000 applications)
 
-Production deployment supporting 5,000-10,000 evaluations/day. Single instance or HA (2 nodes).
+Production deployment supporting 5,000-10,000 evaluations/day. HA (2 nodes) is recommended. A single instance fits only where downtime for upgrades and restarts is acceptable.
 
 **AWS (ECS Fargate — Single Instance):**
 ```hcl
