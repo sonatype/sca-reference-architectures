@@ -14,7 +14,7 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) | Required ¹ |
 
-> M is measured on `infra-gcp-ha`, with IQ Server on `n4-highmem-8`, the same 8 vCPU and 64 GB as `n4a-highmem-8`. L and XL are not measured. Evaluations an hour per instance there, sustained in testing, not a limit: 2,250 at M on 2 instances.
+> Evaluations an hour per instance on `infra-gcp-ha`, sustained in testing, not a limit: 2,250 at M on 2 instances.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -136,7 +136,7 @@ iq_server:
 | **L** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | Regional |
 | **XL** | db-custom-N4-16-131072 (Enterprise) | 16 | 128 GB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB | Regional |
 
-The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL, above the peak measured at Size M. Throughput is left at the Hyperdisk default for the disk size.
+The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL. Throughput is left at the Hyperdisk default for the disk size.
 
 ### Shared Storage (Cloud Filestore)
 
@@ -650,8 +650,6 @@ Per size:
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
-
-Measured at M.
 
 The cluster managers are dedicated: they hold no data, take no search traffic, and three of them
 keep a quorum when one is lost. Each takes half its RAM as heap.

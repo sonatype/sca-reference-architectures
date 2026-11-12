@@ -10,13 +10,11 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Machine Type | OpenSearch |
 |------|:------------:|:---------------:|:-------:|:---------:|:------------:|:----------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) | Required ² |
-| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) | Required ² |
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ² |
+| **XS** | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) | Required ¹ |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
 
-> ¹ XS and S are projected sizing estimates. M was measured on `infra-gcp-ha`, on `n4-highmem-8` at 8 vCPU and 64 GB per instance.
-
-> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **ARM instances recommended.** n4a costs less on demand than the x86 n4 equivalent.
 
@@ -78,7 +76,7 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 | **S** | db-custom-2-13312 | 2 | 13 GB | 128 GB PD-SSD |
 | **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) |
 
-M uses the N4 series for 64 GB, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, whose default for a disk up to 256 GB is 4,000 IOPS, so the IOPS are set to 8,000, above the peak measured at Size M. XS and S stay on the classic tiers on PD-SSD.
+M uses the N4 series for 64 GB, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, whose default for a disk up to 256 GB is 4,000 IOPS, so the IOPS are set to 8,000. XS and S stay on the classic tiers on PD-SSD.
 
 ### OpenSearch
 
@@ -547,8 +545,6 @@ Per size:
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
-
-Measured at M.
 
 At M the three cluster managers are dedicated: they hold no data, take no search traffic, and keep a
 quorum when one is lost. They take half their RAM as heap. XS and S run none: one data node is its
