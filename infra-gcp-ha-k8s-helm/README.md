@@ -571,11 +571,10 @@ outputs, and the Helm chart renders the result as `config.yml` in every pod:
 ```
 
 - **`type: http` with basic auth.** A user name and password are how the pods authenticate.
-- **`mode: OPENSEARCH`.** Left out, it defaults to `HYBRID`, which also writes every batch to the
-  built-in index.
-- **`nexusOne.connection`.** The Nexus One index reads its connection, and `nexusOneIndexReplicas`,
-  from this block alone. Without it, enabling the `nexus-one` feature is refused.
-- **`nexusOneIndexReplicas`.** Left out, it is 1.
+- **`mode: OPENSEARCH`.** Written out rather than left to the default.
+- **`nexusOne.connection`.** The Nexus One index needs its own connection block naming the same
+  cluster, and it carries `nexusOneIndexReplicas`.
+- **`nexusOneIndexReplicas`.** Set from `opensearch_index_replicas`.
 
 **Keep the two markers.** With `search_engine = "lucene"`, `helm-install.sh` deletes everything
 between them so the deployment has no `search:` or `nexusOne:` block at all, which is how the built-in index stays
@@ -648,7 +647,7 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
 
-M is measured, on 1 shard per index with `c4a-standard-2` cluster managers. L, XL, and at M the 3 shards and the `c4a-standard-1` cluster managers, are not.
+Measured at M.
 
 The cluster managers are dedicated: they hold no data, take no search traffic, and three of them
 keep a quorum when one is lost. Each takes half its RAM as heap.
@@ -673,7 +672,7 @@ Google describes the load balancer in
 [Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
-Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
+Shard counts are not set in `config.yml`, and only take effect when
 an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
 [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
@@ -702,20 +701,16 @@ EOT
 
 After `terraform apply`, `helm-install.sh` or `helm-upgrade.sh` stores it in the Kubernetes
 Secret `nexus-iq-opensearch-ca` and keeps the two blocks between the `# opensearch-ca-begin` and
-`# opensearch-ca-end` markers in `helm-values.yaml`. Those give each pod the certificate as the
-`OPENSEARCH_CA_PEM` environment variable, read from the Secret, and a start command that copies
-the image's JVM trust store to `/tmp/opensearch-cacerts`, adds the authority with the image's own
-`keytool`, adds `-Djavax.net.ssl.trustStore` to `JAVA_OPTS`, and then runs the image's own start
-script. Without a certificate both blocks are deleted, and the pods run the image's default
-command. Keep the markers. To change the certificate, apply, run `helm-upgrade.sh`, and restart
+`# opensearch-ca-end` markers in `helm-values.yaml`. Those give each pod the certificate, which it adds to a copy of its JVM trust store at start.
+Without a certificate both blocks are deleted. Keep the markers.
+
+To change the certificate, apply, run `helm-upgrade.sh`, and restart
 the pods with `kubectl rollout restart deployment -n nexus-iq`, since a pod reads the Secret only
 when it starts.
 
-The Secret reaches the pod as an environment variable rather than a mounted file, so the pod
-needs no extra volume and nothing has to be added to `javaOpts`.
+Nothing has to be added to `javaOpts`.
 
-**`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
-takes either one. The cost is that the basic auth password is sent unencrypted on every request.
+**`http` is accepted too**, and skips all of the above. The cost is that the basic auth password is sent unencrypted on every request.
 **Use `https`.** The copy above is one variable, and a password on the wire is permanent.
 `http` is reasonable only for a short evaluation on a private network you control.
 
@@ -779,9 +774,7 @@ None of this is handled by this configuration, and all of it has to be handled b
 ### Rebuilding the index
 
 Switching `search_engine` to `"opensearch"` points the pods at an empty cluster. The index is built
-from the Nexus IQ Server administration pages, not by Terraform and not by Helm, and the build reads
-the whole database, so run it when the deployment is otherwise quiet. One pod performs the build and
-the rest read the result.
+from the Nexus IQ Server administration pages, not by Terraform and not by Helm. Run it when the deployment is otherwise quiet. At M and above, set the shard counts first, with the request in [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 ## Security Features
 

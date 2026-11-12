@@ -513,8 +513,7 @@ design.
 ## Advanced Search with OpenSearch
 
 Sonatype IQ Server can keep its Advanced Search index in OpenSearch instead of the embedded Lucene
-index. Pointing it at OpenSearch is what turns the Nexus One index on: the `search:` block alone does
-it, and no other configuration key is involved.
+index, and the same cluster serves the Nexus One index.
 
 **OpenSearch here is a cluster you run yourself on Azure Virtual Machines.** This configuration does
 not build it: you supply its endpoint and credentials, so its indexed data is independent of
@@ -542,7 +541,7 @@ opensearch_index_replicas = 1
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, and also written to Key Vault beside the four database secrets. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. 0 to 10 |
 | `opensearch_ca_pem` | `""` | Base64 certificate of a private authority that signed the cluster's certificate. The entrypoint adds it to a copy of the JVM trust store, see below |
 
 Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` has no
@@ -566,25 +565,19 @@ nexusOne:
     nexusOneIndexReplicas: 1
 ```
 
-The two credentials are single-quoted, and the entrypoint appends them with `printf` rather than
-substituting them into the template with `sed`. A single-quoted YAML scalar is literal, so a `|`,
-`&`, `\` or ` #` in the password is only that character, and nothing in the value can change the
-file's structure. The one character YAML gives meaning to inside single quotes is `'` itself, which
-doubles. The entrypoint also prints the generated file with every `password:` line redacted, so
-neither credential reaches Log Analytics.
+The two credentials are single-quoted, so any character is safe in the password, and the startup
+output redacts every `password:` line, so neither credential reaches Log Analytics.
 
 Three things about that block are deliberate:
 
-- **`type: http` with basic auth.** A user name and a password are mandatory on this type, and IQ
-  Server refuses to start without them.
-- **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
-  every batch to the embedded Lucene index as well and cannot revert an index generation.
-- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
-  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
+- **`type: http` with basic auth.** A user name and a password are required on this type.
+- **`mode: OPENSEARCH` is written explicitly**, rather than left to the default.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index needs its own
+  connection block, and it carries `nexusOneIndexReplicas`.
 
 ### Specifying the cluster
 
-M and L are measured, M on 1 shard per index. XL and the 3 shards at M are not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+Measured at M and L. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
@@ -600,7 +593,7 @@ Premium SSD is billed and performs by fixed tiers, so each storage figure sits o
 at or above it.
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
-Shard counts are held in IQ Server's database, not in `config.yml`, and only take effect when an
+Shard counts are not set in `config.yml`, and only take effect when an
 index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
 [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 

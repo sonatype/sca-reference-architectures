@@ -573,8 +573,7 @@ shared by design.
 ## Advanced Search with OpenSearch
 
 Sonatype IQ Server can keep its Advanced Search index in OpenSearch instead of the embedded Lucene
-index. Pointing it at OpenSearch is what turns the Nexus One index on: the `search:` block alone does
-it, and no other configuration key is involved.
+index, and the same cluster serves the Nexus One index.
 
 **OpenSearch here is a cluster you run yourself on Azure Virtual Machines.** This configuration does
 not build it: you supply its endpoint and credentials, so its indexed data is independent of
@@ -583,8 +582,7 @@ Terraform runs here.
 ### Turning it on
 
 Set these in `terraform.tfvars`. **`helm-install.sh` and `helm-upgrade.sh` read them out of that
-file**, through the shared `search-values.sh`, so they see only what is written there and never a
-variable default. Write every one of them:
+file** and never use a variable default, so write every one of them:
 
 ```hcl
 search_engine             = "opensearch"
@@ -604,7 +602,7 @@ opensearch_index_replicas = 1
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Bounds-checked 0 to 10 by IQ Server |
+| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. 0 to 10 |
 
 Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` has no
 `search:` block.
@@ -612,11 +610,8 @@ Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.
 ### What reaches IQ Server's configuration
 
 IQ Server's configuration on this root comes from `helm-values.yaml` rather than from Terraform, so
-`helm-install.sh` and `helm-upgrade.sh` append the block to `helm-values-runtime.yaml` under
-`iq_server.config:`. Both call `write_search_block` in `search-values.sh`, so an upgrade writes the
-same block an install writes. An upgrade rebuilds that file from `helm-values.yaml` and passes no
-`--reuse-values`, so without that shared step the block would be absent from the upgraded release and
-IQ Server would fall back to Lucene:
+`helm-install.sh` and `helm-upgrade.sh` both append the block to `helm-values-runtime.yaml` under
+`iq_server.config:`, so an upgrade keeps it:
 
 ```yaml
 iq_server:
@@ -638,29 +633,21 @@ iq_server:
         nexusOneIndexReplicas: 1
 ```
 
-The two credentials are single-quoted, and `write_search_block` appends them with `printf` through a
-file rather than through an `awk -v` assignment. A single-quoted YAML scalar is literal, so a `|`,
-`&`, `\` or ` #` in the password is only that character, and nothing in the value can change the
-file's structure. The one character YAML gives meaning to inside single quotes is `'` itself, which
-doubles.
+The two credentials are single-quoted, so any character is safe in the password.
 
-**Nothing about it is committed to `helm-values.yaml`.** That file is rewritten by a `sed` whose
-`password: ""` pattern carries no line anchor, so a committed OpenSearch password key would be
-overwritten with the database password. The block is appended after that `sed` runs, for the same
-reason.
+**Do not add OpenSearch keys to `helm-values.yaml`.** The scripts write the block at install and
+upgrade time.
 
 Three things about that block are deliberate:
 
-- **`type: http` with basic auth.** A user name and a password are mandatory on this type, and IQ
-  Server refuses to start without them.
-- **`mode: OPENSEARCH` is written explicitly.** Omitting `mode` defaults to `HYBRID`, which writes
-  every batch to the embedded Lucene index as well and cannot revert an index generation.
-- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index builds its
-  connection from this block alone, and `nexusOneIndexReplicas` is read from it.
+- **`type: http` with basic auth.** A user name and a password are required on this type.
+- **`mode: OPENSEARCH` is written explicitly**, rather than left to the default.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index needs its own
+  connection block, and it carries `nexusOneIndexReplicas`.
 
 ### Specifying the cluster
 
-M and L are measured, M on 1 shard per index. XL and the 3 shards at M are not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+Measured at M and L. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 This root covers M, L and XL, so the XS and S rows are in the single-instance root's README instead.
@@ -675,7 +662,7 @@ Premium SSD is billed and performs by fixed tiers, so each storage figure sits o
 at or above it.
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
-Shard counts are held in IQ Server's database, not in `config.yml`, and only take effect when an
+Shard counts are not set in `config.yml`, and only take effect when an
 index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
 [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
