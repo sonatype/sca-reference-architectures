@@ -102,6 +102,7 @@ write_search_block() {
         printf '    nexusOne:\n'
         printf '      connection:\n'
         printf '        type: http\n'
+        printf '        mode: OPENSEARCH\n'
         printf "        uri: '%s'\n" "$uri"
         printf "        username: '%s'\n" "$user"
         printf "        password: '%s'\n" "$pass"
