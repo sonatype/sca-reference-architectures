@@ -366,7 +366,7 @@ Set these in `terraform.tfvars`:
 
 ```hcl
 search_engine             = "opensearch"
-opensearch_endpoint       = "opensearch.internal.example.com"
+opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 opensearch_port           = 9200
 opensearch_use_tls        = true
 opensearch_username       = "iq-server"

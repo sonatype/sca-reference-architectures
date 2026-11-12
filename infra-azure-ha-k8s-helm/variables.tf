@@ -305,6 +305,11 @@ variable "opensearch_endpoint" {
   description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_port" {
@@ -335,6 +340,11 @@ variable "opensearch_password" {
   type        = string
   default     = ""
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_password))
+    error_message = "opensearch_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_index_replicas" {
@@ -353,4 +363,9 @@ variable "common_tags" {
   description = "Extra tags merged into every resource this root creates, on top of the four it sets itself: project, Environment, ManagedBy and Purpose. A key you supply overrides the one of those it matches, which is why project is lowercase here: Azure treats tag names as case-insensitive, so a map holding both Project and project would send one name twice. Put the values in terraform.tfvars, which is gitignored, rather than in terraform.tfvars.example."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }

@@ -307,6 +307,11 @@ variable "opensearch_endpoint" {
   description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_port" {
@@ -337,18 +342,33 @@ variable "opensearch_password" {
   type        = string
   default     = ""
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_password))
+    error_message = "opensearch_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "container_registry_server" {
   description = "Login server of a private container registry holding iq_docker_image, for example myregistry.azurecr.io. Leave empty for an image on a public registry, which writes no registry block and no credential."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_server))
+    error_message = "container_registry_server still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "container_registry_username" {
   description = "User name the container app authenticates to the private registry with. Required when container_registry_server is set."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_username))
+    error_message = "container_registry_username still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "container_registry_password" {
@@ -356,6 +376,11 @@ variable "container_registry_password" {
   type        = string
   default     = ""
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_password))
+    error_message = "container_registry_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_ca_pem" {
