@@ -104,18 +104,10 @@ the cluster's lifecycle and its indexed data stay independent of this deployment
 cluster has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
 index.
 
-#### Seven indices in one shared cluster
-
-A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
-and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
-why a shard count can only be set when an index is created are the same on every cloud, so they are
-stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
-
 #### Replicas
 
 A replica is a full second copy of every shard, and it is what makes losing a data node
-survivable. This architecture writes `nexusOneIndexReplicas` itself. When IQ Server is not
-given a count, it uses 1:
+survivable. Set `opensearch_index_replicas` per size:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -123,15 +115,13 @@ given a count, it uses 1:
 | **S** | 1 | `0` |
 | **M** | 3 | `1` |
 
-The rules behind this, including what a yellow index does and does not mean and how to give the
-Advanced Search index a matching replica count, are in the
+Why XS and S use `0`, and how to give the Advanced Search index the same count, are in the
 [top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
-after the cutover, so the cluster holds twice the Nexus One shards and twice the Nexus One disk for the
-whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+A Nexus One index rebuild builds a complete second copy of the index beside the one serving, so the
+cluster holds twice the Nexus One disk while it runs. **Judge free storage against the doubled figure, not the
 steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
 a rebuild is not a backup, are in the
 [top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
@@ -483,11 +473,10 @@ nexusOne:
 ```
 
 - **`type: http` with basic auth.** A user name and password are how the server authenticates.
-- **`mode: OPENSEARCH`.** Left out, it defaults to `HYBRID`, which also writes every batch to the
-  built-in index.
-- **`nexusOne.connection`.** The Nexus One index reads its connection, and `nexusOneIndexReplicas`,
-  from this block alone. Without it, enabling the `nexus-one` feature is refused.
-- **`nexusOneIndexReplicas`.** Left out, it is 1.
+- **`mode: OPENSEARCH`.** Written out rather than left to the default.
+- **`nexusOne.connection`.** The Nexus One index needs its own connection block naming the same
+  cluster, and it carries `nexusOneIndexReplicas`.
+- **`nexusOneIndexReplicas`.** Set from `opensearch_index_replicas`.
 
 ### How the password reaches the server
 
@@ -553,7 +542,7 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
 
-M is measured, on 1 shard per index with `c4a-standard-2` cluster managers. XS, S, and at M the 3 shards and the `c4a-standard-1` cluster managers, are not.
+Measured at M.
 
 At M the three cluster managers are dedicated: they hold no data, take no search traffic, and keep a
 quorum when one is lost. They take half their RAM as heap. XS and S run none: one data node is its
@@ -581,7 +570,7 @@ Google describes the load balancer in
 [Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
-Shard counts are held in Nexus IQ Server's database, not in `config.yml`, and only take effect when
+Shard counts are not set in `config.yml`, and only take effect when
 an index is created, so **at M set them before the Nexus One index is first built**, with the request in
 [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
@@ -611,14 +600,13 @@ EOT
 Terraform stores it in a Secret Manager secret named `<cluster_name>-opensearch-ca`, or
 `nexus-iq-opensearch-ca` when `cluster_name` is left empty, which the
 instance reads at boot with the service account's existing `roles/secretmanager.secretAccessor`.
-The startup script mounts it into the container, and at every container start the entrypoint
-copies the image's JVM trust store to `/tmp/opensearch-cacerts`, adds the authority with the
-image's own `keytool`, and adds `-Djavax.net.ssl.trustStore` to `JAVA_OPTS`. Nothing has to be
-added to `java_opts`. To change the certificate, apply and then reset the instance, as for a
+At every container start it is added to a copy of the JVM trust store and the JVM is pointed at
+the copy, so nothing has to be added to `java_opts`.
+
+To change the certificate, apply and then reset the instance, as for a
 password rotation above, so the startup script reads the new secret version.
 
-**`http` is accepted too**, and skips all of the above. Nexus IQ Server validates the scheme and
-takes either one. The cost is that the basic auth password is sent unencrypted on every request.
+**`http` is accepted too**, and skips all of the above. The cost is that the basic auth password is sent unencrypted on every request.
 **Use `https`.** The copy above is one variable, and a password on the wire is permanent. `http`
 is reasonable only for a short evaluation on a private subnet you control.
 
@@ -680,8 +668,7 @@ None of this is handled by this configuration, and all of it has to be handled b
 ### Rebuilding the index
 
 Switching `search_engine` to `"opensearch"` points the server at an empty cluster. The index is
-built from the Nexus IQ Server administration pages, not by Terraform, and the build reads the whole
-database, so run it when the server is otherwise quiet.
+built from the Nexus IQ Server administration pages, not by Terraform. Run it when the server is otherwise quiet. At M, set the shard counts first, with the request in [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 ## Security Features
 

@@ -174,18 +174,10 @@ default is in [OpenSearch for the Nexus One Index](#opensearch-for-the-nexus-one
 here carries `prevent_destroy`, so `terraform destroy` stops rather than deleting your index; a domain
 you named stays independent of this deployment entirely.
 
-#### Seven indices in one shared cluster
-
-A deployment running both features holds **seven indices on one domain**: six for the Nexus One index
-and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
-why a shard count can only be set when an index is created are the same on every cloud, so they are
-stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
-
 #### Replicas
 
 A replica is a full second copy of every shard, and it is what makes losing a data node
-survivable. This architecture writes `nexusOneIndexReplicas` itself. When IQ Server is not
-given a count, it uses 1:
+survivable. Set `opensearch_index_replicas` per size:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -193,15 +185,13 @@ given a count, it uses 1:
 | **L** | 2 | `1` |
 | **XL** | 2 | `1` |
 
-The rules behind this, including what a yellow index does and does not mean and how to give the
-Advanced Search index a matching replica count, are in the
+Why XS and S use `0`, and how to give the Advanced Search index the same count, are in the
 [top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
-after the cutover, so the domain holds twice the Nexus One shards and twice the Nexus One disk for the
-whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+A Nexus One index rebuild builds a complete second copy of the index beside the one serving, so the
+domain holds twice the Nexus One disk while it runs. **Judge free storage against the doubled figure, not the
 steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
 a rebuild is not a backup, are in the
 [top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
@@ -246,11 +236,6 @@ opensearch_domain_name     = "CHANGE_ME-search-domain"
 IQ Server needs OpenSearch 3.x. A domain created here runs `OpenSearch_3.7`, set by
 `opensearch_engine_version`, the newest version Amazon OpenSearch Service offers as of November 2026.
 A domain you name should run 3.x as well.
-
-**On this architecture OpenSearch is the index that every pod shares.** The
-built-in index lives on each pod's own storage, so a set of replicas keeps a
-copy each and each copy is rebuilt separately. An OpenSearch domain is one
-index all the pods read and write.
 
 ### `terraform destroy` will not delete the domain
 
@@ -342,11 +327,7 @@ that file at install time:
    a chart with a literal placeholder in it.
 
 `helm-upgrade.sh` does the same. **Leave the placeholders inside that block
-alone.** Both scripts first substitute default values such as `hostname: ""`,
-`password: ""` and `region: "us-east-1"` across the whole file with no line
-anchor, for the database and for CloudWatch. A search key holding one of those
-defaults would be handed the database or CloudWatch value, so the block holds
-placeholders instead, and they are filled in after those substitutions run.
+alone**; the scripts fill them in.
 
 ### Domain shape per size
 
@@ -368,14 +349,12 @@ two private subnets, and the domain needs one subnet per zone, so two is the
 most it can spread across. Two nodes with one replica keeps a complete copy of
 the index in each zone, and a node count has to divide evenly by the zone count
 or AWS refuses the domain. Three zones needs a third private subnet in `main.tf`
-first; `opensearch.tf` refuses the plan rather than failing inside `slice()`.
+first.
 
 The data node types, masters, shards and replicas above are measured at every size, on three data
 nodes. The two-node domain here is not measured.
 
-**Storage holds more than one copy of the index.** A replica doubles it, a
-rebuild holds a second generation for the whole run and for 30 minutes after
-cutover, and AWS reserves 20% of each volume capped at 20 GiB. The figures
+**Storage holds more than one copy of the index.** A replica doubles it, a rebuild holds a second copy while it runs, and AWS reserves 20% of each volume capped at 20 GiB. The figures
 above allow for all three.
 
 ### Where the domain's own logs go
@@ -446,20 +425,18 @@ nexusOne:
 - **`type: aws`** signs every request with SigV4 through the pod's role.
   `type: http` always sends a user name and password, which a domain with
   fine-grained access control off has no way to check.
-- **`mode: OPENSEARCH`** is written out rather than left to default. The
-  default is `HYBRID`, which also writes every batch to the built-in index.
-- **`nexusOneIndexReplicas`** is always written. When IQ Server is not given a
-  count, it uses 1.
-- **`nexusOne.connection` repeats the same fields** because it is the only
-  block the Nexus One index reads. Without it, turning the feature on is refused.
+- **`mode: OPENSEARCH`** is written out rather than left to the default.
+- **`nexusOneIndexReplicas`** is always written, from `opensearch_index_replicas`.
+- **`nexusOne.connection` repeats the same fields**, because the Nexus One index
+  needs its own connection block naming the same domain.
 
-Shard counts are held in IQ Server's database, not in `config.yml`, and a
-shard count only takes effect when an index is created. **At M, L and XL, set
+Shard counts are not set in `config.yml`, and a shard count only takes
+effect when an index is created. **At M, L and XL, set
 the component, violation and vulnerability indices to 3 shards before the
 Nexus One index is first built**, with the request in
 [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
-The other Nexus One indices and the Advanced Search index keep 1 shard. An
+The other Nexus One indices keep 1 shard. An
 index built before the change keeps its count until it is rebuilt.
 
 ---
