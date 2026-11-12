@@ -28,6 +28,10 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 ### Recommended `terraform.tfvars` by Size
 
+> **Heap dumps.** At M, L and XL the first out-of-memory error on any node writes a heap dump to
+> `/sonatype-work/heap-dump.hprof`, one file on the shared storage, and the JVM exits; a later one
+> skips the dump while that file exists, so delete it to allow another.
+
 <details>
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
@@ -38,7 +42,7 @@ workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_min_replicas      = 2                   # 2 replicas for HA
 iq_max_replicas      = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 131072              # 128 GB, grows automatically
 db_high_availability_mode = "ZoneRedundant"
@@ -56,7 +60,7 @@ workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_min_replicas      = 2
 iq_max_replicas      = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 262144              # 256 GB, grows automatically
 db_storage_tier      = "P15"
@@ -77,7 +81,7 @@ workload_profile_type = "E16"              # 16 cores, 128 GB per node
 iq_min_replicas      = 3
 iq_max_replicas      = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
 db_storage_mb        = 524288              # 512 GB, grows automatically
 db_storage_tier      = "P20"
@@ -190,6 +194,13 @@ Install these tools on your local machine:
 - Ability to create: Resource Groups, Virtual Networks, Container Apps, PostgreSQL, Application Gateway
 - Key Vault access for secrets management
 - Zone-redundant resource support in target region (default: East US)
+- PostgreSQL Flexible Server cores are a quota per subscription and per region. Check the region's
+  usage before applying, and request a quota increase if the server's vCores do not fit. `az rest`
+  fills in `{subscriptionId}` from the signed-in account; replace `eastus` with the region's short name:
+
+  ```bash
+  az rest --method get --url "https://management.azure.com/subscriptions/{subscriptionId}/providers/Microsoft.DBforPostgreSQL/locations/eastus/resourceType/flexibleServers/usages?api-version=2024-08-01" --query "value[?name.value=='cores'].{used:currentValue, limit:limit}" -o table
+  ```
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
@@ -248,7 +259,10 @@ Your Azure account needs permissions for these services:
    ./tf-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash
@@ -342,7 +356,7 @@ workload_profile_type = "E8"  # 8 cores, 64 GB per node
 iq_min_replicas    = 2        # Minimum replicas, the Size L value (must be >= 2)
 iq_max_replicas    = 4        # Maximum replicas for auto-scaling, the Size L value
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
 scale_rule_concurrent_requests = 100  # Concurrent requests threshold for HTTP scaling
@@ -513,7 +527,7 @@ Set these in `terraform.tfvars`:
 
 ```hcl
 search_engine             = "opensearch"
-opensearch_endpoint       = "opensearch.internal.example.com"
+opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 opensearch_port           = 9200
 opensearch_use_tls        = true
 opensearch_username       = "iq-server"
@@ -673,7 +687,7 @@ cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /opt/sonatype/iq-truststor
 Then name the copy in `java_opts`, which this configuration passes to the container as `JAVA_OPTS`:
 
 ```hcl
-java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
 ```
 
 The store is part of the image, so every container started from it has it. It is kept out of

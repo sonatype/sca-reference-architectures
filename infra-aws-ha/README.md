@@ -24,6 +24,10 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 ### Recommended `terraform.tfvars` by Size
 
+> **Heap dumps.** At M, L and XL the first out-of-memory error on any node writes a heap dump to
+> `/sonatype-work/heap-dump.hprof`, one file on the shared storage, and the JVM exits; a later one
+> skips the dump while that file exists, so delete it to allow another.
+
 <details>
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
@@ -34,7 +38,7 @@ iq_desired_count     = 2                   # 2 nodes for HA
 iq_min_count         = 2
 iq_max_count         = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
 
@@ -57,7 +61,7 @@ iq_desired_count     = 3                   # 3 nodes recommended
 iq_min_count         = 2
 iq_max_count         = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
 
@@ -80,7 +84,7 @@ iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3
 iq_max_count         = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.4xlarge"   # 16 vCPU, 128 GB
 aurora_instances      = 2                  # Multi-AZ with automatic failover
 
@@ -198,8 +202,8 @@ To use a domain you already run, name it instead and nothing is created:
 
 ```hcl
 search_engine              = "opensearch"
-opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-opensearch_domain_name     = "my-domain"
+opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+opensearch_domain_name     = "CHANGE_ME-search-domain"
 ```
 
 **On this architecture OpenSearch is the index that every task shares.** The
@@ -497,7 +501,10 @@ Your IAM user/role needs these AWS service permissions:
    ./tf-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash
@@ -606,7 +613,7 @@ iq_max_count           = 4
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
 iq_memory_target_value = 80  # Memory target for auto scaling (%)
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
@@ -622,7 +629,7 @@ db_skip_final_snapshot     = true
 db_deletion_protection     = false
 
 # Load Balancer Configuration
-# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:CHANGE_ME:certificate/CHANGE_ME"
 alb_deletion_protection = false
 
 # Monitoring Configuration
@@ -635,8 +642,8 @@ log_retention_days       = 30
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.
 search_engine = "lucene"
-# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-# opensearch_domain_name     = "my-domain"
+# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "CHANGE_ME-search-domain"
 # opensearch_index_replicas  = 1
 ```
 

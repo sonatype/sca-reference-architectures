@@ -26,7 +26,6 @@ skip_final_snapshot     = false
 deletion_protection     = true
 
 # Nexus IQ Server Configuration
-nexus_iq_version       = "1.195.0"
 nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
@@ -85,15 +84,15 @@ search_engine = "lucene"
 # opensearch_create_log_resource_policy = false
 #
 # To use a domain you already run, set these two instead and nothing is created:
-# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-# opensearch_domain_name     = "my-domain"
+# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "CHANGE_ME-search-domain"
 
 # Extra tags on the search backend's resources. Keep the keys lowercase, since AWS
 # compares tag keys case-insensitively. Put real values in terraform.tfvars.
 # common_tags = {
-#   owner      = "REPLACE-ME@example.com"
-#   project    = "REPLACE-ME"
-#   subproject = "REPLACE-ME"
-#   department = "REPLACE-ME"
-#   team       = "REPLACE-ME"
+#   owner      = "CHANGE_ME_EMAIL"
+#   project    = "CHANGE_ME_PROJECT"
+#   subproject = "CHANGE_ME_SUBPROJECT"
+#   department = "CHANGE_ME_DEPARTMENT"
+#   team       = "CHANGE_ME_TEAM"
 # }

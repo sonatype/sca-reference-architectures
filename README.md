@@ -162,6 +162,10 @@ terraform init
 ./tf-apply.sh   # Deploy infrastructure
 ```
 
+On GCP the scripts are `./gcp-plan.sh` and `./gcp-apply.sh` in `infra-gcp`, and `./gcp-ha-plan.sh` and
+`./gcp-ha-apply.sh` in `infra-gcp-ha`. Every plan script stops if an uncommented line in
+`terraform.tfvars` still holds `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too.
+
 For **Kubernetes deployments**, also run:
 
 ```bash
@@ -438,7 +442,7 @@ ecs_cpu              = 8192                # 8 vCPU
 ecs_memory           = 61440              # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1                   # Single instance (or 2 for HA)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 128                 # GB, auto-scales to 500 GB
 ```
@@ -452,7 +456,7 @@ iq_desired_count     = 2                   # 2 nodes for HA
 iq_min_count         = 2                   # Minimum instances
 iq_max_count         = 3                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
 ```
@@ -464,7 +468,7 @@ container_cpu        = 7.5                 # 7.5 vCPU, leaving 0.5 of the node
 container_memory     = "56Gi"              # 56 GB, leaving 8 GB of the node
 workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 131072              # 128 GB, grows automatically
 file_share_quota     = 500                 # GB
@@ -477,7 +481,7 @@ container_memory     = "64Gi"              # 64 GB
 iq_min_replicas      = 2
 iq_max_replicas      = 3                   # Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 131072              # 128 GB, grows automatically
 file_share_quota_gb  = 500
@@ -490,7 +494,7 @@ file_share_quota_gb  = 500
 # infra-gcp names the machine type gce_machine_type; infra-gcp-ha names it instance_machine_type
 gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
 db_disk_provisioned_iops = 8000
 db_disk_size         = 128                 # GB, auto-resize to 500 GB
@@ -514,7 +518,7 @@ iq_desired_count     = 3                   # 3 nodes recommended
 iq_min_count         = 2                   # Minimum instances
 iq_max_count         = 4                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
 ```
@@ -541,7 +545,7 @@ container_memory     = "64Gi"              # 64 GB
 iq_min_replicas      = 2                   # Minimum 2 for HA
 iq_max_replicas      = 4                   # Scale up to 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 262144              # 256 GB, grows automatically
 db_storage_tier      = "P15"
@@ -557,7 +561,7 @@ iq_target_instances  = 3                   # 3 instances across zones
 iq_min_instances     = 2
 iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
 db_disk_provisioned_iops = 8000
 db_availability_type = "REGIONAL"          # Required for L
@@ -582,7 +586,7 @@ iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3                   # Minimum instances
 iq_max_count         = 5                   # Maximum instances
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.4xlarge"   # 16 vCPU, 128 GB
 aurora_instances      = 2                  # Multi-AZ with automatic failover
 ```
@@ -627,7 +631,7 @@ iq_target_instances  = 4                   # 4 instances across zones
 iq_min_instances     = 3
 iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
 db_disk_provisioned_iops = 10000
 db_availability_type = "REGIONAL"          # Required with automatic failover
@@ -668,10 +672,12 @@ Set Java heap to approximately **75% of available RAM**. The following `JAVA_OPT
 -XX:+UseG1GC
 -XX:+AlwaysPreTouch
 -XX:+HeapDumpOnOutOfMemoryError
--XX:HeapDumpPath=/sonatype-work/Java_Heap_logs
--XX:+CrashOnOutOfMemoryError
+-XX:HeapDumpPath=/sonatype-work/heap-dump.hprof
+-XX:+ExitOnOutOfMemoryError
 -Dinsight.threads.monitor=10
 ```
+
+The first out-of-memory error writes a heap dump to that file and the JVM exits; a later one skips the dump while the file exists, so delete it to allow another. The Kubernetes architectures name `/sonatype-work/clm-cluster/heap-dump.hprof`, because only that directory is on the shared storage in a pod.
 
 | Size | Instance Memory | Recommended Heap (-Xms/-Xmx) | MaxDirectMemory | CM Threads |
 |------|:--------------:|:----------------------------:|:---------------:|:----------:|

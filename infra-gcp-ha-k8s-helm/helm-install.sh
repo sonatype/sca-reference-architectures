@@ -142,6 +142,13 @@ REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
 rm -f "${TEMP_VALUES_FILE}.bak"
 
+# A CHANGE_ME from terraform.tfvars, such as the database password, stops the install here.
+if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
+    echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
+    grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+    exit 1
+fi
+
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
     exit 1

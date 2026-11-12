@@ -2,6 +2,11 @@
 variable "gcp_project_id" {
   description = "GCP Project ID"
   type        = string
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.gcp_project_id))
+    error_message = "gcp_project_id still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "gcp_region" {
@@ -57,6 +62,11 @@ variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed for SSH access"
   type        = list(string)
   default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = alltrue([for v in var.allowed_ssh_cidrs : !can(regex("CHANGE_ME", v))])
+    error_message = "allowed_ssh_cidrs still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 # Compute Engine Variables
@@ -111,6 +121,11 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "postgres_version" {
@@ -229,6 +244,11 @@ variable "domain_name" {
   description = "Domain name for SSL certificate"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.domain_name))
+    error_message = "domain_name still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "lb_backend_timeout_sec" {
@@ -272,7 +292,7 @@ variable "log_retention_days" {
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 variable "iq_log_levels" {
@@ -326,6 +346,11 @@ variable "common_tags" {
     "team"        = "platform"
     "cost-center" = "engineering"
   }
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 # Search Backend
@@ -356,6 +381,11 @@ variable "opensearch_endpoint" {
     # requires a value when search_engine is "opensearch".
     condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
     error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
+  }
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }
 
@@ -392,6 +422,11 @@ variable "opensearch_password" {
   type        = string
   default     = ""
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_password))
+    error_message = "opensearch_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_ca_certificate" {

@@ -20,8 +20,9 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 6 GB of `110Gi`.
 
-> **Heap dumps.** `helm-values.yaml` starts each pod with a heap dump directory of its own under
-> `heap-dumps` on the Azure Files share, which overrides the `HeapDumpPath` in `javaOpts`. The pod's own
+> **Heap dumps.** At M, L and XL the first out-of-memory error in any pod writes a heap dump to
+> `/sonatype-work/clm-cluster/heap-dump.hprof`, one file on the Azure Files share, and the JVM exits;
+> a later one skips the dump while that file exists, so delete it to allow another. The pod's own
 > disk is the node's OS disk, `node_disk_size` GB, which cannot hold a 48 GB dump.
 
 > **ARM instances recommended.** Eps_v6 costs less on demand than Esv7, the x86 type the tables above give.
@@ -55,7 +56,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -85,7 +86,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -117,7 +118,7 @@ iq_server:
     limits:
       cpu: "16"
       memory: "110Gi"
-  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -227,6 +228,13 @@ Install these tools on your local machine:
 - Ability to create: Resource Groups, Virtual Networks, AKS, PostgreSQL, Application Gateway
 - Sufficient vCPU quota (48+ vCPUs required for production HA setup)
 - Zone-redundant resource support in target region (default: East US)
+- PostgreSQL Flexible Server cores are a quota per subscription and per region. Check the region's
+  usage before applying, and request a quota increase if the server's vCores do not fit. `az rest`
+  fills in `{subscriptionId}` from the signed-in account; replace `eastus` with the region's short name:
+
+  ```bash
+  az rest --method get --url "https://management.azure.com/subscriptions/{subscriptionId}/providers/Microsoft.DBforPostgreSQL/locations/eastus/resourceType/flexibleServers/usages?api-version=2024-08-01" --query "value[?name.value=='cores'].{used:currentValue, limit:limit}" -o table
+  ```
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
@@ -285,7 +293,10 @@ Your Azure account needs permissions for these services:
    ./tf-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash
@@ -416,7 +427,6 @@ app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
 # Nexus IQ Server HA Configuration
-nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
@@ -578,7 +588,7 @@ variable default. Write every one of them:
 
 ```hcl
 search_engine             = "opensearch"
-opensearch_endpoint       = "opensearch.internal.example.com"
+opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 opensearch_port           = 9200
 opensearch_use_tls        = true
 opensearch_username       = "iq-server"
@@ -748,7 +758,7 @@ This root declares no `java_opts` variable, so the value is edited in that file:
 
 ```yaml
 iq_server:
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
 ```
 
 The store is part of the image, so every pod started from it has it. The chart mounts the Azure

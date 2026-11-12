@@ -158,11 +158,6 @@ resource "azurerm_container_app" "iq_app_ha" {
 
           echo "Creating unique work directory: $UNIQUE_WORK"
           mkdir -p "$UNIQUE_WORK"
-          # Every replica would otherwise dump into one directory on the share, and the
-          # JVM does not overwrite a dump of the same name. The JVM takes the last
-          # HeapDumpPath, so this one wins over the one in java_opts.
-          mkdir -p "$UNIQUE_WORK/Java_Heap_logs"
-          export JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=$UNIQUE_WORK/Java_Heap_logs"
 
           echo "Creating shared cluster directory: $CLUSTER_DIR"
           mkdir -p "$CLUSTER_DIR"

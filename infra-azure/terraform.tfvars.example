@@ -18,7 +18,7 @@ container_cpu         = 7.5
 container_memory      = "56Gi"
 workload_profile_type = "E8"
 iq_docker_image       = "sonatype/nexus-iq-server:latest"
-java_opts             = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts             = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                          = "nexusiq"
@@ -51,7 +51,7 @@ key_vault_sku_name = "standard"
 # README.md gives the cluster specification and the private certificate authority steps.
 search_engine = "lucene"
 
-# opensearch_endpoint       = "opensearch.internal.example.com"
+# opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port           = 9200
 # opensearch_use_tls        = true
 # opensearch_username       = "iq-server"

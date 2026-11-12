@@ -141,6 +141,14 @@ if ! write_search_block "$TEMP_VALUES_FILE"; then
     exit 1
 fi
 
+# A CHANGE_ME from terraform.tfvars, such as the database password, stops the install here.
+if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
+    echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
+    grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    exit 1
+fi
+
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     echo "• Search backend: OpenSearch at $SEARCH_URI"
 else
