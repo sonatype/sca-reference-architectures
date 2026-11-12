@@ -433,7 +433,7 @@ container_cpu        = 7.5                 # 7.5 vCPU, leaving 0.5 of the node
 container_memory     = "56Gi"              # 56 GB, leaving 8 GB of the node
 workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
 db_storage_mb        = 131072              # 128 GB, grows automatically
 file_share_quota     = 500                 # GB

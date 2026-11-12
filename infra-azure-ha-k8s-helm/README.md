@@ -18,9 +18,9 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 6 GB of `110Gi`.
 
-> **Heap dumps.** `helm-values.yaml` starts each pod with a heap dump directory of its own under
-> `heap-dumps` on the Azure Files share, which overrides the `HeapDumpPath` in `javaOpts`. The pod's own
-> disk is the node's OS disk, `node_disk_size` GB, which cannot hold a 48 GB dump.
+> **Heap dumps.** `javaOpts` writes a heap dump to `/sonatype-work/clm-cluster/heap-dump.hprof`, which
+> is on the Azure Files share. The pod's own disk is the node's OS disk, `node_disk_size` GB, which
+> cannot hold a 48 GB dump.
 
 > **ARM instances recommended.** Eps_v6 costs less on demand than Esv7, the x86 type the tables above give.
 
@@ -53,7 +53,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -83,7 +83,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -115,7 +115,7 @@ iq_server:
     limits:
       cpu: "16"
       memory: "110Gi"
-  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -680,7 +680,7 @@ This root declares no `java_opts` variable, so the value is edited in that file:
 
 ```yaml
 iq_server:
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
 ```
 
 The store is part of the image, so every pod started from it has it. The chart mounts the Azure

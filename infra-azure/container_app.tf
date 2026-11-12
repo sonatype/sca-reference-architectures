@@ -94,9 +94,6 @@ resource "azurerm_container_app" "iq_app" {
         "-c",
         <<-EOF
           set -e
-          # HeapDumpPath in java_opts names a directory, and the JVM writes the
-          # dump as a file of that name when the directory is missing.
-          mkdir -p /sonatype-work/Java_Heap_logs
           echo "Creating config.yml in proper /etc/nexus-iq-server location"
 
 
