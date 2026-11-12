@@ -70,9 +70,10 @@ echo ""
 echo -e "${BLUE}🔍 Configuration Validation${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if grep -q "CHANGE_ME" terraform.tfvars 2>/dev/null; then
+# Commented lines are skipped, so the example's commented settings can stay as they are.
+if grep -v '^[[:space:]]*#' terraform.tfvars | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: Found placeholder values${NC}"
-    grep "CHANGE_ME" terraform.tfvars || true
+    grep -n "CHANGE_ME" terraform.tfvars | grep -v '^[0-9]*:[[:space:]]*#' || true
     exit 1
 fi
 

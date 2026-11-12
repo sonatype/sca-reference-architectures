@@ -1,5 +1,5 @@
 # GCP Project Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 
 # Availability zones for multi-zone deployment
@@ -21,10 +21,10 @@ private_subnet_cidrs = ["10.200.10.0/24", "10.200.11.0/24", "10.200.12.0/24"]
 db_subnet_cidr       = "10.200.20.0/24"
 
 # Security - SSH access (restrict to your IP range)
-allowed_ssh_cidrs = ["0.0.0.0/0"] # Change this to your IP range for security
+allowed_ssh_cidrs = ["CHANGE_ME/32"] # the range allowed to SSH to the instances
 
 # Nexus IQ Server Configuration
-iq_docker_image = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image = "sonatype/nexus-iq-server:latest"
 
 # Compute Engine Instance Configuration
 instance_machine_type = "n4a-highmem-8" # 8 vCPU, 64 GB (ARM)
@@ -38,7 +38,7 @@ iq_target_instances = 3 # Initial target
 # Database Configuration
 db_name     = "nexusiq"
 db_username = "nexusiq"
-db_password = "your-secure-database-password" # Change this!
+db_password = "CHANGE_ME_STRONG_PASSWORD" # Change this!
 
 # Database settings
 postgres_version     = "POSTGRES_18"
@@ -76,7 +76,7 @@ scale_in_cooldown_seconds  = 300 # 5 minutes
 scale_out_cooldown_seconds = 60  # 1 minute
 
 # Java Configuration
-java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Logging
 log_retention_days = 30
@@ -125,7 +125,7 @@ search_engine = "lucene"
 # db_max_disk_size      = 500   # the Size L value above is 1000
 # filestore_tier        = "BASIC_HDD"
 # filestore_capacity_gb = 1024                # 1 TiB
-# java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Size XL:
 # instance_machine_type = "n4a-highmem-16"     # 16 vCPU, 128 GB (ARM)
@@ -138,4 +138,4 @@ search_engine = "lucene"
 # db_max_disk_size      = 2000  # the Size L value above is 1000
 # filestore_tier        = "BASIC_HDD"
 # filestore_capacity_gb = 10240                # 10 TiB
-# java_opts             = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# java_opts             = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"

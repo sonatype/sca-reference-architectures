@@ -30,8 +30,6 @@ iq_server:
       effect: "NoSchedule"
 
   env:
-    - name: NXIQ_DATABASE_MIGRATION
-      value: "true"
     - name: CLUSTER_DIRECTORY
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
