@@ -117,12 +117,12 @@ create_tfvars_template() {
         print_status "Creating terraform.tfvars template..."
         cat > "$TFVARS_FILE" << 'EOF'
 # GCP Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "dev"
 
 # Database Configuration
-db_password = "change-me-secure-password"
+db_password = "CHANGE_ME_STRONG_PASSWORD"
 
 # Network Configuration (optional - defaults will be used if not specified)
 # vpc_cidr              = "10.100.0.0/16"
@@ -133,16 +133,16 @@ db_password = "change-me-secure-password"
 
 # SSL/TLS Configuration
 enable_ssl = true
-# domain_name = "nexus-iq.example.com"
+# domain_name = "CHANGE_ME-nexus-iq.example.com"
 
 # Security Configuration
 enable_cloud_armor = true
 # blocked_countries = ["CN", "RU"]
-# ssh_source_ranges = ["YOUR_IP/32"]
+# ssh_source_ranges = ["CHANGE_ME/32"]
 
 # Monitoring Configuration
 enable_monitoring_alerts = true
-# alert_email_addresses = ["admin@example.com"]
+# alert_email_addresses = ["CHANGE_ME_EMAIL"]
 # slack_webhook_url = "https://hooks.slack.com/services/..."
 
 # Storage Configuration
@@ -160,6 +160,15 @@ EOF
     fi
 }
 
+# Function to stop on any CHANGE_ME placeholder left in a setting. Commented lines are skipped.
+check_placeholders() {
+    if grep -v '^[[:space:]]*#' "$TFVARS_FILE" | grep -q "CHANGE_ME"; then
+        print_error "terraform.tfvars still has CHANGE_ME placeholders:"
+        grep -n "CHANGE_ME" "$TFVARS_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+        exit 1
+    fi
+}
+
 # Function to validate terraform.tfvars
 validate_tfvars() {
     print_status "Validating terraform.tfvars configuration..."
@@ -173,7 +182,7 @@ validate_tfvars() {
         fi
         
         local value=$(grep "^${var}[[:space:]]*=" "$TFVARS_FILE" | cut -d'"' -f2)
-        if [[ -z "$value" ]] || [[ "$value" == "your-gcp-project-id" ]] || [[ "$value" == "change-me-secure-password" ]]; then
+        if [[ -z "$value" ]]; then
             print_error "Please set a proper value for '$var' in terraform.tfvars"
             exit 1
         fi
@@ -409,6 +418,9 @@ main() {
     
     # Create tfvars template if it doesn't exist
     create_tfvars_template
+    
+    # Runs even with --skip-validation
+    check_placeholders
     
     # Validate tfvars
     if [[ "$SKIP_VALIDATION" != "true" ]]; then

@@ -49,7 +49,7 @@ helm_chart_version      = "201.0.0"
 # you run yourself; build it to README.md, "Search Backend".
 search_engine = "lucene"
 
-# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"

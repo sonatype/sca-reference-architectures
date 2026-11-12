@@ -276,7 +276,7 @@ domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"
-# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
@@ -356,7 +356,7 @@ not create one, so switching `search_engine` never destroys an index.
 
 ```hcl
 search_engine                       = "opensearch"
-opensearch_endpoint                 = "opensearch.internal.example.com"  # host only, no scheme
+opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"  # host only, no scheme
 opensearch_port                     = 9200
 opensearch_use_tls                  = true
 opensearch_username                 = "nexusiq"
@@ -557,7 +557,7 @@ keystore, so check with `./bin/opensearch-keystore list | grep credentials_file`
 or a snapshot fails with a 403 that looks like an authentication problem and is not:
 
 ```bash
-gcloud storage buckets add-iam-policy-binding gs://your-snapshot-bucket \
+gcloud storage buckets add-iam-policy-binding gs://CHANGE_ME-snapshot-bucket \
   --member="serviceAccount:OPENSEARCH_NODE_SERVICE_ACCOUNT" \
   --role="roles/storage.objectAdmin"
 ```
@@ -573,7 +573,7 @@ Then install the plugin and register the repository with no client credentials a
 curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Type: application/json' -d '
 {
   "type": "gcs",
-  "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
+  "settings": { "bucket": "CHANGE_ME-snapshot-bucket", "base_path": "nexus-iq" }
 }'
 ```
 

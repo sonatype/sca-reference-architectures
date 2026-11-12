@@ -20,6 +20,13 @@ REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terrafo
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
 
+# A CHANGE_ME from terraform.tfvars, such as the database password, stops the upgrade here.
+if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
+  echo "Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders"
+  grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+  exit 1
+fi
+
 # Unset in terraform.tfvars, keep the chart version the release already runs.
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
 if [ -z "$CHART_VERSION" ]; then
