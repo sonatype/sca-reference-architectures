@@ -512,7 +512,7 @@ iq_max_count           = 4
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
 iq_memory_target_value = 80  # Memory target for auto scaling (%)
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
