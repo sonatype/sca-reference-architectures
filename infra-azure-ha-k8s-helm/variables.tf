@@ -190,12 +190,6 @@ variable "app_gateway_max_capacity" {
 }
 
 
-variable "nexus_iq_version" {
-  description = "Version of Nexus IQ Server to deploy"
-  type        = string
-  default     = "1.195.0"
-}
-
 variable "nexus_iq_license" {
   description = "Base64 encoded Nexus IQ Server license"
   type        = string

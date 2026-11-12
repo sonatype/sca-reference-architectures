@@ -19,7 +19,7 @@ db_subnet_cidr       = "10.200.20.0/24"
 allowed_ssh_cidrs = ["0.0.0.0/0"] # Change this to your IP range for security
 
 # Nexus IQ Server Configuration
-iq_docker_image = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image = "sonatype/nexus-iq-server:latest"
 
 # Compute Engine Instance Configuration
 instance_machine_type = "n4a-highmem-8" # 8 vCPU, 64 GB (ARM)

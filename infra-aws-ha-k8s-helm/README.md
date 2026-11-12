@@ -312,7 +312,6 @@ skip_final_snapshot     = true
 deletion_protection     = false
 
 # Nexus IQ Server Configuration
-nexus_iq_version       = "1.195.0"
 nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
