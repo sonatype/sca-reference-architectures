@@ -690,9 +690,30 @@ The first out-of-memory error writes a heap dump to that file and the JVM exits;
 OpenSearch is part of every reference architecture, and it is required at every size in the sizing
 table, though each architecture leaves it off by default with `search_engine = "lucene"`. One cluster serves both of IQ Server's search features: Advanced Search and
 the Nexus One index behind the Nexus One list pages, typeahead, and dashboard. IQ Server's `config.yml`
-carries a `search:` block and a `nexusOne.connection` block, both naming the same endpoint and
-credentials. The Terraform writes them like this, though the Azure architectures leave `mode` out of
-`nexusOne.connection`, which IQ Server accepts:
+carries a `search:` block and a `nexusOne.connection` block, both naming the same cluster. The
+Terraform writes them in one of two forms, depending on the cloud.
+
+**Amazon OpenSearch Service**, used by `infra-aws`, `infra-aws-ha` and `infra-aws-ha-k8s-helm`, which
+authenticate with SigV4 through the task or pod role, so there is no password:
+
+```yaml
+search:
+  type: aws
+  mode: OPENSEARCH
+  domain: https://CHANGE_ME-search-domain.us-east-1.es.amazonaws.com
+  region: CHANGE_ME
+  nexusOneIndexReplicas: 1   # 0 at XS and S, see "Replicas" below
+nexusOne:
+  connection:
+    type: aws
+    mode: OPENSEARCH
+    domain: https://CHANGE_ME-search-domain.us-east-1.es.amazonaws.com
+    region: CHANGE_ME
+    nexusOneIndexReplicas: 1   # 0 at XS and S, see "Replicas" below
+```
+
+**Self-managed OpenSearch**, used by the three Azure and three GCP architectures, which authenticate
+with a username and password:
 
 ```yaml
 search:
@@ -711,9 +732,7 @@ nexusOne:
     nexusOneIndexReplicas: 1   # 0 at XS and S, see "Replicas" below
 ```
 
-On AWS both blocks use `type: aws` with `domain: https://CHANGE_ME-search-domain.us-east-1.es.amazonaws.com`
-and `region: CHANGE_ME` in place of `uri`, `username` and `password`, because IQ Server signs its
-requests with SigV4.
+The Azure architectures leave `mode` out of `nexusOne.connection`, which IQ Server accepts.
 
 Only AWS offers a first-party managed OpenSearch service, so the three AWS architectures point IQ at an
 Amazon OpenSearch Service domain and authenticate with SigV4. The Azure and GCP architectures point IQ
