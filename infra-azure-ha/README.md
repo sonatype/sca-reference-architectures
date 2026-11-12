@@ -531,7 +531,7 @@ opensearch_index_replicas = 1
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, and also written to Key Vault beside the four database secrets. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. 0 to 10 |
+| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Accepts 0 to 10 |
 | `opensearch_ca_pem` | `""` | Base64 certificate of a private authority that signed the cluster's certificate. The entrypoint adds it to a copy of the JVM trust store, see below |
 
 Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` has no

@@ -592,14 +592,14 @@ opensearch_index_replicas = 1
 | `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
 | `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
 | `opensearch_password` | `""` | That user's password. This root has no Key Vault, so `helm-install.sh` and `helm-upgrade.sh` write it into `helm-values-runtime.yaml`, which `.gitignore` excludes. That is the route `database_password` already takes. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
-| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. 0 to 10 |
+| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Accepts 0 to 10 |
 
 Leave `search_engine` at `lucene` and nothing changes, and `helm-values-runtime.yaml` has no
 `search:` block.
 
 ### What reaches IQ Server's configuration
 
-IQ Server's configuration on this root comes from `helm-values.yaml` rather than from Terraform, so
+IQ Server's configuration on this root comes from `helm-values.yaml` rather than from Terraform.
 `helm-install.sh` and `helm-upgrade.sh` both append the block to `helm-values-runtime.yaml` under
 `iq_server.config:`, so an upgrade keeps it:
 
