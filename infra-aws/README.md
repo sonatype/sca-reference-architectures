@@ -16,7 +16,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 > ¹ XS and S were measured on Fargate at the task sizes above. M was measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap.
 
-> **Evaluations an hour** on 1 task, sustained in testing, not a limit: 1,540 at XS and 2,650 at S.
+> **Evaluations an hour** on 1 task, sustained in testing, not a limit: 1,540 at XS, measured with an `m8g.large.search` data node, and 2,650 at S.
 
 > **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Size S is the same case: Fargate caps a 4 vCPU task at 30 GB, so S runs a 22 GB heap, which with `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 

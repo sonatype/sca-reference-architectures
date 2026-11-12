@@ -228,7 +228,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Terraform Templates** | [Single Instance](./infra-aws) &#124; [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) | [High Availability](./infra-aws-ha) &#124; [HA Kubernetes](./infra-aws-ha-k8s-helm) |
 
 > **XS and S on AWS.** Evaluations an hour on `infra-aws`'s 1 task, sustained in testing, not a limit:
-> 1,540 at XS and 2,650 at S.
+> 1,540 at XS, measured with an `m8g.large.search` data node, and 2,650 at S.
 
 > **Note on AWS EFS:** EFS uses SSD-backed infrastructure — there is no HDD vs SSD tier choice. Cost optimization is achieved through lifecycle policies (moving infrequently accessed data to the IA storage class) and Elastic throughput mode (pay only for throughput consumed).
 
@@ -850,8 +850,9 @@ XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. E
 
 ³ The volume to provision per node, covering a rebuild's second copy of the Nexus One indices.
 
-Measured: every AWS size, Azure M and L, and GCP M. The two-node domain on `infra-aws-ha-k8s-helm` and
-the 3 shards on GCP are not measured.
+Measured: every AWS size, Azure M and L, and GCP M. Not measured: the two-node domain on
+`infra-aws-ha-k8s-helm`, the 3 shards on Azure M and GCP M, and the `c4a-standard-1` cluster managers
+on GCP M, which ran `c4a-standard-2`.
 
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.

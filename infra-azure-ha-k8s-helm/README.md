@@ -14,7 +14,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Standard_E16ps_v6 (ARM) | Required ¹ |
 
-> All sizes validated through performance testing. Evaluations an hour per replica, measured on `infra-azure-ha` and sustained in testing, not a limit: 890 at M on 2 replicas and 2,070 at L on 3 replicas. XL is not measured.
+> M and L are measured on `infra-azure-ha`. XL is not measured. Evaluations an hour per replica there, sustained in testing, not a limit: 890 at M on 2 replicas and 2,070 at L on 3 replicas.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 

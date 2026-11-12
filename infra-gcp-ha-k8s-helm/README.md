@@ -14,7 +14,7 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | n4a-highmem-16 (ARM) | Required ¹ |
 
-> All sizes validated through performance testing on GCP ARM instances. Evaluations an hour per instance, measured on `infra-gcp-ha` and sustained in testing, not a limit: 2,250 at M on 2 instances. L and XL are not measured.
+> M is measured on `infra-gcp-ha`, with IQ Server on `n4-highmem-8`, the same 8 vCPU and 64 GB as `n4a-highmem-8`. L and XL are not measured. Evaluations an hour per instance there, sustained in testing, not a limit: 2,250 at M on 2 instances.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
