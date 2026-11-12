@@ -95,13 +95,15 @@ Choose your deployment size based on your application count and daily evaluation
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required | OpenSearch |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-----------:|:----------:|
-| **XS** | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No | Required ¹ |
-| **S** | 500 - 2,000 | 1,000 - 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No | Required ¹ |
+| **XS** | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No | Required ¹ ² |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No | Required ¹ ² |
 | **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended | Required ¹ |
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required | Required ¹ |
 
 > ¹ OpenSearch is part of every size. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
+
+> ² A future IQ Server release is expected to let smaller deployments run Nexus One without OpenSearch. Until then, OpenSearch is required as described below.
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
@@ -205,7 +207,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
-| **Deployment type** | Single Instance or HA | HA required | HA required |
+| **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Evaluations an hour per node, sustained in testing, not a limit** | 1,630, on 2 tasks | about 3,700, on 3 tasks | 3,830, on 5 tasks |
 | **Compute** | | | |
 | Instance type | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM, r8g or newer) or r8i.4xlarge (x86) |
@@ -240,7 +242,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
-| **Deployment type** | Single Instance or HA | HA required | HA required |
+| **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Evaluations an hour per node, sustained in testing, not a limit** | 890, on 2 replicas | 2,070, on 3 replicas | - |
 | **Compute** | | | |
 | Instance type | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) |
@@ -273,7 +275,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 |--|-----------|-----------|------------|
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
-| **Deployment type** | Single Instance or HA | HA required | HA required |
+| **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Evaluations an hour per node, sustained in testing, not a limit** | 2,250, on 2 instances | - | - |
 | **Compute** | | | |
 | Machine type | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-8 (ARM Google Axion) | n4a-highmem-16 (ARM Google Axion) |
