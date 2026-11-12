@@ -699,7 +699,28 @@ OpenSearch is part of every reference architecture, and it is required at every 
 table, though each architecture leaves it off by default with `search_engine = "lucene"`. One cluster serves both of IQ Server's search features: Advanced Search and
 the Nexus One index behind the Nexus One list pages, typeahead, and dashboard. IQ Server's `config.yml`
 carries a `search:` block and a `nexusOne.connection` block, both naming the same endpoint and
-credentials.
+credentials. The Terraform writes them like this:
+
+```yaml
+search:
+  type: http
+  mode: OPENSEARCH
+  uri: https://CHANGE_ME-opensearch-host:9200
+  username: 'CHANGE_ME'
+  password: 'CHANGE_ME'
+nexusOne:
+  connection:
+    type: http
+    mode: OPENSEARCH
+    uri: https://CHANGE_ME-opensearch-host:9200
+    username: 'CHANGE_ME'
+    password: 'CHANGE_ME'
+    nexusOneIndexReplicas: 1   # 0 at XS and S, see "Replicas" below
+```
+
+On AWS both blocks use `type: aws` with `domain: https://CHANGE_ME-search-domain.us-east-1.es.amazonaws.com`
+and `region: CHANGE_ME` in place of `uri`, `username` and `password`, because IQ Server signs its
+requests with SigV4.
 
 Only AWS offers a first-party managed OpenSearch service, so the three AWS architectures point IQ at an
 Amazon OpenSearch Service domain and authenticate with SigV4. The Azure and GCP architectures point IQ
