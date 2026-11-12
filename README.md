@@ -93,13 +93,11 @@ Choose your deployment size based on your application count and daily evaluation
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | HA Required |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-----------:|
-| **XS** ¹ | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No |
+| **XS** | < 500 | < 1,000 | 1 | 2 vCPU / 16 GB | 12 GB | No |
+| **S** | 500 – 2,000 | 1,000 – 5,000 | 1 | 4 vCPU / 32 GB | 24 GB | No |
 | **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Recommended |
 | **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required |
 | **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required |
-
-> ¹ XS and S are measured on AWS and projected on Azure and GCP. Performance testing ran AWS XS, S, M, L and XL on Fargate, Azure M and L on Container Apps, and GCP M on `n4-highmem-8`, which has the same 8 vCPU and 64 GB as `n4a-highmem-8`.
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
@@ -238,7 +236,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 
 ### GCP Reference Architectures
 
-Use the table below to compare infrastructure characteristics and resource requirements for each IQ deployment size on GCP. GCP M was measured on `n4-highmem-8`, which has the same 8 vCPU and 64 GB as `n4a-highmem-8`. L and XL are not measured.
+Use the table below to compare infrastructure characteristics and resource requirements for each IQ deployment size on GCP.
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
@@ -312,7 +310,7 @@ The following tables provide equivalent instance types across cloud providers fo
 
 Each size below shows the key Terraform variables you need to configure. Copy the block for your chosen size into your `terraform.tfvars` file and adjust for your environment.
 
-#### Size XS — Extra Small (< 500 applications) ¹
+#### Size XS — Extra Small (< 500 applications)
 
 Single instance for development, testing, or very small production environments.
 
@@ -350,11 +348,9 @@ db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
 db_disk_size         = 64                  # GB
 ```
 
-> ¹ Measured on AWS. A projected sizing estimate on Azure and GCP.
-
 ---
 
-#### Size S — Small (500 – 2,000 applications) ¹
+#### Size S — Small (500 – 2,000 applications)
 
 Single instance for small production environments with moderate evaluation volume.
 
@@ -391,8 +387,6 @@ java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC 
 db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
 db_disk_size         = 128                 # GB
 ```
-
-> ¹ Measured on AWS. A projected sizing estimate on Azure and GCP.
 
 ---
 

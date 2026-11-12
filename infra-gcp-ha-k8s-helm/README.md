@@ -571,8 +571,6 @@ Per size:
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
 
-Measured at M.
-
 The cluster managers are dedicated: they hold no data, take no search traffic, and three of them
 keep a quorum when one is lost. Each takes half its RAM as heap.
 

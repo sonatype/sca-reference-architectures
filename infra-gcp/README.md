@@ -10,11 +10,9 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Machine Type |
 |------|:------------:|:---------------:|:-------:|:---------:|:------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) |
+| **XS** | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) |
+| **S** | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) |
 | **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
-
-> ¹ XS and S are projected sizing estimates. M was measured on `infra-gcp-ha`, on `n4-highmem-8` at 8 vCPU and 64 GB per instance.
 
 > **ARM instances recommended.** n4a costs less on demand than the x86 n4 equivalent.
 
@@ -461,8 +459,6 @@ Per size:
 
 C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
 volume.
-
-Measured at M.
 
 At M the three cluster managers are dedicated: they hold no data, take no search traffic, and keep a
 quorum when one is lost. They take half their RAM as heap. XS and S run none: one data node is its
