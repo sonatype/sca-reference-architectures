@@ -174,18 +174,10 @@ default is in [OpenSearch for the Nexus One Index](#opensearch-for-the-nexus-one
 here carries `prevent_destroy`, so `terraform destroy` stops rather than deleting your index; a domain
 you named stays independent of this deployment entirely.
 
-#### Seven indices in one shared cluster
-
-A deployment running both features holds **seven indices on one domain**: six for the Nexus One index
-and one for Advanced Search. The index list, what each one holds, the one-primary-shard default, and
-why a shard count can only be set when an index is created are the same on every cloud, so they are
-stated once in the [top-level OpenSearch section](../README.md#opensearch) rather than repeated here.
-
 #### Replicas
 
 A replica is a full second copy of every shard, and it is what makes losing a data node
-survivable. This architecture writes `nexusOneIndexReplicas` itself. When IQ Server is not
-given a count, it uses 1:
+survivable. Set `opensearch_index_replicas` per size:
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -193,15 +185,13 @@ given a count, it uses 1:
 | **L** | 2 | `1` |
 | **XL** | 2 | `1` |
 
-The rules behind this, including what a yellow index does and does not mean and how to give the
-Advanced Search index a matching replica count, are in the
+Why XS and S use `0`, and how to give the Advanced Search index the same count, are in the
 [top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete new set of indices and keeps the old set for 30 minutes
-after the cutover, so the domain holds twice the Nexus One shards and twice the Nexus One disk for the
-whole run and for half an hour afterwards. **Judge free storage against the doubled figure, not the
+A Nexus One index rebuild builds a complete second copy of the index beside the one serving, so the
+domain holds twice the Nexus One disk while it runs. **Judge free storage against the doubled figure, not the
 steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
 a rebuild is not a backup, are in the
 [top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
