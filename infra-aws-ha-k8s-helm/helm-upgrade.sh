@@ -98,13 +98,19 @@ if [[ -f "terraform.tfstate" ]]; then
     echo "• Region: $AWS_REGION"
     echo "• Cluster: $CLUSTER_NAME"
 else
-    AWS_REGION=$(grep '^aws_region' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "us-east-1")
+    AWS_REGION=$(sed -n 's/^aws_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+    AWS_REGION=${AWS_REGION:-us-east-1}
 fi
 echo ""
 
 $HELM_PREFIX helm repo update >/dev/null 2>&1
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
+# Unset in terraform.tfvars, keep the chart version the release already runs.
+CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+if [[ -z "$CHART_VERSION" ]]; then
+    CHART_VERSION=$($HELM_PREFIX helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+fi
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"
@@ -189,6 +195,14 @@ rm -f "${TEMP_VALUES_FILE}.bak2"
 if grep -q "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
     echo -e "${RED}❌ Error: a search placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
     grep -n "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
+# A CHANGE_ME from terraform.tfvars, such as the database password, stops the upgrade here.
+if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
+    echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
+    grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi

@@ -31,7 +31,7 @@ iq_target_instances  = 2                   # 2 instances across zones
 iq_min_instances     = 2
 iq_max_instances     = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
 db_disk_size         = 128                 # GB
@@ -50,7 +50,7 @@ iq_target_instances  = 3                   # 3 instances across zones
 iq_min_instances     = 2
 iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type = "REGIONAL"
 db_disk_size         = 256                 # GB
@@ -69,7 +69,7 @@ iq_target_instances  = 4                   # 4 instances across zones
 iq_min_instances     = 3
 iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type = "REGIONAL"
 db_disk_size         = 512                 # GB
@@ -332,7 +332,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # GCP Project Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 
 # Availability zones for multi-zone deployment
@@ -366,7 +366,7 @@ iq_target_instances = 3  # Initial target, the Size L value
 # Database Configuration
 db_name     = "nexusiq"
 db_username = "nexusiq"
-db_password = "your-secure-database-password"  # Change this!
+db_password = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 
 # Database settings
 postgres_version       = "POSTGRES_18"
@@ -396,13 +396,13 @@ scale_in_cooldown_seconds   = 300   # 5 minutes
 scale_out_cooldown_seconds  = 60    # 1 minute
 
 # Java Configuration
-java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"
-# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
@@ -496,7 +496,7 @@ shares the one index.
 
 ```hcl
 search_engine                       = "opensearch"
-opensearch_endpoint                 = "opensearch.internal.example.com"  # host only, no scheme
+opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"  # host only, no scheme
 opensearch_port                     = 9200
 opensearch_use_tls                  = true
 opensearch_username                 = "nexusiq"
@@ -693,7 +693,7 @@ keystore, so check with `./bin/opensearch-keystore list | grep credentials_file`
 or a snapshot fails with a 403 that looks like an authentication problem and is not:
 
 ```bash
-gcloud storage buckets add-iam-policy-binding gs://your-snapshot-bucket \
+gcloud storage buckets add-iam-policy-binding gs://CHANGE_ME-snapshot-bucket \
   --member="serviceAccount:OPENSEARCH_NODE_SERVICE_ACCOUNT" \
   --role="roles/storage.objectAdmin"
 ```
@@ -709,7 +709,7 @@ Then install the plugin and register the repository with no client credentials a
 curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Type: application/json' -d '
 {
   "type": "gcs",
-  "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
+  "settings": { "bucket": "CHANGE_ME-snapshot-bucket", "base_path": "nexus-iq" }
 }'
 ```
 

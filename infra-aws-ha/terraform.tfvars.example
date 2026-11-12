@@ -33,7 +33,7 @@ iq_max_count           = 4  # Maximum for auto scaling
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%) 
 iq_memory_target_value = 80  # Memory target for auto scaling (%) 
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # ================================
 # DATABASE CONFIGURATION (Aurora PostgreSQL)
@@ -54,7 +54,7 @@ db_deletion_protection     = false  # Set to false for development
 # LOAD BALANCER CONFIGURATION
 # ================================
 # Uncomment and provide SSL certificate ARN for HTTPS
-# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:CHANGE_ME:certificate/CHANGE_ME"
 alb_deletion_protection = false  # Set to true for production
  
 # ================================
@@ -101,8 +101,8 @@ search_engine = "lucene"
 # opensearch_create_log_resource_policy = false
 #
 # To use a domain you already run, set these two instead and nothing is created:
-# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-# opensearch_domain_name     = "my-domain"
+# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "CHANGE_ME-search-domain"
  
 # ================================
 # COMMON TAGS

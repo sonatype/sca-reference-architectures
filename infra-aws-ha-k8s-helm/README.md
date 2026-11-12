@@ -56,7 +56,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -90,7 +90,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -125,7 +125,7 @@ iq_server:
     limits:
       cpu: "16"
       memory: "112Gi"
-  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -235,8 +235,8 @@ To use a domain you already run, name it instead and nothing is created:
 
 ```hcl
 search_engine              = "opensearch"
-opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-opensearch_domain_name     = "my-domain"
+opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+opensearch_domain_name     = "CHANGE_ME-search-domain"
 ```
 
 **On this architecture OpenSearch is the index that every pod shares.** The
@@ -677,7 +677,6 @@ skip_final_snapshot     = true
 deletion_protection     = false
 
 # Nexus IQ Server Configuration
-nexus_iq_version       = "1.195.0"
 nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
@@ -703,19 +702,19 @@ acm_certificate_arn  = ""
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.
 search_engine = "lucene"
-# opensearch_domain_endpoint = "search-my-domain-abc123.us-east-1.es.amazonaws.com"
-# opensearch_domain_name     = "my-domain"
+# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "CHANGE_ME-search-domain"
 # opensearch_index_replicas  = 1
 
 # Extra tags merged onto the resources the search backend creates. Keep the
 # keys lowercase, and keep the values in terraform.tfvars rather than in
 # terraform.tfvars.example.
 # common_tags = {
-#   owner      = "REPLACE-ME@example.com"
-#   project    = "REPLACE-ME"
-#   subproject = "REPLACE-ME"
-#   department = "REPLACE-ME"
-#   team       = "REPLACE-ME"
+#   owner      = "CHANGE_ME_EMAIL"
+#   project    = "CHANGE_ME_PROJECT"
+#   subproject = "CHANGE_ME_SUBPROJECT"
+#   department = "CHANGE_ME_DEPARTMENT"
+#   team       = "CHANGE_ME_TEAM"
 # }
 ```
 

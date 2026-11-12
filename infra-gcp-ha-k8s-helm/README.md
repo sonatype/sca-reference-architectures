@@ -49,7 +49,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -80,7 +80,7 @@ iq_server:
     limits:
       cpu: "8"
       memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -111,7 +111,7 @@ iq_server:
     limits:
       cpu: "16"
       memory: "110Gi"
-  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -370,7 +370,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # GCP Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "prod"
 cluster_name   = "nexus-iq-ha"
@@ -416,7 +416,7 @@ helm_chart_version      = "201.0.0"
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"
-# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
@@ -522,7 +522,7 @@ one, so switching `search_engine` never destroys an index. Every replica shares 
 
 ```hcl
 search_engine                       = "opensearch"
-opensearch_endpoint                 = "opensearch.internal.example.com"  # host only, no scheme
+opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"  # host only, no scheme
 opensearch_port                     = 9200
 opensearch_use_tls                  = true
 opensearch_username                 = "nexusiq"
@@ -736,7 +736,7 @@ keystore, so check with `./bin/opensearch-keystore list | grep credentials_file`
 or a snapshot fails with a 403 that looks like an authentication problem and is not:
 
 ```bash
-gcloud storage buckets add-iam-policy-binding gs://your-snapshot-bucket \
+gcloud storage buckets add-iam-policy-binding gs://CHANGE_ME-snapshot-bucket \
   --member="serviceAccount:OPENSEARCH_NODE_SERVICE_ACCOUNT" \
   --role="roles/storage.objectAdmin"
 ```
@@ -752,7 +752,7 @@ Then install the plugin and register the repository with no client credentials a
 curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Type: application/json' -d '
 {
   "type": "gcs",
-  "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
+  "settings": { "bucket": "CHANGE_ME-snapshot-bucket", "base_path": "nexus-iq" }
 }'
 ```
 

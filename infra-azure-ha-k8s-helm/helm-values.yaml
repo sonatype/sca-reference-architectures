@@ -17,18 +17,7 @@ iq_server:
       memory: "56Gi"
 
 
-  # A heap dump goes to this pod's own directory on the Azure Files share, because the pod's
-  # own disk is the node's OS disk, node_disk_size GB, too small for one. The HeapDumpPath added
-  # here comes after the one in javaOpts, and the JVM takes the last.
-  command: ["/bin/sh", "-c"]
-  args:
-    - |
-      set -e
-      mkdir -p "/sonatype-work/clm-cluster/heap-dumps/$HOSTNAME"
-      export JAVA_OPTS="$JAVA_OPTS -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dumps/$HOSTNAME"
-      exec sh /opt/sonatype/nexus-iq-server/start.sh
-
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 
   config:
@@ -48,8 +37,6 @@ iq_server:
 
 
   env:
-    - name: NXIQ_DATABASE_MIGRATION
-      value: "true"
     - name: CLUSTER_DIRECTORY
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
@@ -89,10 +76,6 @@ iq_server:
     storageClassName: "azurefile-nfs"
     accessModes:
       - ReadWriteMany
-
-
-  securityContext:
-    readOnlyRootFilesystem: false
 
 
   serviceAccountName: "nexus-iq-sa"

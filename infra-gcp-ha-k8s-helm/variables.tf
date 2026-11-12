@@ -1,6 +1,11 @@
 variable "gcp_project_id" {
   description = "GCP Project ID"
   type        = string
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.gcp_project_id))
+    error_message = "gcp_project_id still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "gcp_region" {
@@ -182,6 +187,11 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "filestore_zone" {
@@ -268,6 +278,11 @@ variable "opensearch_endpoint" {
     condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
     error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
   }
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "opensearch_port" {
@@ -307,6 +322,11 @@ variable "opensearch_password" {
   validation {
     condition     = !can(regex("\\{\\{", var.opensearch_password))
     error_message = "The OpenSearch password may not contain {{. The chart runs iq_server.config through its template engine, so {{ would be read as the start of a template action, even inside a quoted value."
+  }
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_password))
+    error_message = "opensearch_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }
 

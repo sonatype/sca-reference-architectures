@@ -19,7 +19,7 @@ iq_max_replicas        = 4         # Maximum replicas for auto-scaling, the Size
 # Container Apps workload profile. E8 (8 cores, 64 GB) for Size M and L, E16 for XL.
 workload_profile_type  = "E8"
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
 cpu_utilization_threshold     = 70    # CPU threshold for scaling (%)
@@ -65,7 +65,7 @@ key_vault_soft_delete_retention_days = 7
 # README.md gives the cluster specification and the private certificate authority steps.
 search_engine = "lucene"
 
-# opensearch_endpoint       = "opensearch.internal.example.com"
+# opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port           = 9200
 # opensearch_use_tls        = true
 # opensearch_username       = "iq-server"
@@ -78,8 +78,8 @@ search_engine = "lucene"
 
 # Private registry holding iq_docker_image. Leave all three empty for a public image.
 # Put the password in terraform.tfvars, not here.
-# container_registry_server   = "myregistry.azurecr.io"
-# container_registry_username = "myregistry"
+# container_registry_server   = "CHANGE_ME.azurecr.io"
+# container_registry_username = "CHANGE_ME"
 # container_registry_password = "CHANGE_ME_REGISTRY_PASSWORD"
 
 # Tags

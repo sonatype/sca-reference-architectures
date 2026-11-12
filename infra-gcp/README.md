@@ -54,7 +54,7 @@ db_disk_size         = 128                 # GB
 ```hcl
 gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_disk_size         = 128                 # GB, auto-resize enabled
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
@@ -296,7 +296,7 @@ Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 gcp_zone       = "us-central1-a"
 environment    = "dev"
@@ -318,7 +318,7 @@ gce_boot_image     = ""                     # Empty picks Debian 12 for the mach
 gce_boot_disk_size = 100
 iq_desired_count   = 1                    # Single instance
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
@@ -346,7 +346,7 @@ domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"
-# opensearch_endpoint                 = "opensearch.internal.example.com"
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true
 # opensearch_username                 = "nexusiq"
@@ -426,7 +426,7 @@ not create one, so switching `search_engine` never destroys an index.
 
 ```hcl
 search_engine                       = "opensearch"
-opensearch_endpoint                 = "opensearch.internal.example.com"  # host only, no scheme
+opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"  # host only, no scheme
 opensearch_port                     = 9200
 opensearch_use_tls                  = true
 opensearch_username                 = "nexusiq"
@@ -625,7 +625,7 @@ keystore, so check with `./bin/opensearch-keystore list | grep credentials_file`
 or a snapshot fails with a 403 that looks like an authentication problem and is not:
 
 ```bash
-gcloud storage buckets add-iam-policy-binding gs://your-snapshot-bucket \
+gcloud storage buckets add-iam-policy-binding gs://CHANGE_ME-snapshot-bucket \
   --member="serviceAccount:OPENSEARCH_NODE_SERVICE_ACCOUNT" \
   --role="roles/storage.objectAdmin"
 ```
@@ -641,7 +641,7 @@ Then install the plugin and register the repository with no client credentials a
 curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Type: application/json' -d '
 {
   "type": "gcs",
-  "settings": { "bucket": "your-snapshot-bucket", "base_path": "nexus-iq" }
+  "settings": { "bucket": "CHANGE_ME-snapshot-bucket", "base_path": "nexus-iq" }
 }'
 ```
 

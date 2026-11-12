@@ -42,7 +42,6 @@ app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
 # Nexus IQ Server HA Configuration
-nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
@@ -74,7 +73,7 @@ ingress_tls_enabled = false
 # do; the endpoint, user name and password must be set here for "opensearch".
 search_engine = "lucene"
 
-# opensearch_endpoint       = "opensearch.internal.example.com"
+# opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port           = 9200
 # opensearch_use_tls        = true
 # opensearch_username       = "iq-server"
