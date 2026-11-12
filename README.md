@@ -74,7 +74,7 @@ You need an active cloud account with permissions to create:
 
 - **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server))
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments
-- **PostgreSQL**: Minimum PostgreSQL 16. Recommended, and the default for new deployments, PostgreSQL 18. Provisioned automatically by Terraform
+- **PostgreSQL**: Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18. Provisioned automatically by Terraform
 
 ### SSL Certificate (Optional)
 
@@ -188,7 +188,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Java Heap | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms44g -Xmx44g` on Fargate, `-Xms48g -Xmx48g` on EKS | `-Xms96g -Xmx96g` |
 | **Database** | | | |
 | Service | RDS PostgreSQL or Aurora PostgreSQL | Aurora PostgreSQL (recommended) | Aurora PostgreSQL (strongly recommended) |
-| PostgreSQL version | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 |
+| PostgreSQL version | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 |
 | Instance class | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) |
 | Storage | 128 GB gp3 on RDS, auto-scaling to 500 GB; Aurora grows on its own | Aurora, grows on its own up to 1 TB | Aurora, grows on its own up to 2 TB |
 | Multi-AZ | Recommended | Required | Required with automatic failover |
@@ -221,7 +221,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Deployment option | Azure Container Apps or AKS | Azure Container Apps or AKS | AKS recommended at this scale |
 | **Database** | | | |
 | Service | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server |
-| PostgreSQL version | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 |
+| PostgreSQL version | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 |
 | SKU | GP_Standard_D8s_v3 (8 vCores, 32 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
 | Storage | 128 GB, auto-grow | 256 GB, auto-grow to 1 TB | 512 GB, auto-grow to 2 TB |
 | Zone redundancy | Recommended | Required | Required with automatic failover |
@@ -254,7 +254,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Deployment | GCE with Docker or GKE | GCE with Docker or GKE | GCE with Docker or GKE |
 | **Database** | | | |
 | Service | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL |
-| PostgreSQL version | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 | Minimum 16, recommended and default 18 |
+| PostgreSQL version | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 |
 | Instance tier | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-16-65536 (16 vCPU, 64 GB) |
 | Edition | Enterprise | Enterprise | Enterprise |
 | Storage | 128 GB PD-SSD, auto-resize to 500 GB | 256 GB PD-SSD, auto-resize to 1 TB | 512 GB PD-SSD, auto-resize to 2 TB |
