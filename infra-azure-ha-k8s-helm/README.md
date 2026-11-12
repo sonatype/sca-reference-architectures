@@ -227,6 +227,13 @@ Install these tools on your local machine:
 - Ability to create: Resource Groups, Virtual Networks, AKS, PostgreSQL, Application Gateway
 - Sufficient vCPU quota (48+ vCPUs required for production HA setup)
 - Zone-redundant resource support in target region (default: East US)
+- PostgreSQL Flexible Server cores are a quota per subscription and per region. Check the region's
+  usage before applying, and request a quota increase if the server's vCores do not fit. `az rest`
+  fills in `{subscriptionId}` from the signed-in account; replace `eastus` with the region's short name:
+
+  ```bash
+  az rest --method get --url "https://management.azure.com/subscriptions/{subscriptionId}/providers/Microsoft.DBforPostgreSQL/locations/eastus/resourceType/flexibleServers/usages?api-version=2024-08-01" --query "value[?name.value=='cores'].{used:currentValue, limit:limit}" -o table
+  ```
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
