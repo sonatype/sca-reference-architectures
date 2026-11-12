@@ -732,8 +732,6 @@ nexusOne:
     nexusOneIndexReplicas: 1   # 0 at XS and S, see "Replicas" below
 ```
 
-The Azure architectures leave `mode` out of `nexusOne.connection`, which IQ Server accepts.
-
 Only AWS offers a first-party managed OpenSearch service, so the three AWS architectures point IQ at an
 Amazon OpenSearch Service domain and authenticate with SigV4. The Azure and GCP architectures point IQ
 at a self-managed cluster on that cloud's own virtual machines and authenticate with a username and
