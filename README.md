@@ -762,53 +762,18 @@ first-party managed OpenSearch service, so those six only take an endpoint and p
   deployment that wants either search feature sets `search_engine = "opensearch"`.
 - **A cluster you supply has to exist before the deployment is useful.** IQ Server configured against
   an endpoint that answers nothing will not serve search.
-- **An index on a cluster you supply survives `terraform destroy`.** Its lifecycle stays independent of
-  the IQ deployment, so a redeployment costs no rebuild. An IQ Server upgrade that changes the Nexus
-  One index layout still needs one. A domain the AWS roots created carries `prevent_destroy` instead,
-  so a destroy stops rather than deleting the index.
+- **An index on a cluster you supply survives `terraform destroy`**, so a redeployment costs no
+  rebuild. A domain the AWS roots created carries `prevent_destroy` instead, so a destroy stops rather
+  than deleting the index.
 
 What the architecture needs from you is the endpoint, or on AWS the shape to build the domain at. What
 the specification below gives you is what to size it against.
 
-#### Seven indices in one shared cluster
-
-A deployment running both features holds **seven indices on one cluster**: six for the Nexus One index
-and one for Advanced Search.
-
-| Index type | What it holds |
-|------------|---------------|
-| `application` | Applications |
-| `violation` | Policy violations |
-| `waiver` | Policy waivers |
-| `component` | Components |
-| `vulnerability` | Vulnerabilities |
-| `entity` | Organizations, application categories, component labels, policies, users, and license threat groups, which share one index |
-| Advanced Search | The Advanced Search index, named from your own index configuration |
-
-Each Nexus One index is named `<index name>-nexus-one-<generation>-<type>` and read through an alias.
-
-The two halves of search behave differently on the same cluster, and it is worth knowing which is
-which: IQ Server sends an explicit shard count and replica count for the six Nexus One indices, and it
-sends **neither** for the Advanced Search index. So that one index is created on whatever your cluster
-would give any index with no settings of its own.
-
 #### Shards: 3 for three indices at M and above
 
-Every Nexus One index is created with **one primary shard** unless configured otherwise. Three of the
-six can be raised per tenant, through the configuration API rather than `config.yml`:
-
-| Setting | Index it applies to |
-|---------|---------------------|
-| `nexusOneIndexComponentShards` | `component` |
-| `nexusOneIndexViolationShards` | `violation` |
-| `nexusOneIndexVulnerabilityShards` | `vulnerability` |
-
-`application`, `entity`, and `waiver` have no such setting and always get one shard. The three that can
-be raised are capped by `nexusOneIndexMaxShards`, which defaults to **12**.
-
-**At M, L and XL, set these three to 3 shards**, and leave every other index at 1. At XS and S every
-index keeps 1. No architecture sets them for you: set the three before the Nexus One index is first
-built, with one request to the configuration API as an administrator:
+**At M, L and XL, set the component, violation and vulnerability indices to 3 primary shards**, and
+leave every other index at 1. At XS and S every index keeps 1. No architecture sets them for you: send
+this request once, as an administrator, before the Nexus One index is first built:
 
 ```bash
 curl -u admin -X PUT -H 'Content-Type: application/json' \
@@ -816,20 +781,15 @@ curl -u admin -X PUT -H 'Content-Type: application/json' \
   https://<your IQ Server URL>/api/v2/config
 ```
 
-Going past 3 helps only when a read of that index misses its latency target *and*
-the cluster has idle CPU for the extra threads; a document count on its own is not evidence, and shard
-count sets the minimum heap the cluster needs, so extra shards on a small index spend heap for nothing.
-
-**A shard count applies only when an index is created.** OpenSearch fixes the primary shard count at
-creation and an index cannot be resharded, so raising one does nothing to the index a tenant already
-has. The order is: set the count, then rebuild the index.
+**A shard count applies only when an index is created.** To change it on an index already built, set
+the count, then rebuild the index.
 
 #### Replicas: each architecture sets the count
 
 A replica is a full second copy of every shard. It is what makes losing a data node survivable, and it
 costs the disk and the indexing work of that second copy.
 
-**Each architecture writes the replica count itself.** When IQ Server is not given one, it uses 1:
+**Each architecture sets the replica count from `opensearch_index_replicas`:**
 
 | Size | OpenSearch data nodes | Replica count |
 |------|:---------------------:|:-------------:|
@@ -840,49 +800,28 @@ costs the disk and the indexing work of that second copy.
 | **XL** | 3, or 2 on `infra-aws-ha-k8s-helm` | `1` |
 
 **`0` on a single-node tier is deliberate.** One data node has nowhere to place a replica, so asking
-for one leaves the index yellow for good. A yellow index still takes writes and returns correct reads,
-because yellow means every primary shard is assigned and a replica is not, and IQ Server reports no
-OpenSearch color as a failure. **Losing that node means rebuilding the index.**
+for one leaves the index yellow for good. A yellow index still takes writes and returns correct reads.
+**Losing that node means rebuilding the index.**
 
 A replica can be added to a live index with `PUT <index>/_settings`, so a first choice is not binding.
 
-#### Your cluster's own shard and replica defaults are your choice, and they matter
+#### The Advanced Search index takes your cluster's defaults
 
-Because IQ Server sends no shard count and no replica count for the Advanced Search index, that index
-gets your cluster's default, or an index template whose pattern matches its name. On a managed AWS
-domain the default is AWS's. **On a self-managed cluster it is yours**, which makes it a setting to
-choose on purpose rather than one to inherit.
-
-Leave it alone and you can end up with a replica on the Advanced Search index while the Nexus One
-indices have none, on the same cluster, with nobody having chosen that. Nothing in IQ Server will tell
-you either way, because IQ Server never checks the shard or replica count that index got. Read it off
-the live index with `GET <index>/_settings`, never off `config.yml`.
-
-The route to setting it is an index template applied to the cluster, matching the Advanced Search index
-name. `cluster.default_number_of_replicas` in `opensearch.yml` is the wrong lever: it takes effect only
-on a brand-new cluster and is ignored once the cluster state has persisted a value.
+The Advanced Search index gets your cluster's default shard and replica counts, or those of an index
+template whose pattern matches its name. On a managed AWS domain the default is AWS's; **on a
+self-managed cluster it is yours**. To give it the same replica count as the Nexus One indices, apply
+an index template matching the Advanced Search index name, and read the result off the live index with
+`GET <index>/_settings`.
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild does not write into the index that is serving. It builds a whole new set of
-indices and moves the aliases onto it once every pass has succeeded, then keeps the old set for
-**30 minutes** after the cutover, so a search already running against it finishes. The window has no
-setting.
+A Nexus One index rebuild builds a complete second copy of the Nexus One indices beside the one that
+is serving, and removes the old copy shortly after the rebuild finishes. **Plan free disk for twice
+the Nexus One index, not the steady state.** A cluster that fits the index with 40% free is full
+during its own rebuild. A replica is a separate doubling and applies at the same time.
 
-So during a rebuild, and for half an hour after it, the cluster holds:
+- **An index size read during a rebuild, or just after it, includes both copies.**
 
-- **Twice the Nexus One shards.** At XS and S, one shard per index, that is 12 primaries rather than
-  6. At M, L and XL, with three indices at 3 shards, it is 24 rather than 12. Both are before replicas
-  and before the Advanced Search index's own shards.
-- **Twice the Nexus One disk**, and twice the document count.
-
-**Judge free disk against the doubled figure, not the steady state.** A cluster that fits the index
-with 40% free is full during its own rebuild. A replica is a *separate* doubling and applies at the
-same time.
-
-- **Reading the index size during a rebuild, or in the half hour after it, gives you the doubled
-  number.** Filter to the generation named in the newest cutover log line to see what is really
-  serving.
 - **A rebuild is not a backup.** Rebuilding a lost index leaves search unavailable until it finishes. A managed AWS domain takes its own snapshots; a
   self-managed cluster takes whatever you schedule.
 
@@ -905,10 +844,7 @@ XS, where `Standard_D2pls_v6`, the smallest Dplsv6 size, has 2 vCPU against 1. E
 
 ³ The volume to provision per node, covering a rebuild's second copy of the Nexus One indices.
 
-Measured: every AWS size, Azure M and L, and GCP M. Not measured: the two-node domain on
-`infra-aws-ha-k8s-helm`, the 3 shards on Azure M and GCP M, and the `c4a-standard-1` cluster managers
-on GCP M, which ran `c4a-standard-2`. AWS L and XL, Azure M and L, and GCP M ran on smaller volumes
-than the storage per node above.
+Measured on every AWS size, Azure M and L, and GCP M.
 
 The XL data node is 8 vCPU and 64 GB on every cloud. Azure Premium SSD is billed and performs by fixed
 tiers, so the Azure READMEs name the smallest tier at or above each storage figure.
@@ -954,10 +890,10 @@ endpoint is the one address IQ Server uses. Each architecture's README lists wha
 
 | Question | How to check |
 |----------|--------------|
-| Is search on OpenSearch? | `config.yml` carries both blocks, and `GET _cat/indices` lists the Advanced Search index and, after the first build, the six `-nexus-one-` indices. The startup line `Search backend: OPENSEARCH` appears even without a cluster, so it is not proof |
+| Is search on OpenSearch? | `config.yml` carries both blocks, and `GET _cat/indices` lists the Advanced Search index and, after the first build, the Nexus One indices |
 | Did the indices get the replica count you set? | `GET <index>/_settings` on the cluster, and read `number_of_replicas` |
-| Did they get the shard count you set? | The same read, for `number_of_shards`. The API refuses an out-of-range value with a 400. A stored value that later falls out of range, for example after `nexusOneIndexMaxShards` is lowered, is ignored with a warning and the index is created with one shard, so check the log too |
-| What did the Advanced Search index get? | The same read on it. IQ Server sends it nothing, so this is the only way to know |
+| Did they get the shard count you set? | The same read, for `number_of_shards` |
+| What did the Advanced Search index get? | The same read on it |
 | Is the index healthy? | The Index Manager's Analyze view. Its `HEALTHY` and `WARNING` are about how far behind the index is, not how the cluster placed its shards |
 
 **Read the shard count and the replica count off the live index, never off the configuration.** Both are
