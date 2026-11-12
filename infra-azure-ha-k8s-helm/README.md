@@ -660,7 +660,7 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-M and L are measured; XL is not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+M and L are measured, M on 1 shard per index. XL and the 3 shards at M are not. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 This root covers M, L and XL, so the XS and S rows are in the single-instance root's README instead.

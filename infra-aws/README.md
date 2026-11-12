@@ -14,7 +14,7 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 | **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) | Required ² |
 | **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ² |
 
-> ¹ XS and S are projected sizing estimates. M was measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap.
+> ¹ XS and S were measured on Fargate at the task sizes above. M was measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap.
 
 > **Evaluations an hour** on 1 task, sustained in testing, not a limit: 1,540 at XS and 2,650 at S.
 

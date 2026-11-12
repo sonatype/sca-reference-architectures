@@ -88,7 +88,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 if [[ -f "terraform.tfstate" ]]; then
     DB_ENDPOINT=$(terraform output -raw postgres_server_fqdn 2>/dev/null)
-    AZURE_REGION=$(terraform output -raw location 2>/dev/null || echo "eastus")
+    AZURE_REGION=$(tfvar azure_region)
+    AZURE_REGION=${AZURE_REGION:-eastus}
     CLUSTER_NAME=$(terraform output -raw aks_cluster_name 2>/dev/null)
     RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null)
 
@@ -97,7 +98,7 @@ if [[ -f "terraform.tfstate" ]]; then
     echo "• Cluster: $CLUSTER_NAME"
     echo "• Resource Group: $RESOURCE_GROUP"
 else
-    AZURE_REGION=$(tfvar location)
+    AZURE_REGION=$(tfvar azure_region)
     AZURE_REGION=${AZURE_REGION:-eastus}
 fi
 echo ""

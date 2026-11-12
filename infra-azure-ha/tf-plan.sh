@@ -79,12 +79,12 @@ fi
 
 echo -e "${GREEN}✅ Configuration validated${NC}"
 
-MIN_REPLICAS=$(grep '^min_replicas' terraform.tfvars | grep -o '[0-9]\+' || echo "0")
+MIN_REPLICAS=$(grep '^iq_min_replicas' terraform.tfvars | grep -o '[0-9]\+' || echo "0")
 DB_HA_MODE=$(grep '^db_high_availability_mode' terraform.tfvars | cut -d'"' -f2 || echo "")
 STORAGE_REPLICATION=$(grep '^storage_account_replication_type' terraform.tfvars | cut -d'"' -f2 || echo "")
 
 if [[ "$MIN_REPLICAS" -lt 2 ]]; then
-  echo -e "${YELLOW}⚠️  Warning: min_replicas is $MIN_REPLICAS (recommended: >= 2 for HA)${NC}"
+  echo -e "${YELLOW}⚠️  Warning: iq_min_replicas is $MIN_REPLICAS (recommended: >= 2 for HA)${NC}"
 fi
 
 if [[ "$DB_HA_MODE" != "ZoneRedundant" ]]; then
