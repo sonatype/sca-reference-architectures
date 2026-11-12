@@ -14,7 +14,7 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) | Required ¹ |
 
-> M and L were measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap, and XL at 16 vCPU, 120 GB and a 96 GB heap. Evaluations an hour per task, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL on 5 tasks.
+> Evaluations an hour per task, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL on 5 tasks.
 
 > **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
 
@@ -291,8 +291,6 @@ not a setting this configuration can change.
 Three data nodes at every size, because three is the smallest count that both
 places a replica and spreads across three Availability Zones. At 0 replicas a
 lost node means the index is rebuilt rather than recovered.
-
-The data node types, masters, shards and replicas above are measured at every size.
 
 **Storage holds more than one copy of the index.** A replica doubles it, a rebuild holds a second copy while it runs, and AWS reserves 20% of each volume capped at 20 GiB. The figures
 above allow for all three.

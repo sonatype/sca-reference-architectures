@@ -14,13 +14,13 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | E8 workload profile | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 15.5 vCPU / 120 GB | 96 GB | E16 workload profile | Required ¹ |
 
-> M and L are measured on this architecture. XL is not measured. Evaluations an hour per replica, sustained in testing, not a limit: 890 at M on 2 replicas and 2,070 at L on 3 replicas.
+> Evaluations an hour per replica, sustained in testing, not a limit: 890 at M on 2 replicas and 2,070 at L on 3 replicas.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > XL's replica is smaller than its `E16` node, because Container Apps keeps part of every node for itself
 > ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
-> M and L replicas at 8 vCPU and 64 GB scheduled on `E8` in testing.
+> M and L replicas are 8 vCPU and 64 GB on `E8`.
 
 > **Note:** For XL scale, [AKS](../infra-azure-ha-k8s-helm/) is recommended over Container Apps.
 
@@ -108,7 +108,7 @@ storage_account_replication_type = "ZRS"
 | **L** | Standard HDD | SMB 3.0 | ZRS | 1,536 GB |
 | **XL** | Premium SSD | SMB | ZRS | 4,096 GB, billed as provisioned |
 
-> Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
+> Standard HDD is the default recommendation. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
 
 ### OpenSearch
 
@@ -568,7 +568,7 @@ Three things about that block are deliberate:
 
 ### Specifying the cluster
 
-Measured at M and L. Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
 half its RAM as heap.
 
 This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is

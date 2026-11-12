@@ -10,17 +10,15 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) | Required ² |
-| **S** ¹ | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) | Required ² |
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ² |
+| **XS** | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) | Required ¹ |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
 
-> ¹ XS and S were measured on Fargate at the task sizes above. M was measured on Fargate at 8 vCPU, 60 GB and a 44 GB heap.
-
-> **Evaluations an hour** on 1 task, sustained in testing, not a limit: 1,540 at XS, measured with an `m8g.large.search` data node, and 2,650 at S.
+> **Evaluations an hour** on 1 task, sustained in testing, not a limit: 1,540 at XS and 2,650 at S.
 
 > **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Size S is the same case: Fargate caps a 4 vCPU task at 30 GB, so S runs a 22 GB heap, which with `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 
-> ² Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
 
@@ -285,8 +283,6 @@ not a setting this configuration can change.
 At 0 replicas a lost node means the index is rebuilt rather than recovered.
 **A one-node domain reports yellow and that is correct**: the index still takes writes and returns correct reads,
 because yellow means a replica is unassigned rather than that data is missing.
-
-The data node types, masters, shards and replicas above are measured at every size.
 
 **Storage holds more than one copy of the index.** A replica doubles it, a rebuild holds a second copy while it runs, and AWS reserves 20% of each volume capped at 20 GiB. The figures
 above allow for all three.
