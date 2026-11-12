@@ -1,6 +1,11 @@
 variable "gcp_project_id" {
   description = "GCP Project ID"
   type        = string
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.gcp_project_id))
+    error_message = "gcp_project_id still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "gcp_region" {
@@ -187,6 +192,11 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "filestore_zone" {

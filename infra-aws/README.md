@@ -72,7 +72,7 @@ ecs_cpu              = 8192                # 8 vCPU
 ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
 db_allocated_storage = 128                 # auto-scales to 500 GB
 ```
@@ -510,7 +510,7 @@ db_skip_final_snapshot     = true
 db_deletion_protection     = false
 
 # Load Balancer Configuration
-# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:CHANGE_ME:certificate/CHANGE_ME"
 alb_deletion_protection = false
 
 # Logging Configuration

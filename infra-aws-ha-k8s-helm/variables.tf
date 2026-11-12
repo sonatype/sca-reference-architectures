@@ -118,6 +118,11 @@ variable "database_password" {
   description = "Password for PostgreSQL database"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.database_password))
+    error_message = "database_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "backup_retention_period" {
@@ -136,12 +141,6 @@ variable "deletion_protection" {
   description = "Enable deletion protection for RDS cluster"
   type        = bool
   default     = false
-}
-
-variable "nexus_iq_version" {
-  description = "Version of Nexus IQ Server to deploy"
-  type        = string
-  default     = "1.195.0"
 }
 
 variable "nexus_iq_license" {
@@ -203,6 +202,11 @@ variable "acm_certificate_arn" {
   description = "ARN of ACM certificate for TLS"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.acm_certificate_arn))
+    error_message = "acm_certificate_arn still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "log_retention_days" {

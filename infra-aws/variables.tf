@@ -112,6 +112,11 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "db_instance_class" {
@@ -173,6 +178,11 @@ variable "ssl_certificate_arn" {
   description = "ARN of SSL certificate for ALB HTTPS listener"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.ssl_certificate_arn))
+    error_message = "ssl_certificate_arn still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "alb_deletion_protection" {
