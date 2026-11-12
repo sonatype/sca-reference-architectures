@@ -10,11 +10,9 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Machine Type |
 |------|:------------:|:---------------:|:-------:|:---------:|:------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) |
+| **XS** | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) |
+| **S** | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) |
 | **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
-
-> ¹ XS and S are projected sizing estimates. M was measured on `infra-gcp-ha`, on `n4-highmem-8` at 8 vCPU and 64 GB per instance.
 
 > **ARM instances recommended.** n4a costs less on demand than the x86 n4 equivalent.
 
