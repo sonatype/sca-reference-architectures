@@ -99,7 +99,7 @@ Choose your deployment size based on your application count and daily evaluation
 | **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Required |
 | **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Required |
 
-> ¹ XS and S are projected sizing estimates. M, L, and XL have been validated through performance testing, which ran on the GCP ARM instances below: `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL.
+> ¹ XS and S are measured on AWS and projected on Azure and GCP. Performance testing ran AWS XS, S, M, L and XL on Fargate, Azure M and L on Container Apps, and GCP M on `n4-highmem-8`, which has the same 8 vCPU and 64 GB as `n4a-highmem-8`.
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
@@ -232,13 +232,13 @@ Use the table below to compare infrastructure characteristics and resource requi
 | File share quota | 500 GB | 1,536 GB | 4,096 GB, on Premium the quota is the billed size |
 | **Terraform Templates** | [Single Instance](./infra-azure) &#124; [High Availability](./infra-azure-ha) &#124; [HA Kubernetes](./infra-azure-ha-k8s-helm) | [High Availability](./infra-azure-ha) &#124; [HA Kubernetes](./infra-azure-ha-k8s-helm) | [High Availability](./infra-azure-ha) &#124; [HA Kubernetes](./infra-azure-ha-k8s-helm) |
 
-> **Note on Azure storage tiers:** Standard HDD is the default recommendation based on performance testing (peak ~1,212 write ops/sec, well within Standard HDD limits). Use Premium SSD when: NFS protocol is required (AKS/Kubernetes deployments), or high sustained write volume makes per-transaction costs exceed SSD flat-rate pricing. At XL scale with AKS, Premium SSD is mandatory since NFS requires it.
+> **Note on Azure storage tiers:** Standard HDD is the default recommendation. Use Premium SSD when: NFS protocol is required (AKS/Kubernetes deployments), or high sustained write volume makes per-transaction costs exceed SSD flat-rate pricing. At XL scale with AKS, Premium SSD is mandatory since NFS requires it.
 
 ---
 
 ### GCP Reference Architectures
 
-Use the table below to compare infrastructure characteristics and resource requirements for each IQ deployment size on GCP. GCP was the primary test platform — all performance data was validated on GCP ARM-based instances.
+Use the table below to compare infrastructure characteristics and resource requirements for each IQ deployment size on GCP. GCP M was measured on `n4-highmem-8`, which has the same 8 vCPU and 64 GB as `n4a-highmem-8`. L and XL are not measured.
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
@@ -350,7 +350,7 @@ db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
 db_disk_size         = 64                  # GB
 ```
 
-> ¹ Projected sizing estimate — not yet validated through performance testing.
+> ¹ Measured on AWS. A projected sizing estimate on Azure and GCP.
 
 ---
 
@@ -392,7 +392,7 @@ db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
 db_disk_size         = 128                 # GB
 ```
 
-> ¹ Projected sizing estimate — not yet validated through performance testing.
+> ¹ Measured on AWS. A projected sizing estimate on Azure and GCP.
 
 ---
 
