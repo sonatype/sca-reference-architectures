@@ -218,7 +218,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Service | RDS PostgreSQL or Aurora PostgreSQL | Aurora PostgreSQL (recommended) | Aurora PostgreSQL (strongly recommended) |
 | PostgreSQL version | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 |
 | Instance class | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) |
-| Storage | 128 GB gp3 on RDS, auto-scaling to 500 GB; Aurora grows on its own | Aurora, grows on its own up to 1 TB | Aurora, grows on its own up to 2 TB |
+| Storage | 128 GB gp3 on RDS, auto-scaling to 500 GB; Aurora grows on its own | Aurora, grows on its own, expected to grow to about 1 TB | Aurora, grows on its own, expected to grow to about 2 TB |
 | Multi-AZ | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
 | Service | Amazon EFS | Amazon EFS | Amazon EFS |
@@ -254,7 +254,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | Service | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server |
 | PostgreSQL version | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 |
 | SKU | MO_Standard_E8ds_v6 (8 vCores, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
-| Storage | 128 GB, auto-grow | 256 GB, auto-grow to 1 TB | 512 GB, auto-grow to 2 TB |
+| Storage | 128 GB, auto-grow | 256 GB, grows automatically, expected to grow to about 1 TB | 512 GB, grows automatically, expected to grow to about 2 TB |
 | Zone redundancy | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
 | Service | Azure Files, Standard HDD on Container Apps, Premium SSD with NFS on AKS | Azure Files, Standard HDD on Container Apps, Premium SSD with NFS on AKS | Azure Files, Premium SSD (SMB on Container Apps, NFS on AKS) |
