@@ -208,7 +208,7 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Applications** | 2,000 – 10,000 | 10,000 – 20,000 | 20,000 – 80,000 |
 | **Number of IQ Server nodes** | 2 | 3 | 4 |
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
-| **Evaluations an hour per node, sustained in testing, not a limit** | 1,630, on 2 tasks | about 3,700, on 3 tasks | 3,830, on 5 tasks |
+| **Evaluations an hour per node, sustained in testing, not a limit** | 1,630, on 2 tasks | about 3,700, on 3 tasks | 3,830 |
 | **Compute** | | | |
 | Instance type | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 8 vCPU, 60 GB task. EKS: r9g.2xlarge (ARM, r8g or newer) or r8i.2xlarge (x86) | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM, r8g or newer) or r8i.4xlarge (x86) |
 | vCPUs | 8 | 8 | 16 |
@@ -697,14 +697,14 @@ authenticate with SigV4 through the task or pod role, so there is no password:
 search:
   type: aws
   mode: OPENSEARCH
-  domain: https://CHANGE_ME-search-domain.us-east-1.es.amazonaws.com
+  domain: https://CHANGE_ME-search-domain.CHANGE_ME.es.amazonaws.com
   region: CHANGE_ME
   nexusOneIndexReplicas: 1   # 0 at XS and S, see "Replicas" below
 nexusOne:
   connection:
     type: aws
     mode: OPENSEARCH
-    domain: https://CHANGE_ME-search-domain.us-east-1.es.amazonaws.com
+    domain: https://CHANGE_ME-search-domain.CHANGE_ME.es.amazonaws.com
     region: CHANGE_ME
     nexusOneIndexReplicas: 1   # 0 at XS and S, see "Replicas" below
 ```
@@ -737,6 +737,21 @@ snapshots, and node replacement.
 
 IQ Server needs OpenSearch 3.x. A self-managed cluster should run 3.8. Amazon OpenSearch Service
 offers 3.7 as its newest version as of November 2026, and the AWS architectures deploy that.
+
+#### Trusting a private certificate authority
+
+A self-managed cluster whose certificate is signed by a private certificate authority needs that
+authority added to a copy of IQ Server's JVM trust store. Each Azure and GCP architecture does it
+differently:
+
+| Architecture | How to trust a private certificate authority |
+|---|---|
+| `infra-azure` | Build a derived image with the authority in a copy of the trust store, see [TLS, and the JVM trust store](infra-azure/README.md#tls-and-the-jvm-trust-store) |
+| `infra-azure-ha` | Set `opensearch_ca_pem` to the authority's certificate, base64 encoded, see [TLS, and the JVM trust store](infra-azure-ha/README.md#tls-and-the-jvm-trust-store) |
+| `infra-azure-ha-k8s-helm` | Build a derived image with the authority in a copy of the trust store, see [TLS, and the JVM trust store](infra-azure-ha-k8s-helm/README.md#tls-and-the-jvm-trust-store) |
+| `infra-gcp` | Set `opensearch_ca_certificate` to the authority's certificate as PEM text, see [Trusting a private certificate authority](infra-gcp/README.md#trusting-a-private-certificate-authority) |
+| `infra-gcp-ha` | Set `opensearch_ca_certificate` to the authority's certificate as PEM text, see [Trusting a private certificate authority](infra-gcp-ha/README.md#trusting-a-private-certificate-authority) |
+| `infra-gcp-ha-k8s-helm` | Set `opensearch_ca_certificate` to the authority's certificate as PEM text, see [Trusting a private certificate authority](infra-gcp-ha-k8s-helm/README.md#trusting-a-private-certificate-authority) |
 
 #### Which configurations build the cluster, and which take an endpoint
 
@@ -802,12 +817,10 @@ an index template matching the Advanced Search index name, and read the result o
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete second copy of the Nexus One indices beside the one that
-is serving, and removes the old copy shortly after the rebuild finishes. **Plan free disk for twice
-the Nexus One index, not the steady state.** A cluster that fits the index with 40% free is full
-during its own rebuild. A replica is a separate doubling and applies at the same time.
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+cluster that fits the index with 40% free is full during its own rebuild. A replica is a separate
+doubling and applies at the same time.
 
-- **An index size read during a rebuild, or just after it, includes both copies.**
 - **A rebuild is not a backup.** Rebuilding a lost index leaves search unavailable until it finishes. A managed AWS domain takes its own snapshots; a
   self-managed cluster takes whatever you schedule.
 

@@ -14,7 +14,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r9g.4xlarge (ARM) | Required ¹ |
 
-> Evaluations an hour per task on `infra-aws-ha`, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL on 5 tasks.
+> Evaluations an hour per task on `infra-aws-ha`, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL.
 
 > ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
@@ -190,9 +190,8 @@ When to use `0`, and how to give the Advanced Search index the same count, are i
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete second copy of the index beside the one serving, so the
-domain holds twice the Nexus One disk while it runs. **Judge free storage against the doubled figure, not the
-steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+replica is a separate doubling that applies at the same time. The full rules, and why
 a rebuild is not a backup, are in the
 [top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
 

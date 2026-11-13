@@ -183,9 +183,8 @@ When to use `0`, and how to give the Advanced Search index the same count, are i
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete second copy of the index beside the one serving, so the
-cluster holds twice the Nexus One disk while it runs. **Judge free storage against the doubled figure, not the
-steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+replica is a separate doubling that applies at the same time. The full rules, and why
 a rebuild is not a backup, are in the
 [top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
 
