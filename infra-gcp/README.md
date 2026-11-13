@@ -595,7 +595,7 @@ This is a **single instance** deployment.
 
 ## Monitoring and Logging
 
-- **Cloud Logging**: Container logs automatically sent to Cloud Logging
+- **Cloud Logging**: The Ops Agent on the instance sends `clm-server.log`, `request.log` and `audit.log` to Cloud Logging, under the log names `iq_application_log`, `iq_request_log` and `iq_audit_log`
 - **Serial Console**: Startup script logs available via serial console
 - **Docker Logs**: Access via `docker logs` command on instance
 - **Persistent Logs**: Logs stored on Cloud Filestore at `/var/log/nexus-iq-server`
