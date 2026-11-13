@@ -582,6 +582,13 @@ left unset.
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
+### Upgrading IQ Server
+
+`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
+When the upgrade changes the image, back up the database, then run
+`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
+starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+
 ---
 
 ## Teardown / Cleanup
@@ -695,12 +702,11 @@ search_engine = "lucene"
 # opensearch_index_replicas  = 1
 
 # Extra tags merged onto the resources the search backend creates. Keep the
-# keys lowercase, and keep the values in terraform.tfvars rather than in
-# terraform.tfvars.example.
+# keys lowercase, use none of name, environment or project, which this
+# configuration already sets, and keep the values in terraform.tfvars rather
+# than in terraform.tfvars.example.
 # common_tags = {
 #   owner      = "CHANGE_ME_EMAIL"
-#   project    = "CHANGE_ME_PROJECT"
-#   subproject = "CHANGE_ME_SUBPROJECT"
 #   department = "CHANGE_ME_DEPARTMENT"
 #   team       = "CHANGE_ME_TEAM"
 # }
