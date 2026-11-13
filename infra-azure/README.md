@@ -8,21 +8,27 @@ This directory contains Terraform configuration for deploying a **single-instanc
 
 This single-instance architecture supports sizes **XS**, **S**, and **M**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
-|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
-| **XS** | < 500 | < 1,000 | 2 vCPU / 14 GB | 8 GB | Container Apps (2.0 CPU / 14Gi) on D4 |
-| **S** | 500 - 2,000 | 1,000 - 5,000 | 3.5 vCPU / 28 GB | 20 GB | Container Apps (3.5 CPU / 28Gi) on E4 |
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 7.5 vCPU / 56 GB | 44 GB | Container Apps (7.5 CPU / 56Gi) on E8 |
+| Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type | OpenSearch |
+|------|:------------:|:---------------:|:-------:|:---------:|:-------------:|:----------:|
+| **XS** | < 500 | < 1,000 | 2 vCPU / 14 GB | 8 GB | Container Apps (2.0 CPU / 14Gi) on D4 | Required ¹ |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 3.5 vCPU / 28 GB | 20 GB | Container Apps (3.5 CPU / 28Gi) on E4 | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 7.5 vCPU / 56 GB | 44 GB | Container Apps (7.5 CPU / 56Gi) on E8 | Required ¹ |
 
 > Each container is smaller than its node, because Container Apps keeps part of every node for itself
 > ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
 > The heap plus `MaxDirectMemorySize` leaves about 4 GB of the container for the JVM's own memory.
+
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
 > **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
 
 ### Recommended `terraform.tfvars` by Size
+
+> **Heap dumps.** At M, L and XL the first out-of-memory error writes a heap dump to
+> `/sonatype-work/heap-dump.hprof` and the JVM exits; a later one skips the dump while that file
+> exists, so delete it to allow another.
 
 <details>
 <summary><strong>Size XS</strong> — Extra Small (< 500 applications)</summary>
@@ -75,6 +81,60 @@ file_share_quota     = 500                 # GB
 | **S** | MO_Standard_E2ds_v6 | 2 | 16 GB | 128 GB |
 | **M** | MO_Standard_E8ds_v6 | 8 | 64 GB | 128 GB (auto-grow enabled) |
 
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **both features need it at every size this architecture
+supports.** One cluster serves both, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
+`opensearch_endpoint`, `opensearch_username` and `opensearch_password`. Every variable and its default
+is in [Advanced Search with OpenSearch](#advanced-search-with-opensearch) below.
+
+Azure has no first-party managed OpenSearch service, so the cluster is **self-managed OpenSearch on
+Azure virtual machines** and IQ Server authenticates with a username and password. That means you also
+choose the OpenSearch server version and own upgrades, snapshots, and node replacement. Use `https` on
+the cluster's REST layer: with no IAM to sign with, that password is the only thing protecting the
+index, and on plain `http` it crosses the network in clear text on every request.
+
+**This architecture does not create the cluster.** It takes an endpoint and points IQ Server at it, so
+the cluster's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
+cluster has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
+index.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. Set `opensearch_index_replicas` per size:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **XS** | 1 | `0` |
+| **S** | 1 | `0` |
+| **M** | 3 | `1` |
+
+When to use `0`, and how to give the Advanced Search index the same count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
+
+#### Plan for twice the index during a rebuild
+
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+The data node type and count, storage per node, shards and replicas for each size are in the
+[cluster table](#specifying-the-cluster) below. At M the component, violation and vulnerability indices are
+created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
+shard counts are set through the configuration API before the first build, as shown there.
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
+
 ---
 
 ## Deployment Guide
@@ -93,6 +153,13 @@ Install these tools on your local machine:
 - Azure subscription with Contributor access
 - Ability to create: Resource Groups, Virtual Networks, Container Apps, PostgreSQL
 - Key Vault access for secrets management
+- PostgreSQL Flexible Server cores are a quota per subscription and per region. Check the region's
+  usage before applying, and request a quota increase if the server's vCores do not fit. `az rest`
+  fills in `{subscriptionId}` from the signed-in account; replace `eastus` with the region's short name:
+
+  ```bash
+  az rest --method get --url "https://management.azure.com/subscriptions/{subscriptionId}/providers/Microsoft.DBforPostgreSQL/locations/eastus/resourceType/flexibleServers/usages?api-version=2024-08-01" --query "value[?name.value=='cores'].{used:currentValue, limit:limit}" -o table
+  ```
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
@@ -131,7 +198,7 @@ Your Azure account needs permissions for these services:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"` and your cluster's details, see [Advanced Search with OpenSearch](#advanced-search-with-opensearch)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -150,7 +217,10 @@ Your Azure account needs permissions for these services:
    ./tf-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash
@@ -178,6 +248,8 @@ Your Azure account needs permissions for these services:
 ---
 
 ## Teardown / Cleanup
+
+> **Your OpenSearch cluster is not part of this.** This architecture never creates the cluster, so `./tf-destroy.sh` does not delete it or its indices. Remove it separately when you no longer need it.
 
 **WARNING: This will delete ALL infrastructure and data!**
 
@@ -378,6 +450,7 @@ search:
 nexusOne:
   connection:
     type: http
+    mode: OPENSEARCH
     uri: https://opensearch.internal.example.com:9200
     username: 'iq-server'
     password: '<from the container app secret>'
@@ -410,14 +483,8 @@ at or above it.
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are not set in `config.yml`, and only take effect when an
-index is created, so **at M set them before the Nexus One index is first built**, with one
-request to the configuration API as an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+index is created, so **at M set them before the Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 
@@ -457,6 +524,10 @@ node does not change its configuration. Create:
 - **Outbound internet access for the OpenSearch VMs**, which they need to install and update packages.
   A VM in a Standard internal load balancer's backend pool has no default outbound access, so attach
   a NAT gateway to the OpenSearch subnet.
+- **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
+  address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
+  certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
+  names.
 
 Microsoft describes a Standard internal load balancer's backends and the NAT gateway they need for
 outbound access in [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).

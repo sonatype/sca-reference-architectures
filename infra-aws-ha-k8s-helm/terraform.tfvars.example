@@ -48,7 +48,8 @@ acm_certificate_arn  = ""
 
 # Pod autoscaling is set by hpa.* in helm-values.yaml.
 
-# Search backend. "lucene" (default) uses IQ Server's built-in index; "opensearch"
+# Search backend, needed for Advanced Search and the Nexus One index at every size.
+# "lucene" (default) uses IQ Server's built-in index; "opensearch"
 # creates a domain here. The domain carries prevent_destroy; README.md gives the
 # teardown steps, and the account needs the OpenSearch service-linked role:
 #   aws iam create-service-linked-role \

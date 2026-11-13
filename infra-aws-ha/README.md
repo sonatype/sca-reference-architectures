@@ -8,19 +8,25 @@ This directory contains Terraform configuration for deploying Sonatype IQ Server
 
 This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
-|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
-| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
-| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) |
+| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type | OpenSearch |
+|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) | Required ¹ |
 
-> Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL), from performance testing of these sizes. That testing ran on GCP ARM instances, `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL, not on Fargate tasks. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
+> Evaluations an hour per task, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL.
 
 > **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
+
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
 ### Recommended `terraform.tfvars` by Size
+
+> **Heap dumps.** At M, L and XL the first out-of-memory error on any node writes a heap dump to
+> `/sonatype-work/heap-dump.hprof`, one file on the shared storage, and the JVM exits; a later one
+> skips the dump while that file exists, so delete it to allow another.
 
 <details>
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
@@ -35,6 +41,13 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.large.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 100
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
 ```
 </details>
 
@@ -51,6 +64,13 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "m8g.xlarge.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 150
+opensearch_availability_zone_count = 3
+opensearch_index_replicas          = 1
 ```
 </details>
 
@@ -68,6 +88,14 @@ iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 aurora_instance_class = "db.r8g.4xlarge"   # 16 vCPU, 128 GB
 aurora_instances      = 2                  # Multi-AZ with automatic failover
+
+search_engine                      = "opensearch"
+opensearch_instance_type           = "r8g.2xlarge.search"
+opensearch_instance_count          = 3
+opensearch_volume_size_gb          = 250
+opensearch_availability_zone_count = 3
+opensearch_dedicated_master_type   = "m8g.large.search"
+opensearch_index_replicas          = 1
 ```
 </details>
 
@@ -86,6 +114,59 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 | **M** | Elastic | 200 GB – 500 GB | Lifecycle policies: 30-day move to IA |
 | **L** | Elastic | 500 GB – 1.5 TB | Lifecycle policies: 30-day move to IA |
 | **XL** | Elastic | 1.5 TB – 4 TB | Lifecycle policies: 30-day move to IA |
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
+
+On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
+SigV4 signed by the deployment's own role, so there is no password to store. That role needs the
+`es:ESHttpGet`, `es:ESHttpPost`, `es:ESHttpPut`, `es:ESHttpHead` and `es:ESHttpDelete` actions on the
+domain.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"`. Every variable and its
+default is in [OpenSearch for the Nexus One Index](#opensearch-for-the-nexus-one-index) below.
+
+**This architecture creates the domain unless you name one.** With `search_engine = "opensearch"` and
+`opensearch_domain_endpoint` left empty, the domain is created here. Set that endpoint and
+`opensearch_domain_name` to point at a domain you already run, and nothing is created. A domain created
+here carries `prevent_destroy`, so `terraform destroy` stops rather than deleting your index; a domain
+you named stays independent of this deployment entirely.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. Set `opensearch_index_replicas` per size:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **M** | 3 | `1` |
+| **L** | 3 | `1` |
+| **XL** | 3 | `1` |
+
+When to use `0`, and how to give the Advanced Search index the same count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
+
+#### Plan for twice the index during a rebuild
+
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+The data node type and count, storage per node, shards and replicas for each size are in the
+[domain shape table](#domain-shape-per-size) below. At M, L and XL the component, violation and vulnerability indices are
+created with 3 primary shards and every other index with 1. The
+shard counts are set through the configuration API before the first build, as shown there.
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -290,14 +371,8 @@ nexusOne:
 Shard counts are not set in `config.yml`, and a shard count only takes
 effect when an index is created. **At M, L and XL, set
 the component, violation and vulnerability indices to 3 shards before the
-Nexus One index is first built**, with one request to the configuration API as
-an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 The other Nexus One indices keep 1 shard. An
 index built before the change keeps its count until it is rebuilt.
@@ -314,13 +389,12 @@ Install these tools on your local machine:
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
 | **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
-| **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access |
-| **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
+| **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access, and signing in through IAM Identity Center |
 | **jq** | >= 1.6 | [Install Guide](https://jqlang.org/download/) | Read the plan in `tf-apply.sh` |
 
 #### AWS Account Requirements
 - AWS account with administrative access (or sufficient permissions listed below)
-- IAM user with MFA enabled
+- An IAM Identity Center user with access to the account (recommended), or another way to get credentials, see Step 2
 - Ability to create: VPC, ECS, RDS Aurora, EFS, ALB, IAM roles
 
 #### Required AWS Permissions
@@ -342,30 +416,30 @@ Your IAM user/role needs these AWS service permissions:
 
 ### Step 2: Configure AWS Credentials
 
-**The provided scripts use aws-vault for secure credential management.**
+The scripts call `terraform` and `aws` directly, so they use the standard AWS credential chain
+with the profile named in `AWS_PROFILE`. AWS recommends
+[short-lived credentials from IAM Identity Center](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#bp-users-federation-idp)
+rather than long-term access keys, and both AWS CLI v2 and the Terraform AWS provider read an
+IAM Identity Center profile natively.
 
-1. **Choose a profile name** (e.g., `nexus-iq-deployment`)
-
-2. **Configure your AWS profile in `~/.aws/config`:**
-   ```ini
-   [profile nexus-iq-deployment]
-   region = us-east-1
-   output = json
-   mfa_serial = arn:aws:iam::<YOUR_ACCOUNT_ID>:mfa/<YOUR-USERNAME>
-   ```
-
-3. **Add credentials to aws-vault and test:**
+1. **Create an IAM Identity Center profile** with the AWS CLI wizard, choosing a profile name
+   such as `nexus-iq-deployment`:
    ```bash
-   aws-vault add nexus-iq-deployment
+   aws configure sso --profile nexus-iq-deployment
    ```
-   Enter your AWS Access Key ID and Secret Access Key when prompted
+   It asks for your access portal URL, its region, and the account and role to use, then
+   writes the profile to `~/.aws/config`. See
+   [Configuring IAM Identity Center authentication with the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html).
 
+2. **Sign in and test:**
    ```bash
-   aws-vault exec nexus-iq-deployment -- aws sts get-caller-identity
+   aws sso login --profile nexus-iq-deployment
+   aws sts get-caller-identity --profile nexus-iq-deployment
    ```
-   You should see your AWS account details.
+   You should see your AWS account details. Run `aws sso login` again when the session
+   expires; the scripts stop with that instruction if the credentials are missing or expired.
 
-4. **Set the AWS_PROFILE environment variable:**
+3. **Set the AWS_PROFILE environment variable:**
 
    The scripts require the `AWS_PROFILE` environment variable to be set:
 
@@ -380,6 +454,11 @@ Your IAM user/role needs these AWS service permissions:
    AWS_PROFILE=nexus-iq-deployment <script>
    ```
 
+Any other source in the standard chain works too, such as a profile with access keys or one
+that assumes a role. A tool that injects credentials into the environment also works, for
+example `aws-vault exec nexus-iq-deployment -- ./tf-plan.sh`, in which case `AWS_PROFILE` may be
+left unset.
+
 ### Step 3: Configure Terraform Variables
 
 1. **Copy the example configuration:**
@@ -388,7 +467,7 @@ Your IAM user/role needs these AWS service permissions:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values (or leave to get started quickly):**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"`, see [OpenSearch](#opensearch-for-the-nexus-one-index)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -407,7 +486,10 @@ Your IAM user/role needs these AWS service permissions:
    ./tf-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash
@@ -437,6 +519,8 @@ Your IAM user/role needs these AWS service permissions:
 ---
 
 ## Teardown / Cleanup
+
+> **Your OpenSearch domain is not deleted by this.** A domain this architecture created carries `prevent_destroy`, so `./tf-destroy.sh` stops rather than deleting it; the steps that remove it deliberately are in [`terraform destroy` will not delete the domain](#terraform-destroy-will-not-delete-the-domain). A domain named through `opensearch_domain_endpoint` was never created here and is not deleted here.
 
 **WARNING: This will delete ALL infrastructure and data!**
 
@@ -510,7 +594,7 @@ enable_container_insights = true
 enable_prometheus        = true
 log_retention_days       = 30
 
-# Search Backend (optional)
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the index built into IQ Server. "opensearch" creates
 # a domain here, or uses one you already run if you set
 # opensearch_domain_endpoint. See the OpenSearch section above.
