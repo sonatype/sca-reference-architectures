@@ -137,6 +137,8 @@ iq_server:
 
 On Premium the quota is the provisioned and billed size.
 
+Terraform creates one NFS share, `iq-data-ha`, at this quota. `helm-install.sh` binds IQ's claim, `iq-server-pvc`, to that share through a static PersistentVolume, `azurefiles-pv.yaml` and `azurefiles-pvc.yaml`, with both sized from the `storage_share_quota_gb` output. Every IQ pod mounts it at `/sonatype-work/clm-cluster`, the cluster directory.
+
 > Premium SSD with ZRS redundancy is recommended for AKS deployments requiring NFS access mode (ReadWriteMany).
 
 ---
@@ -167,7 +169,7 @@ Your Azure account needs permissions for these services:
 - **Compute**: Azure Kubernetes Service, node pools, system-assigned managed identities
 - **Networking**: Virtual Networks, subnets, Network Security Groups, Application Gateways (zone-redundant with auto-scaling), Public IPs, Private DNS Zones
 - **Database**: Azure Database for PostgreSQL Flexible Server (zone-redundant with HA mode), databases, firewall rules, server configurations
-- **Storage**: Storage Accounts (Premium ZRS), File Shares (multiple shares)
+- **Storage**: Storage Accounts (Premium ZRS), File Shares (one NFS share)
 - **Security**: User-assigned managed identities, system-assigned managed identities
 - **IAM**: Role assignments (Contributor, Reader, Network Contributor on various resources)
 - **Monitoring**: Log Analytics workspaces, Application Insights
@@ -447,7 +449,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 
 ## Persistent Storage
 
-- **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
+- **Azure File Share (Premium ZRS)**: One NFS share, `iq-data-ha`, sized by `storage_share_quota_gb` and mounted by every IQ pod at `/sonatype-work/clm-cluster` through a static PersistentVolume
 - **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 

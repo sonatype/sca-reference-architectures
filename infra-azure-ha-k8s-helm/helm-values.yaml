@@ -68,14 +68,9 @@ iq_server:
 
 
   persistence:
-
-
-    existingPersistentVolumeName: " "
-    persistentVolumeClaimName: "iq-server-pvc"
-    size: "100Gi"
-    storageClassName: "azurefile-nfs"
-    accessModes:
-      - ReadWriteMany
+    # helm-install.sh creates this claim, bound to a PersistentVolume on the
+    # Terraform-created Azure Files share and sized from storage_share_quota_gb.
+    existingPersistentVolumeClaimName: "iq-server-pvc"
 
 
   serviceAccountName: "nexus-iq-sa"
@@ -192,11 +187,6 @@ external-dns:
 
 migrationJob:
   enabled: false
-
-
-azureFiles:
-  enabled: true
-  storageClass: "azure-files-premium-zrs"
 
 
 livenessProbe:

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: iq-server-pvc
+  namespace: nexus-iq
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: SHARE_QUOTA_PLACEHOLDER
+  storageClassName: ""
+  volumeName: nexus-iq-azurefiles-pv
