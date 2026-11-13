@@ -80,6 +80,16 @@ resource "aws_ecs_task_definition" "iq_task" {
           mkdir -p "$UNIQUE_WORK"
           mkdir -p "/sonatype-work/clm-cluster"
 
+          # Every task mounts the same EFS log directory, so each one writes and
+          # rolls its logs under its own host name rather than sharing one file.
+          mkdir -p "/var/log/nexus-iq-server/$HOSTNAME"
+          # A task that has gone leaves its directory behind, so delete any other
+          # task's directory unchanged for 7 days. Each live task touches its own
+          # directory every hour, so an idle one is not taken for gone. aggregated
+          # is the Fluent Bit sidecar's.
+          find /var/log/nexus-iq-server -mindepth 1 -maxdepth 1 -type d ! -name "$HOSTNAME" ! -name aggregated -mtime +7 -exec rm -rf {} + || true
+          ( while true; do touch "/var/log/nexus-iq-server/$HOSTNAME"; sleep 3600; done ) &
+
 
           mkdir -p /etc/nexus-iq-server
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
@@ -106,17 +116,28 @@ server:
   requestLog:
     appenders:
     - type: file
-      currentLogFilename: "/var/log/nexus-iq-server/request.log"
-      archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+      currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/request.log"
+      archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/request-%d.log.gz"
       archivedFileCount: 5
 
 logging:
-  level: DEBUG
+  level: INFO
   loggers:
     com.sonatype.insight.scan: INFO
     eu.medsea.mimeutil.MimeUtil2: INFO
     org.apache.http: INFO
     org.apache.http.wire: ERROR
+    org.apache.hc.client5.http: INFO
+    org.apache.hc.client5.http.wire: ERROR
+    org.apache.hc.core5.reactor: INFO
+    org.apache.http.client.protocol.ResponseProcessCookies: ERROR
+    org.postgresql.jdbc.PgConnection: INFO
+    org.quartz: INFO
+    org.zeroturnaround.exec: INFO
+    org.eclipse.jgit: INFO
+    software.amazon.awssdk: WARN
+    org.jooq.tools: WARN
+    org.jooq.Constants: OFF
     org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
     org.eclipse.jetty: INFO
     org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
@@ -124,8 +145,8 @@ logging:
     com.sonatype.insight.audit:
       appenders:
       - type: file
-        currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-        archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+        currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/audit.log"
+        archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/audit-%d.log.gz"
         archivedFileCount: 50
   appenders:
   - type: console
@@ -133,10 +154,10 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
   - type: file
     threshold: ALL
-    currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-    archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d.log.gz"
+    currentLogFilename: "/var/log/nexus-iq-server/$HOSTNAME/clm-server.log"
+    archivedLogFilenamePattern: "/var/log/nexus-iq-server/$HOSTNAME/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
-    archivedFileCount: 50
+    archivedFileCount: 24
 
 %{if var.search_engine == "opensearch"~}
 # Advanced Search reads this block.
@@ -162,6 +183,7 @@ CONFIGEOF
 
 
           sed -i "s|\$UNIQUE_WORK|$UNIQUE_WORK|g" /etc/nexus-iq-server/config.yml
+          sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_HOST|$DB_HOST|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PORT|$DB_PORT|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
@@ -308,7 +330,14 @@ CONFIGEOF
         mkdir -p /fluent-bit/etc /fluent-bit/parsers /fluent-bit/state /var/log/nexus-iq-server/aggregated
 
 
-        echo "$FLUENT_BIT_CONFIG" > /fluent-bit/etc/fluent-bit.conf
+        # Every task mounts the same log directory, so the sidecar tails only its
+        # own task's, named by the host name the task's containers share.
+        TASK_HOST=$(cat /proc/sys/kernel/hostname)
+        echo "$FLUENT_BIT_CONFIG" | sed "s|/TASK_HOST/|/$TASK_HOST/|g" > /fluent-bit/etc/fluent-bit.conf
+        if grep -q '/TASK_HOST/' /fluent-bit/etc/fluent-bit.conf; then
+          echo "REFUSING: the task host name was not substituted into the tail paths"
+          exit 1
+        fi
         echo "$FLUENT_BIT_PARSERS" > /fluent-bit/parsers/parsers.conf
 
         echo "Configuration loaded successfully"

@@ -224,12 +224,23 @@ server:
       archivedFileCount: 5
 
 logging:
-  level: DEBUG
+  level: INFO
   loggers:
     com.sonatype.insight.scan: INFO
     eu.medsea.mimeutil.MimeUtil2: INFO
     org.apache.http: INFO
     org.apache.http.wire: ERROR
+    org.apache.hc.client5.http: INFO
+    org.apache.hc.client5.http.wire: ERROR
+    org.apache.hc.core5.reactor: INFO
+    org.apache.http.client.protocol.ResponseProcessCookies: ERROR
+    org.postgresql.jdbc.PgConnection: INFO
+    org.quartz: INFO
+    org.zeroturnaround.exec: INFO
+    org.eclipse.jgit: INFO
+    software.amazon.awssdk: WARN
+    org.jooq.tools: WARN
+    org.jooq.Constants: OFF
     org.eclipse.birt.report.engine.layout.pdf.font.FontConfigReader: WARN
     org.eclipse.jetty: INFO
     org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter: INFO
@@ -250,9 +261,9 @@ logging:
   - type: file
     threshold: ALL
     currentLogFilename: "$UNIQUE_WORK/logs/clm-server.log"
-    archivedLogFilenamePattern: "$UNIQUE_WORK/logs/clm-server-%d.log.gz"
+    archivedLogFilenamePattern: "$UNIQUE_WORK/logs/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - INSTANCE:$INSTANCE_HOSTNAME %msg%n"
-    archivedFileCount: 50
+    archivedFileCount: 24
 
 createSampleData: true
 CONFIGEOF

@@ -41,6 +41,31 @@ resource "azurerm_storage_share" "iq_data_ha" {
 }
 
 
+resource "azurerm_storage_share" "iq_logs_ha" {
+  name                 = "iq-logs-ha"
+  storage_account_name = azurerm_storage_account.iq_storage_ha.name
+  quota                = var.log_share_quota_gb
+  enabled_protocol     = "SMB"
+
+  lifecycle {
+    precondition {
+      condition     = var.storage_account_tier != "Premium" || var.log_share_quota_gb >= 100
+      error_message = "log_share_quota_gb must be at least 100 on a Premium storage account, which provisions and bills a file share on its full size."
+    }
+  }
+}
+
+
+resource "azurerm_container_app_environment_storage" "iq_logs_ha" {
+  name                         = "iq-logs-ha"
+  container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
+  account_name                 = azurerm_storage_account.iq_storage_ha.name
+  share_name                   = azurerm_storage_share.iq_logs_ha.name
+  access_key                   = azurerm_storage_account.iq_storage_ha.primary_access_key
+  access_mode                  = "ReadWrite"
+}
+
+
 resource "azurerm_container_app_environment_storage" "iq_storage_ha" {
   name                         = "iq-storage-ha"
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id

@@ -82,7 +82,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
 
 [INPUT]
     Name              tail
-    Path              /var/log/nexus-iq-server/clm-server.log
+    Path              /var/log/nexus-iq-server/TASK_HOST/clm-server.log
     Tag               iq.application
     Read_from_Head    true
     Refresh_Interval  10
@@ -92,7 +92,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
 
 [INPUT]
     Name              tail
-    Path              /var/log/nexus-iq-server/request.log
+    Path              /var/log/nexus-iq-server/TASK_HOST/request.log
     Tag               iq.request
     Parser            iq_request
     Read_from_Head    true
@@ -102,7 +102,7 @@ resource "aws_ssm_parameter" "fluent_bit_config" {
 
 [INPUT]
     Name              tail
-    Path              /var/log/nexus-iq-server/audit.log
+    Path              /var/log/nexus-iq-server/TASK_HOST/audit.log
     Tag               iq.audit
     Parser            json
     Read_from_Head    true
