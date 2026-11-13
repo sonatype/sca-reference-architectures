@@ -268,12 +268,12 @@ Enable these APIs in your project:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
-### Upgrading IQ Server
+### Database migration in `helm-upgrade.sh`
 
-`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
-When the upgrade changes the image, back up the database, then run
-`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
-starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
+only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
+Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
+or the rollout fails.
 
 ---
 
@@ -297,10 +297,8 @@ starts IQ Server again. The script exits non-zero if the migration or the rollou
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
 ### Configuration Variables
 
@@ -372,22 +370,6 @@ hpa:
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
-
-> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
-> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
-> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
->
-> These defaults changed as well. Set the values your deployment runs at before applying.
->
-> | Setting | Previous default | New default |
-> |---|:---:|:---:|
-> | `node_instance_type` | `n2-standard-8` | `n4a-highmem-8` |
-> | `filestore_capacity_gb` | 1024 | 2560, and the share cannot shrink |
-> | `db_max_disk_size` | 500 | 1000 |
-> | `db_disk_size` | 100 | 256, and the disk cannot shrink |
-> | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay |
-> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
-> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 
 **Important Settings:**
 - **`node_group_min_size = 2`** - Minimum GKE node capacity

@@ -189,8 +189,8 @@ What the created domain gets, none of which needs configuring:
   which keeps cluster state off the nodes serving queries.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
-index.** With it on, SigV4 alone no longer reaches the domain, and IQ Server's
-`type: aws` configuration stops working.
+index.** With it on, SigV4 alone does not reach the domain, and IQ Server's
+`type: aws` configuration does not work.
 
 ### Domain shape per size
 
@@ -449,31 +449,11 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `aurora_engine_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `iq_max_count` | 5 | 4 |
-> | `aurora_engine_version` | 15.10 | 18.6 |
-> | `ecs_memory` | 32768 | 61440 |
-> | `ecs_memory_reservation` | 24576 | 53248 |
-> | `java_opts` | 24 GB heap | 44 GB heap |
-> | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
->
 > An instance class change applies in the next maintenance window, because this
 > configuration does not set `apply_immediately`.
->
-> The `Name` tags on the VPC, internet gateway, subnets, NAT gateways and their
-> addresses, and route tables follow `cluster_name`. A deployment that sets its
-> own `cluster_name` sees those tags renamed on the next apply. Only the tags change.
 
 ### Configuration Variables
 
