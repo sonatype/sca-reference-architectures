@@ -362,26 +362,54 @@ systemctl restart google-cloud-ops-agent
 log "Cloud Logging agent configured and started"
 
 # IQ Server takes its schema migration lock only once the schema exists, so on an empty database
-# every instance would run the first migration at once. The instance that creates the gate
-# directory on the shared Filestore starts at once; the others wait until it logs that its
-# migrations completed, for at most 20 minutes. The marker it then writes lets every later start
-# skip the wait.
+# every instance would run the first migration at once. One instance holds the gate directory on
+# the shared Filestore and rewrites its heartbeat file every 15 seconds until the marker exists.
+# The others wait, and the first to claim the gate after its heartbeat has not changed for 60
+# seconds takes over. Every instance writes the marker once its own IQ Server answers the database
+# health check, and the marker lets every later start skip the gate. An instance still waiting
+# after 840 seconds stops this script, inside the autohealing delay, so the group replaces it.
 MIGRATED="$${CLUSTER_DIR_HOST}/.schema-migrated"
+GATE="$${CLUSTER_DIR_HOST}/.schema-migration-gate"
+hold_gate() {
+  echo "$${INSTANCE_HOSTNAME}-0" > "$${GATE}/heartbeat"
+  # Transient units of their own, so the loops outlive this startup script's service.
+  systemd-run --collect --unit=iq-schema-migration-heartbeat /bin/sh -c \
+    "beat=0; until [ -e '$${MIGRATED}' ]; do sleep 15; beat=\$((beat + 1)); echo '$${INSTANCE_HOSTNAME}-'\$beat > '$${GATE}/heartbeat' || true; done" \
+    || { log "Could not start the gate heartbeat, so this instance does not run the first migration"; exit 1; }
+}
 if [ ! -e "$${MIGRATED}" ]; then
-  if mkdir "$${CLUSTER_DIR_HOST}/.schema-migration-gate" 2>/dev/null; then
-    log "This instance runs the first database migration"
-    # A transient unit of its own, so the watch outlives this startup script's service.
-    systemd-run --collect --unit=iq-schema-migrated-marker /bin/sh -c \
-      "until grep -q 'Database migrations completed successfully' '$${UNIQUE_WORK_HOST}/logs/clm-server.log' 2>/dev/null; do sleep 5; done; touch '$${MIGRATED}'" \
-      || log "Could not start the migration marker watch; other instances wait at most 20 minutes"
-  else
-    log "Waiting for another instance to finish the first database migration"
-    waited=0
-    while [ ! -e "$${MIGRATED}" ] && [ "$${waited}" -lt 1200 ]; do
-      sleep 10
-      waited=$((waited + 10))
-    done
-  fi
+  systemd-run --collect --unit=iq-schema-migrated-marker /bin/sh -c \
+    "until [ -e '$${MIGRATED}' ]; do if curl -sf http://localhost:8071/healthcheck/database >/dev/null 2>&1; then touch '$${MIGRATED}' || true; fi; sleep 5; done" \
+    || log "Could not start the migration marker watch"
+  waited=0
+  unchanged=0
+  last_beat="unread"
+  while [ ! -e "$${MIGRATED}" ]; do
+    if mkdir "$${GATE}" 2>/dev/null; then
+      hold_gate
+      log "This instance runs the first database migration"
+      break
+    fi
+    beat=$(cat "$${GATE}/heartbeat" 2>/dev/null || true)
+    if [ "$${beat}" != "$${last_beat}" ]; then
+      last_beat="$${beat}"
+      unchanged=0
+    elif [ "$${unchanged}" -ge 60 ] && mkdir "$${GATE}/taken-$${beat}" 2>/dev/null; then
+      hold_gate
+      log "This instance takes over the first database migration from an instance that stopped"
+      break
+    fi
+    if [ "$${waited}" -ge 840 ]; then
+      log "Stopped after waiting 840 seconds for another instance to finish the first database migration"
+      exit 1
+    fi
+    if [ "$${waited}" -eq 0 ]; then
+      log "Waiting for another instance to finish the first database migration"
+    fi
+    sleep 10
+    waited=$((waited + 10))
+    unchanged=$((unchanged + 10))
+  done
 fi
 
 # ============================================

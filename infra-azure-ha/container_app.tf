@@ -286,25 +286,60 @@ CONFIGEOF
           ls -la /sonatype-work/
 
           # IQ Server takes its schema migration lock only once the schema exists, so on an
-          # empty database every replica would run the first migration at once. The replica
-          # that creates the gate directory on the shared share starts at once; the others wait
-          # until it logs that its migrations completed, for at most 20 minutes. The marker it
-          # then writes lets every later start skip the wait.
+          # empty database every replica would run the first migration at once. One replica holds
+          # the gate directory on the shared file share and rewrites its heartbeat file every 15
+          # seconds until the marker exists. The others wait, and the first to claim the gate
+          # after its heartbeat has not changed for 60 seconds takes over. Every replica writes the
+          # marker once its own IQ Server answers the database health check, and the marker lets
+          # every later start skip the gate. A replica still waiting after 150 seconds exits, and
+          # Container Apps starts it again to wait again.
           MIGRATED="$CLUSTER_DIR/.schema-migrated"
+          GATE="$CLUSTER_DIR/.schema-migration-gate"
+          hold_gate() {
+            echo "$HOSTNAME-0" > "$GATE/heartbeat"
+            ( beat=0
+              until [ -e "$MIGRATED" ]; do
+                sleep 15
+                beat=$((beat + 1))
+                echo "$HOSTNAME-$beat" > "$GATE/heartbeat" || true
+              done ) &
+          }
           if [ ! -e "$MIGRATED" ]; then
-            if mkdir "$CLUSTER_DIR/.schema-migration-gate" 2>/dev/null; then
-              echo "This replica runs the first database migration"
-              IQ_LOG=$(sed -n 's/^[[:space:]]*currentLogFilename: "\(.*clm-server\.log\)"$/\1/p' /etc/nexus-iq-server/config.yml)
-              ( until grep -q "Database migrations completed successfully" "$IQ_LOG" 2>/dev/null; do sleep 5; done
-                touch "$MIGRATED" ) &
-            else
-              echo "Waiting for another replica to finish the first database migration"
-              waited=0
-              while [ ! -e "$MIGRATED" ] && [ "$waited" -lt 1200 ]; do
-                sleep 10
-                waited=$((waited + 10))
-              done
-            fi
+            ( until [ -e "$MIGRATED" ]; do
+                if curl -sf http://localhost:8071/healthcheck/database >/dev/null 2>&1; then
+                  touch "$MIGRATED" || true
+                fi
+                sleep 5
+              done ) &
+            waited=0
+            unchanged=0
+            last_beat="unread"
+            while [ ! -e "$MIGRATED" ]; do
+              if mkdir "$GATE" 2>/dev/null; then
+                hold_gate
+                echo "This replica runs the first database migration"
+                break
+              fi
+              beat=$(cat "$GATE/heartbeat" 2>/dev/null || true)
+              if [ "$beat" != "$last_beat" ]; then
+                last_beat="$beat"
+                unchanged=0
+              elif [ "$unchanged" -ge 60 ] && mkdir "$GATE/taken-$beat" 2>/dev/null; then
+                hold_gate
+                echo "This replica takes over the first database migration from a replica that stopped"
+                break
+              fi
+              if [ "$waited" -ge 150 ]; then
+                echo "Stopped after waiting 150 seconds for another replica to finish the first database migration"
+                exit 1
+              fi
+              if [ "$waited" -eq 0 ]; then
+                echo "Waiting for another replica to finish the first database migration"
+              fi
+              sleep 10
+              waited=$((waited + 10))
+              unchanged=$((unchanged + 10))
+            done
           fi
 
           echo "Starting Nexus IQ Server HA replica: $HOSTNAME"
