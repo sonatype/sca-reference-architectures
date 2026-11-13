@@ -356,7 +356,7 @@ search_engine = "lucene"
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
 - **`db_availability_type = "ZONAL"`** - Set to `"REGIONAL"` for production for high availability
-- **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`)
+- **`iq_docker_image`** - Use specific version tag for production (e.g., `sonatype/nexus-iq-server:1.196.0`). An image in Artifact Registry in the same project is pulled with the instance's service account, which holds `roles/artifactregistry.reader`
 
 ### Docker Container Deployment
 

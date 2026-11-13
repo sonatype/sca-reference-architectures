@@ -62,7 +62,8 @@ resource "google_compute_instance" "iq_server" {
     google_secret_manager_secret_version.db_credentials,
     google_secret_manager_secret_version.opensearch_password,
     google_secret_manager_secret_version.opensearch_ca,
-    google_project_iam_member.iq_service_secret_accessor
+    google_project_iam_member.iq_service_secret_accessor,
+    google_project_iam_member.iq_service_artifact_reader
   ]
 }
 
