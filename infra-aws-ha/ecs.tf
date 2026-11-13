@@ -168,12 +168,7 @@ search:
   region: ${var.aws_region}
   nexusOneIndexReplicas: ${var.opensearch_index_replicas}
 
-# The Nexus One index reads this one, and only this one. Both name the same domain.
-#
-# Two separate blocks because IQ Server builds the Nexus One index's connection from
-# nexusOne.connection alone: with search: set and this absent, the index store has no transport and
-# enabling the nexus-one feature is refused. The fields are the same, because both bind to the same
-# configuration class.
+# The Nexus One index reads this block. Both blocks name the same domain.
 nexusOne:
   connection:
     type: aws
@@ -196,9 +191,8 @@ CONFIGEOF
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 
 
-          echo "=== DEBUG: Contents of config.yml after ALL replacements ==="
-          cat /etc/nexus-iq-server/config.yml
-          echo "=== END DEBUG ==="
+          echo "Generated config file contents, with every password redacted:"
+          sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
 
           export JAVA_OPTS
