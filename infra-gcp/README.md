@@ -277,7 +277,7 @@ Enable these APIs in your project:
 > **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
 > PostgreSQL 18.
 
-> **Existing deployments and the N4 database tiers.** The Size M database default moved from `db-custom-8-30720` on `PD_SSD` to `db-custom-N4-8-65536` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
+> **Database tier and disk type.** A change to `db_instance_tier` or `db_disk_type` updates the existing instance rather than replacing it. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving from Hyperdisk back to SSD can incur significant downtime. With `db_disk_type = "PD_SSD"`, `db_disk_provisioned_iops` is ignored.
 
 ### Configuration Variables
 
