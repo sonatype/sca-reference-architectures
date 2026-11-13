@@ -339,12 +339,12 @@ Enable these APIs in your project:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
-### Upgrading IQ Server
+### Database migration in `helm-upgrade.sh`
 
-`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
-When the upgrade changes the image, back up the database, then run
-`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
-starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
+only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
+Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
+or the rollout fails.
 
 ---
 
@@ -370,10 +370,8 @@ starts IQ Server again. The script exits non-zero if the migration or the rollou
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
 ### Configuration Variables
 
@@ -448,26 +446,6 @@ hpa:
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
-
-> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
-> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
-> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
->
-> These defaults changed as well. Set the values your deployment runs at before applying.
->
-> | Setting | Previous default | New default |
-> |---|:---:|:---:|
-> | `node_instance_type` | `n2-standard-8` | `n4a-highmem-8` |
-> | `filestore_capacity_gb` | 1024 | 2560, and the share cannot shrink |
-> | `db_max_disk_size` | 500 | 1000 |
-> | `db_disk_size` | 100 | 256, and the disk cannot shrink |
-> | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536, see the note below |
-> | `db_disk_type` | PD_SSD, fixed in `database.tf` | HYPERDISK_BALANCED, now a variable |
-> | `db_edition` | ENTERPRISE, the provider 5.x default | ENTERPRISE, now a variable |
-> | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED |
-> | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay |
-> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
-> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 
 > **Existing deployments and the N4 database tiers.** The M, L and XL database defaults moved from `db-custom-8-30720` and `db-custom-16-65536` on `PD_SSD` to `db-custom-N4-8-65536` and `db-custom-N4-16-131072` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
 

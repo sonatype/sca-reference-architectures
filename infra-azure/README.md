@@ -264,29 +264,10 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed. A deployment whose
-> `terraform.tfvars` does not set a variable picks up the new default on its next apply. Set the
-> values your deployment is running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `container_cpu` | 4.0 | 7.5 |
-> | `container_memory` | `8Gi` | `56Gi` |
-> | `java_opts` | 6 GB heap | 44 GB heap |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
-> | `db_storage_mb` | 524288 | 131072 for a new server. An existing server keeps its size |
-> | `workload_profile_type` | `D4`, fixed | `E8` |
-> | `azure_region` | West US 2 | East US. A region change replaces every resource, so an existing deployment sets its region here |
->
-> The Application Gateway, its public IP, the public subnet and its NSG, and the `app_gateway_*`
-> and `public_subnet_cidr` variables are removed, so the next apply deletes them. IQ Server is then reached on the Container App's own HTTPS address,
-> the `application_url` output, and the `application_gateway_*`, `public_subnet_id` and
-> `public_nsg_id` outputs are gone.
+> IQ Server is reached on the Container App's own HTTPS address, the `application_url` output.
 
 ### Configuration Variables
 

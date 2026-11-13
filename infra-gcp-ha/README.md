@@ -302,33 +302,13 @@ Enable these APIs in your project:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default | Applies to |
-> |---|:---:|:---:|---|
-> | `iq_target_instances` | 2 | 3 | new deployments only, see below |
-> | `iq_max_instances` | 6 | 4 | every deployment |
-> | `db_disk_size` | 100 | 256 | every deployment, and the disk cannot shrink |
-> | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay | every deployment |
-> | `filestore_capacity_gb` | 1024 | 2560 | every deployment, and the share cannot shrink |
-> | `java_opts` | 48 GB heap, no direct memory cap | the Size M and L `java_opts` above | every deployment, and it rolls the group |
-> | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536 | every deployment, see the note below |
-> | `db_disk_type` | PD_SSD | HYPERDISK_BALANCED | every deployment, see the note below |
-> | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED | every deployment |
->
-> `iq_target_instances` reaches a group only when it is created: `compute.tf` sets
-> `ignore_changes = [target_size]` on the instance group manager, so an existing
-> deployment keeps the size it is running at and an apply will not resize it. Change the
-> size with `gcloud compute instance-groups managed resize`, or by removing that
-> lifecycle block.
+> `iq_target_instances` sets the group size only when the group is created: `compute.tf` sets
+> `ignore_changes = [target_size]` on the instance group manager, so an apply does not resize
+> a running group. Change the size with `gcloud compute instance-groups managed resize`, or by
+> removing that lifecycle block.
 
 > **Existing deployments and the N4 database tiers.** The M, L and XL database defaults moved from `db-custom-8-30720` and `db-custom-16-65536` on `PD_SSD` to `db-custom-N4-8-65536` and `db-custom-N4-16-131072` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
 
