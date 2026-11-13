@@ -124,11 +124,15 @@ resource "azurerm_subnet" "db_subnet" {
   virtual_network_name = azurerm_virtual_network.iq_vnet.name
   address_prefixes     = [var.db_subnet_cidr]
 
+  # The endpoint and the action are the ones Azure stores for a subnet delegated to Flexible
+  # Server, so a plan with no edits compares equal.
+  service_endpoints = ["Microsoft.Storage"]
+
   delegation {
     name = "postgres-delegation"
     service_delegation {
       name    = "Microsoft.DBforPostgreSQL/flexibleServers"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
 }
