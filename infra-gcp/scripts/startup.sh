@@ -188,6 +188,15 @@ ENTRYPOINT_EOF
 
 chmod +x /opt/docker-entrypoint.sh
 
+# An Artifact Registry image is pulled with the instance's service account, which the metadata
+# server supplies once docker is told to ask gcloud for it.
+case "${docker_image}" in
+  *-docker.pkg.dev/*)
+    echo "Configuring docker to authenticate to ${split("/", docker_image)[0]}"
+    gcloud auth configure-docker "${split("/", docker_image)[0]}" --quiet
+    ;;
+esac
+
 echo "=== Starting Nexus IQ Server Docker Container ==="
 # Replace any container left by an earlier boot. `docker run --name` fails on a name clash, and
 # under `set -e` the script would end right here with the old container still running on its old
