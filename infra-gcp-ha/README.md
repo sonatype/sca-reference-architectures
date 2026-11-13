@@ -297,30 +297,13 @@ Enable these APIs in your project:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default | Applies to |
-> |---|:---:|:---:|---|
-> | `iq_target_instances` | 2 | 3 | new deployments only, see below |
-> | `iq_max_instances` | 6 | 4 | every deployment |
-> | `db_disk_size` | 100 | 256 | every deployment, and the disk cannot shrink |
-> | `enable_read_replica` | true | removed, so the next apply deletes an existing read replica. The regional primary and its standby stay | every deployment |
-> | `filestore_capacity_gb` | 1024 | 2560 | every deployment, and the share cannot shrink |
-> | `java_opts` | 48 GB heap, no direct memory cap | the Size M and L `java_opts` above | every deployment, and it rolls the group |
->
-> `iq_target_instances` reaches a group only when it is created: `compute.tf` sets
-> `ignore_changes = [target_size]` on the instance group manager, so an existing
-> deployment keeps the size it is running at and an apply will not resize it. Change the
-> size with `gcloud compute instance-groups managed resize`, or by removing that
-> lifecycle block.
+> `iq_target_instances` sets the group size only when the group is created: `compute.tf` sets
+> `ignore_changes = [target_size]` on the instance group manager, so an apply does not resize
+> a running group. Change the size with `gcloud compute instance-groups managed resize`, or by
+> removing that lifecycle block.
 
 ### Configuration Variables
 
