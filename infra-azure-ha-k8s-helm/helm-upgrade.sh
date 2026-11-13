@@ -273,19 +273,26 @@ AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo ""
 if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then
     LB_IP=$(kubectl get svc nexus-iq-server-ha-iq-server-application-service -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
-    if [[ -n "$LB_IP" ]]; then
-        CURRENT_BACKEND=$(az network application-gateway address-pool show \
+    if [[ -z "$LB_IP" ]]; then
+        echo -e "${RED}❌ Error: the application service has no load balancer address${NC}"
+        echo "   The Application Gateway backend pool is not set. Check: kubectl get svc -n $NAMESPACE"
+        exit 1
+    fi
+
+    CURRENT_BACKEND=$(az network application-gateway address-pool show \
+        --gateway-name "$AGW_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --name aks-backend-pool \
+        --query 'backendAddresses[0].ipAddress' -o tsv 2>/dev/null || echo "")
+
+    if [[ "$CURRENT_BACKEND" != "$LB_IP" ]]; then
+        if ! az network application-gateway address-pool update \
             --gateway-name "$AGW_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --name aks-backend-pool \
-            --query 'backendAddresses[0].ipAddress' -o tsv 2>/dev/null || echo "")
-
-        if [[ "$CURRENT_BACKEND" != "$LB_IP" ]]; then
-            az network application-gateway address-pool update \
-                --gateway-name "$AGW_NAME" \
-                --resource-group "$RESOURCE_GROUP" \
-                --name aks-backend-pool \
-                --set backendAddresses[0].ipAddress="$LB_IP" >/dev/null 2>&1 || true
+            --servers "$LB_IP" >/dev/null; then
+            echo -e "${RED}❌ Error: could not point the Application Gateway backend pool at $LB_IP${NC}"
+            exit 1
         fi
     fi
 fi

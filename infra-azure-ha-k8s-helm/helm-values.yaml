@@ -77,11 +77,13 @@ iq_server:
 
 
   serviceType: "LoadBalancer"
-  serviceAnnotations:
+  # Both services get an internal load balancer on a private address in the virtual network.
+  # The Application Gateway is the public entry point, and helm-install.sh and helm-upgrade.sh
+  # point its backend pool at the application service's private address.
+  applicationServiceAnnotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
     service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/ping"
     service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
-  # serviceType gives the admin service, port 8071, a load balancer too. This keeps it on a
-  # private address inside the virtual network rather than a public one.
   adminServiceAnnotations:
     service.beta.kubernetes.io/azure-load-balancer-internal: "true"
 
