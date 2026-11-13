@@ -64,13 +64,13 @@ output "storage_account_id" {
 }
 
 output "storage_share_name" {
-  description = "Name of the Azure Files share for data"
+  description = "Name of the Azure Files NFS share that every IQ pod mounts at /sonatype-work/clm-cluster"
   value       = azurerm_storage_share.iq_data.name
 }
 
-output "storage_cluster_share_name" {
-  description = "Name of the Azure Files share for cluster coordination"
-  value       = azurerm_storage_share.iq_cluster.name
+output "storage_share_quota_gb" {
+  description = "Quota of the Azure Files share in GiB. helm-install.sh sizes the PersistentVolume and its claim from it"
+  value       = azurerm_storage_share.iq_data.quota
 }
 
 
@@ -181,5 +181,22 @@ output "ha_configuration" {
     appgw_zones           = local.availability_zones
     min_replicas          = var.nexus_iq_replica_count
     geo_redundant_backups = var.db_geo_redundant_backup_enabled
+    search_engine         = var.search_engine
   }
+}
+
+
+output "search_engine" {
+  description = "Which search backend IQ Server is configured to use"
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "The OpenSearch URI helm-install.sh writes into helm-values-runtime.yaml. Null when search_engine is 'lucene'."
+  value       = local.opensearch_enabled ? local.opensearch_uri : null
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
+  value       = local.opensearch_enabled ? var.opensearch_index_replicas : null
 }

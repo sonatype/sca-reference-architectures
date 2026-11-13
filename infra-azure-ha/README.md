@@ -10,11 +10,15 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Standard_E8ps_v6 (ARM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Standard_E16ps_v6 (ARM) |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | E8 workload profile |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | E8 workload profile |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 15.5 vCPU / 120 GB | 96 GB | E16 workload profile |
 
 > All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+
+> XL's replica is smaller than its `E16` node, because Container Apps keeps part of every node for itself
+> ([workload profiles](https://learn.microsoft.com/en-us/azure/container-apps/workload-profiles-overview#resource-consumption-and-scaling)).
+> M and L replicas are 8 vCPU and 64 GB on `E8`.
 
 > **Note:** For XL scale, [AKS](../infra-azure-ha-k8s-helm/) is recommended over Container Apps.
 
@@ -28,12 +32,15 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 ```hcl
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
+workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_min_replicas      = 2                   # 2 replicas for HA
 iq_max_replicas      = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB, grows automatically
 db_high_availability_mode = "ZoneRedundant"
+file_share_quota_gb  = 500
 ```
 </details>
 
@@ -43,12 +50,16 @@ db_high_availability_mode = "ZoneRedundant"
 ```hcl
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
+workload_profile_type = "E8"               # 8 cores, 64 GB per node
 iq_min_replicas      = 2
 iq_max_replicas      = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 262144              # 256 GB, grows automatically
+db_storage_tier      = "P15"
 db_high_availability_mode = "ZoneRedundant"
+file_share_quota_gb  = 1536
 storage_account_tier             = "Standard"
 storage_account_replication_type = "ZRS"
 ```
@@ -58,14 +69,18 @@ storage_account_replication_type = "ZRS"
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-container_cpu        = 16.0                # 16 vCPU
-container_memory     = "128Gi"             # 128 GB
+container_cpu        = 15.5                # 15.5 vCPU, leaving 0.5 of the node
+container_memory     = "120Gi"             # 120 GB, leaving 8 GB of the node
+workload_profile_type = "E16"              # 16 cores, 128 GB per node
 iq_min_replicas      = 3
 iq_max_replicas      = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
+db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
+db_storage_mb        = 524288              # 512 GB, grows automatically
+db_storage_tier      = "P20"
 db_high_availability_mode = "ZoneRedundant"
+file_share_quota_gb  = 4096
 storage_account_tier             = "Premium"  # The quota is the provisioned and billed size
 storage_account_replication_type = "ZRS"
 ```
@@ -75,9 +90,9 @@ storage_account_replication_type = "ZRS"
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow) |
-| **L** | GP_Standard_D8s_v3 | 8 | 32 GB | 200 GB – 1 TB (auto-grow) |
-| **XL** | MO_Standard_E16s_v3 | 16 | 128 GB | 500 GB – 2 TB (auto-grow) |
+| **M** | MO_Standard_E8ds_v6 | 8 | 64 GB | 128 GB (auto-grow) |
+| **L** | MO_Standard_E8ds_v6 | 8 | 64 GB | 256 GB, grows automatically, expected to grow to about 1 TB |
+| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 512 GB, grows automatically, expected to grow to about 2 TB |
 
 ### Shared Storage (Azure Files)
 
@@ -100,7 +115,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **Azure CLI** | >= 2.0 | [Install Guide](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) | Azure API access |
 
 #### Azure Account Requirements
@@ -180,6 +195,8 @@ Your Azure account needs permissions for these services:
 1. **Wait for service to be ready:**
    - Initial startup can take 15-20 minutes
    - All replicas must complete database migrations and clustering setup
+   - On an empty database one replica runs the first migration while the others wait. If that replica stops before IQ Server answers, a waiting replica takes over the migration automatically.
+   - If a replica is killed partway through the first migration on an empty database, IQ Server cannot finish it on a later start. Drop the `insight_brain_ods`, `insight_brain_aggregation`, `insight_brain_dm` and `insight_brain_third_party_scans` schemas, then start the replicas again.
 
 2. **Access the web UI:**
 
@@ -227,12 +244,13 @@ private_subnet_cidrs    = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"] # Mul
 db_subnet_cidr          = "10.0.40.0/24"
 
 # High Availability Container App Configuration
-container_cpu      = 4.0      # CPU per replica (max for Azure Container Apps)
-container_memory   = "8Gi"    # Memory per replica (max for Azure Container Apps)
+container_cpu      = 8.0      # vCPU per replica, the Size M and L value
+container_memory   = "64Gi"   # Memory per replica, the Size M and L value
+workload_profile_type = "E8"  # 8 cores, 64 GB per node
 iq_min_replicas    = 2        # Minimum replicas, the Size L value (must be >= 2)
 iq_max_replicas    = 4        # Maximum replicas for auto-scaling, the Size L value
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
 scale_rule_concurrent_requests = 100  # Concurrent requests threshold for HTTP scaling
@@ -242,7 +260,7 @@ db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version               = "18"
-db_sku_name                    = "MO_Standard_E16s_v3"     # Memory Optimized: 16 vCores, 128GB RAM
+db_sku_name                    = "MO_Standard_E8ds_v6"      # Memory Optimized: 8 vCores, 64 GB, the Size M and L value
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
 db_high_availability_mode      = "ZoneRedundant"           # Zone-redundant HA
@@ -256,7 +274,7 @@ app_gateway_zones       = ["1", "2", "3"] # Availability zones
 # Storage Configuration (HA)
 storage_account_tier             = "Standard"
 storage_account_replication_type = "ZRS"      # Zone-Redundant Storage
-file_share_quota_gb              = 200        # File share size in GB
+file_share_quota_gb              = 500        # File share size in GB, the Size M value
 
 # Monitoring and Logging
 enable_monitoring         = true
@@ -265,6 +283,23 @@ enable_container_insights = true
 
 # Backup Configuration
 enable_backup = true
+
+# Search Backend, needed at every size - see "Advanced Search with OpenSearch" below
+search_engine = "lucene"
+
+# Tags merged into every resource
+common_tags = {
+  Environment    = "production"
+  Terraform      = "true"
+  DeploymentType = "high-availability"
+  CostCenter     = "engineering"
+
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}
 ```
 
 **Important Settings:**
@@ -281,7 +316,7 @@ enable_backup = true
 
 This deployment uses Azure Container Apps for IQ Server clustering:
 
-- **Multiple Replicas**: 3-5 Container App replicas distributed across availability zones
+- **Multiple Replicas**: 2 to 5 Container App replicas by size, one per workload profile node, distributed across availability zones
 - **Unique Work Directories**: Each replica gets isolated `/sonatype-work/clm-server-${HOSTNAME}`
 - **Shared Cluster Directory**: Coordination through `/sonatype-work/clm-cluster`
 - **Database Sharing**: All replicas connect to the shared zone-redundant PostgreSQL cluster
@@ -340,6 +375,222 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Public NSG**: Allows HTTP (80), HTTPS (443) from internet
 - **Private NSG**: Allows HTTP/HTTPS traffic and Azure Load Balancer health probes
 - **Database NSG**: Allows PostgreSQL (5432) from private subnets only
+
+### Running several sizes in one subscription
+
+Every resource name is built from `cluster_name`, so two deployments coexist in one Azure
+subscription as long as they use different values:
+
+```hcl
+cluster_name = "iq-m-ha"   # one deployment
+cluster_name = "iq-l-ha"   # another, in the same subscription
+```
+
+**The default keeps the default names**, so nothing changes when it is not set.
+
+Two Azure limits constrain the value, and the variable rejects a value that would break either:
+
+- **A storage account name is globally unique across Azure**, lowercase alphanumeric only, and capped
+  at 24 characters. The hyphens in `cluster_name` are stripped when it is built.
+- **A Key Vault name is globally unique and capped at 24 characters.**
+
+Both carry an 8-character random suffix, so the global uniqueness is handled already and only the
+length matters. That is why the variable is capped at 14 characters rather than at Azure's 24.
+
+**Some names do not move with `cluster_name`, and none of them needs to.** The subnet names
+(`snet-public-N`, `snet-private-N`, `snet-database`), the network security group names and the
+private DNS zone link are scoped inside the virtual network and the resource group, which do move, so
+they cannot collide across deployments. The private DNS zone
+`privatelink.postgres.database.azure.com` is Azure's own fixed name for that zone and is shared by
+design.
+
+## Advanced Search with OpenSearch
+
+Sonatype IQ Server can keep its Advanced Search index in OpenSearch instead of the embedded Lucene
+index, and the same cluster serves the Nexus One index.
+
+**OpenSearch here is a cluster you run yourself on Azure Virtual Machines.** This configuration does
+not build it: you supply its endpoint and credentials, so its indexed data is independent of
+Terraform runs here.
+
+### Turning it on
+
+Set these in `terraform.tfvars`:
+
+```hcl
+search_engine             = "opensearch"
+opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
+opensearch_port           = 9200
+opensearch_use_tls        = true
+opensearch_username       = "iq-server"
+opensearch_password       = "<strong password>"
+opensearch_index_replicas = 1
+```
+
+| Variable | Default | What it does |
+|---|---|---|
+| `search_engine` | `lucene` | `lucene` writes no `search:` block at all. `opensearch` writes one and creates the credential secrets |
+| `opensearch_endpoint` | `""` | Host name or IP of the cluster's client endpoint, no scheme and no port. Required when `search_engine` is `opensearch` |
+| `opensearch_port` | `9200` | The port the cluster listens on |
+| `opensearch_use_tls` | `true` | `true` builds an `https://` URI, `false` builds `http://` |
+| `opensearch_username` | `""` | The user IQ Server authenticates as. Mandatory on this connection type |
+| `opensearch_password` | `""` | That user's password. Delivered to the container app as a secret rather than a plain environment variable, and also written to Key Vault beside the four database secrets. `sensitive` keeps it out of CLI output only, so it is plain text in `terraform.tfstate` |
+| `opensearch_index_replicas` | `1` | Written as `nexusOne.connection.nexusOneIndexReplicas`. Accepts 0 to 10 |
+| `opensearch_ca_pem` | `""` | Base64 certificate of a private authority that signed the cluster's certificate. The entrypoint adds it to a copy of the JVM trust store, see below |
+
+Leave `search_engine` at `lucene` and nothing changes: no secrets are created, and `config.yml` has no
+`search:` block.
+
+### What reaches `config.yml`
+
+```yaml
+search:
+  type: http
+  mode: OPENSEARCH
+  uri: https://opensearch.internal.example.com:9200
+  username: 'iq-server'
+  password: '<from the container app secret>'
+nexusOne:
+  connection:
+    type: http
+    uri: https://opensearch.internal.example.com:9200
+    username: 'iq-server'
+    password: '<from the container app secret>'
+    nexusOneIndexReplicas: 1
+```
+
+The two credentials are single-quoted, so any character is safe in the password, and the startup
+output redacts every `password:` line, so neither credential reaches Log Analytics.
+
+Three things about that block are deliberate:
+
+- **`type: http` with basic auth.** A user name and a password are required on this type.
+- **`mode: OPENSEARCH` is written explicitly**, rather than left to the default.
+- **A `nexusOne.connection` block naming the same cluster.** The Nexus One index needs its own
+  connection block, and it carries `nexusOneIndexReplicas`.
+
+### Specifying the cluster
+
+Every cluster manager has a 30 GiB P4 Premium SSD OS disk and takes
+half its RAM as heap.
+
+This root covers M, L and XL. XS and S are not deployable here, because `iq_min_replicas` is
+validated at two or more, so their rows are in the single-instance root's README instead.
+
+| Size | Data nodes | Data node | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
+|---|---|---|---|---|---|---|
+| M | 3 | `Standard_D2ps_v6`, 2 vCPU, 8 GB | 100 GB, on a P10 Premium SSD of 128 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
+| L | 3 | `Standard_D4ps_v6`, 4 vCPU, 16 GB | 150 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2pls_v6`, 2 vCPU, 4 GB, 2 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
+| XL | 3 | `Standard_E8ps_v6`, 8 vCPU, 64 GB | 250 GB, on a P15 Premium SSD of 256 GiB | 3 x `Standard_D2ps_v6`, 2 vCPU, 8 GB, 4 GB heap, 30 GiB P4 Premium SSD OS disk | 3 | `1` |
+
+Premium SSD is billed and performs by fixed tiers, so each storage figure sits on the smallest tier
+at or above it.
+
+¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
+Shard counts are not set in `config.yml`, and only take effect when an
+index is created, so **at M, L and XL set them before the Nexus One index is first built**, with one
+request to the configuration API as an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+An index built before the change keeps its count until it is rebuilt.
+
+**Use `1` replica at every size here**, so a lost data node leaves a complete copy of the index on
+the others. Use `0` on a single data node: it cannot place a replica, so `1` would leave the index yellow,
+which still serves reads and writes.
+
+Other things the cluster needs, none of which this configuration sets for you:
+
+- **OpenSearch 3.x (3.7 recommended)**, with the security plugin on, so basic auth and a password-protected user exist.
+- **A user IQ Server owns**, with permission to create and write its own indices. Do not reuse the
+  bootstrap admin.
+- **Heap at half of RAM and no more than about 31 GB**, set in `jvm.options`, which is the standard
+  OpenSearch guidance: 4 GB on `Standard_D2ps_v6`, 8 GB on `Standard_D4ps_v6`, and about 31 GB on
+  `Standard_E8ps_v6`, where half its RAM would pass the cap.
+- **Three dedicated cluster managers** at M and above, one per availability zone, holding no data, so
+  losing one leaves a quorum. XS and S run none: one data node is its own cluster manager.
+- **One node per availability zone** at M and above, so a zone outage costs one node rather than the
+  cluster.
+- **A private subnet**, reachable from the subnets IQ Server runs in and from nowhere else. A network
+  security group on the OpenSearch subnet is what enforces that, since Azure allows outbound traffic
+  from the IQ Server subnets by default.
+- **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
+  index up, and a lost index means a full rebuild.
+
+**Put a Standard SKU internal load balancer in front of the data nodes**, and set
+`opensearch_endpoint` to its frontend private IP, so IQ Server reaches one endpoint and replacing a data
+node does not change its configuration. Create:
+
+- **The load balancer** on the OpenSearch subnet, with a private frontend IP and a backend pool of the
+  data nodes' NICs. The cluster managers stay out of the pool.
+- **A TCP health probe on port 9200**, and a rule forwarding TCP 9200 to the pool through it. A TCP
+  probe rather than HTTPS, because the cluster's certificate is from a private authority the probe would
+  not trust.
+- **An NSG rule allowing the `AzureLoadBalancer` service tag on TCP 9200**, at a higher priority than
+  the subnet's deny-all rule. Without it the probes are refused and every backend reads as down.
+- **Outbound internet access for the OpenSearch VMs**, which they need to install and update packages.
+  A VM in a Standard internal load balancer's backend pool has no default outbound access, so attach
+  a NAT gateway to the OpenSearch subnet.
+
+Microsoft describes a Standard internal load balancer's backends and the NAT gateway they need for
+outbound access in [What is Azure NAT Gateway?](https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview).
+
+### TLS, and the JVM trust store
+
+**IQ Server has no per-connection trust setting.** A certificate signed by a private certificate
+authority is trusted only if that authority is in the trust store the JVM loads, and the way to name
+one is the `javax.net.ssl.trustStore` system property.
+
+**Copy the JVM's own trust store and add to the copy. Never replace it.** The same store serves IQ
+Server's calls to the Sonatype data service, so a store holding only your private authority breaks
+policy and vulnerability data while fixing OpenSearch.
+
+**Set `opensearch_ca_pem` and the entrypoint does this for you**: it copies the JVM's trust store to
+`/tmp/iq-truststore.jks` on the container's own disk, rebuilt at every start, adds the authority, and names the copy with
+`javax.net.ssl.trustStore`. To build the store yourself instead, leave `opensearch_ca_pem` empty and
+follow these steps.
+
+The steps, run against a copy of the container image or in a build that produces one:
+
+```bash
+# The image sets no JAVA_HOME and puts no java or keytool on the PATH, so these
+# use the JVM bundled under /opt/sonatype/nexus-iq-server.
+
+# 1. Copy the JVM's trust store, outside the paths a volume is mounted over.
+cp /opt/sonatype/nexus-iq-server/lib/security/cacerts /opt/sonatype/iq-truststore.jks
+
+# 2. Add your certificate authority to the copy. The default password is "changeit".
+/opt/sonatype/nexus-iq-server/bin/keytool -importcert -noprompt \
+  -keystore /opt/sonatype/iq-truststore.jks -storepass changeit \
+  -alias opensearch-ca -file /path/to/ca.crt
+
+# 3. Confirm it is there, and that the public authorities still are.
+/opt/sonatype/nexus-iq-server/bin/keytool -list -keystore /opt/sonatype/iq-truststore.jks -storepass changeit | grep -c 'trustedCertEntry'
+```
+
+Then name the copy in `java_opts`, which this configuration passes to the container as `JAVA_OPTS`:
+
+```hcl
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs -Djavax.net.ssl.trustStore=/opt/sonatype/iq-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+```
+
+The store is part of the image, so every container started from it has it. It is kept out of
+`/sonatype-work`, because the Azure Files share is mounted over that path when the container runs
+and would hide anything the image put there.
+
+**A certificate from a public authority needs none of this**, because the JVM already trusts it. That
+is the cheapest answer if your cluster can carry one.
+
+**IQ Server also accepts a plain `http://` URI**, so a cluster in a private subnet can skip TLS
+entirely by setting `opensearch_use_tls = false`. That sends the basic-auth password in clear text on
+every request, and anything able to read traffic inside that subnet can read it.
+
+**Use TLS with a private certificate authority and a copied trust store.** Use
+`opensearch_use_tls = false` only for a proof of concept, and undo it afterwards.
 
 ## Important: Admin Port 8071 Not Exposed
 

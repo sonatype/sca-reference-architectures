@@ -1,33 +1,39 @@
 
 resource "azurerm_log_analytics_workspace" "iq_logs_ha" {
-  name                = "log-ref-arch-iq-ha"
+  name                = "log-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
 
   tags = merge(var.common_tags, {
-    Name = "log-ref-arch-iq-ha"
+    Name = "log-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_application_insights" "iq_insights_ha" {
   count               = var.enable_monitoring ? 1 : 0
-  name                = "appi-ref-arch-iq-ha"
+  name                = "appi-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   workspace_id        = azurerm_log_analytics_workspace.iq_logs_ha.id
   application_type    = "web"
 
   tags = merge(var.common_tags, {
-    Name = "appi-ref-arch-iq-ha"
+    Name = "appi-${var.cluster_name}"
   })
 }
 
 
+locals {
+  workload_profile_name = "${var.workload_profile_type}-Profile-HA"
+  opensearch_enabled    = var.search_engine == "opensearch"
+  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
+}
+
 resource "azurerm_container_app_environment" "iq_env_ha" {
-  name                       = "cae-ref-arch-iq-ha"
+  name                       = "cae-${var.cluster_name}"
   location                   = azurerm_resource_group.iq_rg.location
   resource_group_name        = azurerm_resource_group.iq_rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs_ha.id
@@ -36,28 +42,46 @@ resource "azurerm_container_app_environment" "iq_env_ha" {
   infrastructure_subnet_id = azurerm_subnet.private_subnets[0].id
 
 
+  # One replica occupies one node at the published sizes.
   workload_profile {
-    name                  = "D4-Profile-HA"
-    workload_profile_type = "D4"
-    minimum_count         = 1
-    maximum_count         = 3
+    name                  = local.workload_profile_name
+    workload_profile_type = var.workload_profile_type
+    minimum_count         = var.iq_min_replicas
+    maximum_count         = var.iq_max_replicas
   }
 
   tags = merge(var.common_tags, {
-    Name = "cae-ref-arch-iq-ha"
+    Name = "cae-${var.cluster_name}"
   })
 }
 
 
 resource "azurerm_container_app" "iq_app_ha" {
-  name                         = "ca-ref-arch-iq-ha"
+  name                         = "ca-${var.cluster_name}"
   container_app_environment_id = azurerm_container_app_environment.iq_env_ha.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile-HA"
+  workload_profile_name        = local.workload_profile_name
 
   identity {
     type = "SystemAssigned"
+  }
+
+  dynamic "secret" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      name  = "registry-password"
+      value = var.container_registry_password
+    }
+  }
+
+  dynamic "registry" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      server               = var.container_registry_server
+      username             = var.container_registry_username
+      password_secret_name = "registry-password"
+    }
   }
 
   template {
@@ -99,6 +123,28 @@ resource "azurerm_container_app" "iq_app_ha" {
         <<-EOF
           set -e
           echo "Starting Nexus IQ Server HA instance - Replica: $HOSTNAME"
+%{if local.opensearch_enabled && var.opensearch_use_tls}
+
+          if [ -n "$OPENSEARCH_CA_PEM" ]; then
+            # On the container's own disk, rebuilt every start, so nothing collects on the share.
+            TRUST_STORE=/tmp/iq-truststore.jks
+            JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+            KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+            if [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ]; then
+              cp "$JVM_CACERTS" "$TRUST_STORE"
+              printf '%s' "$OPENSEARCH_CA_PEM" | base64 -d > /tmp/opensearch-ca.crt
+              "$KEYTOOL" -importcert -noprompt \
+                -keystore "$TRUST_STORE" -storepass changeit \
+                -alias opensearch-ca -file /tmp/opensearch-ca.crt
+              rm -f /tmp/opensearch-ca.crt
+              echo "trust store built, authorities: $("$KEYTOOL" -list -keystore "$TRUST_STORE" -storepass changeit 2>/dev/null | grep -c trustedCertEntry)"
+              export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.trustStore=$TRUST_STORE -Djavax.net.ssl.trustStorePassword=changeit"
+            else
+              echo "REFUSING: cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"
+              exit 1
+            fi
+          fi
+%{endif}
 
 
           UNIQUE_WORK="/sonatype-work/clm-server-$HOSTNAME"
@@ -181,14 +227,96 @@ CONFIGEOF
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$HOSTNAME|$HOSTNAME|g" /etc/nexus-iq-server/config.yml
+%{if local.opensearch_enabled}
+
+          # Written from the container app secrets as single-quoted YAML scalars with
+          # ' doubled, after the $HOSTNAME sed, so nothing can change the file.
+          os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
+          os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
+
+          {
+            printf 'search:\n'
+            printf '  type: http\n'
+            printf '  mode: OPENSEARCH\n'
+            printf '  uri: %s\n' '${local.opensearch_uri}'
+            printf "  username: '%s'\n" "$os_user"
+            printf "  password: '%s'\n" "$os_pass"
+            printf 'nexusOne:\n'
+            printf '  connection:\n'
+            printf '    type: http\n'
+            printf '    mode: OPENSEARCH\n'
+            printf '    uri: %s\n' '${local.opensearch_uri}'
+            printf "    username: '%s'\n" "$os_user"
+            printf "    password: '%s'\n" "$os_pass"
+            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+          } >> /etc/nexus-iq-server/config.yml
+
+          unset os_user os_pass
+%{endif}
 
           echo "Successfully created HA config.yml for replica: $HOSTNAME at /etc/nexus-iq-server/config.yml"
-          echo "Generated config file contents:"
-          cat /etc/nexus-iq-server/config.yml
+          echo "Generated config file contents, with every password redacted:"
+          sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
 
           ls -la /sonatype-work/
 
+          # IQ Server takes its schema migration lock only once the schema exists, so on an
+          # empty database every replica would run the first migration at once. One replica holds
+          # the gate directory on the shared file share and rewrites its heartbeat file every 15
+          # seconds until the marker exists. The others wait, and the first to claim the gate
+          # after its heartbeat has not changed for 60 seconds takes over. Every replica writes the
+          # marker once its own IQ Server answers the database health check, and the marker lets
+          # every later start skip the gate. A replica still waiting after 150 seconds exits, and
+          # Container Apps starts it again to wait again.
+          MIGRATED="$CLUSTER_DIR/.schema-migrated"
+          GATE="$CLUSTER_DIR/.schema-migration-gate"
+          hold_gate() {
+            echo "$HOSTNAME-0" > "$GATE/heartbeat"
+            ( beat=0
+              until [ -e "$MIGRATED" ]; do
+                sleep 15
+                beat=$((beat + 1))
+                echo "$HOSTNAME-$beat" > "$GATE/heartbeat" || true
+              done ) &
+          }
+          if [ ! -e "$MIGRATED" ]; then
+            ( until [ -e "$MIGRATED" ]; do
+                if curl -sf http://localhost:8071/healthcheck/database >/dev/null 2>&1; then
+                  touch "$MIGRATED" || true
+                fi
+                sleep 5
+              done ) &
+            waited=0
+            unchanged=0
+            last_beat="unread"
+            while [ ! -e "$MIGRATED" ]; do
+              if mkdir "$GATE" 2>/dev/null; then
+                hold_gate
+                echo "This replica runs the first database migration"
+                break
+              fi
+              beat=$(cat "$GATE/heartbeat" 2>/dev/null || true)
+              if [ "$beat" != "$last_beat" ]; then
+                last_beat="$beat"
+                unchanged=0
+              elif [ "$unchanged" -ge 60 ] && mkdir "$GATE/taken-$beat" 2>/dev/null; then
+                hold_gate
+                echo "This replica takes over the first database migration from a replica that stopped"
+                break
+              fi
+              if [ "$waited" -ge 150 ]; then
+                echo "Stopped after waiting 150 seconds for another replica to finish the first database migration"
+                exit 1
+              fi
+              if [ "$waited" -eq 0 ]; then
+                echo "Waiting for another replica to finish the first database migration"
+              fi
+              sleep 10
+              waited=$((waited + 10))
+              unchanged=$((unchanged + 10))
+            done
+          fi
 
           echo "Starting Nexus IQ Server HA replica: $HOSTNAME"
           exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
@@ -199,6 +327,11 @@ CONFIGEOF
       env {
         name  = "JAVA_OPTS"
         value = var.java_opts
+      }
+
+      env {
+        name  = "OPENSEARCH_CA_PEM"
+        value = var.opensearch_ca_pem
       }
 
       env {
@@ -248,6 +381,22 @@ CONFIGEOF
         value = "/sonatype-work/clm-cluster"
       }
 
+      dynamic "env" {
+        for_each = local.opensearch_enabled ? [1] : []
+        content {
+          name        = "OPENSEARCH_USERNAME"
+          secret_name = "opensearch-username"
+        }
+      }
+
+      dynamic "env" {
+        for_each = local.opensearch_enabled ? [1] : []
+        content {
+          name        = "OPENSEARCH_PASSWORD"
+          secret_name = "opensearch-password"
+        }
+      }
+
 
       volume_mounts {
         name = "iq-data-ha"
@@ -273,6 +422,22 @@ CONFIGEOF
     value = var.db_password
   }
 
+  dynamic "secret" {
+    for_each = local.opensearch_enabled ? [1] : []
+    content {
+      name  = "opensearch-username"
+      value = var.opensearch_username
+    }
+  }
+
+  dynamic "secret" {
+    for_each = local.opensearch_enabled ? [1] : []
+    content {
+      name  = "opensearch-password"
+      value = var.opensearch_password
+    }
+  }
+
 
   ingress {
     external_enabled           = true
@@ -293,8 +458,30 @@ CONFIGEOF
     app_protocol = "http"
   }
 
+  lifecycle {
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.container_registry_server == "" || (length(var.container_registry_username) > 0 && length(var.container_registry_password) > 0)
+      error_message = "container_registry_username and container_registry_password must both be set when container_registry_server is set."
+    }
+  }
+
   tags = merge(var.common_tags, {
-    Name = "ca-ref-arch-iq-ha"
+    Name = "ca-${var.cluster_name}"
   })
 
   depends_on = [

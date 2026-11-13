@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -51,13 +51,15 @@ locals {
   cluster_name        = var.cluster_name
   resource_group_name = "rg-${var.cluster_name}"
   availability_zones  = ["1", "2", "3"]
+  opensearch_enabled  = var.search_engine == "opensearch"
+  opensearch_uri      = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
 
-  common_tags = {
-    Project     = "nexus-iq-server-ha"
+  common_tags = merge({
+    project     = "nexus-iq-server-ha"
     Environment = var.environment
     ManagedBy   = "Terraform"
     Purpose     = "kubernetes-ha-deployment"
-  }
+  }, var.common_tags)
 }
 
 
@@ -66,6 +68,23 @@ resource "azurerm_resource_group" "iq_rg" {
   location = var.azure_region
 
   tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+    }
+  }
 }
 
 
@@ -105,11 +124,15 @@ resource "azurerm_subnet" "db_subnet" {
   virtual_network_name = azurerm_virtual_network.iq_vnet.name
   address_prefixes     = [var.db_subnet_cidr]
 
+  # The endpoint and the action are the ones Azure stores for a subnet delegated to Flexible
+  # Server, so a plan with no edits compares equal.
+  service_endpoints = ["Microsoft.Storage"]
+
   delegation {
     name = "postgres-delegation"
     service_delegation {
       name    = "Microsoft.DBforPostgreSQL/flexibleServers"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
 }
@@ -210,8 +233,8 @@ resource "azurerm_network_security_group" "aks_nsg" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_ranges    = ["8070", "30000-32767"]
-    source_address_prefix      = "Internet"
+    destination_port_range     = "8070"
+    source_address_prefix      = var.public_subnet_cidr
     destination_address_prefix = "*"
   }
 

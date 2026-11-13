@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -20,33 +20,25 @@ data "azurerm_client_config" "current" {}
 
 
 resource "azurerm_resource_group" "iq_rg" {
-  name     = "rg-ref-arch-iq"
+  name     = "rg-${var.cluster_name}"
   location = var.azure_region
 
-  tags = {
-    Project = "nexus-iq-server"
-  }
+  tags = merge({
+    project = "nexus-iq-server"
+  }, var.common_tags)
 }
 
 
 resource "azurerm_virtual_network" "iq_vnet" {
-  name                = "vnet-ref-arch-iq"
+  name                = "vnet-${var.cluster_name}"
   address_space       = [var.vnet_cidr]
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
 
-  tags = {
-    Name    = "vnet-ref-arch-iq"
-    Project = "nexus-iq-server"
-  }
-}
-
-
-resource "azurerm_subnet" "public_subnet" {
-  name                 = "snet-public"
-  resource_group_name  = azurerm_resource_group.iq_rg.name
-  virtual_network_name = azurerm_virtual_network.iq_vnet.name
-  address_prefixes     = [var.public_subnet_cidr]
+  tags = merge({
+    Name    = "vnet-${var.cluster_name}"
+    project = "nexus-iq-server"
+  }, var.common_tags)
 }
 
 
@@ -62,7 +54,7 @@ resource "azurerm_subnet" "private_subnet" {
     name = "containerapp-delegation"
     service_delegation {
       name    = "Microsoft.App/environments"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
 }
@@ -74,59 +66,16 @@ resource "azurerm_subnet" "db_subnet" {
   virtual_network_name = azurerm_virtual_network.iq_vnet.name
   address_prefixes     = [var.db_subnet_cidr]
 
+  # The endpoint and the action are the ones Azure stores for a subnet delegated to Flexible
+  # Server, so a plan with no edits compares equal.
+  service_endpoints = ["Microsoft.Storage"]
+
   delegation {
     name = "postgres-delegation"
     service_delegation {
       name    = "Microsoft.DBforPostgreSQL/flexibleServers"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
-  }
-}
-
-
-resource "azurerm_network_security_group" "public_nsg" {
-  name                = "nsg-public"
-  location            = azurerm_resource_group.iq_rg.location
-  resource_group_name = azurerm_resource_group.iq_rg.name
-
-  security_rule {
-    name                       = "AllowHTTP"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  security_rule {
-    name                       = "AllowHTTPS"
-    priority                   = 1002
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "443"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  security_rule {
-    name                       = "AllowAppGatewayManagement"
-    priority                   = 1003
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "65200-65535"
-    source_address_prefix      = "GatewayManager"
-    destination_address_prefix = "*"
-  }
-
-  tags = {
-    Name = "nsg-public"
   }
 }
 
@@ -173,9 +122,9 @@ resource "azurerm_network_security_group" "private_nsg" {
     destination_address_prefix = "*"
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "nsg-private"
-  }
+  })
 }
 
 
@@ -196,16 +145,11 @@ resource "azurerm_network_security_group" "db_nsg" {
     destination_address_prefix = "*"
   }
 
-  tags = {
+  tags = merge(var.common_tags, {
     Name = "nsg-database"
-  }
+  })
 }
 
-
-resource "azurerm_subnet_network_security_group_association" "public_nsg_association" {
-  subnet_id                 = azurerm_subnet.public_subnet.id
-  network_security_group_id = azurerm_network_security_group.public_nsg.id
-}
 
 resource "azurerm_subnet_network_security_group_association" "private_nsg_association" {
   subnet_id                 = azurerm_subnet.private_subnet.id

@@ -1,6 +1,6 @@
 
 resource "azurerm_key_vault" "iq_kv_ha" {
-  name                = "kvrefarchiqha${random_string.kv_suffix.result}"
+  name                = "kv${replace(lower(var.cluster_name), "-", "")}${random_string.kv_suffix.result}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   tenant_id           = data.azurerm_client_config.current.tenant_id
@@ -20,7 +20,7 @@ resource "azurerm_key_vault" "iq_kv_ha" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "kvrefarchiqha"
+    Name = "kv${replace(lower(var.cluster_name), "-", "")}"
   })
 }
 
@@ -106,5 +106,36 @@ resource "azurerm_key_vault_secret" "db_name" {
 
   tags = merge(var.common_tags, {
     Name = "db-name"
+  })
+}
+
+
+# The OpenSearch credentials, kept with the database secrets as the record of this
+# deployment's credentials. Nothing reads them back; the container app gets them as
+# secrets from the variables. Created only when search_engine is "opensearch".
+
+resource "azurerm_key_vault_secret" "opensearch_username" {
+  count        = local.opensearch_enabled ? 1 : 0
+  name         = "opensearch-username"
+  value        = var.opensearch_username
+  key_vault_id = azurerm_key_vault.iq_kv_ha.id
+
+  depends_on = [azurerm_key_vault_access_policy.current_user]
+
+  tags = merge(var.common_tags, {
+    Name = "opensearch-username"
+  })
+}
+
+resource "azurerm_key_vault_secret" "opensearch_password" {
+  count        = local.opensearch_enabled ? 1 : 0
+  name         = "opensearch-password"
+  value        = var.opensearch_password
+  key_vault_id = azurerm_key_vault.iq_kv_ha.id
+
+  depends_on = [azurerm_key_vault_access_policy.current_user]
+
+  tags = merge(var.common_tags, {
+    Name = "opensearch-password"
   })
 }

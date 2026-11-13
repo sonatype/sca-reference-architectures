@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nexus-iq-azurefiles-pv
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+spec:
+  capacity:
+    storage: SHARE_QUOTA_PLACEHOLDER
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nconnect=4
+    - noresvport
+    - actimeo=30
+  csi:
+    driver: file.csi.azure.com
+    volumeHandle: "RESOURCE_GROUP_PLACEHOLDER#STORAGE_ACCOUNT_PLACEHOLDER#SHARE_NAME_PLACEHOLDER"
+    volumeAttributes:
+      protocol: nfs
+      resourceGroup: RESOURCE_GROUP_PLACEHOLDER
+      storageAccount: STORAGE_ACCOUNT_PLACEHOLDER
+      shareName: SHARE_NAME_PLACEHOLDER

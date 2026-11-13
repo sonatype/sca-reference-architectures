@@ -149,5 +149,22 @@ output "ha_deployment_summary" {
     auto_scaling_enabled = "Yes"
     monitoring_enabled   = var.enable_monitoring ? "Yes" : "No"
     backup_enabled       = var.enable_backup ? "Yes" : "No"
+    search_engine        = var.search_engine
   }
+}
+
+
+output "search_engine" {
+  description = "Which search backend IQ Server is configured to use"
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "The OpenSearch URI written into IQ Server's config.yml. Null when search_engine is 'lucene'."
+  value       = local.opensearch_enabled ? local.opensearch_uri : null
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
+  value       = local.opensearch_enabled ? var.opensearch_index_replicas : null
 }

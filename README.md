@@ -80,7 +80,7 @@ You need an active cloud account with permissions to create:
 
 For HTTPS access, prepare:
 - **AWS**: ACM certificate ARN
-- **Azure**: Application Gateway certificate or Key Vault reference
+- **Azure**: a custom domain certificate on the Container App
 - **GCP**: Google-managed or self-managed SSL certificate
 
 ---
@@ -101,7 +101,7 @@ Choose your deployment size based on your application count and daily evaluation
 
 > **Note:** M and L use the same per-node specification (8 vCPU / 64 GB). The difference is the number of load-balanced nodes (2 vs 3), not the machine size. XL requires larger instances (16 vCPU / 128 GB) to handle concurrent continuous monitoring, policy evaluations, and larger heap requirements.
 
-> **AWS Fargate is the one exception to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 30 GB for 4 vCPU, 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` runs a 30 GB task with a 22 GB heap at S, `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and `infra-aws-ha` a 120 GB task with a 96 GB heap at XL. Azure, GCP, and the EKS node groups use the 64 GB and 128 GB sizes above.
+> **AWS Fargate and Azure Container Apps are the exceptions to the memory column.** A Fargate task size has to be one of the CPU and memory pairs Fargate allows, and those stop at 30 GB for 4 vCPU, 60 GB for 8 vCPU and 120 GB for 16 vCPU ([task CPU and memory](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-tasks-services.html)). So `infra-aws` runs a 30 GB task with a 22 GB heap at S, `infra-aws` and `infra-aws-ha` run a 60 GB task with a 44 GB heap at M and L, and `infra-aws-ha` a 120 GB task with a 96 GB heap at XL. Container Apps keeps part of every node for itself, so `infra-azure` runs 14 GB with an 8 GB heap at XS, 28 GB with a 20 GB heap at S and 56 GB with a 44 GB heap at M, and `infra-azure-ha` 120 GB with a 96 GB heap at XL. `infra-azure-ha` at M and L, GCP, and the EKS and AKS node groups use the 64 GB and 128 GB sizes above.
 
 ### Step 1: Choose Your Reference Architecture
 
@@ -154,11 +154,11 @@ For **Kubernetes deployments**, also run:
 terraform output
 ```
 
-This displays the load balancer URL, database endpoint, and other access details.
+This displays the application URL, database endpoint, and other access details.
 
 ### Step 5: Access IQ Server
 
-1. Navigate to the load balancer URL from the Terraform outputs
+1. Navigate to the application URL from the Terraform outputs
 2. Wait 5-15 minutes for the application to initialize
 3. Log in with default credentials:
    - **Username**: `admin`
@@ -212,15 +212,15 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Expected throughput** | ~310 evals/hour/node (~7,440/day/node) | ~310 evals/hour/node (~14,880–22,320/day total) | ~405 evals/hour/node (~29,160–38,880/day total) |
 | **Compute** | | | |
-| Instance type | Standard_E8ps_v6 (ARM) or Standard_E8_v5 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8_v5 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16_v5 (x86) |
+| Instance type | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E8ps_v6 (ARM) or Standard_E8s_v7 (x86) | Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) |
 | vCPUs | 8 | 8 | 16 |
-| Memory | 64 GB | 64 GB | 128 GB |
-| Java Heap | `-Xms48g -Xmx48g` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
+| Memory | 64 GB, with a 56 GB container on `infra-azure` | 64 GB | 128 GB, with a 120 GB container on `infra-azure-ha` |
+| Java Heap | `-Xms48g -Xmx48g`, or `-Xms44g -Xmx44g` on `infra-azure` | `-Xms48g -Xmx48g` | `-Xms96g -Xmx96g` |
 | Deployment option | Azure Container Apps or AKS | Azure Container Apps or AKS | AKS recommended at this scale |
 | **Database** | | | |
 | Service | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server | Azure Database for PostgreSQL — Flexible Server |
 | PostgreSQL version | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 |
-| SKU | GP_Standard_D8s_v3 (8 vCores, 32 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
+| SKU | MO_Standard_E8ds_v6 (8 vCores, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
 | Storage | 128 GB, auto-grow | 256 GB, grows automatically, expected to grow to about 1 TB | 512 GB, grows automatically, expected to grow to about 2 TB |
 | Zone redundancy | Recommended | Required | Required with automatic failover |
 | **Storage** | | | |
@@ -280,7 +280,7 @@ The following tables provide equivalent instance types across cloud providers fo
 | **AWS** | r8g.2xlarge or newer, r9g.2xlarge on EKS | ARM (Graviton4 or newer) |
 | **AWS** | r8i.2xlarge | x86_64 |
 | **Azure** | Standard_E8ps_v6 | ARM (Azure Cobalt 100) |
-| **Azure** | Standard_E8_v5 | x86_64 |
+| **Azure** | Standard_E8s_v7 | x86_64 |
 
 #### Size XL (16 vCPU / 128 GB)
 
@@ -290,19 +290,19 @@ The following tables provide equivalent instance types across cloud providers fo
 | **AWS** | r8g.4xlarge or newer, r9g.4xlarge on EKS | ARM (Graviton4 or newer) |
 | **AWS** | r8i.4xlarge | x86_64 |
 | **Azure** | Standard_E16ps_v6 | ARM (Azure Cobalt 100) |
-| **Azure** | Standard_E16_v5 | x86_64 |
+| **Azure** | Standard_E16s_v7 | x86_64 |
 
 #### Database Instance Comparison
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | GP_Standard_D8s_v3 (8 vCores, 32 GB) |
-| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16s_v3 (16 vCores, 128 GB) |
+| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
+| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
+| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
-> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents, at list prices in November 2026: 15% less on GCP (`n4a-highmem-8` against `n4-highmem-8`, us-central1), 8% less on AWS (`r9g.2xlarge` against `r8i.2xlarge`, us-east-1) and 30% less on Azure (`Standard_E8ps_v6` against `Standard_E8s_v6`, eastus). These are price differences, not measured price-performance. If using x86_64 instances, verify performance characteristics are similar.
+> **ARM instances recommended.** At 8 vCPU and 64 GB, the ARM instances cost less on demand than their x86 equivalents on every cloud. If using x86_64 instances, verify performance characteristics are similar.
 
 ---
 
@@ -330,11 +330,12 @@ db_allocated_storage = 64                  # GB
 ```hcl
 # infra-azure/terraform.tfvars — Size XS
 container_cpu        = 2.0                 # 2 vCPU
-container_memory     = "16Gi"              # 16 GB
+container_memory     = "14Gi"              # 14 GB, leaving 2 GB of the node
+workload_profile_type = "D4"               # 4 cores, 16 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms8g -Xmx8g -XX:MaxDirectMemorySize=2g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
-db_storage_mb        = 51200               # 50 GB
+db_storage_mb        = 65536               # 64 GB
 ```
 
 **GCP (GCE Docker):**
@@ -368,12 +369,13 @@ db_allocated_storage = 128                 # GB
 **Azure (Container Apps):**
 ```hcl
 # infra-azure/terraform.tfvars — Size S
-container_cpu        = 4.0                 # 4 vCPU
-container_memory     = "32Gi"              # 32 GB
+container_cpu        = 3.5                 # 3.5 vCPU, leaving 0.5 of the node
+container_memory     = "28Gi"              # 28 GB, leaving 4 GB of the node
+workload_profile_type = "E4"               # 4 cores, 32 GB per node
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
-db_storage_mb        = 102400              # 100 GB
+java_opts            = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "MO_Standard_E2ds_v6" # 2 vCores, 16 GB
+db_storage_mb        = 131072              # 128 GB
 ```
 
 **GCP (GCE Docker):**
@@ -421,15 +423,27 @@ aurora_instances      = 2                  # Multi-AZ
 **Azure (Container Apps):**
 ```hcl
 # infra-azure/terraform.tfvars — Size M (Single Instance)
+container_cpu        = 7.5                 # 7.5 vCPU, leaving 0.5 of the node
+container_memory     = "56Gi"              # 56 GB, leaving 8 GB of the node
+workload_profile_type = "E8"               # 8 cores, 64 GB per node
+iq_docker_image      = "sonatype/nexus-iq-server:latest"
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB, grows automatically
+file_share_quota     = 500                 # GB
+```
+
+```hcl
 # infra-azure-ha/terraform.tfvars, Size M (HA)
-container_cpu        = 8.0                 # 8 vCPU
+container_cpu        = 8.0                 # 8 vCPU, on E8
 container_memory     = "64Gi"              # 64 GB
-iq_min_replicas      = 2                   # infra-azure-ha only; infra-azure is fixed at 1 replica
-iq_max_replicas      = 3                   # infra-azure-ha only, Size M ceiling
+iq_min_replicas      = 2
+iq_max_replicas      = 3                   # Size M ceiling
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
-db_storage_mb        = 102400              # 100 GB, infra-azure only; infra-azure-ha fixes its storage at 64 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 131072              # 128 GB, grows automatically
+file_share_quota_gb  = 500
 ```
 
 **GCP (GCE Docker):**
@@ -490,8 +504,11 @@ iq_min_replicas      = 2                   # Minimum 2 for HA
 iq_max_replicas      = 4                   # Scale up to 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
+db_sku_name          = "MO_Standard_E8ds_v6" # 8 vCores, 64 GB
+db_storage_mb        = 262144              # 256 GB, grows automatically
+db_storage_tier      = "P15"
 db_high_availability_mode = "ZoneRedundant" # Required for L
+file_share_quota_gb  = 1536
 ```
 
 **GCP (MIG HA):**
@@ -556,9 +573,12 @@ node_group_desired_size = 4                # 4 nodes
 nexus_iq_replica_count = 4                 # 4 IQ pods
 # The container image and the Java heap are Helm chart values, set in
 # helm-values.yaml as iq_server.tag and iq_server.javaOpts.
-db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
+db_sku_name          = "MO_Standard_E16ds_v6" # 16 vCores, 128 GB
+db_storage_mb        = 524288              # 512 GB, grows automatically
+db_storage_tier      = "P20"
 db_high_availability_mode = "ZoneRedundant" # Required
 storage_account_tier = "Premium"           # Required for NFS with AKS
+storage_share_quota_gb = 4096              # billed as provisioned on Premium
 ```
 
 **GCP (MIG HA):**
@@ -663,7 +683,7 @@ Continuous Monitoring is one of the most resource-intensive operations. The bott
 ### Networking
 
 All architectures create their own VPC/VNet with:
-- Public subnets (load balancer)
+- Public subnets (load balancer; infra-azure has none)
 - Private subnets (compute)
 - Database subnets (isolated)
 - NAT Gateway / Cloud NAT for outbound access

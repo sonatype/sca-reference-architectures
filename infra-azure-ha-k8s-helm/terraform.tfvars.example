@@ -10,8 +10,8 @@ aks_subnet_cidr    = "10.1.10.0/23"  # /23 provides more IPs for AKS
 db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
-kubernetes_version      = "1.33.3"
-node_instance_type      = "Standard_D8s_v3" # 8 vCPU, 32GB RAM
+kubernetes_version      = "1.36"
+node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
@@ -19,10 +19,10 @@ node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA) - matching AWS Aurora specs
 postgres_version                 = "18"
-db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM (matches AWS db.r8g.4xlarge)
+db_sku_name                      = "MO_Standard_E8ds_v6" # Memory Optimized: 8 vCores, 64 GB (matches AWS db.r8g.2xlarge)
 db_high_availability_mode        = "ZoneRedundant"
-db_storage_mb                    = 65536 # 64GB
-db_storage_tier                  = "P6"
+db_storage_mb                    = 131072 # 128GB, grows automatically
+db_storage_tier                  = "P10"
 database_name                    = "nexusiq"
 database_username                = "nexusiq"
 database_password                = "CHANGE_ME_STRONG_PASSWORD"
@@ -32,7 +32,7 @@ db_geo_redundant_backup_enabled  = false # Not supported in all regions
 # Azure Files Premium Storage (Zone-Redundant)
 storage_account_tier             = "Premium"
 storage_account_replication_type = "ZRS"
-storage_share_quota_gb           = 512
+storage_share_quota_gb           = 500
 
 # Application Gateway Configuration (Zone-Redundant)
 app_gateway_sku_name     = "Standard_v2"
@@ -45,10 +45,8 @@ app_gateway_max_capacity = 10
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
-nexus_iq_memory_request  = "16Gi"
-nexus_iq_memory_limit    = "24Gi"
-nexus_iq_cpu_request     = "4"
-nexus_iq_cpu_limit       = "6"
+
+# Pod CPU, memory and heap are set by iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
 helm_chart_version      = "201.0.0"
@@ -66,3 +64,29 @@ enable_monitoring  = true
 # Ingress Configuration
 ingress_hostname    = "" # Optional: custom hostname
 ingress_tls_enabled = false
+
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
+# "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
+# cluster you run on Azure Virtual Machines; this configuration does not create it.
+# README.md gives the cluster specification and the private certificate authority steps.
+# The scripts read these from this file. Port, TLS and replicas default as the variables
+# do; the endpoint, user name and password must be set here for "opensearch".
+search_engine = "lucene"
+
+# opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
+# opensearch_port           = 9200
+# opensearch_use_tls        = true
+# opensearch_username       = "iq-server"
+# opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 1
+
+# Tags
+# Merged on top of the tags this root sets; a key with the same name replaces one.
+# Put real values in terraform.tfvars. Azure compares tag names case-insensitively.
+common_tags = {
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
+}

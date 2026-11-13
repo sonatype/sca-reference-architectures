@@ -1,33 +1,39 @@
 
+locals {
+  opensearch_enabled    = var.search_engine == "opensearch"
+  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
+  workload_profile_name = "${var.workload_profile_type}-Profile"
+}
+
 resource "azurerm_log_analytics_workspace" "iq_logs" {
-  name                = "log-ref-arch-iq"
+  name                = "log-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
 
-  tags = {
-    Name = "log-ref-arch-iq"
-  }
+  tags = merge(var.common_tags, {
+    Name = "log-${var.cluster_name}"
+  })
 }
 
 
 resource "azurerm_application_insights" "iq_insights" {
   count               = var.enable_monitoring ? 1 : 0
-  name                = "appi-ref-arch-iq"
+  name                = "appi-${var.cluster_name}"
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
   workspace_id        = azurerm_log_analytics_workspace.iq_logs.id
   application_type    = "web"
 
-  tags = {
-    Name = "appi-ref-arch-iq"
-  }
+  tags = merge(var.common_tags, {
+    Name = "appi-${var.cluster_name}"
+  })
 }
 
 
 resource "azurerm_container_app_environment" "iq_env" {
-  name                       = "cae-ref-arch-iq"
+  name                       = "cae-${var.cluster_name}"
   location                   = azurerm_resource_group.iq_rg.location
   resource_group_name        = azurerm_resource_group.iq_rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.iq_logs.id
@@ -35,24 +41,24 @@ resource "azurerm_container_app_environment" "iq_env" {
 
 
   workload_profile {
-    name                  = "D4-Profile"
-    workload_profile_type = "D4"
+    name                  = local.workload_profile_name
+    workload_profile_type = var.workload_profile_type
     minimum_count         = 1
     maximum_count         = 1
   }
 
-  tags = {
-    Name = "cae-ref-arch-iq"
-  }
+  tags = merge(var.common_tags, {
+    Name = "cae-${var.cluster_name}"
+  })
 }
 
 
 resource "azurerm_container_app" "iq_app" {
-  name                         = "ca-ref-arch-iq"
+  name                         = "ca-${var.cluster_name}"
   container_app_environment_id = azurerm_container_app_environment.iq_env.id
   resource_group_name          = azurerm_resource_group.iq_rg.name
   revision_mode                = "Single"
-  workload_profile_name        = "D4-Profile"
+  workload_profile_name        = local.workload_profile_name
 
   identity {
     type = "SystemAssigned"
@@ -156,10 +162,36 @@ CONFIGEOF
           sed -i "s|\$DB_NAME|$DB_NAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_USER|$DB_USER|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
+%{if local.opensearch_enabled}
+
+          # Written from the container app secrets as single-quoted YAML scalars with
+          # ' doubled, so no character in the credentials can change the file.
+          os_user=$(printf '%s' "$OPENSEARCH_USERNAME" | sed "s/'/''/g")
+          os_pass=$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")
+
+          {
+            printf 'search:\n'
+            printf '  type: http\n'
+            printf '  mode: OPENSEARCH\n'
+            printf '  uri: %s\n' '${local.opensearch_uri}'
+            printf "  username: '%s'\n" "$os_user"
+            printf "  password: '%s'\n" "$os_pass"
+            printf 'nexusOne:\n'
+            printf '  connection:\n'
+            printf '    type: http\n'
+            printf '    mode: OPENSEARCH\n'
+            printf '    uri: %s\n' '${local.opensearch_uri}'
+            printf "    username: '%s'\n" "$os_user"
+            printf "    password: '%s'\n" "$os_pass"
+            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+          } >> /etc/nexus-iq-server/config.yml
+
+          unset os_user os_pass
+%{endif}
 
           echo "Successfully created config.yml with PostgreSQL configuration at /etc/nexus-iq-server/config.yml"
-          echo "Generated config file contents:"
-          cat /etc/nexus-iq-server/config.yml
+          echo "Generated config file contents, with every password redacted:"
+          sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
 
           exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml
@@ -206,6 +238,22 @@ CONFIGEOF
         value = "false"
       }
 
+      dynamic "env" {
+        for_each = local.opensearch_enabled ? [1] : []
+        content {
+          name        = "OPENSEARCH_USERNAME"
+          secret_name = "opensearch-username"
+        }
+      }
+
+      dynamic "env" {
+        for_each = local.opensearch_enabled ? [1] : []
+        content {
+          name        = "OPENSEARCH_PASSWORD"
+          secret_name = "opensearch-password"
+        }
+      }
+
       volume_mounts {
         name = "iq-data"
         path = "/sonatype-work"
@@ -229,9 +277,25 @@ CONFIGEOF
     value = var.db_password
   }
 
+  dynamic "secret" {
+    for_each = local.opensearch_enabled ? [1] : []
+    content {
+      name  = "opensearch-username"
+      value = var.opensearch_username
+    }
+  }
+
+  dynamic "secret" {
+    for_each = local.opensearch_enabled ? [1] : []
+    content {
+      name  = "opensearch-password"
+      value = var.opensearch_password
+    }
+  }
+
   ingress {
     external_enabled           = true
-    allow_insecure_connections = true
+    allow_insecure_connections = false
     target_port                = 8070
     transport                  = "http"
 
@@ -246,11 +310,26 @@ CONFIGEOF
     replace_triggered_by = [
       azurerm_container_app_environment_storage.iq_storage
     ]
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+    }
+
+    precondition {
+      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+    }
   }
 
-  tags = {
-    Name = "ca-ref-arch-iq"
-  }
+  tags = merge(var.common_tags, {
+    Name = "ca-${var.cluster_name}"
+  })
 
   depends_on = [
     azurerm_postgresql_flexible_server.iq_db,

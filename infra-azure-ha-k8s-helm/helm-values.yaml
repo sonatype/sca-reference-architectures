@@ -10,17 +10,28 @@ iq_server:
 
   resources:
     requests:
-      cpu: "4"
-      memory: "16Gi"
-    limits:
       cpu: "6"
-      memory: "24Gi"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
 
 
-  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 
   config:
+    # Advanced Search backend. No search key is committed here: helm-install.sh
+    # and helm-upgrade.sh, through search-values.sh, append one to
+    # helm-values-runtime.yaml when search_engine is
+    # "opensearch" in terraform.tfvars, and appends nothing when it is
+    # "lucene".
+    #
+    # It is generated rather than committed because this file is rewritten by
+    # an unanchored sed that replaces every empty password value with the
+    # database password, so a committed OpenSearch password key would receive
+    # it. The generated search: and nexusOne.connection blocks carry the
+    # cluster's uri and credentials. README.md shows them in full.
     sonatypeWork: "/sonatype-work/clm-server"
     clusterDirectory: "/sonatype-work/clm-cluster"
 
@@ -57,23 +68,24 @@ iq_server:
 
 
   persistence:
-
-
-    existingPersistentVolumeName: " "
-    persistentVolumeClaimName: "iq-server-pvc"
-    size: "100Gi"
-    storageClassName: "azurefile-nfs"
-    accessModes:
-      - ReadWriteMany
+    # helm-install.sh creates this claim, bound to a PersistentVolume on the
+    # Terraform-created Azure Files share and sized from storage_share_quota_gb.
+    existingPersistentVolumeClaimName: "iq-server-pvc"
 
 
   serviceAccountName: "nexus-iq-sa"
 
 
   serviceType: "LoadBalancer"
-  serviceAnnotations:
+  # Both services get an internal load balancer on a private address in the virtual network.
+  # The Application Gateway is the public entry point, and helm-install.sh and helm-upgrade.sh
+  # point its backend pool at the application service's private address.
+  applicationServiceAnnotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
     service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/ping"
     service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
+  adminServiceAnnotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
 
 
   # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
@@ -179,13 +191,15 @@ fluentd:
 external-dns:
   enabled: false
 
-migrationJob:
-  enabled: false
-
-
-azureFiles:
-  enabled: true
-  storageClass: "azure-files-premium-zrs"
+# The database migration job runs once, as a post-install hook, so a helm upgrade does
+# not start it again while IQ Server is using the database. helm waits for a hook and
+# fails the install if the migration fails. When an upgrade changes the IQ Server image,
+# MIGRATE_DATABASE=yes ./helm-upgrade.sh scales IQ Server to zero and runs the job as a
+# pre-upgrade hook.
+iq_server_jobs:
+  migrationJobAnnotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 
 
 livenessProbe:

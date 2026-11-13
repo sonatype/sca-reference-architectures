@@ -6,9 +6,19 @@ variable "azure_region" {
 }
 
 variable "cluster_name" {
-  description = "Name prefix for the HA cluster resources"
+  description = "Name prefix for every resource this deployment creates, so several deployments can share one Azure subscription without colliding. Change it and the resource group, virtual network, container app and its environment, Log Analytics workspace, Application Insights, public IP and its DNS label, Application Gateway and its diagnostics, Key Vault, storage account, backup vault and policy, and PostgreSQL Flexible Server all move with it. Lowercase letters, digits and hyphens only, starting with a letter, 3 to 14 characters: the longest names built from it are the storage account and the Key Vault, both of which strip the hyphens and add 8 random characters, and Azure caps each at 24."
   type        = string
   default     = "ref-arch-iq-ha"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.cluster_name))
+    error_message = "cluster_name must be lowercase letters, digits and hyphens, starting with a letter and ending with a letter or digit. The storage account and Key Vault names strip the hyphens and Azure allows only lowercase alphanumerics there."
+  }
+
+  validation {
+    condition     = length(var.cluster_name) >= 3 && length(var.cluster_name) <= 14
+    error_message = "cluster_name must be 3 to 14 characters. The storage account and Key Vault names are built as st<cluster_name without hyphens><8 random characters> and kv<cluster_name without hyphens><8 random characters>, which Azure caps at 24."
+  }
 }
 
 
@@ -38,15 +48,21 @@ variable "db_subnet_cidr" {
 
 
 variable "container_cpu" {
-  description = "CPU allocation per container replica (max 4.0 for Azure Container Apps)"
+  description = "vCPU per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
   type        = number
-  default     = 4.0
+  default     = 8.0
 }
 
 variable "container_memory" {
-  description = "Memory allocation per container replica (max 8Gi for Azure Container Apps)"
+  description = "Memory per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
   type        = string
-  default     = "8Gi"
+  default     = "64Gi"
+}
+
+variable "workload_profile_type" {
+  description = "Azure Container Apps workload profile type, which sets the cores and memory of each node the replicas run on. E8 is 8 cores and 64 GB, which is what the published Size M and L rows of README.md ask for per node; E16 is 16 cores and 128 GB for Size XL. A profile smaller than container_cpu and container_memory cannot host a replica, and the app then reports insufficient capacity rather than naming the profile. Run `az rest --method get --url \"https://management.azure.com/subscriptions/<id>/providers/Microsoft.App/locations/<region>/availableManagedEnvironmentsWorkloadProfileTypes?api-version=2024-03-01\"` for the types a region offers."
+  type        = string
+  default     = "E8"
 }
 
 variable "iq_min_replicas" {
@@ -75,7 +91,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -128,9 +144,21 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "Database SKU name. Scale with number of IQ nodes: 8 vCores for 1-3 nodes, 16 vCores for 3-4 nodes."
+  description = "PostgreSQL Flexible Server SKU. The default, 8 vCores and 64 GB, is the Size M and L value; XL uses MO_Standard_E16ds_v6, as the Sizing Guide in README.md gives."
   type        = string
-  default     = "GP_Standard_D8s_v3"
+  default     = "MO_Standard_E8ds_v6"
+}
+
+variable "db_storage_mb" {
+  description = "PostgreSQL storage in MB. Azure accepts 32768, 65536, 131072, 262144, 524288, 1048576 and larger powers of two. It sets the size when the server is created, and storage grows automatically past it. Terraform ignores later changes, so raise a live server's storage with the Azure CLI or portal."
+  type        = number
+  default     = 131072
+}
+
+variable "db_storage_tier" {
+  description = "Performance tier of the PostgreSQL storage. P10 is the default for 128 GB."
+  type        = string
+  default     = "P10"
 }
 
 variable "db_backup_retention_days" {
@@ -195,9 +223,9 @@ variable "storage_account_replication_type" {
 }
 
 variable "file_share_quota_gb" {
-  description = "File share quota in GB for IQ Server data"
+  description = "File share quota in GB for IQ Server data. The default is the Size M value; L uses 1536 and XL 4096, as README.md gives. On Premium the quota is the provisioned and billed size."
   type        = number
-  default     = 200
+  default     = 500
 }
 
 
@@ -241,7 +269,7 @@ variable "key_vault_soft_delete_retention_days" {
 
 
 variable "common_tags" {
-  description = "Common tags to apply to all resources"
+  description = "Common tags to apply to all resources. Azure treats tag names as case-insensitive, so do not supply two keys differing only in capitalization. Put per-deployment values in terraform.tfvars, which is gitignored, rather than in terraform.tfvars.example."
   type        = map(string)
   default = {
     Project        = "nexus-iq-server-ha"
@@ -255,3 +283,125 @@ variable "common_tags" {
     error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }
+
+
+# =============================================================================
+# SEARCH BACKEND (Lucene or self-managed OpenSearch)
+# =============================================================================
+# search_engine picks the engine the conditional search: block in container_app.tf
+# names. "opensearch" means a cluster you run on Azure Virtual Machines, reached over
+# basic auth and named by opensearch_endpoint; this configuration does not create it.
+
+variable "search_engine" {
+  description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."
+  type        = string
+  default     = "lucene"
+
+  validation {
+    condition     = contains(["lucene", "opensearch"], var.search_engine)
+    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+  }
+}
+
+variable "opensearch_endpoint" {
+  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_port" {
+  description = "TCP port the OpenSearch cluster listens on. 9200 is the OpenSearch default."
+  type        = number
+  default     = 9200
+
+  validation {
+    condition     = var.opensearch_port > 0 && var.opensearch_port <= 65535
+    error_message = "opensearch_port must be between 1 and 65535."
+  }
+}
+
+variable "opensearch_use_tls" {
+  description = "Whether IQ Server reaches OpenSearch over HTTPS. True builds an https:// URI and is the recommendation, because the basic-auth password is sent on every request. False builds http://, which IQ Server accepts and which sends that password in clear text, so use it only inside a private subnet you control. A private certificate authority needs its certificate added to a copy of the JVM trust store: see README.md."
+  type        = bool
+  default     = true
+}
+
+variable "opensearch_username" {
+  description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
+  type        = string
+  default     = ""
+}
+
+variable "opensearch_password" {
+  description = "Password for opensearch_username. Delivered to the container app as a secret rather than a plain environment variable, and also written to Key Vault alongside the four database secrets, so the vault is the record of every credential this deployment holds. Nothing reads it back out of the vault. sensitive = true only keeps it out of CLI output: Terraform holds every variable in the state file as plain text, so treat terraform.tfstate as a secret, keep it in a backend that encrypts at rest and restrict who can read it. Keep the value in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_password))
+    error_message = "opensearch_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "container_registry_server" {
+  description = "Login server of a private container registry holding iq_docker_image, for example myregistry.azurecr.io. Leave empty for an image on a public registry, which writes no registry block and no credential."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_server))
+    error_message = "container_registry_server still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "container_registry_username" {
+  description = "User name the container app authenticates to the private registry with. Required when container_registry_server is set."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_username))
+    error_message = "container_registry_username still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "container_registry_password" {
+  description = "Password for container_registry_username, delivered to the container app as a secret rather than a plain value. sensitive = true keeps it out of CLI output only: Terraform holds every variable in the state file as plain text, so treat terraform.tfstate as a secret. Keep the value in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_password))
+    error_message = "container_registry_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_ca_pem" {
+  description = "The certificate authority that signed the OpenSearch cluster's certificate, base64 encoded, for a cluster using a private authority. IQ Server has no per-connection trust setting, so the entrypoint copies the JVM's own trust store, adds this authority to the copy, and names the copy with javax.net.ssl.trustStore. The JVM store is never replaced, because it also serves IQ Server's calls to the Sonatype data service. Leave empty for a certificate signed by a public authority. This is a public certificate and not a credential."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9+/=\\s]*$", var.opensearch_ca_pem))
+    error_message = "opensearch_ca_pem must be the certificate base64 encoded, for example base64 < ca.pem, not the PEM text itself. The entrypoint decodes it with base64 -d, which fails on a raw PEM and stops every replica from starting."
+  }
+}
+
+variable "opensearch_index_replicas" {
+  description = "Replicas per Nexus One index shard, written as nexusOne.connection.nexusOneIndexReplicas. Use 0 on one data node: it cannot place a replica, and 1 would leave the index yellow, which still serves reads and writes. Bounds-checked 0 to 10 by IQ Server itself."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
+    error_message = "opensearch_index_replicas must be between 0 and 10."
+  }
+}
+

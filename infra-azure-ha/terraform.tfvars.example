@@ -12,12 +12,14 @@ private_subnet_cidrs    = ["10.0.10.0/24", "10.0.20.0/24", "10.0.30.0/24"] # Mul
 db_subnet_cidr          = "10.0.40.0/24"
 
 # High Availability Container App Configuration
-container_cpu           = 4.0      # CPU per replica (max for Azure Container Apps)
-container_memory       = "8Gi"     # Memory per replica (max for Azure Container Apps)
+container_cpu          = 8.0       # vCPU per replica, the Size M and L value
+container_memory       = "64Gi"    # Memory per replica, the Size M and L value
 iq_min_replicas        = 2         # Minimum replicas, the Size L value (must be >= 2)
 iq_max_replicas        = 4         # Maximum replicas for auto-scaling, the Size L value
+# Container Apps workload profile. E8 (8 cores, 64 GB) for Size M and L, E16 for XL.
+workload_profile_type  = "E8"
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration
 cpu_utilization_threshold     = 70    # CPU threshold for scaling (%)
@@ -29,7 +31,7 @@ db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 postgres_version               = "18"
-db_sku_name                    = "MO_Standard_E16s_v3"     # Memory Optimized: 16 vCores, 128GB RAM
+db_sku_name                    = "MO_Standard_E8ds_v6"      # Memory Optimized: 8 vCores, 64 GB, the Size M and L value
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
 db_high_availability_mode      = "ZoneRedundant"           # Zone-redundant HA
@@ -43,7 +45,7 @@ app_gateway_zones       = ["1", "2", "3"] # Availability zones
 # Storage Configuration (HA)
 storage_account_tier            = "Standard"
 storage_account_replication_type = "ZRS"     # Zone-Redundant Storage
-file_share_quota_gb            = 200         # File share size in GB
+file_share_quota_gb            = 500         # File share size in GB, the Size M value
 
 # Monitoring and Logging
 enable_monitoring         = true
@@ -57,12 +59,40 @@ enable_backup = true
 key_vault_sku_name                   = "standard"
 key_vault_soft_delete_retention_days = 7
 
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
+# "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
+# cluster you run on Azure Virtual Machines; this configuration does not create it.
+# README.md gives the cluster specification and the private certificate authority steps.
+search_engine = "lucene"
+
+# opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
+# opensearch_port           = 9200
+# opensearch_use_tls        = true
+# opensearch_username       = "iq-server"
+# opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 1
+
+# A private certificate authority's certificate, base64 encoded, added to a copy of the
+# JVM trust store. Leave empty for a public authority. Not a credential.
+# opensearch_ca_pem = ""
+
+# Private registry holding iq_docker_image. Leave all three empty for a public image.
+# Put the password in terraform.tfvars, not here.
+# container_registry_server   = "CHANGE_ME.azurecr.io"
+# container_registry_username = "CHANGE_ME"
+# container_registry_password = "CHANGE_ME_REGISTRY_PASSWORD"
+
 # Tags
+# Put real values in terraform.tfvars. Azure compares tag names case-insensitively.
 common_tags = {
-  Project         = "nexus-iq-server-ha"
-  Environment     = "production"
-  Terraform       = "true"
-  DeploymentType  = "high-availability"
-  Owner          = "platform-team"
+  Environment    = "production"
+  Terraform      = "true"
+  DeploymentType = "high-availability"
   CostCenter     = "engineering"
+
+  owner      = "CHANGE_ME_EMAIL"
+  project    = "CHANGE_ME_PROJECT"
+  subproject = "CHANGE_ME_SUBPROJECT"
+  department = "CHANGE_ME_DEPARTMENT"
+  team       = "CHANGE_ME_TEAM"
 }
