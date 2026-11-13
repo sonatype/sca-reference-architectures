@@ -119,6 +119,11 @@ TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(tfvar database_password)
+# Unset in terraform.tfvars, Terraform uses the variables.tf default, which is nexusiq for both.
+DB_NAME=$(tfvar database_name)
+DB_NAME=${DB_NAME:-nexusiq}
+DB_USERNAME=$(tfvar database_username)
+DB_USERNAME=${DB_USERNAME:-nexusiq}
 REPLICA_COUNT=$(tfvar nexus_iq_replica_count)
 # An absent key gives an empty count, which would write an invalid "replicas:" line.
 REPLICA_COUNT=${REPLICA_COUNT:-3}
@@ -127,6 +132,10 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
         -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
         -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+        -e "s/^    name: \"nexusiq\"/    name: \"$DB_NAME\"/" \
+        -e "s/^    username: \"nexusiq\"/    username: \"$DB_USERNAME\"/" \
+        -e "/name: DB_NAME/{n;s/value: \"nexusiq\"/value: \"$DB_NAME\"/;}" \
+        -e "/name: DB_USERNAME/{n;s/value: \"nexusiq\"/value: \"$DB_USERNAME\"/;}" \
         -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 fi
