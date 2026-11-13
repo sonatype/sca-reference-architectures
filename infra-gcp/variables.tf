@@ -118,7 +118,7 @@ variable "db_password" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL major version. Cloud SQL cannot downgrade a major version in place, so an existing instance keeps the version it runs. Upgrading is the deployer's decision."
+  description = "PostgreSQL major version. Cloud SQL cannot downgrade a major version in place."
   type        = string
   default     = "POSTGRES_18"
 }
