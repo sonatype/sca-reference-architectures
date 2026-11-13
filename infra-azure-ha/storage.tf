@@ -90,11 +90,11 @@ resource "azurerm_data_protection_backup_vault" "iq_backup_vault" {
 }
 
 
+# Operational backup only, which runs continuously and takes no schedule. Azure stores no
+# repeating interval for it, so setting one replaces the policy on every plan.
 resource "azurerm_data_protection_backup_policy_blob_storage" "iq_backup_policy" {
   count                                  = var.enable_backup ? 1 : 0
   name                                   = "bp-${var.cluster_name}"
   vault_id                               = azurerm_data_protection_backup_vault.iq_backup_vault[0].id
   operational_default_retention_duration = "P30D"
-
-  backup_repeating_time_intervals = ["R/2023-05-15T02:30:00+00:00/P1D"]
 }

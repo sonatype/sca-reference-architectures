@@ -9,6 +9,11 @@ apt-get install -y docker.io curl nfs-common
 systemctl enable docker
 systemctl start docker
 
+echo "=== Installing the Google Cloud Ops Agent ==="
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+bash add-google-cloud-ops-agent-repo.sh --also-install
+rm -f add-google-cloud-ops-agent-repo.sh
+
 echo "=== Mounting Filestore for persistent data ==="
 mkdir -p /mnt/sonatype-work
 mkdir -p /mnt/iq-logs
@@ -35,6 +40,32 @@ if ! grep -qF "$FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work" /etc/fstab; t
 $FILESTORE_IP:/$FILESTORE_SHARE /mnt/sonatype-work nfs defaults,_netdev 0 0
 FSTAB_EOF
 fi
+
+echo "=== Sending the IQ Server log files to Cloud Logging ==="
+# The container writes its logs to /var/log/nexus-iq-server, which is /mnt/sonatype-work/logs on
+# the host, and the Ops Agent reads them from there.
+cat > /etc/google-cloud-ops-agent/config.yaml << 'OPSAGENTEOF'
+logging:
+  receivers:
+    iq_application_log:
+      type: files
+      include_paths:
+      - /mnt/sonatype-work/logs/clm-server.log
+    iq_request_log:
+      type: files
+      include_paths:
+      - /mnt/sonatype-work/logs/request.log
+    iq_audit_log:
+      type: files
+      include_paths:
+      - /mnt/sonatype-work/logs/audit.log
+  service:
+    pipelines:
+      iq_logs:
+        receivers: [iq_application_log, iq_request_log, iq_audit_log]
+OPSAGENTEOF
+systemctl enable google-cloud-ops-agent
+systemctl restart google-cloud-ops-agent
 
 %{ if search_engine == "opensearch" ~}
 echo "=== Reading the OpenSearch password from Secret Manager ==="

@@ -482,24 +482,14 @@ perform_destroy() {
     if [[ "$FORCE_DESTROY" == "true" ]]; then
         print_warning "Force destroy enabled - attempting to disable deletion protection..."
         
-        # Create a temporary tfvars file with deletion protection disabled
-        local temp_tfvars="/tmp/destroy-$(date +%s).tfvars"
-        cp "$TFVARS_FILE" "$temp_tfvars"
-        echo "" >> "$temp_tfvars"
-        echo "# Temporary overrides for HA destruction" >> "$temp_tfvars"
-        echo "db_deletion_protection = false" >> "$temp_tfvars"
-        echo "storage_force_destroy = true" >> "$temp_tfvars"
-        
-        # Apply changes to disable protection
+        # A -var given after -var-file overrides the tfvars value, whether or not the tfvars
+        # file sets db_deletion_protection itself.
         print_status "Disabling deletion protection..."
-        if terraform apply -auto-approve -var-file="$temp_tfvars" >> "$LOG_FILE" 2>&1; then
+        if terraform apply -auto-approve -var-file="$TFVARS_FILE" -var="db_deletion_protection=false" >> "$LOG_FILE" 2>&1; then
             print_status "Deletion protection disabled"
         else
             print_warning "Could not disable deletion protection automatically"
         fi
-        
-        # Clean up temp file
-        rm -f "$temp_tfvars"
         
         # Wait a moment for changes to propagate
         sleep 10

@@ -285,6 +285,27 @@ CONFIGEOF
 
           ls -la /sonatype-work/
 
+          # IQ Server takes its schema migration lock only once the schema exists, so on an
+          # empty database every replica would run the first migration at once. The replica
+          # that creates the gate directory on the shared share starts at once; the others wait
+          # until it logs that its migrations completed, for at most 20 minutes. The marker it
+          # then writes lets every later start skip the wait.
+          MIGRATED="$CLUSTER_DIR/.schema-migrated"
+          if [ ! -e "$MIGRATED" ]; then
+            if mkdir "$CLUSTER_DIR/.schema-migration-gate" 2>/dev/null; then
+              echo "This replica runs the first database migration"
+              IQ_LOG=$(sed -n 's/^[[:space:]]*currentLogFilename: "\(.*clm-server\.log\)"$/\1/p' /etc/nexus-iq-server/config.yml)
+              ( until grep -q "Database migrations completed successfully" "$IQ_LOG" 2>/dev/null; do sleep 5; done
+                touch "$MIGRATED" ) &
+            else
+              echo "Waiting for another replica to finish the first database migration"
+              waited=0
+              while [ ! -e "$MIGRATED" ] && [ "$waited" -lt 1200 ]; do
+                sleep 10
+                waited=$((waited + 10))
+              done
+            fi
+          fi
 
           echo "Starting Nexus IQ Server HA replica: $HOSTNAME"
           exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml

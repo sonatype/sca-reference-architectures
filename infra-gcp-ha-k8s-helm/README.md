@@ -37,6 +37,7 @@ node_group_desired_size = 2
 nexus_iq_replica_count  = 2                # 2 IQ pods
 db_instance_tier        = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
 db_disk_provisioned_iops = 8000
+db_disk_provisioned_throughput = 340         # MiB/s
 db_availability_type    = "REGIONAL"
 db_disk_size            = 128              # GB
 db_max_disk_size        = 500
@@ -69,6 +70,7 @@ node_group_desired_size = 3
 nexus_iq_replica_count  = 3                # 3 IQ pods
 db_instance_tier        = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
 db_disk_provisioned_iops = 8000
+db_disk_provisioned_throughput = 340         # MiB/s
 db_availability_type    = "REGIONAL"
 db_disk_size            = 256              # GB
 db_max_disk_size        = 1000
@@ -101,6 +103,7 @@ node_group_desired_size = 4
 nexus_iq_replica_count  = 4                # 4 IQ pods
 db_instance_tier        = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
 db_disk_provisioned_iops = 10000
+db_disk_provisioned_throughput = 425         # MiB/s
 db_availability_type    = "REGIONAL"
 db_disk_size            = 512              # GB
 db_max_disk_size        = 2000
@@ -132,11 +135,11 @@ iq_server:
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | Regional |
-| **XL** | db-custom-N4-16-131072 (Enterprise) | 16 | 128 GB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB | Regional |
+| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS and 340 MiB/s (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS and 340 MiB/s, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-N4-16-131072 (Enterprise) | 16 | 128 GB | 512 GB Hyperdisk Balanced, 10,000 IOPS and 425 MiB/s, auto-resize to 2 TB | Regional |
 
-The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL. Throughput is left at the Hyperdisk default for the disk size.
+The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU. N4 takes only Hyperdisk Balanced storage, whose default is 4,000 IOPS for a disk up to 256 GB and 7,000 up to 512 GB, so the IOPS are set to 8,000 at M and L and 10,000 at XL. Cloud SQL takes provisioned IOPS and throughput together, and the throughput, 340 MiB/s at M and L and 425 MiB/s at XL, keeps the 170 MiB/s per 4,000 IOPS of the Cloud SQL default.
 
 ### Shared Storage (Cloud Filestore)
 
@@ -405,6 +408,7 @@ db_instance_tier                   = "db-custom-N4-8-65536"  # 8 vCPU, 64 GB, th
 db_edition                         = "ENTERPRISE"
 db_disk_type                       = "HYPERDISK_BALANCED"
 db_disk_provisioned_iops           = 8000                    # 10000 at Size XL
+db_disk_provisioned_throughput     = 340                     # MiB/s, 425 at Size XL
 db_availability_type               = "REGIONAL"
 db_disk_size                       = 256
 db_max_disk_size                   = 1000
@@ -447,7 +451,7 @@ hpa:
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
-> **Database tier and disk type.** A change to `db_instance_tier` or `db_disk_type` updates the existing instance rather than replacing it. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving from Hyperdisk back to SSD can incur significant downtime. With `db_disk_type = "PD_SSD"`, `db_disk_provisioned_iops` is ignored.
+> **Database tier and disk type.** A change to `db_instance_tier` or `db_disk_type` updates the existing instance rather than replacing it. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving from Hyperdisk back to SSD can incur significant downtime. With `db_disk_type = "PD_SSD"`, `db_disk_provisioned_iops` and `db_disk_provisioned_throughput` are ignored.
 
 **Important Settings:**
 - **`node_group_min_size = 2`** - Minimum GKE node capacity
