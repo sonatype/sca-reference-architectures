@@ -268,12 +268,12 @@ Enable these APIs in your project:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
-### Upgrading IQ Server
+### Database migration in `helm-upgrade.sh`
 
-`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
-When the upgrade changes the image, back up the database, then run
-`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
-starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
+only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
+Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
+or the rollout fails.
 
 ---
 
