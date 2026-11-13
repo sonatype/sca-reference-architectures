@@ -60,49 +60,58 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 DB_FQDN=$(terraform output -raw postgres_server_fqdn 2>/dev/null || echo "")
 DB_PASSWORD=$(tfvar database_password)
 STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null || echo "")
+STORAGE_SHARE=$(terraform output -raw storage_share_name 2>/dev/null || echo "")
+STORAGE_SHARE_QUOTA_GB=$(terraform output -raw storage_share_quota_gb 2>/dev/null || echo "")
 RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null || echo "")
 
 load_search_vars
 
 echo "• Database: $DB_FQDN"
 echo "• Storage Account: $STORAGE_ACCOUNT"
+echo "• File share: $STORAGE_SHARE, ${STORAGE_SHARE_QUOTA_GB} GiB"
 echo "• Resource Group: $RESOURCE_GROUP"
 echo ""
 
-if [[ -z "$DB_FQDN" || -z "$STORAGE_ACCOUNT" || -z "$RESOURCE_GROUP" ]]; then
+if [[ -z "$DB_FQDN" || -z "$STORAGE_ACCOUNT" || -z "$STORAGE_SHARE" || -z "$RESOURCE_GROUP" ]]; then
     echo -e "${RED}❌ Error: Missing required infrastructure outputs${NC}"
+    exit 1
+fi
+
+if [[ ! "$STORAGE_SHARE_QUOTA_GB" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}❌ Error: no storage_share_quota_gb output found${NC}"
+    echo "   Run ./tf-apply.sh again so the state carries it."
     exit 1
 fi
 
 echo -e "${BLUE}💾 Configuring Storage${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━"
 
-cat > k8s-storageclass-nfs-runtime.yaml << EOF
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: azurefile-nfs
-provisioner: file.csi.azure.com
-allowVolumeExpansion: true
-parameters:
-  skuName: Premium_ZRS
-  storageAccount: $STORAGE_ACCOUNT
-  resourceGroup: $RESOURCE_GROUP
-mountOptions:
-  - dir_mode=0777
-  - file_mode=0777
-  - uid=1000
-  - gid=1000
-  - mfsymlinks
-  - cache=strict
-  - actimeo=30
-reclaimPolicy: Retain
-volumeBindingMode: Immediate
-EOF
-
-kubectl apply -f k8s-storageclass-nfs-runtime.yaml >/dev/null 2>&1
-
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+
+# IQ's claim binds to the Azure Files share Terraform created, through a static volume.
+# Both state the share's quota, so they match at every size.
+sed -e "s/RESOURCE_GROUP_PLACEHOLDER/${RESOURCE_GROUP}/g" \
+    -e "s/STORAGE_ACCOUNT_PLACEHOLDER/${STORAGE_ACCOUNT}/g" \
+    -e "s/SHARE_NAME_PLACEHOLDER/${STORAGE_SHARE}/g" \
+    -e "s/SHARE_QUOTA_PLACEHOLDER/${STORAGE_SHARE_QUOTA_GB}Gi/g" \
+    azurefiles-pv.yaml | kubectl apply -f - >/dev/null 2>&1
+sed "s/SHARE_QUOTA_PLACEHOLDER/${STORAGE_SHARE_QUOTA_GB}Gi/g" azurefiles-pvc.yaml | kubectl apply -f - >/dev/null 2>&1
+
+timeout=60
+elapsed=0
+while true; do
+    PVC_STATUS=$(kubectl get pvc iq-server-pvc -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+
+    if [[ "$PVC_STATUS" == "Bound" ]]; then
+        break
+    elif [ $elapsed -ge $timeout ]; then
+        echo -e "${RED}❌ Error: iq-server-pvc did not bind, status $PVC_STATUS${NC}"
+        exit 1
+    fi
+
+    sleep 5
+    elapsed=$((elapsed + 5))
+done
 
 if ! kubectl get secret nexus-iq-license -n "$NAMESPACE" >/dev/null 2>&1; then
     kubectl create secret generic nexus-iq-license \
@@ -137,7 +146,7 @@ sed -i.bak \
     "$TEMP_VALUES_FILE"
 
 if ! write_search_block "$TEMP_VALUES_FILE"; then
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -145,7 +154,7 @@ fi
 if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
     grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -157,7 +166,7 @@ fi
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -178,7 +187,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --values "$TEMP_VALUES_FILE" \
     --timeout 15m; then
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
     kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=nexus-iq-server-ha -n "$NAMESPACE" --timeout=300s >/dev/null 2>&1 || true
 
@@ -251,6 +260,6 @@ else
     kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || true
     echo ""
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" k8s-storageclass-nfs-runtime.yaml
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
