@@ -286,9 +286,9 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Database** | | | |
 | Service | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL | Cloud SQL PostgreSQL |
 | PostgreSQL version | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 | Minimum 16.9 (16) or 17.5 (17), recommended and default 18 |
-| Instance tier | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-8-30720 (8 vCPU, 30 GB) | db-custom-16-65536 (16 vCPU, 64 GB) |
+| Instance tier | db-custom-N4-8-65536 (8 vCPU, 64 GB) | db-custom-N4-8-65536 (8 vCPU, 64 GB) | db-custom-N4-16-131072 (16 vCPU, 128 GB) |
 | Edition | Enterprise | Enterprise | Enterprise |
-| Storage | 128 GB PD-SSD, auto-resize to 500 GB | 256 GB PD-SSD, auto-resize to 1 TB | 512 GB PD-SSD, auto-resize to 2 TB |
+| Storage | 128 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 500 GB | 256 GB Hyperdisk Balanced, 8,000 IOPS, auto-resize to 1 TB | 512 GB Hyperdisk Balanced, 10,000 IOPS, auto-resize to 2 TB |
 | Availability | Zonal (Regional for production) | Regional (automatic failover) | Regional with automatic failover |
 | **Storage** | | | |
 | Service | Cloud Filestore | Cloud Filestore | Cloud Filestore |
@@ -298,6 +298,8 @@ Use the table below to compare infrastructure characteristics and resource requi
 | **Terraform Templates** | [Single Instance](./infra-gcp) &#124; [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) | [High Availability](./infra-gcp-ha) &#124; [HA Kubernetes](./infra-gcp-ha-k8s-helm) |
 
 > **Note on GCP storage tiers:** BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Use BASIC_SSD when storage needs are small (< 2.5 TiB) but IOPS demand is high, or when sub-millisecond disk latency is required. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
+
+> **Note on the GCP database tiers:** M, L and XL use the N4 series, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, with the IOPS set per size.
 
 ---
 
@@ -329,9 +331,9 @@ The following tables provide equivalent instance types across cloud providers fo
 
 | Size | GCP | AWS | Azure |
 |------|-----|-----|-------|
-| **M** (2 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
-| **L** (3 nodes) | db-custom-8-30720 Enterprise (8 vCPU, 30 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
-| **XL** (4 nodes) | db-custom-16-65536 Enterprise (16 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
+| **M** (2 nodes) | db-custom-N4-8-65536 Enterprise (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
+| **L** (3 nodes) | db-custom-N4-8-65536 Enterprise (8 vCPU, 64 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | MO_Standard_E8ds_v6 (8 vCores, 64 GB) |
+| **XL** (4 nodes) | db-custom-N4-16-131072 Enterprise (16 vCPU, 128 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) | MO_Standard_E16ds_v6 (16 vCores, 128 GB) |
 
 > **DB sizing scales with node count, not application count.** The database was not a bottleneck during testing. XL needs 16 vCPU primarily for connection pool aggregation from 4 nodes (~560 peak connections), not query complexity.
 
@@ -378,6 +380,7 @@ gce_machine_type     = "n4a-highmem-2"     # 2 vCPU, 16 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-7680"  # 2 vCPU, 7.5 GB
+db_disk_type         = "PD_SSD"            # the db-custom-2-* tiers take PD_SSD, not Hyperdisk
 db_disk_size         = 64                  # GB
 ```
 
@@ -418,6 +421,7 @@ gce_machine_type     = "n4a-highmem-4"     # 4 vCPU, 32 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_instance_tier     = "db-custom-2-13312" # 2 vCPU, 13 GB
+db_disk_type         = "PD_SSD"            # the db-custom-2-* tiers take PD_SSD, not Hyperdisk
 db_disk_size         = 128                 # GB
 ```
 
@@ -487,7 +491,8 @@ file_share_quota_gb  = 500
 gce_machine_type     = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_disk_size         = 128                 # GB, auto-resize to 500 GB
 db_max_disk_size     = 500
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
@@ -553,7 +558,8 @@ iq_min_instances     = 2
 iq_max_instances     = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 8000
 db_availability_type = "REGIONAL"          # Required for L
 db_disk_size         = 256                 # GB, auto-resize to 1 TB
 db_max_disk_size     = 1000
@@ -623,7 +629,8 @@ iq_min_instances     = 3
 iq_max_instances     = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_tier     = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier     = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 10000
 db_availability_type = "REGIONAL"          # Required with automatic failover
 db_disk_size         = 512                 # GB, auto-resize to 2 TB
 db_max_disk_size     = 2000
@@ -641,7 +648,8 @@ node_group_desired_size = 4                # 4 nodes
 nexus_iq_replica_count  = 4                # 4 IQ pods
 # The container image and the Java heap are Helm chart values, set in
 # helm-values.yaml as iq_server.tag and iq_server.javaOpts.
-db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier        = "db-custom-N4-16-131072" # 16 vCPU, 128 GB, N4 series (Enterprise)
+db_disk_provisioned_iops = 10000
 db_availability_type    = "REGIONAL"
 db_disk_size            = 512              # GB, auto-resize to 2 TB
 db_max_disk_size        = 2000
