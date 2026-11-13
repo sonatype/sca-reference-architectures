@@ -79,6 +79,11 @@ resource "aws_rds_cluster" "iq_aurora_cluster" {
 
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.iq_aurora_cluster_pg.name
 
+  # A change to the major version of aurora_engine_version upgrades the cluster in place, and
+  # moves its instances to the instance parameter group of the new family in the same call.
+  allow_major_version_upgrade      = true
+  db_instance_parameter_group_name = aws_db_parameter_group.iq_aurora_instance_pg.name
+
   tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-aurora-cluster"
   })
