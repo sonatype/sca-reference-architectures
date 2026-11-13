@@ -56,6 +56,11 @@ output "filestore_share_name" {
   value       = google_filestore_instance.iq_ha_filestore.file_shares[0].name
 }
 
+output "filestore_capacity_gb" {
+  description = "Filestore share capacity in GiB, which helm-install.sh uses as the PersistentVolume and claim size"
+  value       = google_filestore_instance.iq_ha_filestore.file_shares[0].capacity_gb
+}
+
 output "ingress_ip" {
   description = "Global ingress IP address"
   value       = google_compute_global_address.ingress_ip.address

@@ -13,7 +13,6 @@ HELM_RELEASE_NAME="nexus-iq-server-ha"
 HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
-AWS_PROFILE="admin@iq-sandbox"
 
 echo -e "${BLUE}🔄 Nexus IQ Server HA on EKS - Helm Upgrade${NC}"
 echo "================================================"
@@ -29,27 +28,43 @@ if ! command -v helm &> /dev/null; then
     exit 1
 fi
 
-KUBECTL_PREFIX=""
-TERRAFORM_PREFIX=""
-HELM_PREFIX=""
-if command -v aws-vault >/dev/null 2>&1; then
-    KUBECTL_PREFIX="aws-vault exec $AWS_PROFILE --"
-    TERRAFORM_PREFIX="aws-vault exec $AWS_PROFILE --"
-    HELM_PREFIX="aws-vault exec $AWS_PROFILE --"
+# Credentials come from the standard AWS chain: the named profile in AWS_PROFILE,
+# such as an IAM Identity Center profile, or credentials already in the environment.
+if [[ -z "$AWS_PROFILE" && -z "$AWS_ACCESS_KEY_ID" ]]; then
+    echo -e "${RED}❌ Error: AWS_PROFILE environment variable is not set${NC}"
+    echo ""
+    echo "Please set your AWS profile name:"
+    echo "  export AWS_PROFILE=your-profile-name"
+    echo ""
+    echo "Or run with inline variable:"
+    echo "  AWS_PROFILE=your-profile-name ./helm-upgrade.sh"
+    echo ""
+    exit 1
 fi
 
-if ! $KUBECTL_PREFIX kubectl cluster-info >/dev/null 2>&1; then
-    KUBECTL_COMMAND=$($TERRAFORM_PREFIX terraform output -raw kubectl_config_command 2>/dev/null || echo "")
+if ! command -v aws &> /dev/null; then
+    echo -e "${RED}❌ Error: aws not found${NC}"
+    exit 1
+fi
+
+if ! aws sts get-caller-identity --region "${AWS_REGION:-us-east-1}" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: no valid AWS credentials${NC}"
+    echo ""
+    echo "The credentials are missing or have expired. For an IAM Identity Center"
+    echo "profile, sign in again:"
+    echo "  aws sso login --profile ${AWS_PROFILE:-your-profile-name}"
+    echo ""
+    exit 1
+fi
+
+if ! kubectl cluster-info >/dev/null 2>&1; then
+    KUBECTL_COMMAND=$(terraform output -raw kubectl_config_command 2>/dev/null || echo "")
 
     if [[ -n "$KUBECTL_COMMAND" ]]; then
-        if command -v aws-vault >/dev/null 2>&1; then
-            aws-vault exec "$AWS_PROFILE" -- $KUBECTL_COMMAND >/dev/null 2>&1
-        else
-            $KUBECTL_COMMAND >/dev/null 2>&1
-        fi
+        $KUBECTL_COMMAND >/dev/null 2>&1
 
         sleep 2
-        if ! $KUBECTL_PREFIX kubectl cluster-info >/dev/null 2>&1; then
+        if ! kubectl cluster-info >/dev/null 2>&1; then
             echo -e "${RED}❌ Error: kubectl configuration failed${NC}"
             exit 1
         fi
@@ -64,23 +79,23 @@ if [[ ! -f "$VALUES_FILE" ]]; then
     exit 1
 fi
 
-if ! $KUBECTL_PREFIX kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
     echo -e "${RED}❌ Error: Namespace '$NAMESPACE' does not exist${NC}"
     exit 1
 fi
 
-if ! $HELM_PREFIX helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
+if ! helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${RED}❌ Error: Helm release '$HELM_RELEASE_NAME' not found${NC}"
     exit 1
 fi
 
 echo -e "${BLUE}📊 Current Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━"
-$HELM_PREFIX helm list -n "$NAMESPACE"
+helm list -n "$NAMESPACE"
 echo ""
 
-CURRENT_REVISION=$($HELM_PREFIX helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .revision")
-CURRENT_CHART=$($HELM_PREFIX helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .chart")
+CURRENT_REVISION=$(helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .revision")
+CURRENT_CHART=$(helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .chart")
 
 echo "• Current Revision: $CURRENT_REVISION"
 echo "• Current Chart: $CURRENT_CHART"
@@ -90,9 +105,9 @@ echo -e "${BLUE}📊 Infrastructure Details${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [[ -f "terraform.tfstate" ]]; then
-    DB_ENDPOINT=$($TERRAFORM_PREFIX terraform output -raw rds_cluster_endpoint 2>/dev/null)
-    AWS_REGION=$($TERRAFORM_PREFIX terraform output -raw aws_region 2>/dev/null || echo "us-east-1")
-    CLUSTER_NAME=$($TERRAFORM_PREFIX terraform output -raw cluster_id 2>/dev/null)
+    DB_ENDPOINT=$(terraform output -raw rds_cluster_endpoint 2>/dev/null)
+    AWS_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "us-east-1")
+    CLUSTER_NAME=$(terraform output -raw cluster_id 2>/dev/null)
 
     echo "• Database: $DB_ENDPOINT"
     echo "• Region: $AWS_REGION"
@@ -103,12 +118,12 @@ else
 fi
 echo ""
 
-$HELM_PREFIX helm repo update >/dev/null 2>&1
+helm repo update >/dev/null 2>&1
 
 # Unset in terraform.tfvars, keep the chart version the release already runs.
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
 if [[ -z "$CHART_VERSION" ]]; then
-    CHART_VERSION=$($HELM_PREFIX helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+    CHART_VERSION=$(helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
 fi
 CHART_VERSION=${CHART_VERSION:-201.0.0}
 
@@ -118,12 +133,12 @@ echo "━━━━━━━━━━━━━━━━━━━"
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-DB_NAME=$($TERRAFORM_PREFIX terraform output -raw rds_cluster_database_name 2>/dev/null)
-DB_PORT=$($TERRAFORM_PREFIX terraform output -raw rds_cluster_port 2>/dev/null)
+DB_NAME=$(terraform output -raw rds_cluster_database_name 2>/dev/null)
+DB_PORT=$(terraform output -raw rds_cluster_port 2>/dev/null)
 
-SECRET_NAME=$($TERRAFORM_PREFIX terraform output -raw secrets_manager_secret_name 2>/dev/null)
+SECRET_NAME=$(terraform output -raw secrets_manager_secret_name 2>/dev/null)
 if [[ -n "$SECRET_NAME" ]]; then
-    SECRET_JSON=$($TERRAFORM_PREFIX aws secretsmanager get-secret-value \
+    SECRET_JSON=$(aws secretsmanager get-secret-value \
         --secret-id "$SECRET_NAME" \
         --query 'SecretString' \
         --output text \
@@ -136,7 +151,7 @@ else
     DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
 fi
 
-FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_role_arn 2>/dev/null)
+FLUENTD_IRSA_ROLE_ARN=$(terraform output -raw fluentd_irsa_role_arn 2>/dev/null)
 # sed rather than cut, which keeps a trailing comment. The default is on its own line because
 # `|| echo` after a pipe sees only the last command's status.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
@@ -165,11 +180,11 @@ fi
 
 # Fill in or delete the search: block between its markers, after the database
 # substitutions above so their patterns cannot touch it.
-SEARCH_ENGINE=$($TERRAFORM_PREFIX terraform output -raw search_engine 2>/dev/null || echo "lucene")
+SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "lucene")
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
-    OPENSEARCH_ENDPOINT=$($TERRAFORM_PREFIX terraform output -raw opensearch_domain_endpoint 2>/dev/null || echo "")
-    OPENSEARCH_REPLICAS=$($TERRAFORM_PREFIX terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
-    IQ_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw iq_server_irsa_role_arn 2>/dev/null || echo "")
+    OPENSEARCH_ENDPOINT=$(terraform output -raw opensearch_domain_endpoint 2>/dev/null || echo "")
+    OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
+    IQ_IRSA_ROLE_ARN=$(terraform output -raw iq_server_irsa_role_arn 2>/dev/null || echo "")
     if [[ -z "$OPENSEARCH_ENDPOINT" || -z "$IQ_IRSA_ROLE_ARN" ]]; then
         echo -e "${RED}❌ Error: search_engine is 'opensearch' but the domain endpoint or the IQ Server role ARN is missing${NC}"
         echo "   Run terraform apply with search_engine = \"opensearch\" and check it created the domain."
@@ -210,7 +225,7 @@ fi
 echo "• Chart Version: $CHART_VERSION"
 echo ""
 
-$HELM_PREFIX helm diff upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+helm diff upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
@@ -227,7 +242,7 @@ fi
 
 echo -e "${BLUE}💾 Creating Backup${NC}"
 echo "━━━━━━━━━━━━━━━━━━"
-(umask 077; $HELM_PREFIX helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml")
+(umask 077; helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml")
 echo "• Saved: backup-values-revision-${CURRENT_REVISION}.yaml"
 echo ""
 
@@ -236,7 +251,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━"
 echo "This may take 15-20 minutes..."
 echo ""
 
-$HELM_PREFIX helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
@@ -252,28 +267,28 @@ rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
 echo -e "${BLUE}📊 Upgrade Summary${NC}"
 echo "━━━━━━━━━━━━━━━━━━"
-$HELM_PREFIX helm list -n "$NAMESPACE"
+helm list -n "$NAMESPACE"
 echo ""
 
-NEW_REVISION=$($HELM_PREFIX helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .revision")
+NEW_REVISION=$(helm list -n "$NAMESPACE" -o json | jq -r ".[] | select(.name==\"$HELM_RELEASE_NAME\") | .revision")
 echo "• Previous Revision: $CURRENT_REVISION"
 echo "• New Revision: $NEW_REVISION"
 echo ""
 
 echo -e "${BLUE}📊 Pod Status${NC}"
 echo "━━━━━━━━━━━━━"
-$KUBECTL_PREFIX kubectl get pods -n "$NAMESPACE" -o wide
+kubectl get pods -n "$NAMESPACE" -o wide
 echo ""
 
-$KUBECTL_PREFIX kubectl rollout status deployment/nexus-iq-server-ha-iq-server-deployment -n "$NAMESPACE" --timeout=600s >/dev/null 2>&1 || true
+kubectl rollout status deployment/nexus-iq-server-ha-iq-server-deployment -n "$NAMESPACE" --timeout=600s >/dev/null 2>&1 || true
 
 echo -e "${BLUE}🔗 Service Information${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━"
-$KUBECTL_PREFIX kubectl get svc -n "$NAMESPACE"
+kubectl get svc -n "$NAMESPACE"
 echo ""
 
-if $KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE" >/dev/null 2>&1; then
-    $KUBECTL_PREFIX kubectl get ingress -n "$NAMESPACE"
+if kubectl get ingress -n "$NAMESPACE" >/dev/null 2>&1; then
+    kubectl get ingress -n "$NAMESPACE"
     echo ""
 fi
 
