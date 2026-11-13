@@ -159,10 +159,13 @@ hpa:
     memory:
       enabled: false
 
+# helm-install.sh and helm-upgrade.sh replace CLOUDWATCH_LOG_GROUP_PLACEHOLDER with the
+# cloudwatch_log_group Terraform output, /eks/<cluster_name>/nexus-iq-server, the only
+# group the Fluentd role may write to.
 cloudwatch:
   enabled: true
   region: "us-east-1"
-  logGroupName: "/eks/nexus-iq-ha/nexus-iq-server"
+  logGroupName: "CLOUDWATCH_LOG_GROUP_PLACEHOLDER"
   logStreamName: "aggregator"
 
 ingress:
@@ -185,7 +188,7 @@ fluentd:
   cloudwatch:
     enabled: true
     region: "us-east-1"
-    logGroupName: "/eks/nexus-iq-ha/nexus-iq-server"
+    logGroupName: "CLOUDWATCH_LOG_GROUP_PLACEHOLDER"
     logStreamPrefix: "pod/"
 
   resources:
@@ -228,5 +231,12 @@ fluentd:
 external-dns:
   enabled: false
 
-migrationJob:
-  enabled: false
+# The database migration job runs once, as a post-install hook, so a helm upgrade does
+# not start it again while IQ Server is using the database. helm waits for a hook and
+# fails the install if the migration fails. When an upgrade changes the IQ Server image,
+# MIGRATE_DATABASE=yes ./helm-upgrade.sh scales IQ Server to zero and runs the job as a
+# pre-upgrade hook.
+iq_server_jobs:
+  migrationJobAnnotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
