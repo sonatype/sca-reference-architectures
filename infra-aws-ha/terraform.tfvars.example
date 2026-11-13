@@ -20,19 +20,20 @@ enable_nat_gateway     = true
 # ECS CONFIGURATION
 # ================================
 ecs_cpu                 = 8192   # 8 vCPU
-ecs_memory              = 32768  # 32 GB
-ecs_memory_reservation  = 24576  # 24 GB soft limit
+ecs_memory              = 61440  # 60 GB, the Size M and L value
+ecs_memory_reservation  = 53248  # 52 GB soft limit, the heap plus direct memory
  
 # ================================
 # IQ SERVER CONFIGURATION
 # ================================
-iq_desired_count        = 3  # 3 instances for better HA
+# Size L task counts. README.md gives Size M and XL.
+iq_desired_count        = 3  # 3 tasks for Size L
 iq_min_count           = 2  # Minimum for auto scaling
-iq_max_count           = 5  # Maximum for auto scaling
+iq_max_count           = 4  # Maximum for auto scaling
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%) 
 iq_memory_target_value = 80  # Memory target for auto scaling (%) 
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # ================================
 # DATABASE CONFIGURATION (Aurora PostgreSQL)
@@ -40,8 +41,8 @@ java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoo
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # CHANGE THIS!
-aurora_engine_version       = "15.10"
-aurora_instance_class       = "db.r6g.4xlarge"
+aurora_engine_version       = "18.6"
+aurora_instance_class       = "db.r8g.2xlarge"
 aurora_instances            = 2  # Minimum 2 for HA
 db_backup_retention_period  = 7 
 db_backup_window           = "03:00-04:00"
@@ -53,15 +54,8 @@ db_deletion_protection     = false  # Set to false for development
 # LOAD BALANCER CONFIGURATION
 # ================================
 # Uncomment and provide SSL certificate ARN for HTTPS
-# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:CHANGE_ME:certificate/CHANGE_ME"
 alb_deletion_protection = false  # Set to true for production
- 
-# ================================
-# EFS CONFIGURATION
-# ================================
-efs_throughput_mode                  = "provisioned"
-efs_provisioned_throughput_in_mibps = 100
-
  
 # ================================
 # MONITORING CONFIGURATION
@@ -97,13 +91,12 @@ common_tags = {
 # 1. ECS Fargate pricing based on vCPU and memory usage
 # 2. Use smaller task sizes (ecs_cpu/ecs_memory) for development
 # 3. Adjust backup retention periods based on requirements
-# 4. Use burstable EFS throughput mode if consistent high throughput isn't needed
-# 5. Consider using Fargate Spot for non-production workloads
+# 4. Consider using Fargate Spot for non-production workloads
  
 # ================================
 # HIGH AVAILABILITY NOTES
 # ================================
-# 1. Minimum 2 IQ Server tasks (iq_desired_count = 2)
+# 1. Minimum 2 IQ Server tasks (iq_min_count = 2)
 # 2. Minimum 2 Aurora instances (aurora_instances = 2)
 # 3. ECS tasks run across multiple Availability Zones
 # 4. Auto scaling based on CPU and memory utilization

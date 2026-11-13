@@ -2,6 +2,11 @@
 variable "gcp_project_id" {
   description = "GCP Project ID"
   type        = string
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.gcp_project_id))
+    error_message = "gcp_project_id still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "gcp_region" {
@@ -50,6 +55,11 @@ variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed for SSH access"
   type        = list(string)
   default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = alltrue([for v in var.allowed_ssh_cidrs : !can(regex("CHANGE_ME", v))])
+    error_message = "allowed_ssh_cidrs still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 # GCE Variables
@@ -100,12 +110,17 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version. Cloud SQL cannot downgrade a major version in place."
   type        = string
-  default     = "POSTGRES_17"
+  default     = "POSTGRES_18"
 }
 
 variable "db_instance_tier" {
@@ -137,9 +152,9 @@ variable "db_availability_type" {
 }
 
 variable "db_disk_size" {
-  description = "Database disk size in GB"
+  description = "Database disk size in GB. The default is the Size M value."
   type        = number
-  default     = 100
+  default     = 128
 }
 
 variable "db_backup_start_time" {
@@ -149,9 +164,9 @@ variable "db_backup_start_time" {
 }
 
 variable "db_max_disk_size" {
-  description = "Maximum database disk size in GB"
+  description = "Maximum database disk size in GB, the ceiling auto-resize grows to. The default is the Size M value."
   type        = number
-  default     = 1000
+  default     = 500
 }
 
 variable "db_max_connections" {
@@ -167,9 +182,9 @@ variable "db_transaction_log_retention_days" {
 }
 
 variable "db_backup_retention_count" {
-  description = "Number of automated backups to retain"
+  description = "Number of automated backups to retain. Cloud SQL refuses a count that is not greater than db_transaction_log_retention_days, with \"backup retention should be > transaction log retention\", so this stays above that variable."
   type        = number
-  default     = 7
+  default     = 8
 }
 
 variable "db_maintenance_window_day" {
@@ -225,6 +240,11 @@ variable "domain_name" {
   description = "Domain name for SSL certificate"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.domain_name))
+    error_message = "domain_name still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "java_opts" {

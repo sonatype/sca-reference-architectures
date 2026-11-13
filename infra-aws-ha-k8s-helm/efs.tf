@@ -1,8 +1,7 @@
 resource "aws_efs_file_system" "iq_efs" {
   creation_token   = "${var.cluster_name}-efs"
   performance_mode = "generalPurpose"
-  throughput_mode  = "provisioned"
-  provisioned_throughput_in_mibps = var.efs_provisioned_throughput
+  throughput_mode  = "elastic"
 
   encrypted  = true
   kms_key_id = aws_kms_key.efs_kms_key.arn

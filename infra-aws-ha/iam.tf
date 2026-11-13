@@ -128,16 +128,16 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
           "arn:aws:ssm:${var.aws_region}:*:parameter/ecs/${var.cluster_name}/nexus-iq-server/fluent-bit-*"
         ]
       }
-    ],
-    var.enable_log_archive ? [{
-      Effect = "Allow"
-      Action = [
-        "s3:PutObject",
-        "s3:PutObjectAcl"
-      ]
-      Resource = [
-        "${aws_s3_bucket.log_archive[0].arn}/*"
-      ]
+      ],
+      var.enable_log_archive ? [{
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:PutObjectAcl"
+        ]
+        Resource = [
+          "${aws_s3_bucket.log_archive[0].arn}/*"
+        ]
     }] : [])
   })
 }

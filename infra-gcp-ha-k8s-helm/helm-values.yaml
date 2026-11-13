@@ -18,8 +18,6 @@ iq_server:
   javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   env:
-    - name: NXIQ_DATABASE_MIGRATION
-      value: "true"
     - name: CLUSTER_DIRECTORY
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
@@ -53,7 +51,10 @@ iq_server:
 
   serviceType: "NodePort"
 
-  replicaCount: 3
+  # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
+  # This is the Size L value. Size M uses 2 and Size XL uses 4.
+  # helm-install.sh overwrites it with nexus_iq_replica_count from terraform.tfvars.
+  replicas: 3
 
   config:
     sonatypeWork: "/sonatype-work"
@@ -188,12 +189,22 @@ external-dns:
 migrationJob:
   enabled: false
 
-autoscaling:
+# Horizontal pod autoscaler. The chart reads hpa.enabled, hpa.minReplicas and
+# hpa.maxReplicas, and renders the HPA only when a resource metric is enabled.
+# These are the Size L bounds. Size M is 2 to 3 and Size XL is 3 to 5.
+# Memory is left disabled because the JVM holds its heap, so memory utilization
+# stays near the limit and would scale out without bound.
+hpa:
   enabled: true
   minReplicas: 2
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
+  maxReplicas: 4
+  resources:
+    cpu:
+      enabled: true
+      average:
+        threshold: 70
+    memory:
+      enabled: false
 
 podAntiAffinity:
   enabled: true

@@ -1,15 +1,11 @@
 
 resource "aws_efs_file_system" "iq_efs" {
-  creation_token   = "${var.cluster_name}-efs"
-  encrypted        = true
-  kms_key_id      = aws_kms_key.efs.arn
+  creation_token = "${var.cluster_name}-efs"
+  encrypted      = true
+  kms_key_id     = aws_kms_key.efs.arn
 
   performance_mode = "generalPurpose"
-  throughput_mode  = var.efs_throughput_mode
-
-
-  provisioned_throughput_in_mibps = var.efs_throughput_mode == "provisioned" ? var.efs_provisioned_throughput_in_mibps : null
-
+  throughput_mode  = "elastic"
 
   lifecycle_policy {
     transition_to_ia = "AFTER_30_DAYS"

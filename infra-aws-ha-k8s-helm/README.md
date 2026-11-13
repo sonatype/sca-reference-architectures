@@ -10,13 +10,13 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r6g.2xlarge (ARM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r6g.2xlarge (ARM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r6g.4xlarge (ARM) |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r9g.4xlarge (ARM) |
 
-> All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> All sizes validated through performance testing, which ran on GCP ARM instances at the shapes in the table above: 8 vCPU and 64 GB with a 48 GB heap for M and L, and 16 vCPU and 128 GB with a 96 GB heap for XL. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **ARM instances recommended.** r6g (Graviton2) instances offer 20-30% better price-performance than x86 equivalents (r5).
+> **ARM instances recommended.** r9g (Graviton5) costs less on demand than the x86 equivalent (r8i). The node AMI follows the instance architecture, so both ARM and x86 types deploy.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
@@ -26,7 +26,7 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r9g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 2
 node_group_min_size     = 2
 node_group_max_size     = 3
@@ -35,9 +35,8 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
-java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -45,7 +44,7 @@ java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1
 <summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r6g.2xlarge"    # 8 vCPU, 64 GB (ARM)
+node_instance_type      = "r9g.2xlarge"    # 8 vCPU, 64 GB (ARM)
 node_group_desired_size = 3
 node_group_min_size     = 2
 node_group_max_size     = 5
@@ -54,9 +53,8 @@ nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-aurora_instance_class   = "db.r6g.2xlarge" # 8 vCPU, 64 GB
+aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
-java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -64,18 +62,17 @@ java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-node_instance_type      = "r6g.4xlarge"    # 16 vCPU, 128 GB (ARM)
+node_instance_type      = "r9g.4xlarge"    # 16 vCPU, 128 GB (ARM)
 node_group_desired_size = 4
 node_group_min_size     = 3
-node_group_max_size     = 6
+node_group_max_size     = 5
 nexus_iq_replica_count  = 4                # 4 IQ pods
 nexus_iq_memory_request = "96Gi"
 nexus_iq_memory_limit   = "112Gi"
 nexus_iq_cpu_request    = "12"
 nexus_iq_cpu_limit      = "16"
-aurora_instance_class   = "db.r6g.4xlarge" # 16 vCPU, 128 GB
+aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
-java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -83,9 +80,9 @@ java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1
 
 | Size | Aurora Instance Class | vCPU | Memory | Storage |
 |------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
-| **L** | db.r6g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
-| **XL** | db.r6g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, expected to grow to about 500 GB |
+| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, expected to grow to about 1 TB |
+| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, expected to grow to about 2 TB |
 
 ### Shared Storage (EFS)
 
@@ -259,6 +256,12 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
+
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -273,16 +276,16 @@ cluster_name = "nexus-iq-ha"
 vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
-kubernetes_version       = "1.30"
-node_instance_type      = "m5d.2xlarge"
+kubernetes_version       = "1.36"
+node_instance_type      = "m9gd.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
 node_disk_size          = 50
 
 # RDS Aurora Configuration
-aurora_engine_version   = "15.10"
-aurora_instance_class   = "db.r6g.4xlarge"
+aurora_engine_version   = "18.6"
+aurora_instance_class   = "db.r8g.2xlarge"
 aurora_instance_count   = 2
 database_name           = "nexusiq"
 database_username       = "nexusiq"
@@ -291,11 +294,7 @@ backup_retention_period = 7
 skip_final_snapshot     = true
 deletion_protection     = false
 
-# EFS Configuration
-efs_provisioned_throughput = 100
-
 # Nexus IQ Server Configuration
-nexus_iq_version       = "1.195.0"
 nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
@@ -307,7 +306,7 @@ nexus_iq_cpu_request    = "4"
 nexus_iq_cpu_limit      = "6"
 
 # Helm Configuration
-helm_chart_version = "195.0.0"
+helm_chart_version = "201.0.0"
 helm_namespace     = "nexus-iq"
 
 # Logging Configuration
@@ -319,19 +318,23 @@ enable_ingress_nginx = true
 ingress_hostname     = "nexus-iq.yourdomain.com"
 ingress_tls_enabled  = false
 acm_certificate_arn  = ""
+```
 
-# Monitoring Configuration
-enable_hpa                      = true
-hpa_min_replicas               = 2
-hpa_max_replicas               = 5
-hpa_target_cpu_utilization     = 70
-hpa_target_memory_utilization  = 80
+Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
+
+```yaml
+iq_server:
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
+hpa:
+  enabled: true
+  minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
+  maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
 **Important Settings:**
-- **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended)
-- **`hpa_min_replicas = 2`** - Minimum auto scaling capacity (must be at least 2 for HA)
-- **`hpa_max_replicas = 5`** - Maximum auto scaling capacity
+- **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4
+- **`hpa.minReplicas` in `helm-values.yaml`** - Minimum auto scaling capacity, 2 for Size M and L. Size XL uses 3, and every size must be at least 2 for HA
+- **`hpa.maxReplicas` in `helm-values.yaml`** - Maximum auto scaling capacity, 4 for Size L. Size M uses 3 and Size XL uses 5
 - **`aurora_instance_count = 2`** - Number of Aurora instances (minimum 2 for HA)
 - **`database_password`** - Use a strong, unique password (required change)
 - **`nexus_iq_license`** - Base64 encoded HA-capable license
@@ -368,7 +371,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-AZ Deployment**: EKS nodes, pods, and Aurora instances distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 2-5 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Node Auto Scaling**: EKS node groups scale from 2-5 nodes based on pod resource requests
 - **Aurora Cluster**: Multi-AZ database deployment with automatic failover (~30 seconds)
 - **Automatic Restart**: Kubernetes automatically restarts failed pods
@@ -408,7 +411,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ## Persistent Storage
 
 - **EFS File System**: Shared storage for clustering with Kubernetes CSI driver
-- **Aurora Database**: PostgreSQL cluster for application data with continuous backups
+- **Aurora Database**: PostgreSQL cluster for application data with continuous backups. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Aurora storage scales automatically
 - **EBS Volumes**: Node storage encrypted at rest
 

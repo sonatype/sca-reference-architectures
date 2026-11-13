@@ -1,17 +1,17 @@
-# Required Permissions for Custom Role "Sonatyper_2024"
+# Required Permissions for a Custom Role
 
 ## Issue
-The deployment requires permissions from `roles/container.admin` and `roles/iam.serviceAccountAdmin`, but your custom role "Sonatyper_2024" currently lacks the necessary GKE container.* permissions.
+The deployment requires permissions from `roles/container.admin` and `roles/iam.serviceAccountAdmin`, but your custom role currently lacks the necessary GKE container.* permissions.
 
 ## Analysis
-Your custom role "Sonatyper_2024" already contains:
+Your custom role already contains:
 - ✅ Most `iam.serviceAccount*` permissions (from iam.serviceAccountAdmin)
 - ✅ Most `compute.*` permissions
 - ✅ Most `cloudsql.*` permissions
 - ❌ **ZERO `container.*` permissions for GKE**
 
 ## Solution
-Instead of assigning the predefined roles `roles/container.admin` and `roles/iam.serviceAccountAdmin`, add the specific missing permissions to your custom role "Sonatyper_2024".
+Instead of assigning the predefined roles `roles/container.admin` and `roles/iam.serviceAccountAdmin`, add the specific missing permissions to your custom role.
 
 ## Permissions to Add to Custom Role
 
@@ -108,7 +108,7 @@ container.statefulSets.update
 
 ### Option 1: Via Console
 1. Go to IAM & Admin > Roles
-2. Search for "Sonatyper_2024"
+2. Search for your custom role
 3. Click "Edit Role"
 4. Click "Add Permissions"
 5. Add the permissions listed above
@@ -116,19 +116,19 @@ container.statefulSets.update
 ### Option 2: Via gcloud command
 ```bash
 # Get current role definition
-gcloud iam roles describe Sonatyper_2024 --project=nxrm-support-gcp-deployments --format=yaml > sonatyper_2024_role.yaml
+gcloud iam roles describe YOUR_ROLE_ID --project=YOUR_PROJECT_ID --format=yaml > custom_role.yaml
 
 # Edit the file to add the new permissions to the includedPermissions list
 
 # Update the role
-gcloud iam roles update Sonatyper_2024 --project=nxrm-support-gcp-deployments --file=sonatyper_2024_role.yaml
+gcloud iam roles update YOUR_ROLE_ID --project=YOUR_PROJECT_ID --file=custom_role.yaml
 ```
 
 ### Option 3: Quick Update (Minimum Permissions Only)
 ```bash
 # Add just the critical GKE permissions
-gcloud iam roles update Sonatyper_2024 \
-  --project=nxrm-support-gcp-deployments \
+gcloud iam roles update YOUR_ROLE_ID \
+  --project=YOUR_PROJECT_ID \
   --add-permissions="container.clusters.create,container.clusters.delete,container.clusters.get,container.clusters.getCredentials,container.clusters.list,container.clusters.update,container.operations.get,container.operations.list"
 ```
 
@@ -138,10 +138,10 @@ After updating the role, run the permission check again:
 ./check-permissions.sh
 ```
 
-The script will now pass because your custom role "Sonatyper_2024" will contain the necessary container.* permissions.
+The script then passes, because your custom role will contain the necessary container.* permissions.
 
 ## Why This Approach?
-- Your organization uses custom roles (Sonatyper_2024)
+- Your organization uses custom roles
 - The admin cannot see predefined roles in their interface
 - Adding specific permissions to your existing custom role is cleaner than assigning multiple predefined roles
 - This gives you granular control over exactly what permissions are granted

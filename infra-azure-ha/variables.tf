@@ -2,7 +2,7 @@
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
-  default     = "East US 2"
+  default     = "East US"
 }
 
 variable "cluster_name" {
@@ -52,7 +52,7 @@ variable "container_memory" {
 variable "iq_min_replicas" {
   description = "Minimum number of IQ Server replicas (HA requires minimum 2)"
   type        = number
-  default     = 3
+  default     = 2
 
   validation {
     condition     = var.iq_min_replicas >= 2
@@ -63,7 +63,7 @@ variable "iq_min_replicas" {
 variable "iq_max_replicas" {
   description = "Maximum number of IQ Server replicas for auto scaling"
   type        = number
-  default     = 5
+  default     = 4
 }
 
 variable "iq_docker_image" {
@@ -114,12 +114,17 @@ variable "db_password" {
   description = "Database administrator password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {
@@ -243,5 +248,10 @@ variable "common_tags" {
     Environment    = "production"
     Terraform      = "true"
     DeploymentType = "high-availability"
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }

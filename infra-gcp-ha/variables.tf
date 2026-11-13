@@ -2,6 +2,11 @@
 variable "gcp_project_id" {
   description = "GCP Project ID"
   type        = string
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.gcp_project_id))
+    error_message = "gcp_project_id still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "gcp_region" {
@@ -57,6 +62,11 @@ variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed for SSH access"
   type        = list(string)
   default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = alltrue([for v in var.allowed_ssh_cidrs : !can(regex("CHANGE_ME", v))])
+    error_message = "allowed_ssh_cidrs still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 # Compute Engine Variables
@@ -80,7 +90,7 @@ variable "iq_min_instances" {
 variable "iq_max_instances" {
   description = "Maximum number of instances in MIG"
   type        = number
-  default     = 6
+  default     = 4
 
   validation {
     condition     = var.iq_max_instances >= 2
@@ -91,7 +101,7 @@ variable "iq_max_instances" {
 variable "iq_target_instances" {
   description = "Target number of instances in MIG"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 # Database Variables
@@ -111,18 +121,45 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "POSTGRES_15"
+  default     = "POSTGRES_18"
 }
 
 variable "db_instance_tier" {
   description = "Database instance tier (Sonatype HA benchmark: 8 vCPU, 30GB RAM)"
   type        = string
   default     = "db-custom-8-30720"
+}
+
+variable "db_edition" {
+  description = "Cloud SQL edition. ENTERPRISE takes the db-custom-* tiers; ENTERPRISE_PLUS is required by the newer machine series such as db-perf-optimized-N-* and db-c4a-highmem-*."
+  type        = string
+  default     = "ENTERPRISE"
+
+  validation {
+    condition     = contains(["ENTERPRISE", "ENTERPRISE_PLUS"], var.db_edition)
+    error_message = "db_edition must be ENTERPRISE or ENTERPRISE_PLUS."
+  }
+}
+
+variable "db_disk_type" {
+  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED. Set it at create: changing it replaces the primary and the replica."
+  type        = string
+  default     = "PD_SSD"
+
+  validation {
+    condition     = contains(["PD_SSD", "PD_HDD", "HYPERDISK_BALANCED"], var.db_disk_type)
+    error_message = "db_disk_type must be PD_SSD, PD_HDD or HYPERDISK_BALANCED."
+  }
 }
 
 variable "db_availability_type" {
@@ -167,9 +204,9 @@ variable "db_transaction_log_retention_days" {
 }
 
 variable "db_backup_retention_count" {
-  description = "Number of automated backups to retain"
+  description = "Number of automated backups to retain. Cloud SQL refuses a count that is not greater than db_transaction_log_retention_days, with \"backup retention should be > transaction log retention\", so this stays above that variable."
   type        = number
-  default     = 7
+  default     = 8
 }
 
 variable "db_maintenance_window_day" {
@@ -207,6 +244,17 @@ variable "domain_name" {
   description = "Domain name for SSL certificate"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.domain_name))
+    error_message = "domain_name still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "lb_backend_timeout_sec" {
+  description = "Seconds the load balancer waits for a response from Nexus IQ Server before answering 502. A large scan upload or report export can run longer than the default."
+  type        = number
+  default     = 30
 }
 
 # Auto Scaling Variables
@@ -245,6 +293,17 @@ variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
   default     = "-Xms48g -Xmx48g -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+}
+
+variable "iq_log_levels" {
+  description = "Extra logger levels written under logging.loggers in config.yml, as logger name to level, for example { \"com.sonatype.insight.brain.search\" = \"DEBUG\" } for a support case. Every line lands in clm-server.log on Filestore."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.iq_log_levels : can(regex("^[A-Za-z0-9_.$-]+$", k)) && contains(["ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"], upper(v))])
+    error_message = "iq_log_levels takes logger names and levels such as DEBUG or WARN."
+  }
 }
 
 # Storage Variables
@@ -286,5 +345,10 @@ variable "common_tags" {
     "managed-by"  = "terraform"
     "team"        = "platform"
     "cost-center" = "engineering"
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }

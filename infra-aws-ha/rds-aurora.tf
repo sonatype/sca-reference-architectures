@@ -45,27 +45,27 @@ resource "aws_kms_alias" "aurora" {
 
 
 resource "aws_rds_cluster" "iq_aurora_cluster" {
-  cluster_identifier      = "${var.cluster_name}-aurora-cluster"
-  engine                 = "aurora-postgresql"
-  engine_version         = var.aurora_engine_version
-  database_name          = var.db_name
-  master_username        = var.db_username
-  master_password        = var.db_password
+  cluster_identifier = "${var.cluster_name}-aurora-cluster"
+  engine             = "aurora-postgresql"
+  engine_version     = var.aurora_engine_version
+  database_name      = var.db_name
+  master_username    = var.db_username
+  master_password    = var.db_password
 
 
   vpc_security_group_ids = [aws_security_group.aurora.id]
   db_subnet_group_name   = aws_db_subnet_group.iq_db_subnet_group.name
 
 
-  backup_retention_period = var.db_backup_retention_period
-  preferred_backup_window = var.db_backup_window
+  backup_retention_period      = var.db_backup_retention_period
+  preferred_backup_window      = var.db_backup_window
   preferred_maintenance_window = var.db_maintenance_window
 
 
-  storage_encrypted   = true
-  kms_key_id         = aws_kms_key.aurora.arn
-  deletion_protection = var.db_deletion_protection
-  skip_final_snapshot = var.db_skip_final_snapshot
+  storage_encrypted         = true
+  kms_key_id                = aws_kms_key.aurora.arn
+  deletion_protection       = var.db_deletion_protection
+  skip_final_snapshot       = var.db_skip_final_snapshot
   final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
 
@@ -78,6 +78,11 @@ resource "aws_rds_cluster" "iq_aurora_cluster" {
 
 
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.iq_aurora_cluster_pg.name
+
+  # A change to the major version of aurora_engine_version upgrades the cluster in place, and
+  # moves its instances to the instance parameter group of the new family in the same call.
+  allow_major_version_upgrade      = true
+  db_instance_parameter_group_name = aws_db_parameter_group.iq_aurora_instance_pg.name
 
   tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-aurora-cluster"
@@ -99,8 +104,8 @@ resource "aws_rds_cluster_instance" "iq_aurora_instances" {
 
 
   performance_insights_enabled = true
-  monitoring_interval         = 60
-  monitoring_role_arn        = aws_iam_role.aurora_enhanced_monitoring.arn
+  monitoring_interval          = 60
+  monitoring_role_arn          = aws_iam_role.aurora_enhanced_monitoring.arn
 
 
   auto_minor_version_upgrade = true
@@ -159,9 +164,13 @@ resource "aws_iam_role_policy_attachment" "aurora_enhanced_monitoring" {
 
 
 resource "aws_rds_cluster_parameter_group" "iq_aurora_cluster_pg" {
-  family      = "aurora-postgresql15"
-  name        = "${var.cluster_name}-aurora-cluster-pg"
+  family      = "aurora-postgresql${split(".", var.aurora_engine_version)[0]}"
+  name_prefix = "${var.cluster_name}-aurora-cluster-pg-"
   description = "Aurora cluster parameter group for IQ Server HA"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
 
   parameter {
@@ -186,8 +195,12 @@ resource "aws_rds_cluster_parameter_group" "iq_aurora_cluster_pg" {
 }
 
 resource "aws_db_parameter_group" "iq_aurora_instance_pg" {
-  family = "aurora-postgresql15"
-  name   = "${var.cluster_name}-aurora-instance-pg"
+  family      = "aurora-postgresql${split(".", var.aurora_engine_version)[0]}"
+  name_prefix = "${var.cluster_name}-aurora-instance-pg-"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
 
   parameter {

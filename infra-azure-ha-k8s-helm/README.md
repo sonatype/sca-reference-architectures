@@ -16,7 +16,7 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **ARM instances recommended.** Eps_v6 (Ampere Altra) instances offer 20-30% better price-performance than x86 equivalents (E_v5).
+> **ARM instances recommended.** Eps_v6 costs 30% less on demand than the x86 equivalent of the same generation, Esv6 (`Standard_E8ps_v6` against `Standard_E8s_v6` in eastus, list prices in November 2026).
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-azure/) architecture.
 
@@ -26,17 +26,15 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
 ```hcl
-node_pool_vm_size    = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
-node_pool_min_count  = 2
-node_pool_max_count  = 3
-node_pool_node_count = 2
+node_instance_type   = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
+node_group_min_size  = 2
+node_group_max_size  = 3
+node_group_desired_size = 2
 nexus_iq_replica_count = 2                 # 2 IQ pods
 nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
@@ -46,17 +44,15 @@ db_high_availability_mode = "ZoneRedundant"
 <summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
 
 ```hcl
-node_pool_vm_size    = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
-node_pool_min_count  = 2
-node_pool_max_count  = 5
-node_pool_node_count = 3
+node_instance_type   = "Standard_E8ps_v6"  # 8 vCPU, 64 GB (ARM)
+node_group_min_size  = 2
+node_group_max_size  = 5
+node_group_desired_size = 3
 nexus_iq_replica_count = 3                 # 3 IQ pods
 nexus_iq_memory_request = "48Gi"
 nexus_iq_memory_limit   = "56Gi"
 nexus_iq_cpu_request    = "6"
 nexus_iq_cpu_limit      = "8"
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
@@ -66,13 +62,11 @@ db_high_availability_mode = "ZoneRedundant"
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-node_pool_vm_size    = "Standard_E16ps_v6" # 16 vCPU, 128 GB (ARM)
-node_pool_min_count  = 3
-node_pool_max_count  = 5
-node_pool_node_count = 4
+node_instance_type   = "Standard_E16ps_v6" # 16 vCPU, 128 GB (ARM)
+node_group_min_size  = 3
+node_group_max_size  = 5
+node_group_desired_size = 4
 nexus_iq_replica_count = 4                 # 4 IQ pods
-iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier = "Premium"           # Required for NFS with AKS
@@ -90,11 +84,13 @@ storage_account_replication_type = "ZRS"
 
 ### Shared Storage (Azure Files Premium ZRS)
 
-| Size | Tier | Protocol | Estimated Capacity |
+| Size | Tier | Protocol | Share quota (`storage_share_quota_gb`) |
 |------|:-----|:--------:|:------------------:|
-| **M** | Premium | SMB/NFS | 100 – 500 GB |
-| **L** | Premium | SMB/NFS | 500 GB – 1.5 TB |
-| **XL** | Premium | NFS (required) | 1.5 TB – 4 TB |
+| **M** | Premium | NFS | 500 GB |
+| **L** | Premium | NFS | 1,536 GB |
+| **XL** | Premium | NFS (required) | 4,096 GB |
+
+On Premium the quota is the provisioned and billed size.
 
 > Premium SSD with ZRS redundancy is recommended for AKS deployments requiring NFS access mode (ReadWriteMany).
 
@@ -118,7 +114,7 @@ Install these tools on your local machine:
 - Azure subscription with Contributor access
 - Ability to create: Resource Groups, Virtual Networks, AKS, PostgreSQL, Application Gateway
 - Sufficient vCPU quota (48+ vCPUs required for production HA setup)
-- Zone-redundant resource support in target region (default: East US 2)
+- Zone-redundant resource support in target region (default: East US)
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
@@ -207,7 +203,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the Helm deployment.
 
-   Example: `http://nexus-iq-ha-abc123.eastus2.cloudapp.azure.com`
+   Example: `http://nexus-iq-ha-abc123.eastus.cloudapp.azure.com`
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -235,13 +231,16 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # Azure Configuration
-azure_region = "eastus2"
+azure_region = "eastus"
 environment  = "prod"
 cluster_name = "nexus-iq-ha"
 
@@ -260,7 +259,7 @@ node_group_desired_size = 3
 node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA)
-postgres_version                 = "15"
+postgres_version                 = "18"
 db_sku_name                      = "MO_Standard_E16s_v3" # Memory Optimized: 16 vCores, 128GB RAM
 db_high_availability_mode        = "ZoneRedundant"
 db_storage_mb                    = 65536 # 64GB
@@ -284,7 +283,6 @@ app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
 # Nexus IQ Server HA Configuration
-nexus_iq_version         = "1.195.0"
 nexus_iq_license         = ""
 nexus_iq_admin_password  = "admin123"
 nexus_iq_replica_count   = 3
@@ -294,12 +292,23 @@ nexus_iq_cpu_request     = "4"
 nexus_iq_cpu_limit       = "6"
 
 # Helm Configuration
-helm_chart_version = "195.0.0"
+helm_chart_version = "201.0.0"
 helm_namespace     = "nexus-iq"
 ```
 
+Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
+
+```yaml
+iq_server:
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
+hpa:
+  enabled: true
+  minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
+  maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
+```
+
 **Important Settings:**
-- **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended, requires HA license)
+- **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4. Requires an HA license
 - **`node_group_min_size = 2`** - Minimum AKS node capacity
 - **`node_group_max_size = 5`** - Maximum AKS node capacity
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
@@ -317,7 +326,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 - **Shared Storage**: Azure Files Premium (ZRS) provides consistent storage across all replicas with ReadWriteMany access
 - **Database Sharing**: All replicas connect to the shared zone-redundant PostgreSQL cluster via Kubernetes secrets
 - **Service Discovery**: Kubernetes service provides stable DNS and load balancing
-- **Horizontal Pod Autoscaler**: Pods scale from 3-5 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -339,7 +348,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: AKS nodes, pods, Application Gateway, and database distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 3-5 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Cluster Autoscaler**: AKS nodes scale from 2-5 based on pod resource requests
 - **Zone-Redundant Database**: PostgreSQL Flexible Server with automatic failover (~30 seconds) between zones
 - **Automatic Restart**: Kubernetes automatically restarts failed pods
@@ -360,7 +369,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
-- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data
+- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking

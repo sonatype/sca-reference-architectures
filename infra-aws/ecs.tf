@@ -8,7 +8,7 @@ resource "aws_ecs_cluster" "iq_cluster" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-cluster"
+    Name = "ref-arch-iq-cluster"
   }
 }
 
@@ -19,15 +19,15 @@ resource "aws_ecs_task_definition" "iq_task" {
   cpu                      = var.ecs_cpu
   memory                   = var.ecs_memory
   execution_role_arn       = aws_iam_role.ecs_execution_role.arn
-  task_role_arn           = aws_iam_role.ecs_task_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
   requires_compatibilities = ["FARGATE"]
 
   container_definitions = jsonencode(concat([
     {
-      name         = "nexus-iq-server"
-      image        = var.iq_docker_image
-      essential    = true
-      user         = "0:0"
+      name      = "nexus-iq-server"
+      image     = var.iq_docker_image
+      essential = true
+      user      = "0:0"
       portMappings = [
         {
           containerPort = 8070
@@ -203,17 +203,17 @@ CONFIGEOF
         }
       ]
     }
-  ],
+    ],
 
-  [{
-    name      = "log_router"
-    image     = var.fluent_bit_image
-    essential = false
+    [{
+      name      = "log_router"
+      image     = var.fluent_bit_image
+      essential = false
 
 
-    entryPoint = ["/bin/sh", "-c"]
-    command = [
-      <<-EOF
+      entryPoint = ["/bin/sh", "-c"]
+      command = [
+        <<-EOF
         set -e
         echo "Loading Fluent Bit configuration from environment"
 
@@ -230,74 +230,74 @@ CONFIGEOF
 
         exec /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
       EOF
-    ]
+      ]
 
 
-    secrets = [
-      {
-        name      = "FLUENT_BIT_CONFIG"
-        valueFrom = aws_ssm_parameter.fluent_bit_config.arn
-      },
-      {
-        name      = "FLUENT_BIT_PARSERS"
-        valueFrom = aws_ssm_parameter.fluent_bit_parsers.arn
+      secrets = [
+        {
+          name      = "FLUENT_BIT_CONFIG"
+          valueFrom = aws_ssm_parameter.fluent_bit_config.arn
+        },
+        {
+          name      = "FLUENT_BIT_PARSERS"
+          valueFrom = aws_ssm_parameter.fluent_bit_parsers.arn
+        }
+      ]
+
+      environment = [
+        {
+          name  = "AWS_REGION"
+          value = var.aws_region
+        },
+        {
+          name  = "FLB_LOG_LEVEL"
+          value = "info"
+        },
+        {
+          name  = "CLUSTER_NAME"
+          value = "ref-arch-iq-cluster"
+        }
+      ]
+
+
+      mountPoints = [
+        {
+          sourceVolume  = "iq-logs"
+          containerPath = "/var/log/nexus-iq-server"
+          readOnly      = false
+        }
+      ]
+
+
+      cpu               = 256
+      memory            = 512
+      memoryReservation = 256
+
+
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 60
       }
-    ]
 
-    environment = [
-      {
-        name  = "AWS_REGION"
-        value = var.aws_region
-      },
-      {
-        name  = "FLB_LOG_LEVEL"
-        value = "info"
-      },
-      {
-        name  = "CLUSTER_NAME"
-        value = "ref-arch-iq-cluster"
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "fluent-bit"
+        }
       }
-    ]
 
 
-    mountPoints = [
-      {
-        sourceVolume  = "iq-logs"
-        containerPath = "/var/log/nexus-iq-server"
-        readOnly      = false
-      }
-    ]
-
-
-    cpu            = 256
-    memory         = 512
-    memoryReservation = 256
-
-
-    healthCheck = {
-      command     = ["CMD-SHELL", "curl -sf http://localhost:2020/api/v1/health || exit 1"]
-      interval    = 30
-      timeout     = 5
-      retries     = 3
-      startPeriod = 60
-    }
-
-
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.iq_logs.name
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "fluent-bit"
-      }
-    }
-
-
-    dependsOn = [{
-      containerName = "nexus-iq-server"
-      condition     = "START"
+      dependsOn = [{
+        containerName = "nexus-iq-server"
+        condition     = "START"
+      }]
     }]
-  }]
   ))
 
   volume {
@@ -325,7 +325,7 @@ CONFIGEOF
   }
 
   tags = {
-    Name        = "ref-arch-iq-task-definition"
+    Name = "ref-arch-iq-task-definition"
   }
 }
 
@@ -359,7 +359,7 @@ resource "aws_ecs_service" "iq_service" {
   ]
 
   tags = {
-    Name        = "ref-arch-iq-service"
+    Name = "ref-arch-iq-service"
   }
 }
 
@@ -369,11 +369,10 @@ resource "aws_efs_file_system" "iq_efs" {
   encrypted      = true
 
   performance_mode = "generalPurpose"
-  throughput_mode  = "provisioned"
-  provisioned_throughput_in_mibps = 100
+  throughput_mode  = "elastic"
 
   tags = {
-    Name        = "ref-arch-iq-efs"
+    Name = "ref-arch-iq-efs"
   }
 }
 
@@ -404,7 +403,7 @@ resource "aws_efs_access_point" "iq_access_point" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-efs-access-point"
+    Name = "ref-arch-iq-efs-access-point"
   }
 }
 
@@ -427,7 +426,7 @@ resource "aws_efs_access_point" "iq_logs_access_point" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-efs-logs-access-point"
+    Name = "ref-arch-iq-efs-logs-access-point"
   }
 }
 

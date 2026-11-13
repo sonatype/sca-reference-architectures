@@ -98,13 +98,19 @@ if [[ -f "terraform.tfstate" ]]; then
     echo "• Region: $AWS_REGION"
     echo "• Cluster: $CLUSTER_NAME"
 else
-    AWS_REGION=$(grep '^aws_region' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "us-east-1")
+    AWS_REGION=$(sed -n 's/^aws_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+    AWS_REGION=${AWS_REGION:-us-east-1}
 fi
 echo ""
 
 $HELM_PREFIX helm repo update >/dev/null 2>&1
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
+# Unset in terraform.tfvars, keep the chart version the release already runs.
+CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+if [[ -z "$CHART_VERSION" ]]; then
+    CHART_VERSION=$($HELM_PREFIX helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+fi
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"
@@ -131,7 +137,10 @@ else
 fi
 
 FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_role_arn 2>/dev/null)
-REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
+# sed rather than cut, which keeps a trailing comment. The default is on its own line because
+# `|| echo` after a pipe sees only the last command's status.
+REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
@@ -142,7 +151,7 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
         -e "s/port: 5432/port: $DB_PORT/" \
         -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
         -e "s|eks.amazonaws.com/role-arn: \".*\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
-        -e "s/replicaCount: [0-9]*/replicaCount: $REPLICA_COUNT/" \
+        -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 
     sed -i '' \

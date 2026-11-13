@@ -10,13 +10,15 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 | Size | Applications | Evaluations/Day | Compute | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-------:|:---------:|:-------------:|
-| **XS** ¹ | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
-| **S** ¹ | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | Fargate (4096 CPU / 32768 MEM) |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
+| **XS** | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | Fargate (2048 CPU / 16384 MEM) |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 30 GB | 22 GB | Fargate (4096 CPU / 30720 MEM) |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
 
-> ¹ XS and S are projected sizing estimates. M has been validated through performance testing.
+> **Why a 44 GB heap on a 60 GB task?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. Size S is the same case: Fargate caps a 4 vCPU task at 30 GB, so S runs a 22 GB heap, which with `-XX:MaxDirectMemorySize=6g` commits 28 GB of the 30.
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
+
+> **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
 
 ### Recommended `terraform.tfvars` by Size
 
@@ -29,8 +31,8 @@ ecs_memory           = 16384               # 16 GB
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.t4g.medium"     # 2 vCPU, 4 GB (burstable)
-db_allocated_storage = 50
+db_instance_class    = "db.m8g.large"      # 2 vCPU, 8 GB
+db_allocated_storage = 64
 ```
 </details>
 
@@ -39,12 +41,12 @@ db_allocated_storage = 50
 
 ```hcl
 ecs_cpu              = 4096                # 4 vCPU
-ecs_memory           = 32768               # 32 GB
+ecs_memory           = 30720               # 30 GB, the maximum at 4 vCPU
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.large"      # 2 vCPU, 16 GB
-db_allocated_storage = 100
+java_opts            = "-Xms22g -Xmx22g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.r8g.large"      # 2 vCPU, 16 GB
+db_allocated_storage = 128
 ```
 </details>
 
@@ -53,12 +55,12 @@ db_allocated_storage = 100
 
 ```hcl
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536               # 64 GB
+ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_instance_class    = "db.r6g.2xlarge"    # 8 vCPU, 64 GB
-db_allocated_storage = 100                 # auto-scales to 500 GB
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+db_instance_class    = "db.r8g.2xlarge"    # 8 vCPU, 64 GB
+db_allocated_storage = 128                 # auto-scales to 500 GB
 ```
 </details>
 
@@ -66,9 +68,9 @@ db_allocated_storage = 100                 # auto-scales to 500 GB
 
 | Size | DB Instance Class | vCPU | Memory | Storage |
 |------|:-----------------|:----:|:------:|:-------:|
-| **XS** | db.t4g.medium (burstable) | 2 | 4 GB | 50 GB |
-| **S** | db.r6g.large | 2 | 16 GB | 100 GB |
-| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
+| **XS** | db.m8g.large | 2 | 8 GB | 64 GB |
+| **S** | db.r8g.large | 2 | 16 GB | 128 GB |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | 128 GB (auto-scales to 500 GB) |
 
 ---
 
@@ -211,6 +213,12 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
+
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
@@ -236,10 +244,10 @@ java_opts         = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/so
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-db_instance_class           = "db.r6g.4xlarge"
-db_allocated_storage        = 500
-db_max_allocated_storage    = 1000
-postgres_version            = "15.10"
+db_instance_class           = "db.r8g.2xlarge"
+db_allocated_storage        = 128
+db_max_allocated_storage    = 500
+postgres_version            = "18.6"
 db_backup_retention_period  = 7
 db_backup_window           = "03:00-04:00"
 db_maintenance_window      = "sun:04:00-sun:05:00"
@@ -247,7 +255,7 @@ db_skip_final_snapshot     = true
 db_deletion_protection     = false
 
 # Load Balancer Configuration
-# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:CHANGE_ME:certificate/CHANGE_ME"
 alb_deletion_protection = false
 
 # Logging Configuration
@@ -316,7 +324,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ## Persistent Storage
 
 - **EFS File System**: Shared storage for `/sonatype-work` directory
-- **Database**: PostgreSQL RDS for application data
+- **Database**: PostgreSQL RDS for application data. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: RDS storage scales automatically up to configured limit
 
 ## Networking

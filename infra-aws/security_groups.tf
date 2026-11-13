@@ -35,7 +35,7 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name        = "ref-arch-alb-security-group"
+    Name = "ref-arch-alb-security-group"
   }
 
   lifecycle {
@@ -81,7 +81,7 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   tags = {
-    Name        = "ref-arch-ecs-tasks-security-group"
+    Name = "ref-arch-ecs-tasks-security-group"
   }
 
   lifecycle {
@@ -111,7 +111,7 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name        = "ref-arch-rds-security-group"
+    Name = "ref-arch-rds-security-group"
   }
 
   lifecycle {
@@ -141,7 +141,7 @@ resource "aws_security_group" "efs" {
   }
 
   tags = {
-    Name        = "ref-arch-efs-security-group"
+    Name = "ref-arch-efs-security-group"
   }
 
   lifecycle {

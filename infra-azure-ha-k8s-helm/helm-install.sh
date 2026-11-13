@@ -120,9 +120,15 @@ fi
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
+# sed rather than cut, which keeps a trailing comment. The default is on its own line because
+# `|| echo` after a pipe sees only the last command's status.
+REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+REPLICA_COUNT=${REPLICA_COUNT:-3}
+
 sed -i.bak \
     -e "s/hostname: \"\"/hostname: \"$DB_FQDN\"/" \
     -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+    -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then

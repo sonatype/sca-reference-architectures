@@ -81,8 +81,9 @@ echo -e "${BLUE}📊 Infrastructure Details${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [[ -f "terraform.tfstate" ]]; then
-    DB_ENDPOINT=$(terraform output -raw postgres_fqdn 2>/dev/null)
-    AZURE_REGION=$(terraform output -raw location 2>/dev/null || echo "eastus")
+    DB_ENDPOINT=$(terraform output -raw postgres_server_fqdn 2>/dev/null)
+    AZURE_REGION=$(sed -n 's/^azure_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null)
+    AZURE_REGION=${AZURE_REGION:-eastus}
     CLUSTER_NAME=$(terraform output -raw aks_cluster_name 2>/dev/null)
     RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null)
 
@@ -91,7 +92,8 @@ if [[ -f "terraform.tfstate" ]]; then
     echo "• Cluster: $CLUSTER_NAME"
     echo "• Resource Group: $RESOURCE_GROUP"
 else
-    AZURE_REGION=$(grep '^location' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "eastus")
+    AZURE_REGION=$(sed -n 's/^azure_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null)
+    AZURE_REGION=${AZURE_REGION:-eastus}
 fi
 echo ""
 
@@ -106,11 +108,16 @@ TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
+# sed rather than cut, which keeps a trailing comment. The default is on its own line because
+# `|| echo` after a pipe sees only the last command's status.
+REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
         -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
         -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+        -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 fi
 
