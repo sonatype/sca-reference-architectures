@@ -361,6 +361,29 @@ systemctl enable google-cloud-ops-agent
 systemctl restart google-cloud-ops-agent
 log "Cloud Logging agent configured and started"
 
+# IQ Server takes its schema migration lock only once the schema exists, so on an empty database
+# every instance would run the first migration at once. The instance that creates the gate
+# directory on the shared Filestore starts at once; the others wait until it logs that its
+# migrations completed, for at most 20 minutes. The marker it then writes lets every later start
+# skip the wait.
+MIGRATED="$${CLUSTER_DIR_HOST}/.schema-migrated"
+if [ ! -e "$${MIGRATED}" ]; then
+  if mkdir "$${CLUSTER_DIR_HOST}/.schema-migration-gate" 2>/dev/null; then
+    log "This instance runs the first database migration"
+    # A transient unit of its own, so the watch outlives this startup script's service.
+    systemd-run --collect --unit=iq-schema-migrated-marker /bin/sh -c \
+      "until grep -q 'Database migrations completed successfully' '$${UNIQUE_WORK_HOST}/logs/clm-server.log' 2>/dev/null; do sleep 5; done; touch '$${MIGRATED}'" \
+      || log "Could not start the migration marker watch; other instances wait at most 20 minutes"
+  else
+    log "Waiting for another instance to finish the first database migration"
+    waited=0
+    while [ ! -e "$${MIGRATED}" ] && [ "$${waited}" -lt 1200 ]; do
+      sleep 10
+      waited=$((waited + 10))
+    done
+  fi
+fi
+
 # ============================================
 # SECTION 8: Start Docker Container
 # ============================================

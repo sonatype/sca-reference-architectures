@@ -194,6 +194,27 @@ CONFIGEOF
           echo "Generated config file contents, with every password redacted:"
           sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
+          # IQ Server takes its schema migration lock only once the schema exists, so on an
+          # empty database every task would run the first migration at once. The task that
+          # creates the gate directory on the shared EFS starts at once; the others wait until it
+          # logs that its migrations completed, for at most 20 minutes. The marker it then
+          # writes lets every later start skip the wait.
+          MIGRATED="/sonatype-work/clm-cluster/.schema-migrated"
+          if [ ! -e "$MIGRATED" ]; then
+            if mkdir "/sonatype-work/clm-cluster/.schema-migration-gate" 2>/dev/null; then
+              echo "This task runs the first database migration"
+              IQ_LOG=$(sed -n 's/^[[:space:]]*currentLogFilename: "\(.*clm-server\.log\)"$/\1/p' /etc/nexus-iq-server/config.yml)
+              ( until grep -q "Database migrations completed successfully" "$IQ_LOG" 2>/dev/null; do sleep 5; done
+                touch "$MIGRATED" ) &
+            else
+              echo "Waiting for another task to finish the first database migration"
+              waited=0
+              while [ ! -e "$MIGRATED" ] && [ "$waited" -lt 1200 ]; do
+                sleep 10
+                waited=$((waited + 10))
+              done
+            fi
+          fi
 
           export JAVA_OPTS
 
