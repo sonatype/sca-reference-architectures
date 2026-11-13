@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -20,6 +20,16 @@ provider "google" {
 provider "google-beta" {
   project = var.gcp_project_id
   region  = var.gcp_region
+}
+
+locals {
+  # Prefixes for every name that must be unique in a project. Empty cluster_name keeps the
+  # two default prefixes.
+  infra_name = var.cluster_name != "" ? var.cluster_name : "ref-arch-iq-ha"
+  app_name   = var.cluster_name != "" ? var.cluster_name : "nexus-iq-ha"
+
+  # Alert titles keep the default prose unless cluster_name is set.
+  alert_prefix = var.cluster_name != "" ? var.cluster_name : "Nexus IQ HA"
 }
 
 # Enable required APIs
@@ -43,7 +53,7 @@ resource "google_project_service" "required_apis" {
 
 # Custom VPC Network for HA deployment
 resource "google_compute_network" "iq_ha_vpc" {
-  name                    = "ref-arch-iq-ha-vpc"
+  name                    = "${local.infra_name}-vpc"
   auto_create_subnetworks = false
   mtu                     = 1460
 
@@ -52,7 +62,7 @@ resource "google_compute_network" "iq_ha_vpc" {
 
 # Public subnet for load balancer
 resource "google_compute_subnetwork" "public_subnet" {
-  name          = "ref-arch-iq-ha-public-subnet"
+  name          = "${local.infra_name}-public-subnet"
   ip_cidr_range = var.public_subnet_cidr
   network       = google_compute_network.iq_ha_vpc.id
   region        = var.gcp_region
@@ -61,7 +71,7 @@ resource "google_compute_subnetwork" "public_subnet" {
 # Private subnets for Compute Engine instances (multi-zone)
 resource "google_compute_subnetwork" "private_subnets" {
   count                    = length(var.availability_zones)
-  name                     = "ref-arch-iq-ha-private-subnet-${var.availability_zones[count.index]}"
+  name                     = "${local.infra_name}-private-subnet-${var.availability_zones[count.index]}"
   ip_cidr_range            = var.private_subnet_cidrs[count.index]
   network                  = google_compute_network.iq_ha_vpc.id
   region                   = var.gcp_region
@@ -70,7 +80,7 @@ resource "google_compute_subnetwork" "private_subnets" {
 
 # Database subnet for Cloud SQL
 resource "google_compute_subnetwork" "db_subnet" {
-  name                     = "ref-arch-iq-ha-db-subnet"
+  name                     = "${local.infra_name}-db-subnet"
   ip_cidr_range            = var.db_subnet_cidr
   network                  = google_compute_network.iq_ha_vpc.id
   region                   = var.gcp_region
@@ -79,13 +89,13 @@ resource "google_compute_subnetwork" "db_subnet" {
 
 # Cloud NAT for private subnet internet access
 resource "google_compute_router" "iq_ha_router" {
-  name    = "ref-arch-iq-ha-router"
+  name    = "${local.infra_name}-router"
   network = google_compute_network.iq_ha_vpc.id
   region  = var.gcp_region
 }
 
 resource "google_compute_router_nat" "iq_ha_nat" {
-  name                               = "ref-arch-iq-ha-nat"
+  name                               = "${local.infra_name}-nat"
   router                             = google_compute_router.iq_ha_router.name
   region                             = var.gcp_region
   nat_ip_allocate_option             = "AUTO_ONLY"
@@ -99,7 +109,7 @@ resource "google_compute_router_nat" "iq_ha_nat" {
 
 # Private Service Connection for Cloud SQL
 resource "google_compute_global_address" "private_ip_address" {
-  name          = "ref-arch-iq-ha-private-ip-address"
+  name          = "${local.infra_name}-private-ip-address"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16

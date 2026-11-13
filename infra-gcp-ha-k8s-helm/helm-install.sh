@@ -52,22 +52,26 @@ echo -e "${BLUE}📊 Retrieving Infrastructure Details${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 DB_HOST=$(terraform output -raw database_private_ip 2>/dev/null || echo "")
-DB_PASSWORD=$(terraform output -raw database_password 2>/dev/null || echo "")
 FILESTORE_IP=$(terraform output -raw filestore_ip 2>/dev/null || echo "")
+FILESTORE_CAPACITY_GB=$(terraform output -raw filestore_capacity_gb 2>/dev/null || echo "")
 PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || echo "")
 REGION=$(terraform output -raw region 2>/dev/null || echo "")
-WORKLOAD_IDENTITY=$(terraform output -raw workload_identity_email 2>/dev/null || echo "")
-FLUENTD_IDENTITY=$(terraform output -raw fluentd_workload_identity_email 2>/dev/null || echo "")
 INGRESS_IP_NAME=$(terraform output -raw ingress_ip_name 2>/dev/null || echo "")
 
 echo "• Database: $DB_HOST"
-echo "• Filestore: $FILESTORE_IP"
+echo "• Filestore: $FILESTORE_IP, ${FILESTORE_CAPACITY_GB} GiB"
 echo "• Region: $REGION"
 echo "• Project: $PROJECT_ID"
 echo ""
 
 if [[ -z "$FILESTORE_IP" || -z "$DB_HOST" ]]; then
     echo -e "${RED}❌ Error: Missing required infrastructure outputs${NC}"
+    exit 1
+fi
+
+if [[ ! "$FILESTORE_CAPACITY_GB" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}❌ Error: no filestore_capacity_gb output found${NC}"
+    echo "   Run ./tf-apply.sh again so the state carries it."
     exit 1
 fi
 
@@ -87,8 +91,11 @@ while ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; do
     elapsed=$((elapsed + 2))
 done
 
-sed "s/FILESTORE_IP_PLACEHOLDER/${FILESTORE_IP}/g" filestore-pv.yaml | kubectl apply -f - >/dev/null 2>&1
-kubectl apply -f filestore-pvc.yaml >/dev/null 2>&1
+# The volume and its claim state the Filestore share's own capacity, so they match at every size.
+sed -e "s/FILESTORE_IP_PLACEHOLDER/${FILESTORE_IP}/g" \
+    -e "s/FILESTORE_CAPACITY_PLACEHOLDER/${FILESTORE_CAPACITY_GB}Gi/g" \
+    filestore-pv.yaml | kubectl apply -f - >/dev/null 2>&1
+sed "s/FILESTORE_CAPACITY_PLACEHOLDER/${FILESTORE_CAPACITY_GB}Gi/g" filestore-pvc.yaml | kubectl apply -f - >/dev/null 2>&1
 
 sleep 2
 timeout=60
@@ -130,27 +137,30 @@ else
 fi
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
-cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-sed -i.bak "s|hostname: \"\"|hostname: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|password: \"\"|password: \"${DB_PASSWORD}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|value: \"\"|value: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|DB_PASSWORD.*|DB_PASSWORD\n      value: \"${DB_PASSWORD}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|iam.gke.io/gcp-service-account: \"\"|iam.gke.io/gcp-service-account: \"${WORKLOAD_IDENTITY}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|projectId: \"\"|projectId: \"${PROJECT_ID}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|kubernetes.io/ingress.global-static-ip-name: \"\"|kubernetes.io/ingress.global-static-ip-name: \"${INGRESS_IP_NAME}\"|g" "$TEMP_VALUES_FILE"
+# render-values.sh writes this file, mode 600, and the trap removes it however the script ends.
+trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE.bak" "$TEMP_VALUES_FILE.new"' EXIT INT TERM
 
-# sed rather than cut, which keeps a trailing comment. The default is on its own line because
-# `|| echo` after a pipe sees only the last command's status.
+./render-values.sh "$TEMP_VALUES_FILE"
+
+# After render-values.sh, which copies helm-values.yaml over the file and would undo it.
+# Carries nexus_iq_replica_count into iq_server.replicas. sed rather than cut, which keeps a
+# trailing comment; the default is its own line because `|| echo` after a pipe sees only the
+# last command's status.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
-
 rm -f "${TEMP_VALUES_FILE}.bak"
+
+# A CHANGE_ME from terraform.tfvars, such as the database password, stops the install here.
+if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
+    echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
+    grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+    exit 1
+fi
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
-    rm -f "$TEMP_VALUES_FILE"
     exit 1
 fi
 
@@ -158,7 +168,7 @@ echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
-CHART_VERSION=${CHART_VERSION:-195.0.0}
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"

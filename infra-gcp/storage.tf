@@ -1,6 +1,6 @@
 # Cloud Filestore for persistent shared storage (equivalent to AWS EFS)
 resource "google_filestore_instance" "iq_filestore" {
-  name     = "nexus-iq-filestore"
+  name     = "${local.app_name}-filestore"
   location = var.filestore_zone
   tier     = var.filestore_tier
   project  = var.gcp_project_id

@@ -1,6 +1,6 @@
 # Service Account for GCE Nexus IQ Service (equivalent to AWS EC2 instance role)
 resource "google_service_account" "iq_service" {
-  account_id   = "nexus-iq-service"
+  account_id   = "${local.app_name}-service"
   display_name = "Nexus IQ Server Service Account"
   description  = "Service account for Nexus IQ Server GCE instances"
   project      = var.gcp_project_id
@@ -8,7 +8,7 @@ resource "google_service_account" "iq_service" {
 
 # Service Account for Database Operations (equivalent to AWS RDS enhanced monitoring role)
 resource "google_service_account" "iq_database" {
-  account_id   = "nexus-iq-database"
+  account_id   = "${local.app_name}-database"
   display_name = "Nexus IQ Database Service Account"
   description  = "Service account for database operations and monitoring"
   project      = var.gcp_project_id
@@ -48,6 +48,14 @@ resource "google_project_iam_member" "iq_service_filestore_editor" {
 resource "google_project_iam_member" "iq_service_metric_writer" {
   project = var.gcp_project_id
   role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.iq_service.email}"
+}
+
+# Only needed to pull an image from Artifact Registry.
+resource "google_project_iam_member" "iq_service_artifact_reader" {
+  count   = can(regex("-docker\\.pkg\\.dev/", var.iq_docker_image)) ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/artifactregistry.reader"
   member  = "serviceAccount:${google_service_account.iq_service.email}"
 }
 

@@ -200,24 +200,14 @@ perform_destroy() {
     if [[ "$FORCE_DESTROY" == "true" ]]; then
         print_warning "Force destroy enabled - attempting to disable deletion protection..."
         
-        # Create a temporary tfvars file with deletion protection disabled
-        local temp_tfvars="/tmp/destroy-$(date +%s).tfvars"
-        cp "$TFVARS_FILE" "$temp_tfvars"
-        echo "" >> "$temp_tfvars"
-        echo "# Temporary overrides for destruction" >> "$temp_tfvars"
-        echo "db_deletion_protection = false" >> "$temp_tfvars"
-        echo "storage_force_destroy = true" >> "$temp_tfvars"
-        
-        # Apply changes to disable protection
+        # A -var given after -var-file overrides the tfvars value, whether or not the tfvars
+        # file sets db_deletion_protection itself.
         print_status "Disabling deletion protection..."
-        if terraform apply -auto-approve -var-file="$temp_tfvars" >> "$LOG_FILE" 2>&1; then
+        if terraform apply -auto-approve -var-file="$TFVARS_FILE" -var="db_deletion_protection=false" >> "$LOG_FILE" 2>&1; then
             print_status "Deletion protection disabled"
         else
             print_warning "Could not disable deletion protection automatically"
         fi
-        
-        # Clean up temp file
-        rm -f "$temp_tfvars"
         
         # Wait a moment for changes to propagate
         sleep 10
@@ -400,7 +390,7 @@ show_destruction_summary() {
     echo ""
     print_warning "⚠️  Service Networking Connection may require manual cleanup:"
     print_warning "   gcloud services vpc-peerings delete \\"
-    print_warning "     --network=ref-arch-iq-vpc \\"
+    print_warning "     --network=${VPC_NAME:-<your vpc name>} \\"
     print_warning "     --service=servicenetworking.googleapis.com \\"
     print_warning "     --project=\$(grep gcp_project_id terraform.tfvars | cut -d'\"' -f2)"
     echo ""
@@ -543,6 +533,9 @@ main() {
         echo ""
     fi
     
+    # Read before the destroy empties the state, for the clean-up hint in the summary.
+    VPC_NAME=$(terraform output -raw vpc_name 2>/dev/null || echo "")
+
     # Perform the destruction
     perform_destroy
     

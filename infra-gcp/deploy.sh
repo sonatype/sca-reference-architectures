@@ -117,12 +117,12 @@ create_tfvars_template() {
         print_status "Creating terraform.tfvars template..."
         cat > "$TFVARS_FILE" << 'EOF'
 # GCP Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "dev"
 
 # Database Configuration
-db_password = "change-me-secure-password"
+db_password = "CHANGE_ME_STRONG_PASSWORD"
 
 # Network Configuration (optional - defaults will be used if not specified)
 # vpc_cidr              = "10.100.0.0/16"
@@ -133,16 +133,16 @@ db_password = "change-me-secure-password"
 
 # SSL/TLS Configuration
 enable_ssl = true
-# domain_name = "nexus-iq.example.com"
+# domain_name = "CHANGE_ME-nexus-iq.example.com"
 
 # Security Configuration
 enable_cloud_armor = true
 # blocked_countries = ["CN", "RU"]
-# ssh_source_ranges = ["YOUR_IP/32"]
+# ssh_source_ranges = ["CHANGE_ME/32"]
 
 # Monitoring Configuration
 enable_monitoring_alerts = true
-# alert_email_addresses = ["admin@example.com"]
+# alert_email_addresses = ["CHANGE_ME_EMAIL"]
 # slack_webhook_url = "https://hooks.slack.com/services/..."
 
 # Storage Configuration
@@ -160,6 +160,15 @@ EOF
     fi
 }
 
+# Function to stop on any CHANGE_ME placeholder left in a setting. Commented lines are skipped.
+check_placeholders() {
+    if grep -v '^[[:space:]]*#' "$TFVARS_FILE" | grep -q "CHANGE_ME"; then
+        print_error "terraform.tfvars still has CHANGE_ME placeholders:"
+        grep -n "CHANGE_ME" "$TFVARS_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+        exit 1
+    fi
+}
+
 # Function to validate terraform.tfvars
 validate_tfvars() {
     print_status "Validating terraform.tfvars configuration..."
@@ -173,7 +182,7 @@ validate_tfvars() {
         fi
         
         local value=$(grep "^${var}[[:space:]]*=" "$TFVARS_FILE" | cut -d'"' -f2)
-        if [[ -z "$value" ]] || [[ "$value" == "your-gcp-project-id" ]] || [[ "$value" == "change-me-secure-password" ]]; then
+        if [[ -z "$value" ]]; then
             print_error "Please set a proper value for '$var' in terraform.tfvars"
             exit 1
         fi
@@ -218,6 +227,33 @@ EOF
     fi
 }
 
+# The load balancer's instance group gets its VM from google_compute_instance_group_membership.
+# A state that holds the group with the VM as a member and no membership resource has the
+# membership imported, because adding a VM that is already a member fails.
+import_group_membership() {
+    cd "$TERRAFORM_DIR"
+
+    local state
+    state=$(terraform state list 2>/dev/null) || return 0
+    grep -qx "google_compute_instance_group.iq_group" <<< "$state" || return 0
+    grep -qx "google_compute_instance_group_membership.iq_server" <<< "$state" && return 0
+
+    local import_id
+    import_id=$(terraform show -json 2>/dev/null | jq -r '
+        [.values.root_module.resources[]?] as $rs
+        | ($rs[] | select(.address == "google_compute_instance_group.iq_group") | .values) as $g
+        | ($rs[] | select(.address == "google_compute_instance.iq_server") | .values) as $vm
+        | select(any(($g.instances // [])[]; . == $vm.self_link))
+        | "\($g.project)/\($g.zone)/\($g.name)/\($vm.name)"')
+    [[ -n "$import_id" ]] || return 0
+
+    print_status "Importing the instance group membership of the IQ Server VM..."
+    if ! terraform import -input=false -var-file="$TFVARS_FILE" google_compute_instance_group_membership.iq_server "$import_id" >> "$LOG_FILE" 2>&1; then
+        print_error "Importing the instance group membership failed. Check $LOG_FILE for details."
+        exit 1
+    fi
+}
+
 # Function to run terraform plan
 run_terraform_plan() {
     print_status "Running Terraform plan..."
@@ -237,6 +273,8 @@ run_terraform_plan() {
         print_error "Terraform validation failed. Check $LOG_FILE for details."
         exit 1
     fi
+    
+    import_group_membership
     
     # Run plan
     print_status "Creating execution plan..."
@@ -409,6 +447,9 @@ main() {
     
     # Create tfvars template if it doesn't exist
     create_tfvars_template
+    
+    # Runs even with --skip-validation
+    check_placeholders
     
     # Validate tfvars
     if [[ "$SKIP_VALIDATION" != "true" ]]; then

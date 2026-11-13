@@ -152,7 +152,7 @@ variable "db_edition" {
 }
 
 variable "db_disk_type" {
-  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED. Set it at create: changing it replaces the primary and the replica."
+  description = "Cloud SQL storage type. PD_SSD suits the db-custom-* tiers; the C4A machine series takes HYPERDISK_BALANCED. Set it at create: changing it replaces the instance."
   type        = string
   default     = "PD_SSD"
 
@@ -174,9 +174,9 @@ variable "db_availability_type" {
 }
 
 variable "db_disk_size" {
-  description = "Database disk size in GB"
+  description = "Database disk size in GB. The default is the Size L value."
   type        = number
-  default     = 100
+  default     = 256
 }
 
 variable "db_backup_start_time" {
@@ -223,12 +223,6 @@ variable "db_maintenance_window_hour" {
 
 variable "db_deletion_protection" {
   description = "Enable deletion protection for database"
-  type        = bool
-  default     = true
-}
-
-variable "enable_read_replica" {
-  description = "Enable read replica for database"
   type        = bool
   default     = true
 }
@@ -292,7 +286,7 @@ variable "log_retention_days" {
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:+AlwaysPreTouch -XX:+CrashOnOutOfMemoryError -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 variable "iq_log_levels" {
@@ -325,9 +319,9 @@ variable "filestore_tier" {
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
+  description = "Filestore capacity in GB. The default is the Size L capacity. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
   type        = number
-  default     = 1024
+  default     = 2560
 
   validation {
     condition     = var.filestore_capacity_gb >= 1024
@@ -350,5 +344,116 @@ variable "common_tags" {
   validation {
     condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
     error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+# Search Backend
+#
+# search_engine picks the engine the search: block in config.yml names. "opensearch"
+# needs a cluster you run yourself, named by opensearch_endpoint.
+# Every instance reads the same endpoint, so they share one index.
+
+variable "search_engine" {
+  description = "Which search backend Nexus IQ Server uses: \"lucene\" (default, the built-in index, nothing else to run) or \"opensearch\" (a self-managed OpenSearch cluster, whose host must be supplied in opensearch_endpoint)."
+  type        = string
+  default     = "lucene"
+
+  validation {
+    condition     = contains(["lucene", "opensearch"], var.search_engine)
+    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+  }
+}
+
+variable "opensearch_endpoint" {
+  description = "Host name or IP address of an OpenSearch cluster you already run, with no scheme and no port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\", ignored otherwise."
+  type        = string
+  default     = ""
+
+  validation {
+    # search.tf builds "<scheme>://<endpoint>:<port>", so a scheme or port here produces
+    # a URI that only fails when IQ Server connects. Empty is allowed; the precondition
+    # requires a value when search_engine is "opensearch".
+    condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
+  }
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_port" {
+  description = "Port the OpenSearch cluster listens on. 9200 is the OpenSearch default. This port is also what the firewall rules in search.tf and security.tf open."
+  type        = number
+  default     = 9200
+
+  validation {
+    condition     = var.opensearch_port > 0 && var.opensearch_port < 65536
+    error_message = "opensearch_port must be between 1 and 65535."
+  }
+}
+
+variable "opensearch_use_tls" {
+  description = "Connect to OpenSearch over https rather than http. Leave this true unless the cluster has no certificate, because the basic auth password is sent on every request. With TLS, a private certificate authority has to be trusted by the JVM: see README.md, \"Trusting a private certificate authority\"."
+  type        = bool
+  default     = true
+}
+
+variable "opensearch_username" {
+  description = "OpenSearch user Nexus IQ Server authenticates as. This user needs to create, read and write the Nexus One indices. Required when search_engine is \"opensearch\"."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("[\\'\"$`\\\\]", var.opensearch_username))
+    error_message = "The OpenSearch user name may not hold a single quote, a double quote, a dollar sign, a backtick or a backslash. The startup script writes it into a single-quoted YAML scalar inside a double-quoted shell string, and those five are the characters that would break one or the other. Everything else, including | & : # and a space, is written through intact."
+  }
+}
+
+variable "opensearch_password" {
+  description = "Password for opensearch_username. Stored in Secret Manager and read by each instance at boot, so it is never written into the instance template's metadata. Required when search_engine is \"opensearch\"."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_password))
+    error_message = "opensearch_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_ca_certificate" {
+  description = "PEM certificate of a private authority that signed the OpenSearch cluster's certificates. When set with opensearch_use_tls, each instance adds it to a copy of the JVM trust store on Filestore and points the JVM at the copy. Leave empty for a certificate from a public authority."
+  type        = string
+  default     = ""
+}
+
+variable "opensearch_index_replicas" {
+  description = "Replicas every Nexus One index is created with, written to config.yml as nexusOne.connection.nexusOneIndexReplicas, which is where the Nexus One index reads it. Use 0 on one data node: it cannot place a replica, and 1 would leave the index yellow, which still serves reads and writes. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
+    error_message = "opensearch_index_replicas must be between 0 and 10, the range Nexus IQ Server accepts."
+  }
+}
+
+# Resource Naming
+#
+# cluster_name prefixes every name that must be unique in a project, so deployments with
+# different values can share one. Empty keeps the default names.
+
+variable "cluster_name" {
+  description = "Prefix for every resource name that has to be unique inside a Google Cloud project. Empty, the default, keeps the default names. Set it to a distinct value per deployment when several sizes share one project."
+  type        = string
+  default     = ""
+
+  validation {
+    # Google Cloud name rules. At most 19 characters, because a service account id is capped
+    # at 30 and the longest suffix added is 11.
+    condition     = var.cluster_name == "" || can(regex("^[a-z]([a-z0-9-]{0,17}[a-z0-9])?$", var.cluster_name))
+    error_message = "cluster_name must be empty, or 1 to 19 characters of lowercase letters, numbers and hyphens, starting with a letter and ending with a letter or number."
   }
 }

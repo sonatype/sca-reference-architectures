@@ -1,6 +1,6 @@
 # Global IP address for the load balancer
 resource "google_compute_global_address" "iq_lb_ip" {
-  name         = "nexus-iq-lb-ip"
+  name         = "${local.app_name}-lb-ip"
   address_type = "EXTERNAL"
   project      = var.gcp_project_id
 
@@ -11,7 +11,7 @@ resource "google_compute_global_address" "iq_lb_ip" {
 # SSL Certificate (managed by Google)
 resource "google_compute_managed_ssl_certificate" "iq_ssl_cert" {
   count   = var.enable_ssl && var.domain_name != "" ? 1 : 0
-  name    = "nexus-iq-ssl-cert"
+  name    = "${local.app_name}-ssl-cert"
   project = var.gcp_project_id
 
   managed {
@@ -22,7 +22,7 @@ resource "google_compute_managed_ssl_certificate" "iq_ssl_cert" {
 
 # Backend service for GCE instance group
 resource "google_compute_backend_service" "iq_backend" {
-  name                            = "nexus-iq-backend"
+  name                            = "${local.app_name}-backend"
   project                         = var.gcp_project_id
   protocol                        = "HTTP"
   port_name                       = "http"
@@ -47,7 +47,7 @@ resource "google_compute_backend_service" "iq_backend" {
 
 # Health Check for Load Balancer
 resource "google_compute_health_check" "iq_lb_health_check" {
-  name                = "nexus-iq-lb-health-check"
+  name                = "${local.app_name}-lb-health-check"
   project             = var.gcp_project_id
   check_interval_sec  = 10
   timeout_sec         = 5
@@ -63,7 +63,7 @@ resource "google_compute_health_check" "iq_lb_health_check" {
 
 # URL Map for routing
 resource "google_compute_url_map" "iq_url_map" {
-  name            = "nexus-iq-url-map"
+  name            = "${local.app_name}-url-map"
   project         = var.gcp_project_id
   default_service = google_compute_backend_service.iq_backend.id
 
@@ -72,7 +72,7 @@ resource "google_compute_url_map" "iq_url_map" {
 # HTTPS Proxy
 resource "google_compute_target_https_proxy" "iq_https_proxy" {
   count   = var.enable_ssl ? 1 : 0
-  name    = "nexus-iq-https-proxy"
+  name    = "${local.app_name}-https-proxy"
   project = var.gcp_project_id
   url_map = google_compute_url_map.iq_url_map.id
 
@@ -81,7 +81,7 @@ resource "google_compute_target_https_proxy" "iq_https_proxy" {
 
 # HTTP Proxy (for HTTP to HTTPS redirect or non-SSL)
 resource "google_compute_target_http_proxy" "iq_http_proxy" {
-  name    = "nexus-iq-http-proxy"
+  name    = "${local.app_name}-http-proxy"
   project = var.gcp_project_id
   url_map = var.enable_ssl ? google_compute_url_map.iq_redirect_url_map[0].id : google_compute_url_map.iq_url_map.id
 }
@@ -89,7 +89,7 @@ resource "google_compute_target_http_proxy" "iq_http_proxy" {
 # URL Map for HTTP to HTTPS redirect
 resource "google_compute_url_map" "iq_redirect_url_map" {
   count   = var.enable_ssl ? 1 : 0
-  name    = "nexus-iq-redirect-url-map"
+  name    = "${local.app_name}-redirect-url-map"
   project = var.gcp_project_id
 
   default_url_redirect {
@@ -102,7 +102,7 @@ resource "google_compute_url_map" "iq_redirect_url_map" {
 # Global Forwarding Rule for HTTPS
 resource "google_compute_global_forwarding_rule" "iq_https_forwarding_rule" {
   count                 = var.enable_ssl ? 1 : 0
-  name                  = "nexus-iq-https-forwarding-rule"
+  name                  = "${local.app_name}-https-forwarding-rule"
   project               = var.gcp_project_id
   target                = google_compute_target_https_proxy.iq_https_proxy[0].id
   port_range            = "443"
@@ -112,7 +112,7 @@ resource "google_compute_global_forwarding_rule" "iq_https_forwarding_rule" {
 
 # Global Forwarding Rule for HTTP
 resource "google_compute_global_forwarding_rule" "iq_http_forwarding_rule" {
-  name                  = "nexus-iq-http-forwarding-rule"
+  name                  = "${local.app_name}-http-forwarding-rule"
   project               = var.gcp_project_id
   target                = google_compute_target_http_proxy.iq_http_proxy.id
   port_range            = "80"

@@ -13,6 +13,9 @@ DB_PASSWORD_SECRET="${db_password_secret}"
 JAVA_OPTS="${java_opts}"
 PROJECT_ID="${gcp_project_id}"
 FILESTORE_IP="${filestore_ip}"
+%{ if search_engine == "opensearch" ~}
+OPENSEARCH_PASSWORD_SECRET="${opensearch_password_secret}"
+%{ endif ~}
 
 # Logging function
 log() {
@@ -51,6 +54,12 @@ NFS_SHARE="/nexus_iq_ha_data"
 mkdir -p "$${MOUNT_POINT}"
 
 # Mount the NFS share with retries
+# The fstab entry written below survives a reboot, so on a later boot the share may already be
+# mounted here. Mounting the same share on the same mount point again is refused with EBUSY, which
+# this loop would read as five failed attempts and then exit, so check first.
+if mountpoint -q "$${MOUNT_POINT}"; then
+  log "$${MOUNT_POINT} is already mounted, leaving it as it is"
+else
 log "Mounting NFS share from $${FILESTORE_IP}:$${NFS_SHARE} to $${MOUNT_POINT}"
 for attempt in {1..5}; do
   if mount -t nfs -o nfsvers=3,hard,intr,rsize=1048576,wsize=1048576,timeo=600,retrans=2 \
@@ -61,12 +70,13 @@ for attempt in {1..5}; do
     log "NFS mount attempt $${attempt}/5 failed, retrying in 10 seconds..."
     sleep 10
   fi
-  
+
   if [ $attempt -eq 5 ]; then
     log "FATAL: NFS mount failed after 5 attempts"
     exit 1
   fi
 done
+fi
 
 # Verify mount
 if ! mountpoint -q "$${MOUNT_POINT}"; then
@@ -162,7 +172,19 @@ if [ -z "$DB_PASSWORD" ]; then
 fi
 log "Database password retrieved successfully"
 
-# ============================================
+%{ if search_engine == "opensearch" ~}
+log "Retrieving OpenSearch password from Secret Manager..."
+OPENSEARCH_PASSWORD=$(gcloud secrets versions access latest \
+  --secret="$${OPENSEARCH_PASSWORD_SECRET}" \
+  --project="$${PROJECT_ID}")
+
+if [ -z "$OPENSEARCH_PASSWORD" ]; then
+  log "FATAL: Failed to retrieve OpenSearch password from Secret Manager"
+  exit 1
+fi
+log "OpenSearch password retrieved successfully"
+
+%{ endif ~}# ============================================
 # SECTION 6: Generate config.yml
 # ============================================
 # CRITICAL: Use CONTAINER PATHS (not host paths)
@@ -244,6 +266,58 @@ sed -i "s|\$DB_NAME|$${DB_NAME}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_USER|$${DB_USER}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$DB_PASSWORD|$${DB_PASSWORD}|g" /etc/nexus-iq-server/config.yml
 sed -i "s|\$INSTANCE_HOSTNAME|$${INSTANCE_HOSTNAME}|g" /etc/nexus-iq-server/config.yml
+%{ if search_engine == "opensearch" ~}
+
+# The search block is appended here rather than written into the heredoc above, so the password
+# never passes through sed. A sed replacement reads \ and & specially and ends at the | delimiter,
+# so a password containing any of those three is mangled with no error. The password is written as
+# a single-quoted YAML scalar, which takes every character literally with an embedded single quote
+# written twice, so | & \ ": " " #" and a leading indicator character all survive intact and none
+# of them can break the YAML. Top-level keys may appear in any order, so the end of the file is as
+# good a place as the middle.
+# The user name is written as a single-quoted scalar for the same reason. Its Terraform variable
+# refuses the single quote, double quote, dollar, backtick and backslash characters, which are the
+# five the quoting here cannot absorb, so | & ": " " #" and a leading indicator all survive intact.
+{
+  echo "search:"
+  echo "  type: http"
+  echo "  mode: OPENSEARCH"
+  echo "  uri: ${opensearch_uri}"
+  echo "  username: '${opensearch_username}'"
+  printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
+  # The Nexus One index reads this block.
+  echo "nexusOne:"
+  echo "  connection:"
+  echo "    type: http"
+  echo "    mode: OPENSEARCH"
+  echo "    uri: ${opensearch_uri}"
+  echo "    username: '${opensearch_username}'"
+  printf "    password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
+  echo "    nexusOneIndexReplicas: ${opensearch_index_replicas}"
+} >> /etc/nexus-iq-server/config.yml
+%{ if opensearch_ca_secret != "" ~}
+
+# A private certificate authority for the cluster: copy the image's JVM trust store onto Filestore,
+# add the authority to the copy, and point the JVM at the copy. Replacing the JVM's own store would
+# break IQ Server's calls to the Sonatype data services.
+log "Building the OpenSearch trust store on Filestore..."
+gcloud secrets versions access latest --secret="${opensearch_ca_secret}" --project="$${PROJECT_ID}" > /tmp/opensearch-ca.pem
+TRUSTSTORE_HOST="$${MOUNT_POINT}/opensearch-cacerts"
+docker run --rm --user 0:0 --entrypoint /bin/sh \
+  -e STAGING="opensearch-cacerts.$${INSTANCE_HOSTNAME}" \
+  -v "$${MOUNT_POINT}:/sonatype-work" -v /tmp/opensearch-ca.pem:/tmp/opensearch-ca.pem:ro \
+  "$${IQ_DOCKER_IMAGE}" -c '
+    JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+    KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+    [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ] || { echo "cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"; exit 1; }
+    cp "$JVM_CACERTS" "/sonatype-work/$STAGING" &&
+      "$KEYTOOL" -importcert -noprompt -keystore "/sonatype-work/$STAGING" -storepass changeit -alias opensearch-ca -file /tmp/opensearch-ca.pem &&
+      mv "/sonatype-work/$STAGING" /sonatype-work/opensearch-cacerts'
+[ -s "$${TRUSTSTORE_HOST}" ] || { log "FATAL: the OpenSearch trust store was not written"; exit 1; }
+JAVA_OPTS="$${JAVA_OPTS} -Djavax.net.ssl.trustStore=/sonatype-work/opensearch-cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+log "Trust store ready at $${TRUSTSTORE_HOST}"
+%{ endif ~}
+%{ endif ~}
 
 log "Configuration file created at: /etc/nexus-iq-server/config.yml"
 
@@ -275,6 +349,57 @@ OPSAGENTEOF
 systemctl enable google-cloud-ops-agent
 systemctl restart google-cloud-ops-agent
 log "Cloud Logging agent configured and started"
+
+# IQ Server takes its schema migration lock only once the schema exists, so on an empty database
+# every instance would run the first migration at once. One instance holds the gate directory on
+# the shared Filestore and rewrites its heartbeat file every 15 seconds until the marker exists.
+# The others wait, and the first to claim the gate after its heartbeat has not changed for 60
+# seconds takes over. Every instance writes the marker once its own IQ Server answers the database
+# health check, and the marker lets every later start skip the gate. An instance still waiting
+# after 840 seconds stops this script, inside the autohealing delay, so the group replaces it.
+MIGRATED="$${CLUSTER_DIR_HOST}/.schema-migrated"
+GATE="$${CLUSTER_DIR_HOST}/.schema-migration-gate"
+hold_gate() {
+  echo "$${INSTANCE_HOSTNAME}-0" > "$${GATE}/heartbeat"
+  # Transient units of their own, so the loops outlive this startup script's service.
+  systemd-run --collect --unit=iq-schema-migration-heartbeat /bin/sh -c \
+    "beat=0; until [ -e '$${MIGRATED}' ]; do sleep 15; beat=\$((beat + 1)); echo '$${INSTANCE_HOSTNAME}-'\$beat > '$${GATE}/heartbeat' || true; done" \
+    || { log "Could not start the gate heartbeat, so this instance does not run the first migration"; exit 1; }
+}
+if [ ! -e "$${MIGRATED}" ]; then
+  systemd-run --collect --unit=iq-schema-migrated-marker /bin/sh -c \
+    "until [ -e '$${MIGRATED}' ]; do if curl -sf http://localhost:8071/healthcheck/database >/dev/null 2>&1; then touch '$${MIGRATED}' || true; fi; sleep 5; done" \
+    || log "Could not start the migration marker watch"
+  waited=0
+  unchanged=0
+  last_beat="unread"
+  while [ ! -e "$${MIGRATED}" ]; do
+    if mkdir "$${GATE}" 2>/dev/null; then
+      hold_gate
+      log "This instance runs the first database migration"
+      break
+    fi
+    beat=$(cat "$${GATE}/heartbeat" 2>/dev/null || true)
+    if [ "$${beat}" != "$${last_beat}" ]; then
+      last_beat="$${beat}"
+      unchanged=0
+    elif [ "$${unchanged}" -ge 60 ] && mkdir "$${GATE}/taken-$${beat}" 2>/dev/null; then
+      hold_gate
+      log "This instance takes over the first database migration from an instance that stopped"
+      break
+    fi
+    if [ "$${waited}" -ge 840 ]; then
+      log "Stopped after waiting 840 seconds for another instance to finish the first database migration"
+      exit 1
+    fi
+    if [ "$${waited}" -eq 0 ]; then
+      log "Waiting for another instance to finish the first database migration"
+    fi
+    sleep 10
+    waited=$((waited + 10))
+    unchanged=$((unchanged + 10))
+  done
+fi
 
 # ============================================
 # SECTION 8: Start Docker Container

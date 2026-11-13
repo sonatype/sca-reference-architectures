@@ -1,6 +1,6 @@
 # Global external IP address for the load balancer
 resource "google_compute_global_address" "iq_ha_lb_ip" {
-  name         = "ref-arch-iq-ha-lb-ip"
+  name         = "${local.infra_name}-lb-ip"
   ip_version   = "IPV4"
   address_type = "EXTERNAL"
   description  = "External IP for Nexus IQ HA Load Balancer"
@@ -8,7 +8,7 @@ resource "google_compute_global_address" "iq_ha_lb_ip" {
 
 # Global HTTP(S) Load Balancer - URL Map
 resource "google_compute_url_map" "iq_ha_url_map" {
-  name            = "ref-arch-iq-ha-url-map"
+  name            = "${local.infra_name}-url-map"
   description     = "URL map for Nexus IQ HA Load Balancer"
   default_service = google_compute_backend_service.iq_ha_backend.id
 
@@ -31,7 +31,7 @@ resource "google_compute_url_map" "iq_ha_url_map" {
 
 # Backend service for the MIG
 resource "google_compute_backend_service" "iq_ha_backend" {
-  name                  = "ref-arch-iq-ha-backend"
+  name                  = "${local.infra_name}-backend"
   description           = "Backend service for Nexus IQ HA"
   protocol              = "HTTP"
   port_name             = "http"
@@ -63,7 +63,7 @@ resource "google_compute_backend_service" "iq_ha_backend" {
 
 # Health check for load balancer
 resource "google_compute_health_check" "iq_lb_health_check" {
-  name                = "ref-arch-iq-ha-lb-health-check"
+  name                = "${local.infra_name}-lb-health-check"
   description         = "Health check for Nexus IQ HA Load Balancer"
   timeout_sec         = 10
   check_interval_sec  = 30
@@ -83,7 +83,7 @@ resource "google_compute_health_check" "iq_lb_health_check" {
 # HTTPS target proxy (if SSL is enabled)
 resource "google_compute_target_https_proxy" "iq_ha_https_proxy" {
   count            = var.enable_ssl ? 1 : 0
-  name             = "ref-arch-iq-ha-https-proxy"
+  name             = "${local.infra_name}-https-proxy"
   description      = "HTTPS proxy for Nexus IQ HA"
   url_map          = google_compute_url_map.iq_ha_url_map.id
   ssl_certificates = var.domain_name != "" ? [google_compute_managed_ssl_certificate.iq_ha_ssl_cert[0].id] : []
@@ -91,7 +91,7 @@ resource "google_compute_target_https_proxy" "iq_ha_https_proxy" {
 
 # HTTP target proxy (always created for HTTP redirect or standalone HTTP)
 resource "google_compute_target_http_proxy" "iq_ha_http_proxy" {
-  name        = "ref-arch-iq-ha-http-proxy"
+  name        = "${local.infra_name}-http-proxy"
   description = "HTTP proxy for Nexus IQ HA"
   url_map     = var.enable_ssl ? google_compute_url_map.iq_ha_redirect_url_map[0].id : google_compute_url_map.iq_ha_url_map.id
 }
@@ -99,7 +99,7 @@ resource "google_compute_target_http_proxy" "iq_ha_http_proxy" {
 # URL map for HTTP to HTTPS redirect (when SSL is enabled)
 resource "google_compute_url_map" "iq_ha_redirect_url_map" {
   count       = var.enable_ssl ? 1 : 0
-  name        = "ref-arch-iq-ha-redirect-url-map"
+  name        = "${local.infra_name}-redirect-url-map"
   description = "URL map for HTTP to HTTPS redirect"
 
   default_url_redirect {
@@ -112,7 +112,7 @@ resource "google_compute_url_map" "iq_ha_redirect_url_map" {
 # Global forwarding rule for HTTPS (if SSL is enabled)
 resource "google_compute_global_forwarding_rule" "iq_ha_https_forwarding_rule" {
   count                 = var.enable_ssl ? 1 : 0
-  name                  = "ref-arch-iq-ha-https-forwarding-rule"
+  name                  = "${local.infra_name}-https-forwarding-rule"
   description           = "HTTPS forwarding rule for Nexus IQ HA"
   ip_protocol           = "TCP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
@@ -123,7 +123,7 @@ resource "google_compute_global_forwarding_rule" "iq_ha_https_forwarding_rule" {
 
 # Global forwarding rule for HTTP
 resource "google_compute_global_forwarding_rule" "iq_ha_http_forwarding_rule" {
-  name                  = "ref-arch-iq-ha-http-forwarding-rule"
+  name                  = "${local.infra_name}-http-forwarding-rule"
   description           = "HTTP forwarding rule for Nexus IQ HA"
   ip_protocol           = "TCP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
@@ -135,7 +135,7 @@ resource "google_compute_global_forwarding_rule" "iq_ha_http_forwarding_rule" {
 # Managed SSL certificate (if SSL is enabled and domain is provided)
 resource "google_compute_managed_ssl_certificate" "iq_ha_ssl_cert" {
   count       = var.enable_ssl && var.domain_name != "" ? 1 : 0
-  name        = "ref-arch-iq-ha-ssl-cert"
+  name        = "${local.infra_name}-ssl-cert"
   description = "Managed SSL certificate for Nexus IQ HA"
 
   managed {
@@ -149,7 +149,7 @@ resource "google_compute_managed_ssl_certificate" "iq_ha_ssl_cert" {
 
 # Cloud Armor security policy (optional, for DDoS protection)
 resource "google_compute_security_policy" "iq_ha_security_policy" {
-  name        = "ref-arch-iq-ha-security-policy"
+  name        = "${local.infra_name}-security-policy"
   description = "Security policy for Nexus IQ HA Load Balancer"
 
   # Default rule to allow traffic
