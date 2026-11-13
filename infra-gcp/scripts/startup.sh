@@ -148,8 +148,7 @@ sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
   echo "  uri: ${opensearch_uri}"
   echo "  username: '${opensearch_username}'"
   printf "  password: '%s'\n" "$(printf '%s' "$OPENSEARCH_PASSWORD" | sed "s/'/''/g")"
-  # The Nexus One index builds its connection from nexusOne.connection alone, and reads
-  # nexusOneIndexReplicas from it. Without this block enabling the nexus-one feature is refused.
+  # The Nexus One index reads this block.
   echo "nexusOne:"
   echo "  connection:"
   echo "    type: http"
