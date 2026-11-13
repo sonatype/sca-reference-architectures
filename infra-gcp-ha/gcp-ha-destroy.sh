@@ -546,7 +546,7 @@ perform_destroy() {
         terraform state rm google_sql_user.iq_ha_db_user >> "$LOG_FILE" 2>&1 || print_warning "Database user removal from state failed"
     fi
     
-    # Destroy a read replica first, if the state still holds one from an earlier version
+    # Destroy a read replica first, if the state holds one
     if terraform state list 2>/dev/null | grep -q "google_sql_database_instance.iq_ha_db_replica"; then
         print_status "Destroying database read replica..."
         terraform destroy -target=google_sql_database_instance.iq_ha_db_replica \
