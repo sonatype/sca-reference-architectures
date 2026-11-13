@@ -256,12 +256,12 @@ Your Azure account needs permissions for these services:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
-### Upgrading IQ Server
+### Database migration in `helm-upgrade.sh`
 
-`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
-When the upgrade changes the image, back up the database, then run
-`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
-starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
+only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
+Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
+or the rollout fails.
 
 ---
 
@@ -287,23 +287,6 @@ starts IQ Server again. The script exits non-zero if the migration or the rollou
 
 > **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
 > PostgreSQL 18.
-
-> **Upgrading an existing deployment.** These variable and value defaults changed. A deployment whose
-> `terraform.tfvars` does not set a variable picks up the new default on its next apply, and
-> `helm-upgrade.sh` applies the new `helm-values.yaml`. Set the values your deployment is running at
-> before applying.
->
-> | Setting | Previous default | New default |
-> |---|:---:|:---:|
-> | `node_instance_type` | `Standard_D8s_v3` | `Standard_E8ps_v6` |
-> | `kubernetes_version` | `1.27` | `1.36` |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
-> | `storage_share_quota_gb` | 512 | 500 |
-> | `node_group_max_size` | 6 | 5 |
-> | `azure_region` | `eastus2` | `eastus`. A region change replaces every resource, so an existing deployment sets its region here |
-> | `db_storage_mb`, `db_storage_tier` | 65536, `P6`, fixed | 131072, `P10`, for a new server, then grows automatically. An existing server keeps its size |
-> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
-> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
 
 ### Configuration Variables
 
