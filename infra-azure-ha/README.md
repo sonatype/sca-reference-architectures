@@ -570,7 +570,7 @@ which still serves reads and writes.
 
 Other things the cluster needs, none of which this configuration sets for you:
 
-- **OpenSearch 3.x, and 3.8 recommended**, with the security plugin on, so basic auth and a password-protected user exist.
+- **OpenSearch 3.x (3.7 recommended)**, with the security plugin on, so basic auth and a password-protected user exist.
 - **A user IQ Server owns**, with permission to create and write its own indices. Do not reuse the
   bootstrap admin.
 - **Heap at half of RAM and no more than about 31 GB**, set in `jvm.options`, which is the standard
