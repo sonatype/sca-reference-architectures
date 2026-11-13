@@ -256,6 +256,13 @@ Your Azure account needs permissions for these services:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
+### Upgrading IQ Server
+
+`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
+When the upgrade changes the image, back up the database, then run
+`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
+starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+
 ---
 
 ## Teardown / Cleanup
@@ -687,6 +694,6 @@ every request, and anything able to read traffic inside that subnet can read it.
 
 ## Important: Admin Port 8071 Not Exposed
 
-The admin port 8071 is configured within the IQ Server container but **not exposed externally** through the Application Gateway. Only the main application port 8070 is accessible via port 80.
+The admin port 8071 is configured within the IQ Server container but **not exposed externally** through the Application Gateway. Only the main application port 8070 is accessible via port 80. The chart's admin service is a load balancer on a private address inside the virtual network, set by `adminServiceAnnotations` in `helm-values.yaml`.
 
 **Admin port access** is available through Kubernetes exec sessions if needed for troubleshooting.
