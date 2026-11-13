@@ -29,6 +29,9 @@ resource "aws_rds_cluster" "iq_cluster" {
 
   enabled_cloudwatch_logs_exports = ["postgresql"]
 
+  # A change to the major version of aurora_engine_version upgrades the cluster in place.
+  allow_major_version_upgrade = true
+
   tags = {
     Name        = "${var.cluster_name}-aurora-cluster"
     Environment = var.environment
