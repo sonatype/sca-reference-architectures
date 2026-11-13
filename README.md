@@ -735,7 +735,7 @@ at a self-managed cluster on that cloud's own virtual machines and authenticate 
 password, which means the customer also chooses the OpenSearch server version and owns upgrades,
 snapshots, and node replacement.
 
-IQ Server needs OpenSearch 3.x. A self-managed cluster should run 3.8. Amazon OpenSearch Service
+IQ Server needs OpenSearch 3.x (3.7 recommended). Amazon OpenSearch Service
 offers 3.7 as its newest version as of November 2026, and the AWS architectures deploy that.
 
 #### Trusting a private certificate authority
