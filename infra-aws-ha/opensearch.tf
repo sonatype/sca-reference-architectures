@@ -211,7 +211,7 @@ resource "aws_opensearch_domain" "nexus_one" {
 
     precondition {
       condition     = length(local.opensearch_domain_name) <= 28
-      error_message = "The domain name built from cluster_name is longer than the 28 characters AWS allows. opensearch.tf truncates cluster_name to 18 characters for this, so reaching this message means that truncation was changed."
+      error_message = "The domain name built from cluster_name is longer than the 28 characters AWS allows. opensearch.tf truncates cluster_name to 18 characters for this, so the name exceeds the limit only if that truncation is removed."
     }
 
     precondition {
