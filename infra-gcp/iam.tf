@@ -51,6 +51,14 @@ resource "google_project_iam_member" "iq_service_metric_writer" {
   member  = "serviceAccount:${google_service_account.iq_service.email}"
 }
 
+# Only needed to pull an image from Artifact Registry.
+resource "google_project_iam_member" "iq_service_artifact_reader" {
+  count   = can(regex("-docker\\.pkg\\.dev/", var.iq_docker_image)) ? 1 : 0
+  project = var.gcp_project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.iq_service.email}"
+}
+
 # IAM Policy Bindings for Database Service Account
 
 # Allow database service account to write logs  
