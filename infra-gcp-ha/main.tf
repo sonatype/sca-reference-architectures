@@ -24,7 +24,7 @@ provider "google-beta" {
 
 locals {
   # Prefixes for every name that must be unique in a project. Empty cluster_name keeps the
-  # two default prefixes, so an existing deployment is not renamed or replaced.
+  # two default prefixes.
   infra_name = var.cluster_name != "" ? var.cluster_name : "ref-arch-iq-ha"
   app_name   = var.cluster_name != "" ? var.cluster_name : "nexus-iq-ha"
 
