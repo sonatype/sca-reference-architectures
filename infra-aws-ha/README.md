@@ -14,7 +14,7 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 | **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) | Required ¹ |
 | **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) | Required ¹ |
 
-> Evaluations an hour per task, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL on 5 tasks.
+> Evaluations an hour per task, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL.
 
 > **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
 
@@ -80,6 +80,7 @@ opensearch_index_replicas          = 1
 ```hcl
 ecs_cpu              = 16384               # 16 vCPU
 ecs_memory           = 122880              # 120 GB, the maximum at 16 vCPU
+ecs_memory_reservation = 106496            # 104 GB soft limit, the 96 GB heap plus 8 GB direct memory
 iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3
 iq_max_count         = 5
@@ -153,9 +154,8 @@ When to use `0`, and how to give the Advanced Search index the same count, are i
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete second copy of the index beside the one serving, so the
-domain holds twice the Nexus One disk while it runs. **Judge free storage against the doubled figure, not the
-steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+replica is a separate doubling that applies at the same time. The full rules, and why
 a rebuild is not a backup, are in the
 [top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
 

@@ -121,9 +121,8 @@ When to use `0`, and how to give the Advanced Search index the same count, are i
 
 #### Plan for twice the index during a rebuild
 
-A Nexus One index rebuild builds a complete second copy of the index beside the one serving, so the
-cluster holds twice the Nexus One disk while it runs. **Judge free storage against the doubled figure, not the
-steady state.** A replica is a separate doubling that applies at the same time. The full rules, and why
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+replica is a separate doubling that applies at the same time. The full rules, and why
 a rebuild is not a backup, are in the
 [top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
 
@@ -392,7 +391,6 @@ This is a **single instance** deployment.
 - **Database Subnet**: PostgreSQL Flexible Server (delegated to PostgreSQL)
 
 ### Security Groups
-- **Public NSG**: Allows HTTP (80), HTTPS (443) from internet
 - **Private NSG**: Allows HTTP/HTTPS traffic and Azure Load Balancer health probes
 - **Database NSG**: Allows PostgreSQL (5432) from private subnet only
 
@@ -504,13 +502,13 @@ at or above it.
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are not set in `config.yml`, and only take effect when an
-index is created, so **at M, L and XL set them before the Nexus One index is first built**, with the request in
+index is created, so **at M set them before the Nexus One index is first built**, with the request in
 [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 
 **Use `0` at XS and S**: a single data node cannot place a replica, so `1` would leave the index
-yellow, which still serves reads and writes. At M, L and XL use `1`, so a lost
+yellow, which still serves reads and writes. At M use `1`, so a lost
 data node leaves a complete copy of the index on the others.
 
 Other things the cluster needs, none of which this configuration sets for you:
@@ -531,7 +529,7 @@ Other things the cluster needs, none of which this configuration sets for you:
 - **Snapshots to a storage account**, through the `repository-azure` plugin. Nothing here backs the
   index up, and a lost index means a full rebuild.
 
-**Put a Standard SKU internal load balancer in front of the data nodes at M, L and XL**, and set
+**Put a Standard SKU internal load balancer in front of the data nodes at M**, and set
 `opensearch_endpoint` to its frontend private IP, so IQ Server reaches one endpoint and replacing a data
 node does not change its configuration. Create:
 
