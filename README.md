@@ -475,10 +475,8 @@ node_group_desired_size = 3                # 3 nodes
 node_group_min_size     = 2
 node_group_max_size     = 5
 nexus_iq_replica_count  = 3                # 3 IQ pods
-nexus_iq_memory_request = "48Gi"
-nexus_iq_memory_limit   = "56Gi"
-nexus_iq_cpu_request    = "6"
-nexus_iq_cpu_limit      = "8"
+# Pod CPU, memory and heap are Helm chart values in helm-values.yaml:
+# see the Size L block in infra-aws-ha-k8s-helm/README.md.
 aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
 aurora_instance_count   = 2
 ```
@@ -542,10 +540,8 @@ node_group_desired_size = 4                # 4 nodes
 node_group_min_size     = 3
 node_group_max_size     = 5
 nexus_iq_replica_count  = 4                # 4 IQ pods
-nexus_iq_memory_request = "96Gi"
-nexus_iq_memory_limit   = "112Gi"
-nexus_iq_cpu_request    = "12"
-nexus_iq_cpu_limit      = "16"
+# Pod CPU, memory and heap are Helm chart values in helm-values.yaml:
+# see the Size XL block in infra-aws-ha-k8s-helm/README.md.
 aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
 aurora_instance_count   = 2
 ```

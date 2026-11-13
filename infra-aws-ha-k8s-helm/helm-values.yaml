@@ -6,13 +6,13 @@ iq_server:
 
   resources:
     requests:
-      cpu: "4"
-      memory: "16Gi"
-    limits:
       cpu: "6"
-      memory: "24Gi"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
 
-  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   env:
     - name: CLUSTER_DIRECTORY
@@ -57,6 +57,36 @@ iq_server:
     sonatypeWork: "/sonatype-work"
     clusterDirectory: "/sonatype-work/clm-cluster"
     createSampleData: true
+
+    # BEGIN search backend
+    # helm-install.sh and helm-upgrade.sh fill the three placeholders below from
+    # Terraform when search_engine is "opensearch", and delete everything between
+    # these two markers when it is "lucene", which is the default. Leave the
+    # markers, the indentation and the placeholder names alone.
+    #
+    # The values here are placeholders on purpose. Both scripts first substitute
+    # default values over the whole file for the database and for CloudWatch,
+    # such as hostname: "" and region: "us-east-1", with no line anchor. A key
+    # here holding one of those defaults would be handed the database or
+    # CloudWatch value, so these keys hold placeholders that are filled in after
+    # those substitutions run.
+    # Advanced Search reads this block.
+    search:
+      type: aws
+      mode: OPENSEARCH
+      domain: "https://OPENSEARCH_DOMAIN_PLACEHOLDER"
+      region: "OPENSEARCH_REGION_PLACEHOLDER"
+      nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
+
+    # The Nexus One index reads this block. Both blocks name the same domain.
+    nexusOne:
+      connection:
+        type: aws
+        mode: OPENSEARCH
+        domain: "https://OPENSEARCH_DOMAIN_PLACEHOLDER"
+        region: "OPENSEARCH_REGION_PLACEHOLDER"
+        nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
+    # END search backend
 
     server:
       applicationConnectors:
@@ -129,10 +159,13 @@ hpa:
     memory:
       enabled: false
 
+# helm-install.sh and helm-upgrade.sh replace CLOUDWATCH_LOG_GROUP_PLACEHOLDER with the
+# cloudwatch_log_group Terraform output, /eks/<cluster_name>/nexus-iq-server, the only
+# group the Fluentd role may write to.
 cloudwatch:
   enabled: true
   region: "us-east-1"
-  logGroupName: "/eks/nexus-iq-ha/nexus-iq-server"
+  logGroupName: "CLOUDWATCH_LOG_GROUP_PLACEHOLDER"
   logStreamName: "aggregator"
 
 ingress:
@@ -155,7 +188,7 @@ fluentd:
   cloudwatch:
     enabled: true
     region: "us-east-1"
-    logGroupName: "/eks/nexus-iq-ha/nexus-iq-server"
+    logGroupName: "CLOUDWATCH_LOG_GROUP_PLACEHOLDER"
     logStreamPrefix: "pod/"
 
   resources:
@@ -174,10 +207,13 @@ fluentd:
       create: true
       annotations:
         eks.amazonaws.com/role-arn: ""
-    securityContext:
+    # The aggregator runs as uid 1000, the owner the init container below gives the log
+    # directory. The bundled fluentd chart reads these two keys and defaults both to 1001.
+    podSecurityContext:
+      fsGroup: 1000
+    containerSecurityContext:
       runAsUser: 1000
       runAsGroup: 1000
-      fsGroup: 1000
       runAsNonRoot: true
     initContainers:
       - name: "{{ .Release.Name }}-set-fluentd-persistence-ownership"
@@ -195,5 +231,12 @@ fluentd:
 external-dns:
   enabled: false
 
-migrationJob:
-  enabled: false
+# The database migration job runs once, as a post-install hook, so a helm upgrade does
+# not start it again while IQ Server is using the database. helm waits for a hook and
+# fails the install if the migration fails. When an upgrade changes the IQ Server image,
+# MIGRATE_DATABASE=yes ./helm-upgrade.sh scales IQ Server to zero and runs the job as a
+# pre-upgrade hook.
+iq_server_jobs:
+  migrationJobAnnotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded

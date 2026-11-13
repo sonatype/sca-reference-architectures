@@ -93,6 +93,16 @@ resource "aws_security_group" "rds" {
     security_groups = [aws_security_group.eks_nodes.id]
   }
 
+  # The node group's instances, and so the IQ Server pods, carry the EKS module's node
+  # security group.
+  ingress {
+    description     = "PostgreSQL from the EKS node group"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [module.eks.node_security_group_id]
+  }
+
   egress {
     description = "All outbound traffic"
     from_port   = 0

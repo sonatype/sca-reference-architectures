@@ -138,7 +138,31 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
         Resource = [
           "${aws_s3_bucket.log_archive[0].arn}/*"
         ]
+      }] : [],
+      var.search_engine == "opensearch" ? [{
+        # AWS checks a signed OpenSearch request per HTTP verb.
+        Effect = "Allow"
+        Action = [
+          "es:ESHttpGet",
+          "es:ESHttpPost",
+          "es:ESHttpPut",
+          "es:ESHttpHead",
+          "es:ESHttpDelete"
+        ]
+        Resource = [
+          "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_name}",
+          "arn:aws:es:${var.aws_region}:${data.aws_caller_identity.current.account_id}:domain/${local.opensearch_name}/*"
+        ]
     }] : [])
   })
+
+  # A precondition rather than a validation on the variable, because a
+  # validation that reads another variable needs Terraform 1.9.
+  lifecycle {
+    precondition {
+      condition     = length(var.opensearch_domain_endpoint) == 0 || length(var.opensearch_domain_name) > 0
+      error_message = "opensearch_domain_name must be set when opensearch_domain_endpoint names an existing domain."
+    }
+  }
 }
 

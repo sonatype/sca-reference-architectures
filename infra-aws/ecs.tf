@@ -1,6 +1,6 @@
 
 resource "aws_ecs_cluster" "iq_cluster" {
-  name = "ref-arch-iq-cluster"
+  name = "${var.cluster_name}-iq-cluster"
 
   setting {
     name  = "containerInsights"
@@ -8,13 +8,13 @@ resource "aws_ecs_cluster" "iq_cluster" {
   }
 
   tags = {
-    Name = "ref-arch-iq-cluster"
+    Name = "${var.cluster_name}-iq-cluster"
   }
 }
 
 
 resource "aws_ecs_task_definition" "iq_task" {
-  family                   = "ref-arch-nexus-iq-server"
+  family                   = "${var.cluster_name}-nexus-iq-server"
   network_mode             = "awsvpc"
   cpu                      = var.ecs_cpu
   memory                   = var.ecs_memory
@@ -133,6 +133,25 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
     archivedFileCount: 50
 
+%{if var.search_engine == "opensearch"~}
+# Advanced Search reads this block.
+search:
+  type: aws
+  mode: OPENSEARCH
+  domain: https://${local.opensearch_endpoint}
+  region: ${var.aws_region}
+  nexusOneIndexReplicas: ${var.opensearch_index_replicas}
+
+# The Nexus One index reads this block. Both blocks name the same domain.
+nexusOne:
+  connection:
+    type: aws
+    mode: OPENSEARCH
+    domain: https://${local.opensearch_endpoint}
+    region: ${var.aws_region}
+    nexusOneIndexReplicas: ${var.opensearch_index_replicas}
+
+%{endif~}
 createSampleData: true
 CONFIGEOF
 
@@ -144,8 +163,8 @@ CONFIGEOF
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 
           echo "Successfully created config.yml with database configuration"
-          echo "Generated config file contents:"
-          cat /etc/nexus-iq-server/config.yml
+          echo "Generated config file contents, with every password redacted:"
+          sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
 
           export JAVA_OPTS
@@ -255,7 +274,7 @@ CONFIGEOF
         },
         {
           name  = "CLUSTER_NAME"
-          value = "ref-arch-iq-cluster"
+          value = "${var.cluster_name}-iq-cluster"
         }
       ]
 
@@ -325,13 +344,13 @@ CONFIGEOF
   }
 
   tags = {
-    Name = "ref-arch-iq-task-definition"
+    Name = "${var.cluster_name}-iq-task-definition"
   }
 }
 
 
 resource "aws_ecs_service" "iq_service" {
-  name            = "ref-arch-nexus-iq-service"
+  name            = "${var.cluster_name}-nexus-iq-service"
   cluster         = aws_ecs_cluster.iq_cluster.id
   task_definition = aws_ecs_task_definition.iq_task.arn
   desired_count   = var.iq_desired_count
@@ -359,20 +378,20 @@ resource "aws_ecs_service" "iq_service" {
   ]
 
   tags = {
-    Name = "ref-arch-iq-service"
+    Name = "${var.cluster_name}-iq-service"
   }
 }
 
 
 resource "aws_efs_file_system" "iq_efs" {
-  creation_token = "ref-arch-iq-efs"
+  creation_token = "${var.cluster_name}-iq-efs"
   encrypted      = true
 
   performance_mode = "generalPurpose"
   throughput_mode  = "elastic"
 
   tags = {
-    Name = "ref-arch-iq-efs"
+    Name = "${var.cluster_name}-iq-efs"
   }
 }
 
@@ -403,7 +422,7 @@ resource "aws_efs_access_point" "iq_access_point" {
   }
 
   tags = {
-    Name = "ref-arch-iq-efs-access-point"
+    Name = "${var.cluster_name}-iq-efs-access-point"
   }
 }
 
@@ -426,7 +445,7 @@ resource "aws_efs_access_point" "iq_logs_access_point" {
   }
 
   tags = {
-    Name = "ref-arch-iq-efs-logs-access-point"
+    Name = "${var.cluster_name}-iq-efs-logs-access-point"
   }
 }
 

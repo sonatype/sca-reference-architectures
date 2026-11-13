@@ -5,6 +5,39 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "cluster_name" {
+  description = <<-EOT
+    Base name every resource in this root is named from: the ECS cluster becomes
+    "<cluster_name>-iq-cluster", the load balancer "<cluster_name>-iq-alb", the log
+    group "/ecs/<cluster_name>-nexus-iq-server", and so on.
+
+    Change it per deployment so several deployments can share one AWS account. Many
+    of these names have to be unique across an account or a region, IAM roles, the
+    load balancer, the target groups, the log group, the SSM parameters, the
+    Secrets Manager secret and the RDS identifier among them, so two deployments
+    that leave this at the default collide on the second apply. Running one
+    deployment per size, for example "ref-arch-xs" through "ref-arch-m", is what
+    this is for.
+
+    The default reproduces the names this root used before the variable existed, so
+    leaving it alone changes nothing.
+  EOT
+  type        = string
+  default     = "ref-arch"
+
+  validation {
+    # The admin target group, "<cluster_name>-iq-admin-tg", is the longest name, and AWS
+    # caps a target group name at 32 characters.
+    condition     = length(var.cluster_name) <= 20
+    error_message = "cluster_name must be 20 characters or fewer, to leave room for the 12-character '-iq-admin-tg' suffix under AWS's 32-character target group name limit."
+  }
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]*[a-z0-9]$", var.cluster_name))
+    error_message = "cluster_name must be lowercase letters, numbers and hyphens, and must not start or end with a hyphen, because it is used in load balancer and target group names."
+  }
+}
+
 
 
 variable "vpc_cidr" {
@@ -16,13 +49,13 @@ variable "vpc_cidr" {
 variable "public_subnet_cidrs" {
   description = "CIDR blocks for public subnets"
   type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+  default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
 }
 
 variable "private_subnet_cidrs" {
   description = "CIDR blocks for private subnets"
   type        = list(string)
-  default     = ["10.0.10.0/24", "10.0.20.0/24"]
+  default     = ["10.0.10.0/24", "10.0.20.0/24", "10.0.50.0/24"]
 }
 
 variable "db_subnet_cidrs" {
@@ -39,9 +72,9 @@ variable "ecs_cpu" {
 }
 
 variable "ecs_memory" {
-  description = "Memory for ECS task in MiB"
+  description = "Memory for ECS task in MiB. The default is the Size M value, the most Fargate allows at 8192 CPU."
   type        = number
-  default     = 32768
+  default     = 61440
 }
 
 variable "iq_desired_count" {
@@ -59,7 +92,7 @@ variable "iq_docker_image" {
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -182,4 +215,182 @@ variable "log_archive_retention_days" {
   description = "Days to retain archived logs in S3 before deletion"
   type        = number
   default     = 2555
+}
+
+# =============================================================================
+# SEARCH BACKEND
+# =============================================================================
+# search_engine switches the search: block in the config.yml heredoc in ecs.tf.
+# "opensearch" creates a domain in opensearch.tf unless opensearch_domain_endpoint
+# names one. The defaults are the Size M shape; README.md gives XS and S.
+
+variable "search_engine" {
+  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
+  type        = string
+  default     = "lucene"
+
+  validation {
+    condition     = contains(["lucene", "opensearch"], var.search_engine)
+    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+  }
+}
+
+variable "opensearch_engine_version" {
+  description = "OpenSearch engine version for the created domain, as AWS names it. The default is OpenSearch_3.7. Any OpenSearch 3.x version is supported."
+  type        = string
+  default     = "OpenSearch_3.7"
+
+  validation {
+    condition     = can(regex("^OpenSearch_3\\.[0-9]+$", var.opensearch_engine_version))
+    error_message = "opensearch_engine_version must be an OpenSearch 3.x version, such as \"OpenSearch_3.7\"."
+  }
+}
+
+variable "opensearch_instance_type" {
+  description = <<-EOT
+    Data node instance type for the created domain.
+
+    The default is the published type for S and M; XS uses m8g.medium.search.
+    Use at least the published type for your size.
+
+    See the OpenSearch section of this directory's README.md for the type each
+    size needs.
+  EOT
+  type        = string
+  default     = "m8g.large.search"
+
+  validation {
+    condition     = can(regex("\\.search$", var.opensearch_instance_type))
+    error_message = "opensearch_instance_type must be an OpenSearch instance type, ending in \".search\", for example \"m8g.large.search\"."
+  }
+}
+
+variable "opensearch_instance_count" {
+  description = "Data nodes in the created domain. The default, 3, is the Size M value; XS and S use 1, which has nowhere to place a replica and needs no dedicated masters. Above 1 the domain gets three masters."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.opensearch_instance_count >= 1 && var.opensearch_instance_count <= 20
+    error_message = "opensearch_instance_count must be between 1 and 20."
+  }
+}
+
+variable "opensearch_dedicated_master_type" {
+  description = "Instance type for the three dedicated master nodes, created only when the domain has more than one data node. Masters hold cluster state and run no indexing or search, so they are smaller than the data nodes."
+  type        = string
+  default     = "m8g.medium.search"
+
+  validation {
+    condition     = can(regex("\\.search$", var.opensearch_dedicated_master_type))
+    error_message = "opensearch_dedicated_master_type must be an OpenSearch instance type, ending in \".search\"."
+  }
+}
+
+variable "opensearch_volume_size_gb" {
+  description = <<-EOT
+    gp3 storage per data node, in GB.
+
+    The index needs room for more than one copy of itself: a replica doubles it,
+    and a rebuild needs free disk for a second copy of the index. AWS also
+    reserves 20% of each volume, capped at 20 GiB.
+
+    See the OpenSearch section of this directory's README.md for the size each
+    tier needs. The default, 100, is the Size M value.
+  EOT
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.opensearch_volume_size_gb >= 10 && var.opensearch_volume_size_gb <= 3000
+    error_message = "opensearch_volume_size_gb must be between 10 and 3000."
+  }
+}
+
+variable "opensearch_availability_zone_count" {
+  description = "Availability zones the created domain's data nodes spread across. The default, 3, is the Size M value and needs three private subnets, as the private_subnet_cidrs default has; XS and S use 1, which disables zone awareness. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = contains([1, 2, 3], var.opensearch_availability_zone_count)
+    error_message = "opensearch_availability_zone_count must be 1, 2 or 3."
+  }
+}
+
+variable "opensearch_domain_endpoint" {
+  description = "Host name of an OpenSearch domain that already exists, with no scheme and no trailing slash, for example \"search-my-domain-abc123.us-east-1.es.amazonaws.com\". Setting this means the domain is NOT created here and this one is used instead. Leave empty to have this configuration create the domain."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_domain_endpoint))
+    error_message = "opensearch_domain_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_domain_name" {
+  description = <<-EOT
+    Name of that same OpenSearch domain, for example "my-domain". Used only to
+    build the ARN the ECS task role is granted data-plane access on, so the grant
+    names one domain rather than every domain in the account. Required when
+    search_engine is "opensearch".
+
+    The domain has to be in this same AWS account and in aws_region, because the
+    ARN is built from aws_region and the calling account. A domain in another
+    account or another region cannot be named this way, and the symptom is a 403
+    from the domain at runtime rather than an error at plan time. Reaching one
+    would need the full ARN supplied instead, plus a matching principal in the
+    domain's own access policy.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_domain_name))
+    error_message = "opensearch_domain_name still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_log_retention_days" {
+  description = "Retention for the created domain's three CloudWatch log groups: the two slow logs and the application log. 30 days covers a rebuild and the weeks after it, which is when a slow query is worth attributing."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.opensearch_log_retention_days)
+    error_message = "opensearch_log_retention_days must be a retention period CloudWatch Logs accepts."
+  }
+}
+
+variable "opensearch_create_log_resource_policy" {
+  description = <<-EOT
+    Whether to create the CloudWatch Logs resource policy that lets OpenSearch
+    write the created domain's slow and application logs.
+
+    A resource policy is account-wide and AWS allows 10 per region, so an account
+    already at that quota cannot take another one and the apply fails with
+    LimitExceededException. The answer at the quota is one policy covering every
+    domain's log groups, written once by hand outside this configuration, and
+    this set to false in each deployment.
+
+    False affects the policy and nothing else. The domain's three log groups and
+    its log_publishing_options are still created, so the shared policy has groups
+    to name and the domain keeps its logs. That also means false without such a
+    policy in the account is not a working configuration: the domain create fails
+    on the log_publishing_options, rather than coming up with no logs.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "opensearch_index_replicas" {
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This architecture always writes it; when IQ Server is not given a count, it uses 1. The default, 1, is the Size M value; XS and S use 0, since a domain with one data node has nowhere to put a replica."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
+    error_message = "opensearch_index_replicas must be between 0 and 10, the range IQ Server accepts."
+  }
 }

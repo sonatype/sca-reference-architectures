@@ -8,7 +8,7 @@ vpc_cidr     = "10.0.0.0/16"
 
 # EKS Configuration
 kubernetes_version       = "1.36"
-node_instance_type      = "m9gd.2xlarge"
+node_instance_type      = "r9g.2xlarge"
 node_group_min_size     = 2
 node_group_max_size     = 5
 node_group_desired_size = 3
@@ -30,15 +30,11 @@ nexus_iq_license       = ""
 nexus_iq_admin_password = "admin123"
 nexus_iq_replica_count = 3
 
-# Resource Limits (adjusted for node capacity)
-nexus_iq_memory_request = "16Gi"
-nexus_iq_memory_limit   = "24Gi"
-nexus_iq_cpu_request    = "4"
-nexus_iq_cpu_limit      = "6"
+# Pod CPU, memory and heap are Helm chart settings, not Terraform inputs.
+# Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
 helm_chart_version = "201.0.0"
-helm_namespace     = "nexus-iq"
 
 # Logging Configuration
 enable_fluentd        = true
@@ -51,3 +47,50 @@ ingress_tls_enabled  = false
 acm_certificate_arn  = ""
 
 # Pod autoscaling is set by hpa.* in helm-values.yaml.
+
+# Search backend. "lucene" (default) uses IQ Server's built-in index; "opensearch"
+# creates a domain here. The domain carries prevent_destroy; README.md gives the
+# teardown steps, and the account needs the OpenSearch service-linked role:
+#   aws iam create-service-linked-role \
+#     --aws-service-name opensearchservice.amazonaws.com
+search_engine = "lucene"
+
+# Domain shape by size, two data nodes at every size, one in each of this root's
+# two zones. Three nodes need a third private subnet in main.tf.
+#
+# M (2,000 - 10,000 apps):
+# opensearch_instance_type           = "m8g.large.search"
+# opensearch_volume_size_gb          = 100
+# opensearch_dedicated_master_type   = "m8g.medium.search"
+#
+# L (10,000 - 20,000 apps):
+# opensearch_instance_type           = "m8g.xlarge.search"
+# opensearch_volume_size_gb          = 150
+# opensearch_dedicated_master_type   = "m8g.medium.search"
+#
+# XL (20,000 - 80,000 apps):
+# opensearch_instance_type           = "r8g.2xlarge.search"
+# opensearch_volume_size_gb          = 250
+# opensearch_dedicated_master_type   = "m8g.large.search"
+#
+# Every size:
+# opensearch_instance_count          = 2
+# opensearch_availability_zone_count = 2
+# opensearch_index_replicas          = 1
+#
+# An account at the region's 10 log resource policies writes one shared policy
+# and sets this false:
+# opensearch_create_log_resource_policy = false
+#
+# To use a domain you already run, set these two instead and nothing is created:
+# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
+# opensearch_domain_name     = "CHANGE_ME-search-domain"
+
+# Extra tags on the search backend's resources. Keep the keys lowercase, since AWS
+# compares tag keys case-insensitively, and use none of name, environment or project,
+# which this configuration already sets. Put real values in terraform.tfvars.
+# common_tags = {
+#   owner      = "CHANGE_ME_EMAIL"
+#   department = "CHANGE_ME_DEPARTMENT"
+#   team       = "CHANGE_ME_TEAM"
+# }

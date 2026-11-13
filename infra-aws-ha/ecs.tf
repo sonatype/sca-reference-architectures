@@ -138,6 +138,25 @@ logging:
     logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - REPLICA:$HOSTNAME %msg%n"
     archivedFileCount: 50
 
+%{if var.search_engine == "opensearch"~}
+# Advanced Search reads this block.
+search:
+  type: aws
+  mode: OPENSEARCH
+  domain: https://${local.opensearch_endpoint}
+  region: ${var.aws_region}
+  nexusOneIndexReplicas: ${var.opensearch_index_replicas}
+
+# The Nexus One index reads this block. Both blocks name the same domain.
+nexusOne:
+  connection:
+    type: aws
+    mode: OPENSEARCH
+    domain: https://${local.opensearch_endpoint}
+    region: ${var.aws_region}
+    nexusOneIndexReplicas: ${var.opensearch_index_replicas}
+
+%{endif~}
 createSampleData: true
 CONFIGEOF
 
@@ -150,10 +169,65 @@ CONFIGEOF
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 
 
-          echo "=== DEBUG: Contents of config.yml after ALL replacements ==="
-          cat /etc/nexus-iq-server/config.yml
-          echo "=== END DEBUG ==="
+          echo "Generated config file contents, with every password redacted:"
+          sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
 
+          # IQ Server takes its schema migration lock only once the schema exists, so on an
+          # empty database every task would run the first migration at once. One task holds the
+          # gate directory on the shared EFS and rewrites its heartbeat file every 15 seconds
+          # until the marker exists. The others wait, and the first to claim the gate after its
+          # heartbeat has not changed for 60 seconds takes over. Every task writes the marker
+          # once its own IQ Server answers the database health check, and the marker lets every
+          # later start skip the gate. A task still waiting after 150 seconds exits, inside the
+          # health check start period, and ECS starts another that waits again.
+          MIGRATED="/sonatype-work/clm-cluster/.schema-migrated"
+          GATE="/sonatype-work/clm-cluster/.schema-migration-gate"
+          hold_gate() {
+            echo "$HOSTNAME-0" > "$GATE/heartbeat"
+            ( beat=0
+              until [ -e "$MIGRATED" ]; do
+                sleep 15
+                beat=$((beat + 1))
+                echo "$HOSTNAME-$beat" > "$GATE/heartbeat" || true
+              done ) &
+          }
+          if [ ! -e "$MIGRATED" ]; then
+            ( until [ -e "$MIGRATED" ]; do
+                if curl -sf http://localhost:8071/healthcheck/database >/dev/null 2>&1; then
+                  touch "$MIGRATED" || true
+                fi
+                sleep 5
+              done ) &
+            waited=0
+            unchanged=0
+            last_beat="unread"
+            while [ ! -e "$MIGRATED" ]; do
+              if mkdir "$GATE" 2>/dev/null; then
+                hold_gate
+                echo "This task runs the first database migration"
+                break
+              fi
+              beat=$(cat "$GATE/heartbeat" 2>/dev/null || true)
+              if [ "$beat" != "$last_beat" ]; then
+                last_beat="$beat"
+                unchanged=0
+              elif [ "$unchanged" -ge 60 ] && mkdir "$GATE/taken-$beat" 2>/dev/null; then
+                hold_gate
+                echo "This task takes over the first database migration from a task that stopped"
+                break
+              fi
+              if [ "$waited" -ge 150 ]; then
+                echo "Stopped after waiting 150 seconds for another task to finish the first database migration"
+                exit 1
+              fi
+              if [ "$waited" -eq 0 ]; then
+                echo "Waiting for another task to finish the first database migration"
+              fi
+              sleep 10
+              waited=$((waited + 10))
+              unchanged=$((unchanged + 10))
+            done
+          fi
 
           export JAVA_OPTS
 
@@ -192,10 +266,12 @@ CONFIGEOF
           "CMD-SHELL",
           "curl -f http://localhost:8071/healthcheck/database && curl -f http://localhost:8071/healthcheck/clusterDirectory && curl -f http://localhost:8071/healthcheck/workDirectory || exit 1"
         ]
-        interval    = 30
-        timeout     = 10
-        retries     = 3
-        startPeriod = 120
+        interval = 30
+        timeout  = 10
+        retries  = 3
+        # The most ECS allows. It covers a first migration on an empty database, which runs
+        # before IQ Server answers.
+        startPeriod = 300
       }
 
       mountPoints = [
@@ -352,6 +428,10 @@ resource "aws_ecs_service" "iq_service" {
 
   deployment_maximum_percent         = 200
   deployment_minimum_healthy_percent = 50
+
+  # Matches the container health check's start period, so the load balancer does not replace
+  # a task that is still running the first migration.
+  health_check_grace_period_seconds = 300
 
 
   deployment_circuit_breaker {

@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -18,6 +18,12 @@ data "aws_availability_zones" "available" {
 
 data "aws_caller_identity" "current" {}
 
+locals {
+  # Base for the network Name tags: cluster_name without a trailing "-cluster", which
+  # keeps the default tags at "ref-arch-iq-ha-*".
+  network_name = trimsuffix(var.cluster_name, "-cluster")
+}
+
 
 resource "aws_vpc" "iq_vpc" {
   cidr_block           = var.vpc_cidr
@@ -25,7 +31,7 @@ resource "aws_vpc" "iq_vpc" {
   enable_dns_support   = true
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-vpc"
+    Name = "${local.network_name}-vpc"
   })
 }
 
@@ -34,7 +40,7 @@ resource "aws_internet_gateway" "iq_igw" {
   vpc_id = aws_vpc.iq_vpc.id
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-igw"
+    Name = "${local.network_name}-igw"
   })
 }
 
@@ -48,7 +54,7 @@ resource "aws_subnet" "public_subnets" {
   map_public_ip_on_launch = true
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-public-subnet-${count.index + 1}"
+    Name = "${local.network_name}-public-subnet-${count.index + 1}"
     Type = "Public"
   })
 }
@@ -61,7 +67,7 @@ resource "aws_subnet" "private_subnets" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-private-subnet-${count.index + 1}"
+    Name = "${local.network_name}-private-subnet-${count.index + 1}"
     Type = "Private"
   })
 }
@@ -74,7 +80,7 @@ resource "aws_subnet" "db_subnets" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-db-subnet-${count.index + 1}"
+    Name = "${local.network_name}-db-subnet-${count.index + 1}"
     Type = "Database"
   })
 }
@@ -89,7 +95,7 @@ resource "aws_route_table" "public_rt" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-public-route-table"
+    Name = "${local.network_name}-public-route-table"
   })
 }
 
@@ -106,7 +112,7 @@ resource "aws_eip" "nat_eip" {
   domain = "vpc"
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-nat-eip-${count.index + 1}"
+    Name = "${local.network_name}-nat-eip-${count.index + 1}"
   })
 
   depends_on = [aws_internet_gateway.iq_igw]
@@ -118,7 +124,7 @@ resource "aws_nat_gateway" "nat_gw" {
   subnet_id     = aws_subnet.public_subnets[count.index].id
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-nat-gateway-${count.index + 1}"
+    Name = "${local.network_name}-nat-gateway-${count.index + 1}"
   })
 
   depends_on = [aws_internet_gateway.iq_igw]
@@ -138,7 +144,7 @@ resource "aws_route_table" "private_rt" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-private-route-table-${count.index + 1}"
+    Name = "${local.network_name}-private-route-table-${count.index + 1}"
   })
 }
 
@@ -154,7 +160,7 @@ resource "aws_route_table" "db_rt" {
   vpc_id = aws_vpc.iq_vpc.id
 
   tags = merge(var.common_tags, {
-    Name = "ref-arch-iq-ha-db-route-table"
+    Name = "${local.network_name}-db-route-table"
   })
 }
 

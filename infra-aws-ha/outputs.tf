@@ -204,6 +204,7 @@ output "architecture_summary" {
     compute_platform   = "Amazon ECS Fargate"
     database_type      = "Aurora PostgreSQL Cluster"
     storage_type       = "Amazon EFS"
+    search_backend     = var.search_engine == "opensearch" ? (local.opensearch_create ? "AWS-managed OpenSearch, created here" : "AWS-managed OpenSearch, named through opensearch_domain_endpoint") : "Lucene, built into IQ Server"
     load_balancer      = "Application Load Balancer"
     ssl_enabled        = var.ssl_certificate_arn != ""
     waf_enabled        = true
@@ -221,4 +222,24 @@ output "architecture_summary" {
     }
     service_discovery_enabled = true
   }
+}
+
+output "search_engine" {
+  description = "Search backend IQ Server's config.yml points at, either lucene or opensearch"
+  value       = var.search_engine
+}
+
+output "opensearch_domain_endpoint" {
+  description = "Host name of the OpenSearch domain IQ Server is configured against. Empty when search_engine is lucene. The domain is created here unless opensearch_domain_endpoint names one that already exists"
+  value       = var.search_engine == "opensearch" ? local.opensearch_endpoint : ""
+}
+
+output "opensearch_domain_name" {
+  description = "Name of the OpenSearch domain IQ Server is configured against, which the teardown steps in README.md pass to aws opensearch delete-domain. A created domain's name is cluster_name cut to 18 characters plus -nexus-one. Empty when search_engine is lucene"
+  value       = var.search_engine == "opensearch" ? local.opensearch_name : ""
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per shard written to config.yml as search.nexusOneIndexReplicas. Null when search_engine is lucene"
+  value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
 }
