@@ -224,8 +224,8 @@ What the created domain gets, none of which needs configuring:
 
 **Fine-grained access control has to stay off for as long as the domain holds this
 index.** Turning it on gives the domain an internal user database and changes how
-every request is authenticated, so SigV4 alone no longer reaches it and IQ Server's
-`type: aws` configuration stops working. There is no credential to supply instead:
+every request is authenticated, so SigV4 alone does not reach it and IQ Server's
+`type: aws` configuration does not work. There is no credential to supply instead:
 this architecture authenticates with the pods' IAM role and nothing else.
 
 ### How the configuration reaches IQ Server
@@ -500,12 +500,12 @@ Your IAM user/role needs these AWS service permissions:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
-### Upgrading IQ Server
+### Database migration in `helm-upgrade.sh`
 
-`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
-When the upgrade changes the image, back up the database, then run
-`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
-starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
+only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
+Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
+or the rollout fails.
 
 ---
 
@@ -529,29 +529,9 @@ starts IQ Server again. The script exits non-zero if the migration or the rollou
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `aurora_engine_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `aurora_engine_version` | 15.8 | 18.6 |
-> | `iq_server.resources` in `helm-values.yaml` | 4 to 6 CPU, 16 to 24 GB | 6 to 8 CPU, 48 to 56 GB |
-> | `iq_server.javaOpts` in `helm-values.yaml` | 24 GB heap | 48 GB heap |
-> | `aurora_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
-> | `node_instance_type` | m5d.2xlarge | r9g.2xlarge |
-> | `kubernetes_version` | 1.30 | 1.36. EKS upgrades a cluster one minor version at a time, so an existing cluster sets the version it runs and steps up from there |
->
-> The next apply replaces the EKS node group: the node AMI moves from
-> `AL2_x86_64` to AL2023, and both the AMI type and the instance type force a
-> new node group. A 32 GB node cannot hold the 48Gi pod request, and nothing here
-> adds nodes, so pods stay Pending on `helm-upgrade.sh` until the node type moves.
 > An instance class change applies in the next maintenance window, because this
 > configuration does not set `apply_immediately`.
 
@@ -638,10 +618,6 @@ hpa:
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
-
-> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
-> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
-> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
 
 **Important Settings:**
 - **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4
