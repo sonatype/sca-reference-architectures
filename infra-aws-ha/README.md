@@ -189,8 +189,8 @@ What the created domain gets, none of which needs configuring:
   which keeps cluster state off the nodes serving queries.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
-index.** With it on, SigV4 alone no longer reaches the domain, and IQ Server's
-`type: aws` configuration stops working.
+index.** With it on, SigV4 alone does not reach the domain, and IQ Server's
+`type: aws` configuration does not work.
 
 ### Domain shape per size
 

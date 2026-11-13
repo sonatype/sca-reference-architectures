@@ -224,8 +224,8 @@ What the created domain gets, none of which needs configuring:
 
 **Fine-grained access control has to stay off for as long as the domain holds this
 index.** Turning it on gives the domain an internal user database and changes how
-every request is authenticated, so SigV4 alone no longer reaches it and IQ Server's
-`type: aws` configuration stops working. There is no credential to supply instead:
+every request is authenticated, so SigV4 alone does not reach it and IQ Server's
+`type: aws` configuration does not work. There is no credential to supply instead:
 this architecture authenticates with the pods' IAM role and nothing else.
 
 ### How the configuration reaches IQ Server
@@ -500,12 +500,12 @@ Your IAM user/role needs these AWS service permissions:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
-### Upgrading IQ Server
+### Database migration in `helm-upgrade.sh`
 
-`./helm-upgrade.sh` does not run the database migration when the IQ Server image is unchanged.
-When the upgrade changes the image, back up the database, then run
-`MIGRATE_DATABASE=yes ./helm-upgrade.sh`. It scales IQ Server to zero, runs the migration, and
-starts IQ Server again. The script exits non-zero if the migration or the rollout fails.
+`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
+only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
+Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
+or the rollout fails.
 
 ---
 
