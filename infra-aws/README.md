@@ -213,23 +213,9 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `postgres_version` | 15.10 | 18.6 |
-> | `db_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
-> | `db_allocated_storage` | 500 | 128. RDS cannot shrink storage, so an existing instance keeps its size here |
-> | `db_max_allocated_storage` | 1000 | 500 |
->
 > An instance class change applies in the next maintenance window, because this
 > configuration does not set `apply_immediately`.
 
