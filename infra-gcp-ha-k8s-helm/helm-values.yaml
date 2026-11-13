@@ -248,10 +248,13 @@ fluentd:
       name: "fluentd-aggregator-sa"
       annotations:
         iam.gke.io/gcp-service-account: ""
-    securityContext:
+    # The aggregator runs as uid 1000, the owner the init container below gives the log
+    # directory. The bundled fluentd chart reads these two keys and defaults both to 1001.
+    podSecurityContext:
+      fsGroup: 1000
+    containerSecurityContext:
       runAsUser: 1000
       runAsGroup: 1000
-      fsGroup: 1000
       runAsNonRoot: true
     extraVolumes:
       - name: "iq-server-pod-volume"

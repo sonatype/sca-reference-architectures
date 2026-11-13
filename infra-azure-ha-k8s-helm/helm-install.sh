@@ -59,6 +59,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 DB_FQDN=$(terraform output -raw postgres_server_fqdn 2>/dev/null || echo "")
 DB_PASSWORD=$(tfvar database_password)
+# Unset in terraform.tfvars, Terraform uses the variables.tf default, which is nexusiq for both.
+DB_NAME=$(tfvar database_name)
+DB_NAME=${DB_NAME:-nexusiq}
+DB_USERNAME=$(tfvar database_username)
+DB_USERNAME=${DB_USERNAME:-nexusiq}
 STORAGE_ACCOUNT=$(terraform output -raw storage_account_name 2>/dev/null || echo "")
 STORAGE_SHARE=$(terraform output -raw storage_share_name 2>/dev/null || echo "")
 STORAGE_SHARE_QUOTA_GB=$(terraform output -raw storage_share_quota_gb 2>/dev/null || echo "")
@@ -142,6 +147,10 @@ REPLICA_COUNT=${REPLICA_COUNT:-3}
 sed -i.bak \
     -e "s/hostname: \"\"/hostname: \"$DB_FQDN\"/" \
     -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+    -e "s/^    name: \"nexusiq\"/    name: \"$DB_NAME\"/" \
+    -e "s/^    username: \"nexusiq\"/    username: \"$DB_USERNAME\"/" \
+    -e "/name: DB_NAME/{n;s/value: \"nexusiq\"/value: \"$DB_NAME\"/;}" \
+    -e "/name: DB_USERNAME/{n;s/value: \"nexusiq\"/value: \"$DB_USERNAME\"/;}" \
     -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
@@ -189,7 +198,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
 
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
-    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=nexus-iq-server-ha -n "$NAMESPACE" --timeout=300s >/dev/null 2>&1 || true
+    kubectl wait --for=condition=ready pod -l name=nexus-iq-server-ha-iq-server -n "$NAMESPACE" --timeout=5m >/dev/null 2>&1 || true
 
     AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
     if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then
