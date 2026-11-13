@@ -138,7 +138,7 @@ After updating the role, run the permission check again:
 ./check-permissions.sh
 ```
 
-The script will now pass because your custom role will contain the necessary container.* permissions.
+The script then passes, because your custom role will contain the necessary container.* permissions.
 
 ## Why This Approach?
 - Your organization uses custom roles
