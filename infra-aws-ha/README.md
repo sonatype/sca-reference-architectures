@@ -75,9 +75,9 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 | Size | Aurora Instance Class | vCPU | Memory | Storage |
 |------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, up to 500 GB |
-| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, up to 1 TB |
-| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, up to 2 TB |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, expected to grow to about 500 GB |
+| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, expected to grow to about 1 TB |
+| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, expected to grow to about 2 TB |
 
 ### Shared Storage (EFS)
 
