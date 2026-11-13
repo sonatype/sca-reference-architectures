@@ -14,11 +14,11 @@ DEPLOYMENT_NAME="Nexus IQ Server"
 DEPLOYMENT_TYPE="Single Instance"
 CLOUD_PROVIDER="AWS"
 TERRAFORM_DIR="$(dirname "$0")"
-AWS_PROFILE="${AWS_PROFILE}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 
-# Check if AWS_PROFILE is set
-if [[ -z "$AWS_PROFILE" ]]; then
+# Credentials come from the standard AWS chain: the named profile in AWS_PROFILE,
+# such as an IAM Identity Center profile, or credentials already in the environment.
+if [[ -z "$AWS_PROFILE" && -z "$AWS_ACCESS_KEY_ID" ]]; then
     echo -e "${RED}❌ Error: AWS_PROFILE environment variable is not set${NC}"
     echo ""
     echo "Please set your AWS profile name:"
@@ -44,13 +44,23 @@ command -v terraform >/dev/null 2>&1 || {
     exit 1
 }
 
-command -v aws-vault >/dev/null 2>&1 || {
-    echo -e "${RED}❌ Error: aws-vault not installed${NC}"
+command -v aws >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: aws not installed${NC}"
     exit 1
 }
 
+if ! aws sts get-caller-identity --region "${AWS_REGION:-us-east-1}" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: no valid AWS credentials${NC}"
+    echo ""
+    echo "The credentials are missing or have expired. For an IAM Identity Center"
+    echo "profile, sign in again:"
+    echo "  aws sso login --profile ${AWS_PROFILE:-your-profile-name}"
+    echo ""
+    exit 1
+fi
+
 echo "• Cloud Provider: AWS"
-echo "• AWS Profile: $AWS_PROFILE"
+echo "• AWS Profile: ${AWS_PROFILE:-not set, using credentials from the environment}"
 echo "• Deployment: $DEPLOYMENT_NAME $DEPLOYMENT_TYPE"
 echo ""
 
@@ -60,11 +70,11 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # set -e is on, so the status is captured on the failure branch: `$?` after
 # `|| true` is always 0.
 PLAN_STATUS=0
-PLAN_OUTPUT=$(aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy 2>&1) || PLAN_STATUS=$?
+PLAN_OUTPUT=$(terraform plan -destroy 2>&1) || PLAN_STATUS=$?
 
 if [[ $PLAN_STATUS -ne 0 ]]; then
     if grep -q "prevent_destroy" <<<"$PLAN_OUTPUT"; then
-        DOMAIN_NAME=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw opensearch_domain_name 2>/dev/null || true)
+        DOMAIN_NAME=$(terraform output -raw opensearch_domain_name 2>/dev/null || true)
         DOMAIN_NAME=${DOMAIN_NAME:-<the domain>}
         echo -e "${RED}❌ A resource carrying prevent_destroy is in the way${NC}"
         echo ""
@@ -111,10 +121,10 @@ echo "• This action CANNOT be undone"
 echo ""
 
 # Read from state, since cluster_name may also come from -var, TF_VAR_ or *.auto.tfvars.
-DB_SECRET_ARN=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw db_credentials_secret_arn 2>/dev/null || true)
+DB_SECRET_ARN=$(terraform output -raw db_credentials_secret_arn 2>/dev/null || true)
 
 if [[ -n "$DB_SECRET_ARN" ]]; then
-  aws-vault exec "$AWS_PROFILE" -- aws secretsmanager delete-secret \
+  aws secretsmanager delete-secret \
     --secret-id "$DB_SECRET_ARN" \
     --force-delete-without-recovery \
     --region $AWS_REGION 2>/dev/null || true
@@ -126,7 +136,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "This may take 15-30 minutes to complete."
 echo ""
 
-aws-vault exec "$AWS_PROFILE" -- terraform destroy -auto-approve
+terraform destroy -auto-approve
 
 if [[ $? -eq 0 ]]; then
     echo ""

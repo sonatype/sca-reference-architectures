@@ -53,18 +53,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 DB_HOST=$(terraform output -raw database_private_ip 2>/dev/null || echo "")
 FILESTORE_IP=$(terraform output -raw filestore_ip 2>/dev/null || echo "")
+FILESTORE_CAPACITY_GB=$(terraform output -raw filestore_capacity_gb 2>/dev/null || echo "")
 PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || echo "")
 REGION=$(terraform output -raw region 2>/dev/null || echo "")
 INGRESS_IP_NAME=$(terraform output -raw ingress_ip_name 2>/dev/null || echo "")
 
 echo "• Database: $DB_HOST"
-echo "• Filestore: $FILESTORE_IP"
+echo "• Filestore: $FILESTORE_IP, ${FILESTORE_CAPACITY_GB} GiB"
 echo "• Region: $REGION"
 echo "• Project: $PROJECT_ID"
 echo ""
 
 if [[ -z "$FILESTORE_IP" || -z "$DB_HOST" ]]; then
     echo -e "${RED}❌ Error: Missing required infrastructure outputs${NC}"
+    exit 1
+fi
+
+if [[ ! "$FILESTORE_CAPACITY_GB" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}❌ Error: no filestore_capacity_gb output found${NC}"
+    echo "   Run ./tf-apply.sh again so the state carries it."
     exit 1
 fi
 
@@ -84,8 +91,11 @@ while ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; do
     elapsed=$((elapsed + 2))
 done
 
-sed "s/FILESTORE_IP_PLACEHOLDER/${FILESTORE_IP}/g" filestore-pv.yaml | kubectl apply -f - >/dev/null 2>&1
-kubectl apply -f filestore-pvc.yaml >/dev/null 2>&1
+# The volume and its claim state the Filestore share's own capacity, so they match at every size.
+sed -e "s/FILESTORE_IP_PLACEHOLDER/${FILESTORE_IP}/g" \
+    -e "s/FILESTORE_CAPACITY_PLACEHOLDER/${FILESTORE_CAPACITY_GB}Gi/g" \
+    filestore-pv.yaml | kubectl apply -f - >/dev/null 2>&1
+sed "s/FILESTORE_CAPACITY_PLACEHOLDER/${FILESTORE_CAPACITY_GB}Gi/g" filestore-pvc.yaml | kubectl apply -f - >/dev/null 2>&1
 
 sleep 2
 timeout=60
