@@ -175,8 +175,15 @@ iq_server:
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
           archivedFileCount: 50
 
-# The database migration Job the chart always renders.
+# The database migration Job the chart always renders. It runs once, as a post-install
+# hook, so a helm upgrade does not start it again while IQ Server is using the database.
+# helm waits for a hook and fails the install if the migration fails. When an upgrade
+# changes the IQ Server image, MIGRATE_DATABASE=yes ./helm-upgrade.sh scales IQ Server to
+# zero and runs the job as a pre-upgrade hook.
 iq_server_jobs:
+  migrationJobAnnotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   tolerations:
     - key: "kubernetes.io/arch"
       operator: "Equal"
@@ -274,9 +281,6 @@ fluentd:
             subPath: log
 
 external-dns:
-  enabled: false
-
-migrationJob:
   enabled: false
 
 # Horizontal pod autoscaler. The chart reads hpa.enabled, hpa.minReplicas and

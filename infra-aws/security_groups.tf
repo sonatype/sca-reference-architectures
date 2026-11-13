@@ -19,14 +19,6 @@ resource "aws_security_group" "alb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress {
-    description = "Admin interface (testing only)"
-    from_port   = 8071
-    to_port     = 8071
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -62,14 +54,6 @@ resource "aws_security_group" "ecs_tasks" {
     to_port         = 8071
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
-  }
-
-  ingress {
-    description = "Admin interface public access (testing only)"
-    from_port   = 8071
-    to_port     = 8071
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {

@@ -63,8 +63,12 @@ if ! kubectl cluster-info >/dev/null 2>&1; then
     if [[ -n "$KUBECTL_COMMAND" ]]; then
         $KUBECTL_COMMAND >/dev/null 2>&1
     else
-        AWS_REGION="us-east-1"
-        CLUSTER_NAME="nexus-iq-ha"
+        # No Terraform outputs yet, so name the cluster from terraform.tfvars, falling back
+        # to the variables.tf defaults Terraform itself would use.
+        AWS_REGION=$(sed -n 's/^aws_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || true)
+        AWS_REGION=${AWS_REGION:-us-east-1}
+        CLUSTER_NAME=$(sed -n 's/^cluster_name *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || true)
+        CLUSTER_NAME=${CLUSTER_NAME:-nexus-iq-ha}
 
         aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME" >/dev/null 2>&1
     fi
@@ -95,15 +99,19 @@ EFS_DATA_ACCESS_POINT=$(terraform output -raw efs_data_access_point_id 2>/dev/nu
 EFS_LOGS_ACCESS_POINT=$(terraform output -raw efs_logs_access_point_id 2>/dev/null || echo "")
 AWS_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "us-east-1")
 CLUSTER_NAME=$(terraform output -raw cluster_name 2>/dev/null || echo "")
+LOG_GROUP=$(terraform output -raw cloudwatch_log_group 2>/dev/null || echo "")
 
 echo "• Database: $DB_ENDPOINT"
 echo "• EFS: $EFS_ID"
 echo "• Region: $AWS_REGION"
 echo "• Cluster: $CLUSTER_NAME"
+echo "• Log group: $LOG_GROUP"
 echo ""
 
-if [[ -z "$EFS_ID" || -z "$EFS_DATA_ACCESS_POINT" ]]; then
+if [[ -z "$EFS_ID" || -z "$EFS_DATA_ACCESS_POINT" || -z "$CLUSTER_NAME" || -z "$LOG_GROUP" ]]; then
     echo -e "${RED}❌ Error: Missing required infrastructure outputs${NC}"
+    echo "   efs_id, efs_data_access_point_id, cluster_name and cloudwatch_log_group must all be set."
+    echo "   Run ./tf-apply.sh in this directory first."
     exit 1
 fi
 
@@ -232,6 +240,7 @@ sed -i.bak \
     -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
     -e "s|eks.amazonaws.com/role-arn: \"\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
     -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
+    -e "s|CLOUDWATCH_LOG_GROUP_PLACEHOLDER|$LOG_GROUP|g" \
     "$TEMP_VALUES_FILE"
 
 # Fill in or delete the search: block between its markers, after the database
@@ -271,9 +280,9 @@ else
 fi
 rm -f "${TEMP_VALUES_FILE}.bak2"
 
-if grep -q "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
-    echo -e "${RED}❌ Error: a search placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
-    grep -n "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"
+if grep -q "_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
+    echo -e "${RED}❌ Error: a placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
+    grep -n "_PLACEHOLDER" "$TEMP_VALUES_FILE"
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
@@ -324,38 +333,6 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --timeout 10m; then
 
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
-
-    RDS_SG_ID=$(terraform output -raw rds_security_group_id 2>/dev/null || echo "")
-    if [[ -n "$RDS_SG_ID" && "$RDS_SG_ID" != "null" ]]; then
-        timeout=120
-        elapsed=0
-        EKS_NODE_SG=""
-        while [[ -z "$EKS_NODE_SG" ]] && [ $elapsed -lt $timeout ]; do
-            EKS_NODE_SG=$(aws ec2 describe-instances \
-                --filters "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" "Name=instance-state-name,Values=running" \
-                --query 'Reservations[].Instances[0].SecurityGroups[].GroupId' \
-                --output text 2>/dev/null | awk '{print $1}')
-
-            if [[ -z "$EKS_NODE_SG" ]]; then
-                sleep 10
-                elapsed=$((elapsed + 10))
-            fi
-        done
-
-        if [[ -n "$EKS_NODE_SG" ]]; then
-            EXISTING_RULE=$(aws ec2 describe-security-groups \
-                --group-ids "$RDS_SG_ID" \
-                --query "SecurityGroups[0].IpPermissions[?FromPort==\`5432\` && ToPort==\`5432\`].UserIdGroupPairs[?GroupId==\`$EKS_NODE_SG\`]" \
-                --output text 2>/dev/null || echo "")
-
-            if [[ -z "$EXISTING_RULE" ]]; then
-                aws ec2 authorize-security-group-ingress \
-                    --group-id "$RDS_SG_ID" \
-                    --protocol tcp --port 5432 \
-                    --source-group "$EKS_NODE_SG" >/dev/null 2>&1 || true
-            fi
-        fi
-    fi
 
     kubectl wait --for=condition=ready pod -l name=nexus-iq-server-ha-iq-server -n "$NAMESPACE" --timeout=5m >/dev/null 2>&1 || true
 

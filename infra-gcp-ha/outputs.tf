@@ -9,11 +9,6 @@ output "load_balancer_url" {
   value       = var.enable_ssl ? "https://${var.domain_name != "" ? var.domain_name : google_compute_global_address.iq_ha_lb_ip.address}" : "http://${google_compute_global_address.iq_ha_lb_ip.address}"
 }
 
-output "load_balancer_admin_url" {
-  description = "Admin URL for Nexus IQ Server (access via SSH tunnel)"
-  value       = var.enable_ssl ? "https://${var.domain_name != "" ? var.domain_name : google_compute_global_address.iq_ha_lb_ip.address}:8071" : "http://${google_compute_global_address.iq_ha_lb_ip.address}:8071"
-}
-
 # Database outputs
 output "database_connection_name" {
   description = "Cloud SQL instance connection name"
