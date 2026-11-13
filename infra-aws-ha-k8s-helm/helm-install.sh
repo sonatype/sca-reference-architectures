@@ -357,13 +357,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         fi
     fi
 
-    if kubectl get pods -l app.kubernetes.io/name=nexus-iq-server-ha -n "$NAMESPACE" 2>/dev/null | grep -q "nexus"; then
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=nexus-iq-server-ha -n "$NAMESPACE" --timeout=300s >/dev/null 2>&1 || true
-    elif kubectl get pods -l app=nexus-iq-server-ha -n "$NAMESPACE" 2>/dev/null | grep -q "nexus"; then
-        kubectl wait --for=condition=ready pod -l app=nexus-iq-server-ha -n "$NAMESPACE" --timeout=300s >/dev/null 2>&1 || true
-    else
-        sleep 30
-    fi
+    kubectl wait --for=condition=ready pod -l name=nexus-iq-server-ha-iq-server -n "$NAMESPACE" --timeout=5m >/dev/null 2>&1 || true
 
     ALB_ADDRESS=""
     ALB_TIMEOUT=120
