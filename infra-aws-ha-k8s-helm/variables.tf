@@ -269,7 +269,7 @@ variable "opensearch_domain_name" {
 }
 
 variable "opensearch_engine_version" {
-  description = "OpenSearch engine version for the created domain, as AWS names it. Pinned rather than tracking the newest, so two bring-ups run the same engine and a measurement describes a known version. IQ Server needs 3.x."
+  description = "OpenSearch engine version for the created domain, as AWS names it. The default is OpenSearch_3.7. Any OpenSearch 3.x version is supported."
   type        = string
   default     = "OpenSearch_3.7"
 
@@ -284,8 +284,7 @@ variable "opensearch_instance_type" {
     Data node instance type for the created domain.
 
     The default is the published type for Size M.
-    Smaller types than the published ones have been measured failing in ways
-    that read as something else.
+    Use at least the published type for your size.
 
     See the OpenSearch section of this directory's README.md for the type each
     size needs.
@@ -326,8 +325,8 @@ variable "opensearch_volume_size_gb" {
     gp3 storage per data node, in GB.
 
     The index needs room for more than one copy of itself: a replica doubles it,
-    and a re-index holds a second generation while it runs and for a short while
-    after it cuts over. AWS also reserves 20% of each volume, capped at 20 GiB.
+    and a rebuild needs free disk for a second copy of the index. AWS also
+    reserves 20% of each volume, capped at 20 GiB.
 
     See the OpenSearch section of this directory's README.md for the size each
     tier needs.
