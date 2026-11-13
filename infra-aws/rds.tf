@@ -58,6 +58,8 @@ resource "aws_db_instance" "iq_db" {
   monitoring_role_arn          = aws_iam_role.rds_enhanced_monitoring.arn
 
   auto_minor_version_upgrade = true
+  # A change to the major version of postgres_version upgrades the instance in place.
+  allow_major_version_upgrade = true
 
   tags = {
     Name = "${var.cluster_name}-iq-database"
