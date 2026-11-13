@@ -59,7 +59,7 @@ variable "node_disk_size" {
 }
 
 variable "aurora_engine_version" {
-  description = "Aurora PostgreSQL engine version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
+  description = "Aurora PostgreSQL engine version."
   type        = string
   default     = "18.6"
 }

@@ -105,7 +105,7 @@ variable "db_max_allocated_storage" {
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL engine version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
+  description = "PostgreSQL engine version."
   type        = string
   default     = "18.6"
 }
