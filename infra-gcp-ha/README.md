@@ -203,6 +203,8 @@ Enable these APIs in your project:
 1. **Wait for service to be ready:**
    - Initial startup can take 10-15 minutes
    - All instances must complete database migrations and clustering setup
+   - On an empty database one instance runs the first migration while the others wait. If that instance stops before IQ Server answers, a waiting instance takes over the migration automatically.
+   - If an instance is killed partway through the first migration on an empty database, IQ Server cannot finish it on a later start. Drop the `insight_brain_ods`, `insight_brain_aggregation`, `insight_brain_dm` and `insight_brain_third_party_scans` schemas, then replace the instances.
 
 2. **Access the web UI:**
 
