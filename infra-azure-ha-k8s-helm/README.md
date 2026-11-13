@@ -124,8 +124,8 @@ iq_server:
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
 | **M** | MO_Standard_E8ds_v6 | 8 | 64 GB | 128 GB (auto-grow) |
-| **L** | MO_Standard_E8ds_v6 | 8 | 64 GB | 256 GB, auto-grow to 1 TB |
-| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 512 GB, auto-grow to 2 TB |
+| **L** | MO_Standard_E8ds_v6 | 8 | 64 GB | 256 GB, grows automatically, expected to grow to about 1 TB |
+| **XL** | MO_Standard_E16ds_v6 | 16 | 128 GB | 512 GB, grows automatically, expected to grow to about 2 TB |
 
 ### Shared Storage (Azure Files Premium ZRS)
 
