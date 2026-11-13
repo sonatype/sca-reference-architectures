@@ -63,8 +63,8 @@ if ! kubectl cluster-info >/dev/null 2>&1; then
     if [[ -n "$KUBECTL_COMMAND" ]]; then
         $KUBECTL_COMMAND >/dev/null 2>&1
     else
-        # No Terraform outputs yet, so name the cluster from terraform.tfvars, falling back
-        # to the variables.tf defaults Terraform itself would use.
+        # Without Terraform outputs, the cluster name and region come from terraform.tfvars,
+        # falling back to the variables.tf defaults Terraform itself uses.
         AWS_REGION=$(sed -n 's/^aws_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || true)
         AWS_REGION=${AWS_REGION:-us-east-1}
         CLUSTER_NAME=$(sed -n 's/^cluster_name *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || true)
