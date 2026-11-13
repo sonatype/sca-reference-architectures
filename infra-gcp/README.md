@@ -502,7 +502,7 @@ affects it.
 
 | | What to run |
 |---|---|
-| OpenSearch version | 3.x, and 3.8 recommended |
+| OpenSearch version | 3.x (3.7 recommended) |
 | Data nodes | One is enough for XS and S. More than one needs `opensearch_index_replicas` raised to at least 1, or a lost node loses a shard |
 | Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
 | Disk | Hyperdisk Balanced on C4A, or SSD persistent disk on a series that takes it. The index is write-heavy during a rebuild |
