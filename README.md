@@ -524,6 +524,7 @@ Enterprise-scale HA deployment supporting 20,000+ evaluations/day. Requires 4 no
 # infra-aws-ha/terraform.tfvars — Size XL
 ecs_cpu              = 16384               # 16 vCPU
 ecs_memory           = 122880             # 120 GB, the maximum at 16 vCPU
+ecs_memory_reservation = 106496           # 104 GB soft limit, the 96 GB heap plus 8 GB direct memory
 iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3                   # Minimum instances
 iq_max_count         = 5                   # Maximum instances

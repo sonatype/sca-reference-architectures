@@ -60,6 +60,7 @@ aurora_instances      = 2                  # Multi-AZ with failover
 ```hcl
 ecs_cpu              = 16384               # 16 vCPU
 ecs_memory           = 122880              # 120 GB, the maximum at 16 vCPU
+ecs_memory_reservation = 106496            # 104 GB soft limit, the 96 GB heap plus 8 GB direct memory
 iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3
 iq_max_count         = 5
@@ -270,8 +271,8 @@ enable_nat_gateway     = true
 
 # ECS Configuration
 ecs_cpu                 = 8192   # 8 vCPU
-ecs_memory              = 32768  # 32 GB
-ecs_memory_reservation  = 24576  # 24 GB soft limit
+ecs_memory              = 61440  # 60 GB, the Size M and L value
+ecs_memory_reservation  = 53248  # 52 GB soft limit, the heap plus direct memory
 
 # IQ Server Configuration
 iq_desired_count        = 3
@@ -280,7 +281,7 @@ iq_max_count           = 4
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
 iq_memory_target_value = 80  # Memory target for auto scaling (%)
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
