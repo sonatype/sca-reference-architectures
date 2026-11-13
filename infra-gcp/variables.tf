@@ -351,7 +351,7 @@ variable "opensearch_index_replicas" {
 # different values can share one. Empty keeps the default names.
 
 variable "cluster_name" {
-  description = "Prefix for every resource name that has to be unique inside a Google Cloud project. Empty, the default, reproduces the names this architecture has always published, so an existing deployment is not renamed. Set it to a distinct value per deployment when several sizes share one project."
+  description = "Prefix for every resource name that has to be unique inside a Google Cloud project. Empty, the default, keeps the default names. Set it to a distinct value per deployment when several sizes share one project."
   type        = string
   default     = ""
 
