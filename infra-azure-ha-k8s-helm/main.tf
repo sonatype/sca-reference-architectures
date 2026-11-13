@@ -229,8 +229,8 @@ resource "azurerm_network_security_group" "aks_nsg" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_ranges    = ["8070", "30000-32767"]
-    source_address_prefix      = "Internet"
+    destination_port_range     = "8070"
+    source_address_prefix      = var.public_subnet_cidr
     destination_address_prefix = "*"
   }
 
