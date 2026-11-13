@@ -67,20 +67,32 @@ resource "google_compute_instance" "iq_server" {
   ]
 }
 
-# Unmanaged Instance Group for Load Balancer
+# Unmanaged Instance Group for Load Balancer. Its one member is added by the membership below,
+# not by an instances list on the group.
 resource "google_compute_instance_group" "iq_group" {
   name        = "${local.app_name}-instance-group"
   description = "Instance group for Nexus IQ Server"
   zone        = var.gcp_zone
   project     = var.gcp_project_id
 
-  instances = [
-    google_compute_instance.iq_server.self_link
-  ]
-
   named_port {
     name = "http"
     port = 8070
+  }
+}
+
+# Deleting the VM removes it from the group, and its replacement has the same name and so the
+# same self link. A group listing the VM by self link sees no change and leaves the new VM out
+# of the load balancer, so the membership is replaced whenever the VM is: it is removed before
+# the old VM is deleted and added once the new VM exists, in the same apply.
+resource "google_compute_instance_group_membership" "iq_server" {
+  instance       = google_compute_instance.iq_server.self_link
+  instance_group = google_compute_instance_group.iq_group.name
+  zone           = var.gcp_zone
+  project        = var.gcp_project_id
+
+  lifecycle {
+    replace_triggered_by = [google_compute_instance.iq_server.instance_id]
   }
 }
 
