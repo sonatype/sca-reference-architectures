@@ -80,6 +80,10 @@ iq_server:
   serviceAnnotations:
     service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/ping"
     service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
+  # serviceType gives the admin service, port 8071, a load balancer too. This keeps it on a
+  # private address inside the virtual network rather than a public one.
+  adminServiceAnnotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
 
 
   # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
@@ -185,8 +189,15 @@ fluentd:
 external-dns:
   enabled: false
 
-migrationJob:
-  enabled: false
+# The database migration job runs once, as a post-install hook, so a helm upgrade does
+# not start it again while IQ Server is using the database. helm waits for a hook and
+# fails the install if the migration fails. When an upgrade changes the IQ Server image,
+# MIGRATE_DATABASE=yes ./helm-upgrade.sh scales IQ Server to zero and runs the job as a
+# pre-upgrade hook.
+iq_server_jobs:
+  migrationJobAnnotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 
 
 livenessProbe:
