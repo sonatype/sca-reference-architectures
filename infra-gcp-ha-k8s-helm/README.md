@@ -245,10 +245,8 @@ Enable these APIs in your project:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
 ### Configuration Variables
 
@@ -312,10 +310,6 @@ hpa:
   minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
   maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
-
-> **Upgrading an existing deployment.** Earlier installs ran 2 pods with no autoscaler. The next
-> `helm-upgrade.sh` moves them to the values above, so before upgrading, set `nexus_iq_replica_count`
-> in `terraform.tfvars` and the `hpa` block in `helm-values.yaml` to what the deployment runs.
 
 **Important Settings:**
 - **`node_group_min_size = 2`** - Minimum GKE node capacity
