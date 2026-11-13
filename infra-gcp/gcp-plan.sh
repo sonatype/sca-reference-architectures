@@ -115,6 +115,62 @@ validate_configuration() {
     print_status "Configuration validation completed"
 }
 
+# The load balancer's instance group gets its VM through google_compute_instance_group_membership.
+# When the state holds the group with the VM already a member and no membership resource, adding
+# the VM again would fail as already a member, so the existing membership is imported instead.
+import_group_membership() {
+    cd "$TERRAFORM_DIR"
+
+    local state
+    state=$(terraform state list 2>/dev/null) || return 0
+    grep -qx 'google_compute_instance_group.iq_group' <<< "$state" || return 0
+    grep -qx 'google_compute_instance_group_membership.iq_server' <<< "$state" && return 0
+
+    local import_id
+    import_id=$(terraform show -json 2>/dev/null | jq -r '
+        [.values.root_module.resources[]?] as $rs
+        | ($rs[] | select(.address == "google_compute_instance_group.iq_group") | .values) as $g
+        | ($rs[] | select(.address == "google_compute_instance.iq_server") | .values) as $vm
+        | select(any(($g.instances // [])[]; . == $vm.self_link))
+        | "\($g.project)/\($g.zone)/\($g.name)/\($vm.name)"')
+
+    [[ -n "$import_id" ]] || return 0
+
+    print_status "Importing the existing instance group membership: $import_id"
+    if ! terraform import -input=false -var-file="$TFVARS_FILE" \
+        google_compute_instance_group_membership.iq_server "$import_id" >> "$LOG_FILE" 2>&1; then
+        print_error "Importing the instance group membership failed. Check $LOG_FILE for details."
+        exit 1
+    fi
+}
+
+# The load balancer's instance group gets its VM from google_compute_instance_group_membership.
+# A state that holds the group with the VM as a member and no membership resource has the
+# membership imported, because adding a VM that is already a member fails.
+import_group_membership() {
+    cd "$TERRAFORM_DIR"
+
+    local state
+    state=$(terraform state list 2>/dev/null) || return 0
+    grep -qx "google_compute_instance_group.iq_group" <<< "$state" || return 0
+    grep -qx "google_compute_instance_group_membership.iq_server" <<< "$state" && return 0
+
+    local import_id
+    import_id=$(terraform show -json 2>/dev/null | jq -r '
+        [.values.root_module.resources[]?] as $rs
+        | ($rs[] | select(.address == "google_compute_instance_group.iq_group") | .values) as $g
+        | ($rs[] | select(.address == "google_compute_instance.iq_server") | .values) as $vm
+        | select(any(($g.instances // [])[]; . == $vm.self_link))
+        | "\($g.project)/\($g.zone)/\($g.name)/\($vm.name)"')
+    [[ -n "$import_id" ]] || return 0
+
+    print_status "Importing the instance group membership of the IQ Server VM..."
+    if ! terraform import -input=false -var-file="$TFVARS_FILE" google_compute_instance_group_membership.iq_server "$import_id" >> "$LOG_FILE" 2>&1; then
+        print_error "Importing the instance group membership failed. Check $LOG_FILE for details."
+        exit 1
+    fi
+}
+
 # Function to run terraform plan
 run_terraform_plan() {
     print_status "Running Terraform plan..."
@@ -382,7 +438,9 @@ main() {
     fi
     
     # Run terraform plan
+    import_group_membership
     local plan_exit_code=0
+    import_group_membership
     run_terraform_plan || plan_exit_code=$?
     
     # Show plan summary
