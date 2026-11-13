@@ -389,13 +389,12 @@ Install these tools on your local machine:
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
 | **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
-| **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access |
-| **aws-vault** | Latest | [Install Guide](https://github.com/99designs/aws-vault#installing) | Secure credential management |
+| **AWS CLI** | >= 2.0 | [Install Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | AWS API access, and signing in through IAM Identity Center |
 | **jq** | >= 1.6 | [Install Guide](https://jqlang.org/download/) | Read the plan in `tf-apply.sh` |
 
 #### AWS Account Requirements
 - AWS account with administrative access (or sufficient permissions listed below)
-- IAM user with MFA enabled
+- An IAM Identity Center user with access to the account (recommended), or another way to get credentials, see Step 2
 - Ability to create: VPC, ECS, RDS Aurora, EFS, ALB, IAM roles
 
 #### Required AWS Permissions
@@ -417,30 +416,30 @@ Your IAM user/role needs these AWS service permissions:
 
 ### Step 2: Configure AWS Credentials
 
-**The provided scripts use aws-vault for secure credential management.**
+The scripts call `terraform` and `aws` directly, so they use the standard AWS credential chain
+with the profile named in `AWS_PROFILE`. AWS recommends
+[short-lived credentials from IAM Identity Center](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#bp-users-federation-idp)
+rather than long-term access keys, and both AWS CLI v2 and the Terraform AWS provider read an
+IAM Identity Center profile natively.
 
-1. **Choose a profile name** (e.g., `nexus-iq-deployment`)
-
-2. **Configure your AWS profile in `~/.aws/config`:**
-   ```ini
-   [profile nexus-iq-deployment]
-   region = us-east-1
-   output = json
-   mfa_serial = arn:aws:iam::<YOUR_ACCOUNT_ID>:mfa/<YOUR-USERNAME>
-   ```
-
-3. **Add credentials to aws-vault and test:**
+1. **Create an IAM Identity Center profile** with the AWS CLI wizard, choosing a profile name
+   such as `nexus-iq-deployment`:
    ```bash
-   aws-vault add nexus-iq-deployment
+   aws configure sso --profile nexus-iq-deployment
    ```
-   Enter your AWS Access Key ID and Secret Access Key when prompted
+   It asks for your access portal URL, its region, and the account and role to use, then
+   writes the profile to `~/.aws/config`. See
+   [Configuring IAM Identity Center authentication with the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html).
 
+2. **Sign in and test:**
    ```bash
-   aws-vault exec nexus-iq-deployment -- aws sts get-caller-identity
+   aws sso login --profile nexus-iq-deployment
+   aws sts get-caller-identity --profile nexus-iq-deployment
    ```
-   You should see your AWS account details.
+   You should see your AWS account details. Run `aws sso login` again when the session
+   expires; the scripts stop with that instruction if the credentials are missing or expired.
 
-4. **Set the AWS_PROFILE environment variable:**
+3. **Set the AWS_PROFILE environment variable:**
 
    The scripts require the `AWS_PROFILE` environment variable to be set:
 
@@ -454,6 +453,11 @@ Your IAM user/role needs these AWS service permissions:
    ```bash
    AWS_PROFILE=nexus-iq-deployment <script>
    ```
+
+Any other source in the standard chain works too, such as a profile with access keys or one
+that assumes a role. A tool that injects credentials into the environment also works, for
+example `aws-vault exec nexus-iq-deployment -- ./tf-plan.sh`, in which case `AWS_PROFILE` may be
+left unset.
 
 ### Step 3: Configure Terraform Variables
 

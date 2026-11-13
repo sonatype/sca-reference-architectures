@@ -146,6 +146,9 @@ The tiers are on the N4 series, 64 GB at M and L and 128 GB at XL, because the c
 | **L** | BASIC_HDD | 2.5 TiB | 600 | 1,000 |
 | **XL** | BASIC_HDD | 10 TiB | 1,000 | 5,000 |
 
+`filestore_capacity_gb` sets the capacity, and `helm-install.sh` gives the Kubernetes
+PersistentVolume and its claim the same size, read from the `filestore_capacity_gb` output.
+
 > BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
 
 ### OpenSearch
