@@ -80,6 +80,7 @@ opensearch_index_replicas          = 1
 ```hcl
 ecs_cpu              = 16384               # 16 vCPU
 ecs_memory           = 122880              # 120 GB, the maximum at 16 vCPU
+ecs_memory_reservation = 106496            # 104 GB soft limit, the 96 GB heap plus 8 GB direct memory
 iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3
 iq_max_count         = 5
