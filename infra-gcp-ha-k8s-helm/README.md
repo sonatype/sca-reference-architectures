@@ -536,7 +536,7 @@ effect on it.
 
 | | What to run |
 |---|---|
-| OpenSearch version | 3.x, and 3.8 recommended |
+| OpenSearch version | 3.x (3.7 recommended) |
 | Cluster managers | Three dedicated cluster manager nodes, so losing one leaves a quorum |
 | Data nodes | At least two, spread across zones, with `opensearch_index_replicas` at 1 or more so a lost node does not lose a shard |
 | Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
