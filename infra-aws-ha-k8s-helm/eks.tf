@@ -32,8 +32,19 @@ module "eks" {
 
       ami_type      = local.node_ami_type
       capacity_type = "ON_DEMAND"
-      disk_size     = var.node_disk_size
 
+      # The module builds a launch template for the node group, and EKS ignores disk_size
+      # when a launch template is used, so the root volume size is set here.
+      block_device_mappings = {
+        xvda = {
+          device_name = "/dev/xvda"
+          ebs = {
+            volume_size           = var.node_disk_size
+            volume_type           = "gp3"
+            delete_on_termination = true
+          }
+        }
+      }
 
       iam_role_additional_policies = {
         AmazonEFSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"

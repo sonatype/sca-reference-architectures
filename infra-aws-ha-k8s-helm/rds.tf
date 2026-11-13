@@ -13,7 +13,6 @@ resource "aws_rds_cluster" "iq_cluster" {
   cluster_identifier           = "${var.cluster_name}-aurora-cluster"
   engine                       = "aurora-postgresql"
   engine_version               = var.aurora_engine_version
-  availability_zones           = slice(data.aws_availability_zones.available.names, 0, 2)
   database_name                = var.database_name
   master_username              = var.database_username
   master_password              = var.database_password
@@ -34,6 +33,13 @@ resource "aws_rds_cluster" "iq_cluster" {
     Name        = "${var.cluster_name}-aurora-cluster"
     Environment = var.environment
     Project     = "nexus-iq-server-ha"
+  }
+
+  # Aurora picks the cluster's zones from the subnet group and stores data in three of
+  # them. Changing availability_zones replaces the cluster, so the zones Aurora reports
+  # are never compared, including on a cluster created with a two-zone list.
+  lifecycle {
+    ignore_changes = [availability_zones]
   }
 }
 
