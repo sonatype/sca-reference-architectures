@@ -281,7 +281,8 @@ verify_deployment() {
     
     # Check if key resources exist in state
     local key_resources=(
-        "google_cloud_run_service.iq_service"
+        "google_compute_instance.iq_server"
+        "google_compute_instance_group_membership.iq_server"
         "google_sql_database_instance.iq_db"
         "google_compute_global_address.iq_lb_ip"
     )
