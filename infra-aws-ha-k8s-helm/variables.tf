@@ -395,12 +395,17 @@ variable "opensearch_index_replicas" {
 }
 
 variable "common_tags" {
-  description = "Extra tags merged onto the resources this configuration creates for the search backend. Keep the keys lowercase: AWS treats tag keys as case-insensitive when it checks for duplicates, so a key differing only in case from one already set fails the apply. Values name a deployment or a person, so set them in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  description = "Extra tags merged onto the resources this configuration creates for the search backend. Keep the keys lowercase, and use none of name, environment or project: AWS treats tag keys as case-insensitive when it checks for duplicates, and this configuration already sets Name, Environment and Project, so a matching key fails the apply. Values name a deployment or a person, so set them in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
   type        = map(string)
   default     = {}
 
   validation {
     condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
     error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+
+  validation {
+    condition     = alltrue([for k in keys(var.common_tags) : !contains(["name", "environment", "project"], lower(k))])
+    error_message = "common_tags must not use the keys name, environment or project in any case. This configuration already sets Name, Environment and Project, and AWS refuses two tag keys that differ only in case."
   }
 }

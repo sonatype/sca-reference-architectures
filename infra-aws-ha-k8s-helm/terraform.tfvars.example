@@ -87,11 +87,10 @@ search_engine = "lucene"
 # opensearch_domain_name     = "CHANGE_ME-search-domain"
 
 # Extra tags on the search backend's resources. Keep the keys lowercase, since AWS
-# compares tag keys case-insensitively. Put real values in terraform.tfvars.
+# compares tag keys case-insensitively, and use none of name, environment or project,
+# which this configuration already sets. Put real values in terraform.tfvars.
 # common_tags = {
 #   owner      = "CHANGE_ME_EMAIL"
-#   project    = "CHANGE_ME_PROJECT"
-#   subproject = "CHANGE_ME_SUBPROJECT"
 #   department = "CHANGE_ME_DEPARTMENT"
 #   team       = "CHANGE_ME_TEAM"
 # }

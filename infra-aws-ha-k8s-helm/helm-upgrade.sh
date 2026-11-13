@@ -107,11 +107,18 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 if [[ -f "terraform.tfstate" ]]; then
     DB_ENDPOINT=$(terraform output -raw rds_cluster_endpoint 2>/dev/null)
     AWS_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "us-east-1")
-    CLUSTER_NAME=$(terraform output -raw cluster_id 2>/dev/null)
+    CLUSTER_NAME=$(terraform output -raw cluster_name 2>/dev/null || echo "")
+    if [[ -z "$CLUSTER_NAME" ]]; then
+        echo -e "${RED}❌ Error: terraform output cluster_name is empty${NC}"
+        echo "   Run ./tf-apply.sh in this directory first, then re-run this script."
+        exit 1
+    fi
+    LOG_GROUP=$(terraform output -raw cloudwatch_log_group 2>/dev/null || echo "")
 
     echo "• Database: $DB_ENDPOINT"
     echo "• Region: $AWS_REGION"
     echo "• Cluster: $CLUSTER_NAME"
+    echo "• Log group: $LOG_GROUP"
 else
     AWS_REGION=$(sed -n 's/^aws_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
     AWS_REGION=${AWS_REGION:-us-east-1}
@@ -207,9 +214,18 @@ else
 fi
 rm -f "${TEMP_VALUES_FILE}.bak2"
 
-if grep -q "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
-    echo -e "${RED}❌ Error: a search placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
-    grep -n "OPENSEARCH_.*_PLACEHOLDER" "$TEMP_VALUES_FILE"
+if [[ -z "$LOG_GROUP" ]]; then
+    echo -e "${RED}❌ Error: no cloudwatch_log_group Terraform output found${NC}"
+    echo "   Run this script from the directory holding terraform.tfstate, after ./tf-apply.sh."
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+sed -i.bak3 -e "s|CLOUDWATCH_LOG_GROUP_PLACEHOLDER|$LOG_GROUP|g" "$TEMP_VALUES_FILE"
+rm -f "${TEMP_VALUES_FILE}.bak3"
+
+if grep -q "_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
+    echo -e "${RED}❌ Error: a placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
+    grep -n "_PLACEHOLDER" "$TEMP_VALUES_FILE"
     rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
@@ -223,6 +239,42 @@ if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
 fi
 
 echo "• Chart Version: $CHART_VERSION"
+
+# The migration job is a post-install hook (helm-values.yaml), so this upgrade runs it
+# only when the IQ Server image changes, and then only with MIGRATE_DATABASE=yes. The
+# migration refuses to start while any IQ Server instance uses the database, so IQ
+# Server is scaled to zero first and the job runs as a pre-upgrade hook, which helm
+# waits for and fails the upgrade on.
+IQ_DEPLOYMENT="${HELM_RELEASE_NAME}-iq-server-deployment"
+IQ_CONTAINER="${HELM_RELEASE_NAME}-iq-server-container"
+CURRENT_IMAGE=$(kubectl get deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" \
+    -o jsonpath="{.spec.template.spec.containers[?(@.name==\"$IQ_CONTAINER\")].image}" 2>/dev/null || echo "")
+NEW_IMAGE=$(helm template "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+    --namespace "$NAMESPACE" \
+    --version "$CHART_VERSION" \
+    --values "$TEMP_VALUES_FILE" \
+    --show-only templates/iq-server-deployment.yaml 2>/dev/null \
+    | sed -n "/name: $IQ_CONTAINER\$/{n;s/^ *image: *//p;}" || true)
+if [[ -z "$NEW_IMAGE" ]]; then
+    echo -e "${RED}❌ Error: could not render the IQ Server image from chart $CHART_VERSION${NC}"
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+MIGRATE_ARGS=()
+if [[ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]]; then
+    if [[ "$MIGRATE_DATABASE" != "yes" ]]; then
+        echo -e "${RED}❌ Error: the IQ Server image changes from ${CURRENT_IMAGE:-none} to $NEW_IMAGE${NC}"
+        echo "   A new image needs a database migration, which stops IQ Server for its duration."
+        echo "   Back up the database, then re-run with MIGRATE_DATABASE=yes ./helm-upgrade.sh"
+        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+        exit 1
+    fi
+    MIGRATE_ARGS=(--set-string 'iq_server_jobs.migrationJobAnnotations.helm\.sh/hook=pre-upgrade')
+    echo "• IQ Server image: ${CURRENT_IMAGE:-none} -> $NEW_IMAGE"
+    echo "  IQ Server is scaled to zero and the database migration runs before it starts again."
+else
+    echo "• IQ Server image: $NEW_IMAGE, unchanged, so the database migration does not run"
+fi
 echo ""
 
 helm diff upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
@@ -251,13 +303,43 @@ echo "━━━━━━━━━━━━━━━━━━━━━"
 echo "This may take 15-20 minutes..."
 echo ""
 
-helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
+    echo "• Scaling IQ Server to zero for the database migration"
+    kubectl scale deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" --replicas=0
+    kubectl wait --for=delete pod -l "name=${HELM_RELEASE_NAME}-iq-server" -n "$NAMESPACE" --timeout=10m 2>/dev/null || true
+    # The migration refuses to run within 15 seconds of an IQ Server instance using the database.
+    sleep 20
+fi
+
+if ! helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
+    "${MIGRATE_ARGS[@]}" \
     --timeout 20m \
     --wait \
-    --atomic
+    --atomic; then
+    echo ""
+    echo -e "${RED}❌ Upgrade failed, and --atomic rolls the release back to revision $CURRENT_REVISION${NC}"
+    kubectl logs "job/${HELM_RELEASE_NAME}-migrate-db" -n "$NAMESPACE" --tail=20 2>/dev/null || true
+    if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
+        echo "IQ Server was scaled to zero for the migration. Once the cause is fixed, start it again:"
+        echo "  kubectl scale deployment $IQ_DEPLOYMENT -n $NAMESPACE --replicas=$REPLICA_COUNT"
+    fi
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
+# helm keeps the replica count kubectl scale set, since the chart value did not change,
+# and the autoscaler does not act on a deployment at zero, so IQ Server is started here.
+if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
+    kubectl scale deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" --replicas="$REPLICA_COUNT"
+    if ! kubectl rollout status deployment/"$IQ_DEPLOYMENT" -n "$NAMESPACE" --timeout=15m; then
+        echo -e "${RED}❌ Error: IQ Server did not become ready after the database migration${NC}"
+        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+        exit 1
+    fi
+fi
 
 echo ""
 echo -e "${GREEN}✅ Upgrade Completed Successfully${NC}"
