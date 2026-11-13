@@ -90,7 +90,7 @@ variable "node_disk_size" {
 
 
 variable "postgres_version" {
-  description = "PostgreSQL major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
+  description = "PostgreSQL major version."
   type        = string
   default     = "18"
 }
