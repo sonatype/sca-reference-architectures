@@ -64,6 +64,7 @@ java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC 
 db_instance_tier     = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
 db_disk_type         = "HYPERDISK_BALANCED"   # the only storage the N4 tiers take
 db_disk_provisioned_iops = 8000               # read and write combined
+db_disk_provisioned_throughput = 340         # MiB/s
 db_disk_size         = 128                 # GB, auto-resize enabled
 filestore_tier       = "BASIC_HDD"         # 1 TiB (600 read / 1,000 write IOPS)
 filestore_capacity_gb = 1024               # 1 TiB minimum
@@ -76,9 +77,9 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 |------|:--------|:----:|:------:|:-------:|
 | **XS** | db-custom-2-7680 | 2 | 7.5 GB | 64 GB PD-SSD |
 | **S** | db-custom-2-13312 | 2 | 13 GB | 128 GB PD-SSD |
-| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS (auto-resize to 500 GB) |
+| **M** | db-custom-N4-8-65536 (Enterprise) | 8 | 64 GB | 128 GB Hyperdisk Balanced, 8,000 IOPS and 340 MiB/s (auto-resize to 500 GB) |
 
-M uses the N4 series for 64 GB, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, whose default for a disk up to 256 GB is 4,000 IOPS, so the IOPS are set to 8,000. XS and S stay on the classic tiers on PD-SSD.
+M uses the N4 series for 64 GB, because the classic `db-custom` tiers allow at most 6.5 GB per vCPU, 52 GB at 8 vCPU. N4 takes only Hyperdisk Balanced storage, whose Cloud SQL default is 4,000 IOPS and 170 MiB/s, so the disk is set to 8,000 IOPS and 340 MiB/s, the same throughput for each IOPS. Cloud SQL takes the two values together. XS and S stay on the classic tiers on PD-SSD.
 
 ### OpenSearch
 
@@ -277,7 +278,7 @@ Enable these APIs in your project:
 > **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
 > PostgreSQL 18.
 
-> **Database tier and disk type.** A change to `db_instance_tier` or `db_disk_type` updates the existing instance rather than replacing it. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving from Hyperdisk back to SSD can incur significant downtime. With `db_disk_type = "PD_SSD"`, `db_disk_provisioned_iops` is ignored.
+> **Database tier and disk type.** A change to `db_instance_tier` or `db_disk_type` updates the existing instance rather than replacing it. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving from Hyperdisk back to SSD can incur significant downtime. With `db_disk_type = "PD_SSD"`, `db_disk_provisioned_iops` and `db_disk_provisioned_throughput` are ignored.
 
 ### Configuration Variables
 
@@ -318,6 +319,7 @@ db_instance_tier                    = "db-custom-N4-8-65536"  # 8 vCPU, 64 GB, N
 db_edition                          = "ENTERPRISE"
 db_disk_type                        = "HYPERDISK_BALANCED"
 db_disk_provisioned_iops            = 8000
+db_disk_provisioned_throughput      = 340
 db_availability_type                = "ZONAL"
 db_disk_size                        = 128
 db_max_disk_size                    = 500
