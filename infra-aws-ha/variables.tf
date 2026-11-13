@@ -171,7 +171,7 @@ variable "db_password" {
 }
 
 variable "aurora_engine_version" {
-  description = "Aurora PostgreSQL engine version. The parameter group family follows its major version. An existing deployment sets the version it runs; upgrading is the deployer's decision."
+  description = "Aurora PostgreSQL engine version. The parameter group family follows its major version."
   type        = string
   default     = "18.6"
 }
