@@ -295,33 +295,8 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
-
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `iq_min_replicas` | 3 | 2 |
-> | `iq_max_replicas` | 5 | 4 |
-> | `container_cpu` | 4.0 | 8.0 |
-> | `container_memory` | `8Gi` | `64Gi` |
-> | `java_opts` | 6 GB heap | 48 GB heap |
-> | `db_sku_name` | `GP_Standard_D8s_v3` | `MO_Standard_E8ds_v6` |
-> | `db_storage_mb` | 65536, fixed | 131072 for a new server, then grows automatically. An existing server keeps its size |
-> | `file_share_quota_gb` | 200 | 500 |
-> | workload profile | `D4`, 1 to 3 nodes | `workload_profile_type`, default `E8`, `iq_min_replicas` to `iq_max_replicas` nodes |
-> | `azure_region` | East US 2 | East US. A region change replaces every resource, so an existing deployment sets its region here |
->
-> **Earlier versions did not read `cluster_name`**, though the example file set it. A deployment whose
-> `terraform.tfvars` sets it to anything other than `ref-arch-iq-ha` would have every resource renamed,
-> which replaces the resource group, the PostgreSQL server and the storage account, and the data in
-> them. Remove that line, or set it to `ref-arch-iq-ha`, before applying.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
 ### Configuration Variables
 

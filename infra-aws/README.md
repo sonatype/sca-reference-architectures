@@ -263,8 +263,8 @@ What the created domain gets, none of which needs configuring:
   at one data node, since there is then no cluster state worth separating.
 
 **Fine-grained access control has to stay off for as long as the domain holds this
-index.** With it on, SigV4 alone no longer reaches the domain, and IQ Server's
-`type: aws` configuration stops working.
+index.** With it on, SigV4 alone does not reach the domain, and IQ Server's
+`type: aws` configuration does not work.
 
 ### Domain shape per size
 
@@ -522,33 +522,11 @@ left unset.
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `postgres_version` | 15.10 | 18.6 |
-> | `ecs_memory` | 32768 | 61440 |
-> | `java_opts` | 24 GB heap | 44 GB heap |
-> | `db_instance_class` | db.r6g.2xlarge | db.r8g.2xlarge |
-> | `db_allocated_storage` | 500 | 128. RDS cannot shrink storage, so an existing instance keeps its size here |
-> | `db_max_allocated_storage` | 1000 | 500 |
->
 > An instance class change applies in the next maintenance window, because this
 > configuration does not set `apply_immediately`.
->
-> The server log rolls hourly, and logback deletes only names the hourly pattern
-> produces, so the daily archives an earlier version wrote stay in the log
-> directory. Delete them once, from anything that mounts the logs EFS access
-> point: `rm /var/log/nexus-iq-server/clm-server-????-??-??.log.gz`. That name
-> never matches an hourly archive.
 
 ### Configuration Variables
 

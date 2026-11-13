@@ -274,34 +274,10 @@ Enable these APIs in your project:
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new
-> deployments, PostgreSQL 18. An existing deployment sets `postgres_version` in
-> `terraform.tfvars` to the version it runs today, and one still on PostgreSQL 15 is below
-> the minimum. Upgrading is the deployer's decision.
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
 
-> **Upgrading an existing deployment.** These variable defaults changed with the
-> published sizing. A deployment whose `terraform.tfvars` does not set a variable
-> picks up the new default on its next apply. Set the values your deployment is
-> running at in `terraform.tfvars` before applying.
->
-> | Variable | Previous default | New default |
-> |---|:---:|:---:|
-> | `postgres_version` | POSTGRES_17 | POSTGRES_18 |
-> | `db_disk_size` | 100 | 128, and the disk cannot shrink |
-> | `db_max_disk_size` | 1000 | 500. An instance already above 500 GB keeps its size here |
-> | `java_opts` | 48 GB heap, no direct memory cap | the Size M `java_opts` above |
-> | `gce_boot_image` | `debian-cloud/debian-12` | empty, which picks `debian-12-arm64` on an Arm machine type |
-> | `db_instance_tier` | db-custom-8-30720 | db-custom-N4-8-65536 |
-> | `db_disk_type` | PD_SSD, fixed in `database.tf` | HYPERDISK_BALANCED, now a variable |
-> | `db_disk_provisioned_iops` | none | 8000, used only on HYPERDISK_BALANCED |
->
-> The server log rolls hourly, and logback deletes only names the hourly pattern
-> produces, so the daily archives an earlier version wrote stay in the log
-> directory. Delete them once, on the VM:
-> `sudo rm /mnt/sonatype-work/logs/clm-server-????-??-??.log.gz`. That name
-> never matches an hourly archive.
-
-> **Existing deployments and the N4 database tiers.** The Size M database default moved from `db-custom-8-30720` on `PD_SSD` to `db-custom-N4-8-65536` on `HYPERDISK_BALANCED`, and the google provider moved from `~> 5.0` to `~> 8.0`, so run `terraform init -upgrade` first. On provider 8.x a change to the tier or the disk type is an update to the existing instance, not a replacement. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving back from Hyperdisk to SSD later can incur significant downtime. Whether to move is your decision. To stay on the current shape, set `db_instance_tier` to the tier you run today and `db_disk_type = "PD_SSD"` in `terraform.tfvars`; `db_disk_provisioned_iops` is then ignored.
+> **Database tier and disk type.** A change to `db_instance_tier` or `db_disk_type` updates the existing instance rather than replacing it. Google migrates the storage from SSD to Hyperdisk Balanced as part of that change and says it generally needs minimal downtime; moving from Hyperdisk back to SSD can incur significant downtime. With `db_disk_type = "PD_SSD"`, `db_disk_provisioned_iops` is ignored.
 
 ### Configuration Variables
 
@@ -398,10 +374,6 @@ cluster_name = "iq-xs"   # a distinct value per deployment
 
 **The default is empty, which keeps the default names**, including the two firewall rules with no
 prefix, `allow-egress-gce` and `allow-google-apis`. A set value prefixes them like everything else.
-
-**The first apply after upgrading replaces the VM**, because its startup script changes. The
-instance is destroyed before its replacement is created, so IQ Server is down until the new VM has
-started. The data on Filestore and Cloud SQL is kept.
 
 Setting it renames the
 VPC, both subnets, the router, the Cloud NAT, the reserved address, every firewall rule, the load
