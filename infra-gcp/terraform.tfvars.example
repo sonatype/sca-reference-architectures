@@ -7,6 +7,11 @@ gcp_region     = "us-central1"
 gcp_zone       = "us-central1-a"
 environment    = "dev"
 
+# Resource Naming
+# Prefix for every name that must be unique in a project. Empty keeps the default
+# names; set a distinct value per deployment when several share one project, for example "iq-xs".
+cluster_name = ""
+
 # Network Configuration
 # This root creates subnets inside an auto-created VPC, so there is no
 # VPC-wide CIDR variable. Set the three subnet ranges instead.
@@ -15,12 +20,12 @@ private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"
 
 # GCE with Docker Configuration
-gce_machine_type   = "e2-standard-8"
-gce_boot_image     = "debian-cloud/debian-12"
+gce_machine_type   = "n4a-highmem-8"
+gce_boot_image     = ""  # Empty picks Debian 12 for the machine type's architecture
 gce_boot_disk_size = 100
 iq_desired_count   = 1
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xmx48g -Xms48g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
@@ -29,8 +34,8 @@ db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this
 # Cloud SQL cannot downgrade a major version in place. If an instance already exists
 # on another major version, set that version here.
 postgres_version                    = "POSTGRES_18"
-db_instance_tier                    = "db-perf-optimized-N-8"
-db_edition                          = "ENTERPRISE_PLUS"
+db_instance_tier                    = "db-custom-8-30720"
+db_edition                          = "ENTERPRISE"
 db_availability_type                = "ZONAL"
 db_disk_size                        = 128
 db_max_disk_size                    = 500
@@ -44,9 +49,27 @@ db_deletion_protection              = false
 
 # Storage Configuration
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
+filestore_tier        = "BASIC_HDD"
 filestore_capacity_gb = 1024
 
 # Load Balancer Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
+
+# Search Backend
+# "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
+# you run yourself; build it to README.md, "Search Backend".
+search_engine = "lucene"
+
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
+# opensearch_port                     = 9200
+# opensearch_use_tls                  = true
+# opensearch_username                 = "nexusiq"
+# opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 1  # 1 for three data nodes at M, 0 for one at XS and S
+# Only for a private certificate authority:
+# opensearch_ca_certificate = <<-EOT
+#   -----BEGIN CERTIFICATE-----
+#   ...the authority's PEM certificate...
+#   -----END CERTIFICATE-----
+# EOT

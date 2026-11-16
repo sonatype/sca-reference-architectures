@@ -83,6 +83,11 @@ resource "google_container_cluster" "iq_gke" {
   ]
 }
 
+# The N4, N4A, C4 and C4A machine series accept only Hyperdisk.
+locals {
+  machine_needs_hyper = can(regex("^(n4|n4a|n4d|c4|c4a|c4d)-", var.node_instance_type))
+}
+
 resource "google_container_node_pool" "iq_node_pool" {
   name       = "${local.cluster_name}-node-pool"
   location   = var.gcp_region
@@ -103,7 +108,7 @@ resource "google_container_node_pool" "iq_node_pool" {
   node_config {
     machine_type = var.node_instance_type
     disk_size_gb = var.node_disk_size
-    disk_type    = "pd-standard"
+    disk_type    = local.machine_needs_hyper ? "hyperdisk-balanced" : "pd-standard"
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",

@@ -118,3 +118,19 @@ output "ssl_certificate_name" {
   value       = var.enable_ssl && var.domain_name != "" ? google_compute_managed_ssl_certificate.iq_ssl_cert[0].name : null
 }
 
+# Search Backend Outputs
+output "search_engine" {
+  description = "Search backend Nexus IQ Server is configured to use"
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "URI Nexus IQ Server uses to reach OpenSearch, or null when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? local.opensearch_uri : null
+}
+
+output "opensearch_password_secret_name" {
+  description = "Secret Manager secret holding the OpenSearch password, or null when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? google_secret_manager_secret.opensearch_password[0].secret_id : null
+}
+

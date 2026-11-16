@@ -1,7 +1,7 @@
 # Cloud Filestore for persistent shared storage (equivalent to AWS EFS)
 # Enables true multi-instance HA clustering with concurrent NFS access
 resource "google_filestore_instance" "iq_ha_filestore" {
-  name     = "nexus-iq-ha-filestore-${random_string.suffix.result}"
+  name     = "${local.app_name}-filestore-${random_string.suffix.result}"
   location = var.filestore_zone
   tier     = var.filestore_tier
   project  = var.gcp_project_id

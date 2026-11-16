@@ -4,7 +4,7 @@ metadata:
   name: nexus-iq-filestore-pv
 spec:
   capacity:
-    storage: 2560Gi
+    storage: FILESTORE_CAPACITY_PLACEHOLDER
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain

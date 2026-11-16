@@ -36,6 +36,19 @@ db_max_disk_size        = 500
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 1024             # 1 TiB
 ```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "6"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
 </details>
 
 <details>
@@ -53,6 +66,19 @@ db_disk_size            = 256              # GB
 db_max_disk_size        = 1000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 2560             # 2.5 TiB
+```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "6"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 ```
 </details>
 
@@ -72,7 +98,26 @@ db_max_disk_size        = 2000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 10240            # 10 TiB
 ```
+In `helm-values.yaml`:
+
+```yaml
+iq_server:
+  resources:
+    requests:
+      cpu: "12"
+      memory: "96Gi"
+    limits:
+      cpu: "16"
+      memory: "110Gi"
+  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
 </details>
+
+> The Helm chart renders the pod spec, so each pod's CPU, memory and heap come from
+> `iq_server.resources` and `iq_server.javaOpts` in `helm-values.yaml`, which ships with the M and L
+> values. The heap and `-XX:MaxDirectMemorySize` together stay under the memory limit, so metaspace,
+> thread stacks and code cache have room: 4 GB of the `56Gi` limit at M and L, and 6 GB of the
+> `110Gi` limit at XL, which fits under the memory an `n4a-highmem-16` node leaves for pods.
 
 ### Database Sizing (Cloud SQL PostgreSQL)
 
@@ -103,7 +148,7 @@ Install these tools on your local machine:
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------  |
-| **Terraform** | >= 1.0 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
+| **Terraform** | >= 1.2 | [Install Guide](https://developer.hashicorp.com/terraform/install) | Infrastructure as Code |
 | **gcloud CLI** | Latest | [Install Guide](https://cloud.google.com/sdk/docs/install) | GCP API access |
 | **kubectl** | Latest | [Install Guide](https://kubernetes.io/docs/tasks/tools/) | Kubernetes cluster management |
 | **Helm** | >= 3.9.3 | [Install Guide](https://helm.sh/docs/intro/install/) | Application deployment |
@@ -120,7 +165,7 @@ Your GCP account needs permissions for these services:
 - **Compute Engine**: Routers, security policies (Cloud Armor)
 - **Networking**: VPC, subnets, firewall rules, Cloud NAT, global addresses
 - **Kubernetes Engine**: GKE clusters, node pools, cluster addons (HTTP load balancing, HPA, network policy, GCE persistent disk CSI driver), workload identity configurations
-- **Database**: Cloud SQL instances (including read replicas), databases, users, SSL certificates
+- **Database**: Cloud SQL instances, databases, users, SSL certificates
 - **Storage**: Cloud Filestore instances, NFS shares
 - **Security**: Secret Manager secrets and secret versions, IAM bindings for secrets (secretAccessor)
 - **IAM**: Service accounts, project-level IAM policy bindings (roles assignment), service account IAM bindings (Workload Identity user)
@@ -223,6 +268,13 @@ Enable these APIs in your project:
    - **Username:** `admin`
    - **Password:** `admin123` (change immediately!)
 
+### Database migration in `helm-upgrade.sh`
+
+`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
+only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
+Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
+or the rollout fails.
+
 ---
 
 ## Teardown / Cleanup
@@ -267,8 +319,7 @@ gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
 # GKE Configuration
-kubernetes_version           = "1.27"
-node_instance_type           = "n2-standard-8"  # 8 vCPU, 32GB RAM
+node_instance_type           = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
 node_group_min_size          = 2
 node_group_max_size          = 5
 node_group_desired_size      = 3
@@ -284,7 +335,6 @@ db_max_disk_size                   = 1000
 db_max_connections                 = "400"
 db_backup_retention_count          = 8
 db_deletion_protection             = false
-enable_read_replica                = true
 db_name                            = "nexusiq"
 db_username                        = "nexusiq"
 db_password                        = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
@@ -297,7 +347,17 @@ filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 # Sonatype IQ Server HA Configuration
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
-helm_chart_version      = "195.0.0"
+helm_chart_version      = "201.0.0"
+# Search Backend
+# "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
+# see "Search Backend" below.
+search_engine = "lucene"
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
+# opensearch_port                     = 9200
+# opensearch_use_tls                  = true
+# opensearch_username                 = "nexusiq"
+# opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 1
 ```
 
 Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
@@ -316,7 +376,6 @@ hpa:
 - **`node_group_max_size = 5`** - Maximum GKE node capacity
 - **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended, requires HA license)
 - **`db_availability_type = "REGIONAL"`** - Regional database with automatic failover
-- **`enable_read_replica = true`** - Database read replica for load distribution
 - **`filestore_capacity_gb = 2560`** - 2.5 TiB, the Size L capacity. Size M uses 1024 and Size XL uses 10240
 - **`gcp_project_id`** - Your GCP project ID (required)
 - **`db_password`** - Use a strong, unique password (required change)
@@ -328,12 +387,307 @@ hpa:
 This deployment leverages Kubernetes and Helm for IQ Server clustering:
 
 - **Pod Distribution**: Kubernetes pod anti-affinity ensures replicas run on different nodes across availability zones
-- **Shared Storage**: Cloud Filestore (BASIC_SSD) provides consistent storage across all replicas with ReadWriteMany access
+- **Shared Storage**: Cloud Filestore (BASIC_HDD) provides consistent storage across all replicas with ReadWriteMany access
 - **Database Sharing**: All replicas connect to the shared regional Cloud SQL cluster via Kubernetes secrets
 - **Service Discovery**: Kubernetes service provides stable DNS and load balancing
 - **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
+
+## Running Several Sizes in One Project
+
+Every resource name that has to be unique inside a Google Cloud project derives from
+`cluster_name`: the GKE cluster, the VPC, all four subnets, the router, the Cloud NAT, every firewall
+rule, the Cloud Armor policy, the ingress address, the node pool, both Workload Identity service
+accounts, the Cloud SQL instance, Filestore, both Secret Manager secrets, the log bucket, sink and
+metrics.
+
+```hcl
+cluster_name = "iq-l"   # a distinct value per deployment
+```
+
+`force-cleanup.sh` matches on this deployment's own `cluster_name`, so it cannot delete another
+deployment's Cloud SQL and Filestore instances in the same project.
+
+These are not renamed, and do not need to be: the database name and the database user, which are
+scoped to the Cloud SQL instance rather than to the project, and the Filestore share name, which
+is scoped to the Filestore instance. The Kubernetes namespace and Helm release name are also
+fixed, which is correct because each deployment has its own cluster.
+
+### What a name may contain, and what cannot be reused
+
+**`cluster_name` is validated at plan time**: lowercase letters, numbers and hyphens, starting with
+a letter and ending with a letter or number, 1 to 19 characters. A service account id allows 30, and
+the longest suffix added to this prefix is 11 characters.
+
+| Name | Reuse after deletion |
+|---|---|
+| Cloud SQL instance | Immediate |
+| Service account | **Immediate, with a consequence.** A new account with the same name is a separate identity: it inherits none of the deleted account's roles, and it blocks undeleting the original for the 30 days during which that would otherwise be possible |
+| Everything else here | Immediate |
+
+A normal destroy and rebuild recreates both Workload Identity accounts and grants their roles and
+Kubernetes bindings in the same apply. **Do not delete an account by hand and expect to undelete
+it**: creating the replacement makes the original unrecoverable.
+
+A Cloud SQL instance name carries a random suffix, `<cluster_name>-db-<suffix>`, regenerated on every
+fresh apply, so a rebuilt environment's database has a different name.
+
+## Search Backend
+
+This configuration takes the endpoint of an OpenSearch cluster you run yourself and does not create
+one, so switching `search_engine` never destroys an index. Every replica shares the one index.
+
+### Turning it on
+
+```hcl
+search_engine                       = "opensearch"
+opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"  # host only, no scheme
+opensearch_port                     = 9200
+opensearch_use_tls                  = true
+opensearch_username                 = "nexusiq"
+opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+opensearch_index_replicas = 1
+```
+
+All of `opensearch_endpoint`, `opensearch_username` and `opensearch_password` are required once
+`search_engine` is `"opensearch"`, and the plan fails naming whichever is missing.
+
+`opensearch_username` may not hold a single quote, a double quote, a dollar sign, a backtick or a
+backslash, and the plan refuses one that does.
+
+**Terraform alone does not apply this.** The `search:` block lives in the Helm values, so run
+`terraform apply` and then `./helm-install.sh`, or `./helm-upgrade.sh` on an existing release.
+
+### What this writes into `config.yml`
+
+`helm-values.yaml` carries a `search:` block and a `nexusOne.connection` block naming the same
+cluster, with placeholders between two markers,
+`# search-block-begin` and `# search-block-end`. `helm-install.sh` fills them from Terraform
+outputs, and the Helm chart renders the result as `config.yml` in every pod:
+
+```yaml
+    search:
+      type: http
+      mode: OPENSEARCH
+      uri: https://opensearch.internal.example.com:9200
+      username: nexusiq
+      password: <filled by helm-install.sh>
+    nexusOne:
+      connection:
+        type: http
+        mode: OPENSEARCH
+        uri: https://opensearch.internal.example.com:9200
+        username: nexusiq
+        password: <filled by helm-install.sh>
+        nexusOneIndexReplicas: 1
+```
+
+- **`type: http` with basic auth.** A user name and password are how the pods authenticate.
+- **`mode: OPENSEARCH`.** Written out rather than left to the default.
+- **`nexusOne.connection`.** The Nexus One index needs its own connection block naming the same
+  cluster, and it carries `nexusOneIndexReplicas`.
+- **`nexusOneIndexReplicas`.** Set from `opensearch_index_replicas`.
+
+**Keep the two markers.** With `search_engine = "lucene"`, `helm-install.sh` deletes everything
+between them so the deployment has no `search:` or `nexusOne:` block at all, which is how the built-in index stays
+the default. The script then checks that no placeholder survived and refuses to install if one did,
+because a literal `OPENSEARCH_URI_PLACEHOLDER` would be read as a host name.
+
+### How the password reaches the pods
+
+`opensearch_password` is read by `helm-install.sh` from a Terraform output and written into
+`helm-values-runtime.yaml`, which is gitignored, the same route the database password takes. The
+chart renders `config.yml` itself, so the value has to be in the Helm values.
+
+- **`helm-values-runtime.yaml` holds the password in clear while it exists.** Both
+  `helm-install.sh` and `helm-upgrade.sh` render it from the current Terraform outputs at the start
+  of a run and remove it on exit, however the run ends, so nothing is left behind to delete by hand.
+- **The password is in Terraform state**, because `opensearch_password` is an input variable. Keep
+  the state backend private.
+
+To rotate the password, change it in `terraform.tfvars`, then:
+
+```bash
+terraform apply
+./helm-upgrade.sh
+```
+
+`helm-upgrade.sh` renders the values file itself, so it carries whatever `terraform apply` has just
+put in the state. `helm-install.sh` refuses to run once the release exists, which is why the
+rotation goes through the upgrade.
+
+### Firewall
+
+Google Cloud denies all ingress that no rule allows. This root declares no egress rule, so egress
+needs nothing added and only ingress to the cluster does:
+
+- **Ingress.** `search.tf` adds a rule letting the pod range and the node subnet reach instances
+  tagged `nexus-iq-opensearch` on `opensearch_port`. **Tag each OpenSearch node
+  `nexus-iq-opensearch`** or the cluster is unreachable from the pods.
+- **Both source ranges are needed.** This GKE cluster is VPC-native, so a pod's own alias address
+  from `gke_pods_cidr` is the source of traffic it sends, while anything running on the node itself
+  uses the node's address from the node subnet.
+
+A cluster outside this VPC is reached over whatever path you have built to it, and this rule has no
+effect on it.
+
+### The cluster to build
+
+| | What to run |
+|---|---|
+| OpenSearch version | 3.x (3.7 recommended) |
+| Cluster managers | Three dedicated cluster manager nodes, so losing one leaves a quorum |
+| Data nodes | At least two, spread across zones, with `opensearch_index_replicas` at 1 or more so a lost node does not lose a shard |
+| Heap | Half of each node's RAM, and never above 31 GB, so compressed object pointers stay on |
+| Disk | Hyperdisk Balanced on C4A, or SSD persistent disk on a series that takes it. The index is write-heavy during a rebuild |
+| Network | Private IP addresses in this VPC, or a VPC you have peered to it. No public address |
+| Security | The OpenSearch security plugin, with a user for Nexus IQ Server that can create, read and write indices |
+| Snapshots | The `repository-gcs` plugin, on every node |
+
+**OpenSearch can also run inside this GKE cluster**, which this configuration does not do. Use the
+OpenSearch Kubernetes operator on its own node pool, so an index rebuild and the evaluation queue do
+not compete for CPU, and set the endpoint to the operator's service name.
+
+Per size:
+
+| Size | Data nodes | Machine type | Storage per node | Cluster managers | Shards ¹ | `opensearch_index_replicas` |
+|------|:----------:|:------------:|:----------------:|:----------------:|:--------:|:---------------------------:|
+| **M** | 3 | `c4a-standard-2`, 2 vCPU, 8 GB | 100 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **L** | 3 | `c4a-standard-4`, 4 vCPU, 16 GB | 150 GB Hyperdisk Balanced | 3 x `c4a-standard-1`, 1 vCPU, 4 GB, 2 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+| **XL** | 3 | `c4a-highmem-8`, 8 vCPU, 64 GB | 250 GB Hyperdisk Balanced | 3 x `c4a-standard-2`, 2 vCPU, 8 GB, 4 GB heap, 20 GB Hyperdisk Balanced boot disk | 3 | `1` |
+
+C4A is Arm and takes Hyperdisk only, so each data node needs an arm64 image and a Hyperdisk Balanced
+volume.
+
+The cluster managers are dedicated: they hold no data, take no search traffic, and three of them
+keep a quorum when one is lost. Each takes half its RAM as heap.
+
+**Put an internal passthrough Network Load Balancer in front of the data nodes**, and set
+`opensearch_endpoint` to its address, so Nexus IQ Server reaches one endpoint and replacing a data
+node does not change its configuration. Create:
+
+- **A regional TCP health check on port 9200.**
+- **A regional backend service** with `--load-balancing-scheme INTERNAL --protocol TCP` and that
+  health check, whose backends are one unmanaged instance group per zone holding that zone's data
+  nodes. The cluster managers stay out of it.
+- **A forwarding rule on a reserved private IP address** in this VPC, for TCP port 9200.
+- **A firewall rule allowing TCP 9200 from Google's health check ranges** `35.191.0.0/16` and
+  `130.211.0.0/22` to the `nexus-iq-opensearch` tag. Without it the backends never turn healthy.
+
+Google describes the load balancer in
+[Internal passthrough Network Load Balancer overview](https://cloud.google.com/load-balancing/docs/internal).
+
+¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
+Shard counts are not set in `config.yml`, and only take effect when
+an index is created, so **at M, L and XL set them before the Nexus One index is first built**, with
+one request to the configuration API as an administrator:
+
+```bash
+curl -u admin -X PUT -H 'Content-Type: application/json' \
+  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
+  https://<your IQ Server URL>/api/v2/config
+```
+
+An index built before the change keeps its count until it is rebuilt.
+
+### Trusting a private certificate authority
+
+With `opensearch_use_tls = true`, the JVM in every pod has to trust the cluster's certificate. A
+certificate from a public authority already works and needs nothing below.
+
+A certificate from a private authority needs that authority added to the JVM trust store, and
+Nexus IQ Server has no per-connection trust setting, so the whole JVM is affected. **Copy the trust
+store and point the JVM at the copy. Replacing the JVM's own trust store breaks Nexus IQ Server's
+calls to the Sonatype data service**, which rely on the public authorities already in it.
+
+This root does the copy for you. Set the authority's PEM certificate in `terraform.tfvars`:
+
+```hcl
+opensearch_use_tls        = true
+opensearch_ca_certificate = <<-EOT
+  -----BEGIN CERTIFICATE-----
+  ...the authority's PEM certificate...
+  -----END CERTIFICATE-----
+EOT
+```
+
+After `terraform apply`, `helm-install.sh` or `helm-upgrade.sh` stores it in the Kubernetes
+Secret `nexus-iq-opensearch-ca` and keeps the two blocks between the `# opensearch-ca-begin` and
+`# opensearch-ca-end` markers in `helm-values.yaml`. Those give each pod the certificate, which it adds to a copy of its JVM trust store at start.
+Without a certificate both blocks are deleted. Keep the markers.
+
+To change the certificate, apply, run `helm-upgrade.sh`, and restart
+the pods with `kubectl rollout restart deployment -n nexus-iq`, since a pod reads the Secret only
+when it starts.
+
+Nothing has to be added to `javaOpts`.
+
+**`http` is accepted too**, and skips all of the above. The cost is that the basic auth password is sent unencrypted on every request.
+**Use `https`.** The copy above is one variable, and a password on the wire is permanent.
+`http` is reasonable only for a short evaluation on a private network you control.
+
+### Snapshots, and the credential they need
+
+**A snapshot repository on Cloud Storage needs no service account JSON key.** The
+`repository-gcs` plugin falls back to application default credentials when no `credentials_file` is
+in the OpenSearch keystore. On Compute Engine that resolves to the service account attached to the
+instance; in GKE, to the Workload Identity service account bound to the pod's Kubernetes service
+account.
+
+**Do not add a key.** A key never expires, sits on every data node, and can write to every backup.
+
+**Confirm it on your own cluster by reading the node log.** The plugin logs this line, at INFO, the
+first time it builds a client for the repository:
+
+```
+"Application Default Credentials" will be in use
+```
+
+Seeing that line means no key was read. Not seeing it means a `credentials_file` is set in the
+keystore, so check with `./bin/opensearch-keystore list | grep credentials_file`.
+
+**No key does not mean no permission.** The identity still has to be granted access to the bucket,
+or a snapshot fails with a 403 that looks like an authentication problem and is not:
+
+```bash
+gcloud storage buckets add-iam-policy-binding gs://CHANGE_ME-snapshot-bucket \
+  --member="serviceAccount:OPENSEARCH_NODE_SERVICE_ACCOUNT" \
+  --role="roles/storage.objectAdmin"
+```
+
+`roles/storage.objectAdmin` on the bucket alone, not on the project: a snapshot writes, reads,
+lists and deletes objects, which `objectViewer` and `objectCreator` each cover only part of.
+
+Then install the plugin and register the repository with no client credentials at all:
+
+```bash
+./bin/opensearch-plugin install repository-gcs   # on every node, then restart
+
+curl -X PUT "https://localhost:9200/_snapshot/nexus-iq-snapshots" -H 'Content-Type: application/json' -d '
+{
+  "type": "gcs",
+  "settings": { "bucket": "CHANGE_ME-snapshot-bucket", "base_path": "nexus-iq" }
+}'
+```
+
+### What running the cluster yourself costs you
+
+None of this is handled by this configuration, and all of it has to be handled by someone:
+
+- **Upgrades.** Rolling restarts, version by version, with the cluster kept green between steps.
+- **Snapshots and restore drills.** A snapshot nobody has restored is not a backup.
+- **Capacity.** Disk watermarks block writes before they fill the disk, and a blocked write is how
+  an index rebuild stalls.
+- **Certificate renewal.** Both the cluster's certificate and the secret above.
+- **Monitoring.** Cluster status, unassigned shards, JVM heap pressure, rejected write threads.
+- **The password.** Rotating it with `terraform apply` and `./helm-upgrade.sh`.
+- **Keeping the cluster manager quorum.** Three managers, and never two.
+
+### Rebuilding the index
+
+Switching `search_engine` to `"opensearch"` points the pods at an empty cluster. The index is built
+from the Nexus IQ Server administration pages, not by Terraform and not by Helm. Run it when the deployment is otherwise quiet. At M and above, set the shard counts first, with the request in [Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 ## Security Features
 
@@ -357,7 +711,6 @@ This is a **High Availability** deployment with comprehensive reliability featur
 - **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Cluster Autoscaler**: GKE nodes scale from 2-5 based on pod resource requests
 - **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
-- **Read Replica**: Optional read replica for load distribution
 - **Automatic Restart**: Kubernetes automatically restarts failed pods
 - **Pod Disruption Budgets**: Maintains availability during updates and node maintenance
 - **Rolling Updates**: Zero-downtime updates with controlled rollout
@@ -376,7 +729,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 
 ## Persistent Storage
 
-- **Cloud Filestore (BASIC_SSD)**: Shared storage for `/sonatype-work` directory (2.5 TB minimum)
+- **Cloud Filestore (BASIC_HDD)**: Shared storage for `/sonatype-work` directory (1 TiB minimum)
 - **Database**: Cloud SQL PostgreSQL (regional) for application data. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery

@@ -1,5 +1,5 @@
 # NOTE: This file contains placeholder values that need to be populated during deployment.
-# The helm-install.sh script will substitute these placeholders with actual values from Terraform outputs.
+# render-values.sh, which helm-install.sh and helm-upgrade.sh both call, substitutes these placeholders with actual values from Terraform outputs.
 # Empty values marked with "" will be filled automatically by the deployment script.
 
 iq_server:
@@ -9,13 +9,25 @@ iq_server:
 
   resources:
     requests:
-      cpu: "4"
-      memory: "16Gi"
-    limits:
       cpu: "6"
-      memory: "24Gi"
+      memory: "48Gi"
+    limits:
+      cpu: "8"
+      memory: "56Gi"
 
-  javaOpts: "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+  # GKE taints every Arm node with kubernetes.io/arch=arm64:NoSchedule, and this
+  # root's only node pool is Arm. The IQ Server image is published for amd64 and
+  # arm64, so the pods tolerate it. Chart 201.0.0 is the first to read this key,
+  # and the same toleration is set on iq_server_jobs, aggregateLogFileRetention
+  # and fluentd.aggregator below, because every pod the chart starts lands on
+  # that pool.
+  tolerations:
+    - key: "kubernetes.io/arch"
+      operator: "Equal"
+      value: "arm64"
+      effect: "NoSchedule"
 
   env:
     - name: CLUSTER_DIRECTORY
@@ -32,6 +44,13 @@ iq_server:
       value: "nexusiq"
     - name: DB_PASSWORD
       value: ""
+    # opensearch-ca-begin
+    - name: OPENSEARCH_CA_PEM
+      valueFrom:
+        secretKeyRef:
+          name: nexus-iq-opensearch-ca
+          key: ca.pem
+    # opensearch-ca-end
 
   licenseSecret: "nexus-iq-license"
 
@@ -51,6 +70,26 @@ iq_server:
 
   serviceType: "NodePort"
 
+  # A private certificate authority for the OpenSearch cluster. render-values.sh keeps the lines
+  # between the two markers only when opensearch_ca_certificate is set, and deletes them otherwise.
+  # Each pod copies the image's JVM trust store to /tmp, adds the authority to the copy, points the
+  # JVM at the copy, and then runs the image's own start script. Replacing the JVM's own store would
+  # break IQ Server's calls to the Sonatype data services.
+  # opensearch-ca-begin
+  command: ["/bin/sh", "-c"]
+  args:
+    - |
+      set -e
+      printf '%s\n' "$OPENSEARCH_CA_PEM" > /tmp/opensearch-ca.pem
+      JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+      KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+      [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ] || { echo "cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"; exit 1; }
+      cp "$JVM_CACERTS" /tmp/opensearch-cacerts
+      "$KEYTOOL" -importcert -noprompt -keystore /tmp/opensearch-cacerts -storepass changeit -alias opensearch-ca -file /tmp/opensearch-ca.pem
+      export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.trustStore=/tmp/opensearch-cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+      exec sh /opt/sonatype/nexus-iq-server/start.sh
+  # opensearch-ca-end
+
   # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
   # This is the Size L value. Size M uses 2 and Size XL uses 4.
   # helm-install.sh overwrites it with nexus_iq_replica_count from terraform.tfvars.
@@ -60,6 +99,33 @@ iq_server:
     sonatypeWork: "/sonatype-work"
     clusterDirectory: "/sonatype-work/clm-cluster"
     createSampleData: true
+
+    # Search backend. This block is the one Nexus IQ Server reads to decide whether to use the
+    # built-in index or an OpenSearch cluster, and it is what turns the Nexus One index on.
+    #
+    # render-values.sh fills the four placeholders below when search_engine is "opensearch" in
+    # terraform.tfvars, and deletes everything between the two markers otherwise, so the default
+    # deployment has no search block at all. The markers are what make that deletion safe: do not
+    # remove them, and do not add anything between them that is not part of the block.
+    #
+    # See README.md, "Search Backend".
+    # search-block-begin
+    search:
+      type: http
+      mode: OPENSEARCH
+      uri: OPENSEARCH_URI_PLACEHOLDER
+      username: OPENSEARCH_USERNAME_PLACEHOLDER
+      password: OPENSEARCH_PASSWORD_PLACEHOLDER
+    # The Nexus One index reads this block.
+    nexusOne:
+      connection:
+        type: http
+        mode: OPENSEARCH
+        uri: OPENSEARCH_URI_PLACEHOLDER
+        username: OPENSEARCH_USERNAME_PLACEHOLDER
+        password: OPENSEARCH_PASSWORD_PLACEHOLDER
+        nexusOneIndexReplicas: OPENSEARCH_REPLICAS_PLACEHOLDER
+    # search-block-end
 
     server:
       applicationConnectors:
@@ -109,6 +175,29 @@ iq_server:
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
           archivedFileCount: 50
 
+# The database migration Job the chart always renders. It runs once, as a post-install
+# hook, so a helm upgrade does not start it again while IQ Server is using the database.
+# helm waits for a hook and fails the install if the migration fails. When an upgrade
+# changes the IQ Server image, MIGRATE_DATABASE=yes ./helm-upgrade.sh scales IQ Server to
+# zero and runs the job as a pre-upgrade hook.
+iq_server_jobs:
+  migrationJobAnnotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  tolerations:
+    - key: "kubernetes.io/arch"
+      operator: "Equal"
+      value: "arm64"
+      effect: "NoSchedule"
+
+# The CronJob that deletes aggregated log files older than maxLastModifiedDays.
+aggregateLogFileRetention:
+  tolerations:
+    - key: "kubernetes.io/arch"
+      operator: "Equal"
+      value: "arm64"
+      effect: "NoSchedule"
+
 serviceAccount:
   create: true
   name: "nexus-iq-sa"
@@ -156,15 +245,23 @@ fluentd:
 
   aggregator:
     enabled: true
+    tolerations:
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "arm64"
+        effect: "NoSchedule"
     serviceAccount:
       create: true
       name: "fluentd-aggregator-sa"
       annotations:
         iam.gke.io/gcp-service-account: ""
-    securityContext:
+    # The aggregator runs as uid 1000, the owner the init container below gives the log
+    # directory. The bundled fluentd chart reads these two keys and defaults both to 1001.
+    podSecurityContext:
+      fsGroup: 1000
+    containerSecurityContext:
       runAsUser: 1000
       runAsGroup: 1000
-      fsGroup: 1000
       runAsNonRoot: true
     extraVolumes:
       - name: "iq-server-pod-volume"
@@ -184,9 +281,6 @@ fluentd:
             subPath: log
 
 external-dns:
-  enabled: false
-
-migrationJob:
   enabled: false
 
 # Horizontal pod autoscaler. The chart reads hpa.enabled, hpa.minReplicas and

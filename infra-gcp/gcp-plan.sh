@@ -67,6 +67,13 @@ check_prerequisites() {
         exit 1
     fi
     
+    # Stop on any CHANGE_ME placeholder left in a setting. Commented lines are skipped.
+    if grep -v '^[[:space:]]*#' "$TFVARS_FILE" | grep -q "CHANGE_ME"; then
+        print_error "terraform.tfvars still has CHANGE_ME placeholders:"
+        grep -n "CHANGE_ME" "$TFVARS_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+        exit 1
+    fi
+    
     # Check gcloud authentication
     if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1 &> /dev/null; then
         print_error "No active gcloud authentication found. Please run 'gcloud auth login'"
@@ -106,6 +113,33 @@ validate_configuration() {
     fi
     
     print_status "Configuration validation completed"
+}
+
+# The load balancer's instance group gets its VM from google_compute_instance_group_membership.
+# A state that holds the group with the VM as a member and no membership resource has the
+# membership imported, because adding a VM that is already a member fails.
+import_group_membership() {
+    cd "$TERRAFORM_DIR"
+
+    local state
+    state=$(terraform state list 2>/dev/null) || return 0
+    grep -qx "google_compute_instance_group.iq_group" <<< "$state" || return 0
+    grep -qx "google_compute_instance_group_membership.iq_server" <<< "$state" && return 0
+
+    local import_id
+    import_id=$(terraform show -json 2>/dev/null | jq -r '
+        [.values.root_module.resources[]?] as $rs
+        | ($rs[] | select(.address == "google_compute_instance_group.iq_group") | .values) as $g
+        | ($rs[] | select(.address == "google_compute_instance.iq_server") | .values) as $vm
+        | select(any(($g.instances // [])[]; . == $vm.self_link))
+        | "\($g.project)/\($g.zone)/\($g.name)/\($vm.name)"')
+    [[ -n "$import_id" ]] || return 0
+
+    print_status "Importing the instance group membership of the IQ Server VM..."
+    if ! terraform import -input=false -var-file="$TFVARS_FILE" google_compute_instance_group_membership.iq_server "$import_id" >> "$LOG_FILE" 2>&1; then
+        print_error "Importing the instance group membership failed. Check $LOG_FILE for details."
+        exit 1
+    fi
 }
 
 # Function to run terraform plan
@@ -376,6 +410,7 @@ main() {
     
     # Run terraform plan
     local plan_exit_code=0
+    import_group_membership
     run_terraform_plan || plan_exit_code=$?
     
     # Show plan summary

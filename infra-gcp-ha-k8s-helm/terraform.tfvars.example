@@ -1,7 +1,7 @@
 gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "prod"
-cluster_name   = "nexus-iq-ha"
+cluster_name   = "nexus-iq-ha"   # distinct per deployment when several sizes share one project
 
 public_subnet_cidr   = "10.100.1.0/24"
 private_subnet_cidrs = ["10.100.10.0/24", "10.100.11.0/24", "10.100.12.0/24"]
@@ -9,8 +9,7 @@ gke_pods_cidr        = "10.101.0.0/16"
 gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
-kubernetes_version           = "1.27"
-node_instance_type           = "n2-standard-8"
+node_instance_type           = "n4a-highmem-8"
 node_group_min_size          = 2
 node_group_max_size          = 5
 node_group_desired_size      = 3
@@ -29,13 +28,12 @@ db_backup_retention_count          = 8
 db_maintenance_window_day          = 7
 db_maintenance_window_hour         = 3
 db_deletion_protection             = false
-enable_read_replica                = true
 db_name                            = "nexusiq"
 db_username                        = "nexusiq"
 db_password                        = "CHANGE_ME_STRONG_PASSWORD"
 
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
+filestore_tier        = "BASIC_HDD"
 filestore_capacity_gb = 2560
 
 log_retention_days               = 7
@@ -44,6 +42,22 @@ cloud_armor_rate_limit_threshold = 1000
 
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
-helm_chart_version      = "195.0.0"
+helm_chart_version      = "201.0.0"
 
-# The Java heap is set by iq_server.javaOpts in helm-values.yaml.
+# Search Backend
+# "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
+# you run yourself; build it to README.md, "Search Backend".
+search_engine = "lucene"
+
+# opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
+# opensearch_port                     = 9200
+# opensearch_use_tls                  = true
+# opensearch_username                 = "nexusiq"
+# opensearch_password                 = "CHANGE_ME_STRONG_PASSWORD"
+# opensearch_index_replicas = 1
+# Only for a private certificate authority:
+# opensearch_ca_certificate = <<-EOT
+#   -----BEGIN CERTIFICATE-----
+#   ...the authority's PEM certificate...
+#   -----END CERTIFICATE-----
+# EOT

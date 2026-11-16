@@ -7,12 +7,28 @@ echo "GCP GKE HA - Force Cleanup Script"
 echo "=============================================="
 echo ""
 echo "This script will:"
-echo "1. Find and delete Cloud SQL instances with 'nexus-iq-ha' prefix"
+echo "1. Find and delete Cloud SQL instances belonging to this deployment"
 echo "2. Wait for deletion to complete"
 echo "3. Run terraform destroy to clean up remaining resources"
 echo ""
 
 PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || gcloud config get-value project)
+
+# Match this deployment's own cluster_name, since several can share one project.
+CLUSTER_NAME=$(terraform output -raw gke_cluster_name 2>/dev/null || echo "")
+CLUSTER_NAME_SOURCE="terraform output"
+
+# terraform output needs usable state, so fall back to terraform.tfvars. The sed takes
+# the first quoted value on the line, ignoring a trailing comment.
+if [ -z "$CLUSTER_NAME" ] && [ -f terraform.tfvars ]; then
+    CLUSTER_NAME=$(sed -n 's/^[[:space:]]*cluster_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars | head -1)
+    CLUSTER_NAME_SOURCE="terraform.tfvars"
+fi
+
+if [ -z "$CLUSTER_NAME" ]; then
+    CLUSTER_NAME="nexus-iq-ha"
+    CLUSTER_NAME_SOURCE="the cluster_name default"
+fi
 
 if [ -z "$PROJECT_ID" ]; then
     echo "Error: Could not determine GCP project ID"
@@ -20,6 +36,10 @@ if [ -z "$PROJECT_ID" ]; then
 fi
 
 echo "Project: $PROJECT_ID"
+echo "Cluster: $CLUSTER_NAME (read from $CLUSTER_NAME_SOURCE)"
+echo ""
+echo "Check that name before answering. Everything matching it is deleted without a further"
+echo "prompt, and a project can hold several sizes of this architecture."
 echo ""
 
 read -p "Do you want to proceed with cleanup? (yes/no): " CONFIRM
@@ -30,7 +50,11 @@ fi
 
 echo ""
 echo "Step 1: Finding Cloud SQL instances..."
-INSTANCES=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "nexus-iq-ha" || true)
+# Anchored on the whole instance name database.tf builds, since the delete below
+# passes --quiet and a bare prefix also matches a deployment named "<cluster_name>-db...".
+# cluster_name allows no regular expression metacharacters.
+SQL_NAME_PATTERN="^$CLUSTER_NAME-db(-replica)?-[a-z0-9]{8}$"
+INSTANCES=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$SQL_NAME_PATTERN" || true)
 
 if [ -n "$INSTANCES" ]; then
     echo "Found instances to delete:"
@@ -50,7 +74,7 @@ if [ -n "$INSTANCES" ]; then
     
     # Wait for all instances to be deleted
     for i in {1..60}; do
-        REMAINING=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "nexus-iq-ha" || true)
+        REMAINING=$(gcloud sql instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$SQL_NAME_PATTERN" || true)
         if [ -z "$REMAINING" ]; then
             echo "✅ All Cloud SQL instances deleted"
             break
@@ -59,12 +83,15 @@ if [ -n "$INSTANCES" ]; then
         sleep 10
     done
 else
-    echo "No Cloud SQL instances with 'nexus-iq-ha' prefix found"
+    echo "No Cloud SQL instances found for $CLUSTER_NAME"
 fi
 
 echo ""
 echo "Step 2: Checking for Filestore instances..."
-FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "nexus-iq-ha" || true)
+# Anchored on the whole instance name storage.tf builds, since the delete below passes
+# --quiet. The API returns the full resource path, so the projects/.../instances/ part is allowed.
+FILESTORE_NAME_PATTERN="(^|/)$CLUSTER_NAME-filestore-[a-z0-9]{8}$"
+FILESTORE=$(gcloud filestore instances list --project="$PROJECT_ID" --format="value(name)" | grep -E "$FILESTORE_NAME_PATTERN" || true)
 
 if [ -n "$FILESTORE" ]; then
     echo "Found Filestore instances:"

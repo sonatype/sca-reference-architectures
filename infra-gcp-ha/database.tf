@@ -1,6 +1,6 @@
 # Cloud SQL PostgreSQL Database Instance (Regional HA)
 resource "google_sql_database_instance" "iq_ha_db" {
-  name             = "nexus-iq-ha-db-${random_string.suffix.result}"
+  name             = "${local.app_name}-db-${random_string.suffix.result}"
   database_version = var.postgres_version
   region           = var.gcp_region
   project          = var.gcp_project_id
@@ -78,61 +78,9 @@ resource "google_sql_user" "iq_ha_db_user" {
   project  = var.gcp_project_id
 }
 
-# Read replica for load distribution (optional)
-resource "google_sql_database_instance" "iq_ha_db_replica" {
-  count                = var.enable_read_replica ? 1 : 0
-  name                 = "nexus-iq-ha-db-replica-${random_string.suffix.result}"
-  database_version     = var.postgres_version
-  region               = var.gcp_region
-  project              = var.gcp_project_id
-  master_instance_name = google_sql_database_instance.iq_ha_db.name
-
-  replica_configuration {
-    failover_target = false
-  }
-
-  settings {
-    tier              = var.db_instance_tier
-    edition           = var.db_edition
-    availability_type = "ZONAL" # Replicas are typically zonal
-    disk_type         = var.db_disk_type
-    disk_size         = var.db_disk_size
-    disk_autoresize   = true
-
-    user_labels = merge(var.common_tags, {
-      component = "nexus-iq-ha-database-replica"
-    })
-
-    database_flags {
-      name  = "max_connections"
-      value = var.db_max_connections
-    }
-
-    ip_configuration {
-      ipv4_enabled    = false
-      private_network = google_compute_network.iq_ha_vpc.id
-      ssl_mode        = "ENCRYPTED_ONLY"
-    }
-
-    insights_config {
-      query_insights_enabled  = true
-      query_string_length     = 1024
-      record_application_tags = true
-      record_client_address   = true
-    }
-  }
-
-  deletion_protection = false # Replicas can be deleted more easily
-
-  depends_on = [
-    google_sql_database_instance.iq_ha_db,
-    google_service_networking_connection.private_vpc_connection
-  ]
-}
-
 # Secret Manager for database credentials
 resource "google_secret_manager_secret" "db_credentials" {
-  secret_id = "nexus-iq-ha-db-credentials-${random_string.suffix.result}"
+  secret_id = "${local.app_name}-db-credentials-${random_string.suffix.result}"
   project   = var.gcp_project_id
 
   replication {
@@ -159,7 +107,7 @@ resource "google_secret_manager_secret_version" "db_credentials" {
 
 # Store just the password for easier access in startup script
 resource "google_secret_manager_secret" "db_password" {
-  secret_id = "nexus-iq-ha-db-password-${random_string.suffix.result}"
+  secret_id = "${local.app_name}-db-password-${random_string.suffix.result}"
   project   = var.gcp_project_id
 
   replication {
@@ -180,7 +128,7 @@ resource "google_secret_manager_secret_version" "db_password" {
 
 # SSL Certificate for Cloud SQL
 resource "google_sql_ssl_cert" "iq_ha_client_cert" {
-  common_name = "nexus-iq-ha-client-cert"
+  common_name = "${local.app_name}-client-cert"
   instance    = google_sql_database_instance.iq_ha_db.name
   project     = var.gcp_project_id
 }

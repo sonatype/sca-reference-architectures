@@ -123,14 +123,10 @@ validate_tfvars() {
         exit 1
     fi
     
-    # Check for default/insecure values
-    if grep -q 'db_password.*=.*"your-secure-database-password"' terraform.tfvars; then
-        error "Please change the default database password in terraform.tfvars"
-        exit 1
-    fi
-    
-    if grep -q 'gcp_project_id.*=.*"your-gcp-project-id"' terraform.tfvars; then
-        error "Please set your actual GCP project ID in terraform.tfvars"
+    # Stop on any CHANGE_ME placeholder left in a setting. Commented lines are skipped.
+    if grep -v '^[[:space:]]*#' terraform.tfvars | grep -q "CHANGE_ME"; then
+        error "terraform.tfvars still has CHANGE_ME placeholders:"
+        grep -n "CHANGE_ME" terraform.tfvars | grep -v '^[0-9]*:[[:space:]]*#' || true
         exit 1
     fi
     
@@ -424,7 +420,7 @@ estimate_costs() {
     
     warning "This HA deployment will create billable resources:"
     echo "  • Compute Engine instances (2 to 5 for the HA cluster, depending on size)"
-    echo "  • Cloud SQL regional instance + read replicas for HA"
+    echo "  • Cloud SQL regional instance with a standby in a second zone"
     echo "  • Regional persistent disks with replication"
     echo "  • Global load balancer with SSL certificates"
     echo "  • Cloud NAT gateway with external IP"

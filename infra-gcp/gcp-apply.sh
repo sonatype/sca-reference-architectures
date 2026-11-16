@@ -50,6 +50,13 @@ check_prerequisites() {
         fi
     done
     
+    # Stop on any CHANGE_ME placeholder left in a setting. Commented lines are skipped.
+    if grep -v '^[[:space:]]*#' "$SCRIPT_DIR/terraform.tfvars" 2>/dev/null | grep -q "CHANGE_ME"; then
+        print_error "terraform.tfvars still has CHANGE_ME placeholders:"
+        grep -n "CHANGE_ME" "$SCRIPT_DIR/terraform.tfvars" | grep -v '^[0-9]*:[[:space:]]*#' || true
+        exit 1
+    fi
+    
     # Check if plan file exists
     if [[ ! -f "$PLAN_FILE" ]]; then
         print_error "Plan file not found: $PLAN_FILE"
@@ -274,7 +281,8 @@ verify_deployment() {
     
     # Check if key resources exist in state
     local key_resources=(
-        "google_cloud_run_service.iq_service"
+        "google_compute_instance.iq_server"
+        "google_compute_instance_group_membership.iq_server"
         "google_sql_database_instance.iq_db"
         "google_compute_global_address.iq_lb_ip"
     )

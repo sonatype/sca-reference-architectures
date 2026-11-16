@@ -21,9 +21,16 @@ variable "environment" {
 }
 
 variable "cluster_name" {
-  description = "Name of the GKE cluster"
+  description = "Name of the GKE cluster, and the prefix for every resource name that has to be unique inside a Google Cloud project. Set it to a distinct value per deployment when several sizes share one project."
   type        = string
   default     = "nexus-iq-ha"
+
+  validation {
+    # Google Cloud name rules. At most 19 characters, because a service account id is capped
+    # at 30 and the longest suffix added is 11.
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,17}[a-z0-9])?$", var.cluster_name))
+    error_message = "cluster_name must be 1 to 19 characters of lowercase letters, numbers and hyphens, starting with a letter and ending with a letter or number."
+  }
 }
 
 variable "public_subnet_cidr" {
@@ -56,16 +63,10 @@ variable "gke_master_cidr" {
   default     = "172.16.0.0/28"
 }
 
-variable "kubernetes_version" {
-  description = "Kubernetes version for GKE cluster"
-  type        = string
-  default     = "1.27"
-}
-
 variable "node_instance_type" {
   description = "Instance type for GKE nodes"
   type        = string
-  default     = "n2-standard-8"
+  default     = "n4a-highmem-8"
 }
 
 variable "node_group_min_size" {
@@ -125,7 +126,7 @@ variable "db_disk_size" {
 variable "db_max_disk_size" {
   description = "Maximum database disk size in GB for autoresize"
   type        = number
-  default     = 500
+  default     = 1000
 }
 
 variable "db_max_connections" {
@@ -170,12 +171,6 @@ variable "db_deletion_protection" {
   default     = false
 }
 
-variable "enable_read_replica" {
-  description = "Enable read replica for database"
-  type        = bool
-  default     = true
-}
-
 variable "db_name" {
   description = "Database name"
   type        = string
@@ -212,9 +207,9 @@ variable "filestore_tier" {
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
+  description = "Filestore capacity in GB. The default is the Size L capacity. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
   type        = number
-  default     = 1024
+  default     = 2560
 }
 
 variable "log_retention_days" {
@@ -251,5 +246,103 @@ variable "nexus_iq_admin_password" {
 variable "helm_chart_version" {
   description = "Nexus IQ Server Helm chart version"
   type        = string
-  default     = "195.0.0"
+  default     = "201.0.0"
+}
+
+# Search Backend
+#
+# search_engine picks the engine the search: block in config.yml names. "opensearch"
+# needs a cluster you run yourself, named by opensearch_endpoint.
+# Every pod reads the same endpoint, so they share one index.
+
+variable "search_engine" {
+  description = "Which search backend Nexus IQ Server uses: \"lucene\" (default, the built-in index, nothing else to run) or \"opensearch\" (a self-managed OpenSearch cluster, whose host must be supplied in opensearch_endpoint)."
+  type        = string
+  default     = "lucene"
+
+  validation {
+    condition     = contains(["lucene", "opensearch"], var.search_engine)
+    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+  }
+}
+
+variable "opensearch_endpoint" {
+  description = "Host name or IP address of an OpenSearch cluster you already run, with no scheme and no port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\", ignored otherwise."
+  type        = string
+  default     = ""
+
+  validation {
+    # search.tf builds "<scheme>://<endpoint>:<port>", so a scheme or port here produces
+    # a URI that only fails when IQ Server connects. Empty is allowed; the precondition
+    # requires a value when search_engine is "opensearch".
+    condition     = var.opensearch_endpoint == "" || can(regex("^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint must be a host name or IP address only, with no scheme, no port, no path and no trailing dot, for example \"opensearch.internal.example.com\"."
+  }
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_endpoint))
+    error_message = "opensearch_endpoint still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_port" {
+  description = "Port the OpenSearch cluster listens on. 9200 is the OpenSearch default. This port is also what the firewall rule in search.tf opens."
+  type        = number
+  default     = 9200
+
+  validation {
+    condition     = var.opensearch_port > 0 && var.opensearch_port < 65536
+    error_message = "opensearch_port must be between 1 and 65535."
+  }
+}
+
+variable "opensearch_use_tls" {
+  description = "Connect to OpenSearch over https rather than http. Leave this true unless the cluster has no certificate, because the basic auth password is sent on every request. With TLS, a private certificate authority has to be trusted by the JVM in every pod: see README.md, \"Trusting a private certificate authority\"."
+  type        = bool
+  default     = true
+}
+
+variable "opensearch_username" {
+  description = "OpenSearch user Nexus IQ Server authenticates as. This user needs to create, read and write the Nexus One indices. Required when search_engine is \"opensearch\"."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("\\{\\{", var.opensearch_username))
+    error_message = "The OpenSearch user name may not contain {{. The chart runs iq_server.config through its template engine, so {{ would be read as the start of a template action, even inside a quoted value."
+  }
+}
+
+variable "opensearch_password" {
+  description = "Password for opensearch_username. render-values.sh reads this from a Terraform output and writes it into the generated values file, the same route the database password takes on this architecture. Required when search_engine is \"opensearch\"."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("\\{\\{", var.opensearch_password))
+    error_message = "The OpenSearch password may not contain {{. The chart runs iq_server.config through its template engine, so {{ would be read as the start of a template action, even inside a quoted value."
+  }
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.opensearch_password))
+    error_message = "opensearch_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "opensearch_ca_certificate" {
+  description = "PEM certificate of a private authority that signed the OpenSearch cluster's certificates. When set with opensearch_use_tls, render-values.sh stores it in the Kubernetes Secret nexus-iq-opensearch-ca, and each IQ Server pod adds it to a copy of the JVM trust store at start. Leave empty for a certificate from a public authority."
+  type        = string
+  default     = ""
+}
+
+variable "opensearch_index_replicas" {
+  description = "Replicas every Nexus One index is created with, written to config.yml as nexusOne.connection.nexusOneIndexReplicas, which is where the Nexus One index reads it. Use 0 on one data node: it cannot place a replica, and 1 would leave the index yellow, which still serves reads and writes. Applied only when an index is created: an existing index keeps its count until it is rebuilt."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
+    error_message = "opensearch_index_replicas must be between 0 and 10, the range Nexus IQ Server accepts."
+  }
 }

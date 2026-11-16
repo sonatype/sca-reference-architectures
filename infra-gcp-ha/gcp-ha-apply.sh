@@ -169,6 +169,13 @@ check_prerequisites() {
         exit 1
     fi
     
+    # Stop on any CHANGE_ME placeholder left in a setting. Commented lines are skipped.
+    if grep -v '^[[:space:]]*#' "$TFVARS_FILE" | grep -q "CHANGE_ME"; then
+        print_error "terraform.tfvars still has CHANGE_ME placeholders:"
+        grep -n "CHANGE_ME" "$TFVARS_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+        exit 1
+    fi
+    
     # Check gcloud authentication
     if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1 &> /dev/null; then
         print_error "No active gcloud authentication found. Please run 'gcloud auth login'"

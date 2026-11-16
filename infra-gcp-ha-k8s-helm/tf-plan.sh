@@ -12,6 +12,13 @@ if [ ! -f "terraform.tfvars" ]; then
     exit 1
 fi
 
+# Stop on any CHANGE_ME placeholder left in a setting. Commented lines are skipped.
+if grep -v '^[[:space:]]*#' terraform.tfvars | grep -q "CHANGE_ME"; then
+    echo "Error: terraform.tfvars still has CHANGE_ME placeholders:"
+    grep -n "CHANGE_ME" terraform.tfvars | grep -v '^[0-9]*:[[:space:]]*#' || true
+    exit 1
+fi
+
 echo "Initializing Terraform..."
 terraform init
 

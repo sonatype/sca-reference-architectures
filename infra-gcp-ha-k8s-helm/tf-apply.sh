@@ -31,6 +31,13 @@ if [ ! -f "terraform.tfvars" ]; then
     exit 1
 fi
 
+# Commented lines are skipped, so the example's commented settings can stay as they are.
+if grep -v '^[[:space:]]*#' terraform.tfvars 2>/dev/null | grep -q "CHANGE_ME"; then
+    echo -e "${RED}❌ Error: Found placeholder values${NC}"
+    grep -n "CHANGE_ME" terraform.tfvars | grep -v '^[0-9]*:[[:space:]]*#' || true
+    exit 1
+fi
+
 PLAN_FILE=$(ls -t tfplan-* 2>/dev/null | head -1)
 if [[ -z "$PLAN_FILE" ]]; then
     echo -e "${RED}❌ Error: No tfplan file found${NC}"

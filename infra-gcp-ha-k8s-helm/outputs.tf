@@ -56,6 +56,11 @@ output "filestore_share_name" {
   value       = google_filestore_instance.iq_ha_filestore.file_shares[0].name
 }
 
+output "filestore_capacity_gb" {
+  description = "Filestore share capacity in GiB, which helm-install.sh uses as the PersistentVolume and claim size"
+  value       = google_filestore_instance.iq_ha_filestore.file_shares[0].capacity_gb
+}
+
 output "ingress_ip" {
   description = "Global ingress IP address"
   value       = google_compute_global_address.ingress_ip.address
@@ -109,4 +114,35 @@ output "region" {
 output "project_id" {
   description = "GCP project ID"
   value       = var.gcp_project_id
+}
+
+output "search_engine" {
+  description = "Search backend Nexus IQ Server is configured to use. render-values.sh reads this to decide whether to write a search block."
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "URI Nexus IQ Server uses to reach OpenSearch, empty when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? local.opensearch_uri : ""
+}
+
+output "opensearch_username" {
+  description = "OpenSearch user Nexus IQ Server authenticates as, empty when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? var.opensearch_username : ""
+}
+
+output "opensearch_password" {
+  description = "Password for opensearch_username, empty when the built-in index is in use"
+  value       = var.search_engine == "opensearch" ? var.opensearch_password : ""
+  sensitive   = true
+}
+
+output "opensearch_ca_certificate" {
+  description = "PEM certificate of the OpenSearch cluster's private certificate authority, empty when none is set or TLS is off"
+  value       = var.search_engine == "opensearch" && var.opensearch_use_tls ? var.opensearch_ca_certificate : ""
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas every Nexus One index is created with"
+  value       = var.opensearch_index_replicas
 }

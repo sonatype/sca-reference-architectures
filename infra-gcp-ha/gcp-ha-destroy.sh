@@ -113,7 +113,7 @@ WARNING:
     HA Resources to be destroyed:
     • Managed instance groups (2 to 5 instances, depending on size)
     • Regional autoscaler and load balancers
-    • Cloud SQL regional database with read replicas
+    • Cloud SQL regional database
     • Regional persistent disks and file storage
     • VPC networking and firewall rules
     • Monitoring, logging, and alerting
@@ -383,7 +383,7 @@ show_destruction_summary() {
         echo "  • All Nexus IQ HA infrastructure resources"
         echo "  • Compute Engine managed instance groups (2 to 5 instances, depending on size)"
         echo "  • Regional autoscaler and load balancers"
-        echo "  • Cloud SQL regional database with read replicas"
+        echo "  • Cloud SQL regional database"
         echo "  • Regional persistent disks and file storage"
         echo "  • Monitoring, logging, and alerting configuration"
         echo "  • Service accounts and IAM bindings"
@@ -482,24 +482,14 @@ perform_destroy() {
     if [[ "$FORCE_DESTROY" == "true" ]]; then
         print_warning "Force destroy enabled - attempting to disable deletion protection..."
         
-        # Create a temporary tfvars file with deletion protection disabled
-        local temp_tfvars="/tmp/destroy-$(date +%s).tfvars"
-        cp "$TFVARS_FILE" "$temp_tfvars"
-        echo "" >> "$temp_tfvars"
-        echo "# Temporary overrides for HA destruction" >> "$temp_tfvars"
-        echo "db_deletion_protection = false" >> "$temp_tfvars"
-        echo "storage_force_destroy = true" >> "$temp_tfvars"
-        
-        # Apply changes to disable protection
+        # A -var given after -var-file overrides the tfvars value, whether or not the tfvars
+        # file sets db_deletion_protection itself.
         print_status "Disabling deletion protection..."
-        if terraform apply -auto-approve -var-file="$temp_tfvars" >> "$LOG_FILE" 2>&1; then
+        if terraform apply -auto-approve -var-file="$TFVARS_FILE" -var="db_deletion_protection=false" >> "$LOG_FILE" 2>&1; then
             print_status "Deletion protection disabled"
         else
             print_warning "Could not disable deletion protection automatically"
         fi
-        
-        # Clean up temp file
-        rm -f "$temp_tfvars"
         
         # Wait a moment for changes to propagate
         sleep 10
@@ -546,7 +536,7 @@ perform_destroy() {
         terraform state rm google_sql_user.iq_ha_db_user >> "$LOG_FILE" 2>&1 || print_warning "Database user removal from state failed"
     fi
     
-    # Destroy read replica first if it exists
+    # Destroy a read replica first, if the state holds one
     if terraform state list 2>/dev/null | grep -q "google_sql_database_instance.iq_ha_db_replica"; then
         print_status "Destroying database read replica..."
         terraform destroy -target=google_sql_database_instance.iq_ha_db_replica \
@@ -726,7 +716,7 @@ show_final_summary() {
     echo ""
     print_warning "⚠️  Service Networking Connection may require manual cleanup:"
     print_warning "   gcloud services vpc-peerings delete \\"
-    print_warning "     --network=nexus-iq-ha-vpc \\"
+    print_warning "     --network=${VPC_NAME:-<your vpc name>} \\"
     print_warning "     --service=servicenetworking.googleapis.com \\"
     print_warning "     --project=$project_id"
     echo ""
@@ -812,6 +802,9 @@ main() {
         echo ""
     fi
     
+    # Read before the destroy empties the state, for the clean-up hint in the summary.
+    VPC_NAME=$(terraform output -raw vpc_name 2>/dev/null || echo "")
+
     # Perform the HA destruction
     perform_destroy
     

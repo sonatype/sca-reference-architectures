@@ -1,6 +1,6 @@
 # Cloud SQL PostgreSQL Database Instance (Single-instance)
 resource "google_sql_database_instance" "iq_db" {
-  name             = "nexus-iq-db-${random_string.suffix.result}"
+  name             = "${local.app_name}-db-${random_string.suffix.result}"
   database_version = var.postgres_version
   region           = var.gcp_region
   project          = var.gcp_project_id
@@ -81,7 +81,7 @@ resource "google_sql_user" "iq_db_user" {
 
 # Secret Manager for database credentials
 resource "google_secret_manager_secret" "db_credentials" {
-  secret_id = "nexus-iq-db-credentials"
+  secret_id = "${local.app_name}-db-credentials"
   project   = var.gcp_project_id
 
   replication {
@@ -106,7 +106,7 @@ resource "google_secret_manager_secret_version" "db_credentials" {
 
 # SSL Certificate for Cloud SQL
 resource "google_sql_ssl_cert" "iq_client_cert" {
-  common_name = "nexus-iq-client-cert"
+  common_name = "${local.app_name}-client-cert"
   instance    = google_sql_database_instance.iq_db.name
   project     = var.gcp_project_id
 }
