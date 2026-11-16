@@ -34,8 +34,11 @@ db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this
 # Cloud SQL cannot downgrade a major version in place. If an instance already exists
 # on another major version, set that version here.
 postgres_version                    = "POSTGRES_18"
-db_instance_tier                    = "db-custom-8-30720"
+db_instance_tier                    = "db-custom-N4-8-65536"  # 8 vCPU, 64 GB, N4 series
 db_edition                          = "ENTERPRISE"
+db_disk_type                        = "HYPERDISK_BALANCED"    # PD_SSD with the XS and S db-custom-2-* tiers
+db_disk_provisioned_iops            = 8000                    # used only on HYPERDISK_BALANCED
+db_disk_provisioned_throughput      = 340                     # MiB/s, set with the IOPS, used only on HYPERDISK_BALANCED
 db_availability_type                = "ZONAL"
 db_disk_size                        = 128
 db_max_disk_size                    = 500

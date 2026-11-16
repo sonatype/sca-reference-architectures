@@ -1,3 +1,8 @@
+# Provisioned performance is sent only on Hyperdisk Balanced, and only when both values are set.
+locals {
+  db_disk_provisioned = var.db_disk_type == "HYPERDISK_BALANCED" && var.db_disk_provisioned_iops != null && var.db_disk_provisioned_throughput != null
+}
+
 # Cloud SQL PostgreSQL Database Instance (Single-instance)
 resource "google_sql_database_instance" "iq_db" {
   name             = "${local.app_name}-db-${random_string.suffix.result}"
@@ -9,10 +14,15 @@ resource "google_sql_database_instance" "iq_db" {
     tier                  = var.db_instance_tier
     edition               = var.db_edition
     availability_type     = var.db_availability_type
-    disk_type             = "PD_SSD"
+    disk_type             = var.db_disk_type
     disk_size             = var.db_disk_size
     disk_autoresize       = true
     disk_autoresize_limit = var.db_max_disk_size
+
+    # Cloud SQL accepts provisioned IOPS and throughput only on Hyperdisk Balanced, and only
+    # together, so both are sent or neither is.
+    data_disk_provisioned_iops       = local.db_disk_provisioned ? var.db_disk_provisioned_iops : null
+    data_disk_provisioned_throughput = local.db_disk_provisioned ? var.db_disk_provisioned_throughput : null
 
     user_labels = {
       environment = var.environment
@@ -57,6 +67,25 @@ resource "google_sql_database_instance" "iq_db" {
   }
 
   deletion_protection = var.db_deletion_protection
+
+  lifecycle {
+    precondition {
+      condition     = length(regexall("^db-custom-N4-", var.db_instance_tier)) == 0 || var.db_disk_type == "HYPERDISK_BALANCED"
+      error_message = "The N4 tiers (db-custom-N4-*) take only HYPERDISK_BALANCED storage, so db_disk_type must be HYPERDISK_BALANCED."
+    }
+    precondition {
+      condition     = length(regexall("^db-(custom-[0-9]|f1-|g1-)", var.db_instance_tier)) == 0 || var.db_disk_type != "HYPERDISK_BALANCED"
+      error_message = "The classic db-custom-*, db-f1-micro and db-g1-small tiers take PD_SSD or PD_HDD, so set db_disk_type to PD_SSD."
+    }
+    precondition {
+      condition     = (var.db_disk_provisioned_iops == null) == (var.db_disk_provisioned_throughput == null)
+      error_message = "Cloud SQL takes provisioned IOPS and throughput together, so set both db_disk_provisioned_iops and db_disk_provisioned_throughput, or leave both null."
+    }
+    precondition {
+      condition     = coalesce(var.db_disk_provisioned_throughput, 140) >= max(140, coalesce(var.db_disk_provisioned_iops, 3000) / 256) && coalesce(var.db_disk_provisioned_throughput, 140) <= min(2400, coalesce(var.db_disk_provisioned_iops, 3000) / 4)
+      error_message = "Hyperdisk Balanced takes a throughput from the larger of 140 and IOPS / 256, up to the smaller of 2400 and IOPS / 4, in MiB/s."
+    }
+  }
 
   depends_on = [
     google_service_networking_connection.private_vpc_connection,
