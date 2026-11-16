@@ -70,20 +70,22 @@ echo ""
 echo -e "${BLUE}🔍 Configuration Validation${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if grep -q "CHANGE_ME" terraform.tfvars 2>/dev/null; then
+# Commented lines are skipped, so the example's commented settings can stay as they are.
+if grep -v '^[[:space:]]*#' terraform.tfvars | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: Found placeholder values${NC}"
-    grep "CHANGE_ME" terraform.tfvars || true
+    grep -n "CHANGE_ME" terraform.tfvars | grep -v '^[0-9]*:[[:space:]]*#' || true
     exit 1
 fi
 
 echo -e "${GREEN}✅ Configuration validated${NC}"
 
-MIN_REPLICAS=$(grep '^min_replicas' terraform.tfvars | grep -o '[0-9]\+' || echo "0")
+MIN_REPLICAS=$(sed -n 's/^iq_min_replicas *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+MIN_REPLICAS=${MIN_REPLICAS:-0}
 DB_HA_MODE=$(grep '^db_high_availability_mode' terraform.tfvars | cut -d'"' -f2 || echo "")
 STORAGE_REPLICATION=$(grep '^storage_account_replication_type' terraform.tfvars | cut -d'"' -f2 || echo "")
 
 if [[ "$MIN_REPLICAS" -lt 2 ]]; then
-  echo -e "${YELLOW}⚠️  Warning: min_replicas is $MIN_REPLICAS (recommended: >= 2 for HA)${NC}"
+  echo -e "${YELLOW}⚠️  Warning: iq_min_replicas is $MIN_REPLICAS (recommended: >= 2 for HA)${NC}"
 fi
 
 if [[ "$DB_HA_MODE" != "ZoneRedundant" ]]; then

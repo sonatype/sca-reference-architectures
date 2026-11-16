@@ -79,30 +79,35 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "db_instance_class" {
-  description = "RDS instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "RDS instance class. The default is the Size M value; XS uses db.m8g.large and S db.r8g.large."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "db_allocated_storage" {
-  description = "Initial allocated storage for RDS in GB"
+  description = "Initial allocated storage for RDS in GB. The default is the Size M value."
+  type        = number
+  default     = 128
+}
+
+variable "db_max_allocated_storage" {
+  description = "Maximum allocated storage for RDS in GB, the ceiling storage autoscaling grows to"
   type        = number
   default     = 500
 }
 
-variable "db_max_allocated_storage" {
-  description = "Maximum allocated storage for RDS in GB"
-  type        = number
-  default     = 1000
-}
-
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL engine version."
   type        = string
-  default     = "15.10"
+  default     = "18.6"
 }
 
 variable "db_backup_retention_period" {
@@ -140,6 +145,11 @@ variable "ssl_certificate_arn" {
   description = "ARN of SSL certificate for ALB HTTPS listener"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.ssl_certificate_arn))
+    error_message = "ssl_certificate_arn still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "alb_deletion_protection" {

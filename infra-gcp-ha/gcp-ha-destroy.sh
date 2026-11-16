@@ -111,7 +111,7 @@ WARNING:
     This will permanently delete ALL HA infrastructure and data!
     
     HA Resources to be destroyed:
-    • Managed instance groups (2-6+ instances)
+    • Managed instance groups (2 to 5 instances, depending on size)
     • Regional autoscaler and load balancers
     • Cloud SQL regional database with read replicas
     • Regional persistent disks and file storage
@@ -381,7 +381,7 @@ show_destruction_summary() {
         fi
     else
         echo "  • All Nexus IQ HA infrastructure resources"
-        echo "  • Compute Engine managed instance groups (2-6+ instances)"
+        echo "  • Compute Engine managed instance groups (2 to 5 instances, depending on size)"
         echo "  • Regional autoscaler and load balancers"
         echo "  • Cloud SQL regional database with read replicas"
         echo "  • Regional persistent disks and file storage"

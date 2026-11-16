@@ -10,11 +10,13 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 | Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type |
 |------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
-| **L** | 10,000 – 20,000 | 10,000 – 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | Fargate (8192 CPU / 65536 MEM) |
-| **XL** | 20,000 – 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | Fargate (16384 CPU / 131072 MEM) |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
+| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 60 GB | 44 GB | Fargate (8192 CPU / 61440 MEM) |
+| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 120 GB | 96 GB | Fargate (16384 CPU / 122880 MEM) |
 
-> All sizes validated through performance testing. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
+> Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL), from performance testing of these sizes. That testing ran on GCP ARM instances, `n4a-highmem-8` at 8 vCPU and 64 GB with a 48 GB heap for M and L, and `n4a-highmem-16` at 16 vCPU and 128 GB with a 96 GB heap for XL, not on Fargate tasks. The 60 GB task and 44 GB heap above are the nearest shape Fargate allows, so treat the figures as indicative rather than measured at those values.
+
+> **Why a 44 GB heap at M and L?** Fargate caps an 8 vCPU task at 60 GB, so a 48 GB heap plus `-XX:MaxDirectMemorySize=8g` would commit 56 GB of the 60, and `-XX:+AlwaysPreTouch` claims the whole heap at startup. 44 GB leaves 8 GB for the JVM's own non-heap memory and the rest of the container. XL keeps 96 GB, which leaves 16 GB of its 120 GB task.
 
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
@@ -25,13 +27,13 @@ This HA architecture supports sizes **M**, **L**, and **XL**. Choose your size b
 
 ```hcl
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536               # 64 GB
+ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 2                   # 2 nodes for HA
 iq_min_count         = 2
 iq_max_count         = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ
 ```
 </details>
@@ -41,13 +43,13 @@ aurora_instances      = 2                  # Multi-AZ
 
 ```hcl
 ecs_cpu              = 8192                # 8 vCPU
-ecs_memory           = 65536               # 64 GB
+ecs_memory           = 61440               # 60 GB, the maximum at 8 vCPU
 iq_desired_count     = 3                   # 3 nodes recommended
 iq_min_count         = 2
 iq_max_count         = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-aurora_instance_class = "db.r6g.2xlarge"   # 8 vCPU, 64 GB
+java_opts            = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r8g.2xlarge"   # 8 vCPU, 64 GB
 aurora_instances      = 2                  # Multi-AZ with failover
 ```
 </details>
@@ -57,13 +59,14 @@ aurora_instances      = 2                  # Multi-AZ with failover
 
 ```hcl
 ecs_cpu              = 16384               # 16 vCPU
-ecs_memory           = 131072              # 128 GB
+ecs_memory           = 122880              # 120 GB, the maximum at 16 vCPU
+ecs_memory_reservation = 106496            # 104 GB soft limit, the 96 GB heap plus 8 GB direct memory
 iq_desired_count     = 4                   # 4 nodes for XL
 iq_min_count         = 3
 iq_max_count         = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-aurora_instance_class = "db.r6g.4xlarge"   # 16 vCPU, 128 GB
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+aurora_instance_class = "db.r8g.4xlarge"   # 16 vCPU, 128 GB
 aurora_instances      = 2                  # Multi-AZ with automatic failover
 ```
 </details>
@@ -72,9 +75,9 @@ aurora_instances      = 2                  # Multi-AZ with automatic failover
 
 | Size | Aurora Instance Class | vCPU | Memory | Storage |
 |------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r6g.2xlarge | 8 | 64 GB | 100 GB (auto-scales to 500 GB) |
-| **L** | db.r6g.2xlarge | 8 | 64 GB | 200 GB – 1 TB auto-scaling |
-| **XL** | db.r6g.4xlarge | 16 | 128 GB | 500 GB – 2 TB auto-scaling |
+| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, expected to grow to about 500 GB |
+| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, expected to grow to about 1 TB |
+| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, expected to grow to about 2 TB |
 
 ### Shared Storage (EFS)
 
@@ -230,9 +233,16 @@ Your IAM user/role needs these AWS service permissions:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
+
+> An instance class change applies in the next maintenance window, because this
+> configuration does not set `apply_immediately`.
+
 ### Configuration Variables
 
-Edit `terraform.tfvars` to customize your deployment:
+Edit `terraform.tfvars` to customize your deployment. The task counts below are the Size L values from
+the [Sizing Guide](#sizing-guide); use the per-size block for your own size instead of copying these.
 
 ```hcl
 # General Configuration
@@ -248,24 +258,24 @@ enable_nat_gateway     = true
 
 # ECS Configuration
 ecs_cpu                 = 8192   # 8 vCPU
-ecs_memory              = 32768  # 32 GB
-ecs_memory_reservation  = 24576  # 24 GB soft limit
+ecs_memory              = 61440  # 60 GB, the Size M and L value
+ecs_memory_reservation  = 53248  # 52 GB soft limit, the heap plus direct memory
 
 # IQ Server Configuration
 iq_desired_count        = 3
 iq_min_count           = 2
-iq_max_count           = 5
+iq_max_count           = 4
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%)
 iq_memory_target_value = 80  # Memory target for auto scaling (%)
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
-java_opts              = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts              = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration (Aurora PostgreSQL)
 db_name                     = "nexusiq"
 db_username                 = "nexusiq"
 db_password                 = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-aurora_engine_version       = "15.10"
-aurora_instance_class       = "db.r6g.4xlarge"
+aurora_engine_version       = "18.6"
+aurora_instance_class       = "db.r8g.2xlarge"
 aurora_instances            = 2
 db_backup_retention_period  = 7
 db_backup_window           = "03:00-04:00"
@@ -274,12 +284,8 @@ db_skip_final_snapshot     = true
 db_deletion_protection     = false
 
 # Load Balancer Configuration
-# ssl_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+# ssl_certificate_arn = "arn:aws:acm:us-east-1:CHANGE_ME:certificate/CHANGE_ME"
 alb_deletion_protection = false
-
-# EFS Configuration
-efs_throughput_mode                  = "provisioned"
-efs_provisioned_throughput_in_mibps = 100
 
 # Monitoring Configuration
 enable_container_insights = true
@@ -288,9 +294,9 @@ log_retention_days       = 30
 ```
 
 **Important Settings:**
-- **`iq_desired_count = 3`** - Initial number of instances for HA (minimum 2 recommended)
-- **`iq_min_count = 2`** - Minimum auto scaling capacity (must be at least 2 for HA)
-- **`iq_max_count = 5`** - Maximum auto scaling capacity
+- **`iq_desired_count = 3`** - Initial number of tasks, the Size L value. Size M uses 2 and Size XL uses 4
+- **`iq_min_count = 2`** - Minimum auto scaling capacity, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA
+- **`iq_max_count = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
 - **`aurora_instances = 2`** - Number of Aurora instances (minimum 2 for HA)
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
@@ -326,7 +332,7 @@ This deployment solves critical IQ Server clustering challenges:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-AZ Deployment**: ECS tasks and Aurora instances distributed across multiple availability zones
-- **Auto Scaling**: ECS service scales from 2-5 tasks based on CPU/memory utilization
+- **Auto Scaling**: ECS service scales between the minimum and maximum task counts for your size based on CPU/memory utilization. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Aurora Cluster**: Multi-AZ database deployment with automatic failover (~30 seconds)
 - **Automatic Restart**: ECS automatically restarts failed containers
 - **Load Balancing**: ALB distributes traffic across healthy containers
@@ -370,7 +376,7 @@ This deployment includes **production-grade logging** with a unified CloudWatch 
 ## Persistent Storage
 
 - **EFS File System**: Shared storage for clustering with unique work directories
-- **Aurora Database**: PostgreSQL cluster for application data with continuous backups
+- **Aurora Database**: PostgreSQL cluster for application data with continuous backups. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Aurora storage scales automatically
 - **AWS Backup**: Automated EFS backup with daily/weekly retention policies
 

@@ -38,6 +38,7 @@ resource "google_compute_instance_template" "iq_template" {
     db_user            = var.db_username
     db_password_secret = google_secret_manager_secret.db_password.secret_id
     java_opts          = var.java_opts
+    iq_log_levels      = var.iq_log_levels
     gcp_project_id     = var.gcp_project_id
     filestore_ip       = google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]
   })
@@ -96,6 +97,12 @@ resource "google_compute_region_instance_group_manager" "iq_mig" {
     minimal_action               = "REPLACE"
     max_surge_fixed              = 3
     max_unavailable_fixed        = 0
+  }
+
+  # The autoscaler owns the live size, so target_size is ignored after create.
+  # Otherwise every apply would reset the group to iq_target_instances.
+  lifecycle {
+    ignore_changes = [target_size]
   }
 
   depends_on = [

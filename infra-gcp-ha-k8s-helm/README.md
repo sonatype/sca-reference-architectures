@@ -16,8 +16,6 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 
 > All sizes validated through performance testing on GCP ARM instances. Expected throughput: ~310 evals/hour/node (M/L) or ~405 evals/hour/node (XL).
 
-> **GCP was the primary test platform** — all performance data was validated on GCP ARM-based instances (Ampere Altra).
-
 > **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
 ### Recommended `terraform.tfvars` by Size
@@ -26,15 +24,15 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**. Choose your si
 <summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
 
 ```hcl
-machine_type            = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
-node_pool_min_count     = 2
-node_pool_max_count     = 3
-node_pool_initial_count = 2
+node_instance_type      = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
+node_group_min_size     = 2
+node_group_max_size     = 3
+node_group_desired_size = 2
 nexus_iq_replica_count  = 2                # 2 IQ pods
-iq_docker_image         = "sonatype/nexus-iq-server:latest"
-java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier                 = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 128              # GB
+db_max_disk_size        = 500
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 1024             # 1 TiB
 ```
@@ -44,15 +42,15 @@ filestore_capacity_gb   = 1024             # 1 TiB
 <summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
 
 ```hcl
-machine_type            = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
-node_pool_min_count     = 2
-node_pool_max_count     = 5
-node_pool_initial_count = 3
+node_instance_type      = "n4a-highmem-8"  # 8 vCPU, 64 GB (ARM)
+node_group_min_size     = 2
+node_group_max_size     = 5
+node_group_desired_size = 3
 nexus_iq_replica_count  = 3                # 3 IQ pods
-iq_docker_image         = "sonatype/nexus-iq-server:latest"
-java_opts               = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier                 = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_instance_tier        = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 256              # GB
+db_max_disk_size        = 1000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 2560             # 2.5 TiB
 ```
@@ -62,15 +60,15 @@ filestore_capacity_gb   = 2560             # 2.5 TiB
 <summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
 
 ```hcl
-machine_type            = "n4a-highmem-16" # 16 vCPU, 128 GB (ARM)
-node_pool_min_count     = 3
-node_pool_max_count     = 5
-node_pool_initial_count = 4
+node_instance_type      = "n4a-highmem-16" # 16 vCPU, 128 GB (ARM)
+node_group_min_size     = 3
+node_group_max_size     = 5
+node_group_desired_size = 4
 nexus_iq_replica_count  = 4                # 4 IQ pods
-iq_docker_image         = "sonatype/nexus-iq-server:latest"
-java_opts               = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_tier                 = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+db_instance_tier        = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
 db_availability_type    = "REGIONAL"
+db_disk_size            = 512              # GB
+db_max_disk_size        = 2000
 filestore_tier          = "BASIC_HDD"
 filestore_capacity_gb   = 10240            # 10 TiB
 ```
@@ -80,9 +78,9 @@ filestore_capacity_gb   = 10240            # 10 TiB
 
 | Size | DB Tier | vCPU | Memory | Storage | Availability |
 |------|:--------|:----:|:------:|:-------:|:------------:|
-| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 100 GB (auto-resize to 500 GB) | Regional |
-| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 200 GB – 1 TB (auto-resize) | Regional |
-| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 500 GB – 2 TB (auto-resize) | Regional |
+| **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) | Regional |
+| **L** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 256 GB, auto-resize to 1 TB | Regional |
+| **XL** | db-custom-16-65536 (Enterprise) | 16 | 64 GB | 512 GB, auto-resize to 2 TB | Regional |
 
 ### Shared Storage (Cloud Filestore)
 
@@ -92,7 +90,7 @@ filestore_capacity_gb   = 10240            # 10 TiB
 | **L** | BASIC_HDD | 2.5 TiB | 600 | 1,000 |
 | **XL** | BASIC_HDD | 10 TiB | 1,000 | 5,000 |
 
-> BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS (4x observed peak of ~1,212 ops/sec) at roughly the same cost as 2.5 TiB SSD. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
+> BASIC_HDD is the default recommendation. At 10+ TiB, HDD unlocks 5,000 write IOPS at roughly the same cost as 2.5 TiB SSD. Enterprise edition Cloud SQL (not Enterprise Plus) is sufficient.
 
 ---
 
@@ -247,13 +245,16 @@ Enable these APIs in your project:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # GCP Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 environment    = "prod"
 cluster_name   = "nexus-iq-ha"
@@ -275,13 +276,13 @@ node_disk_size               = 100
 gke_maintenance_window_start = "03:00"
 
 # PostgreSQL Configuration (Regional HA)
-postgres_version                   = "POSTGRES_15"
+postgres_version                   = "POSTGRES_18"
 db_instance_tier                   = "db-custom-8-30720"  # 8 vCPU, 30GB RAM
 db_availability_type               = "REGIONAL"
-db_disk_size                       = 100
+db_disk_size                       = 256
 db_max_disk_size                   = 1000
 db_max_connections                 = "400"
-db_backup_retention_count          = 7
+db_backup_retention_count          = 8
 db_deletion_protection             = false
 enable_read_replica                = true
 db_name                            = "nexusiq"
@@ -290,23 +291,33 @@ db_password                        = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
 
 # Cloud Filestore Configuration (Shared Storage)
 filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_SSD"
-filestore_capacity_gb = 2560  # 2.5 TB minimum for BASIC_SSD
+filestore_tier        = "BASIC_HDD"
+filestore_capacity_gb = 2560  # 2.5 TiB, the Size L capacity
 
 # Sonatype IQ Server HA Configuration
 nexus_iq_replica_count  = 3
 nexus_iq_admin_password = "admin123"
 helm_chart_version      = "195.0.0"
-java_opts               = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+```
+
+Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
+
+```yaml
+iq_server:
+  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
+hpa:
+  enabled: true
+  minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
+  maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
 ```
 
 **Important Settings:**
-- **`node_group_min_size = 2`** - Minimum AKS node capacity
-- **`node_group_max_size = 5`** - Maximum AKS node capacity
+- **`node_group_min_size = 2`** - Minimum GKE node capacity
+- **`node_group_max_size = 5`** - Maximum GKE node capacity
 - **`nexus_iq_replica_count = 3`** - Initial number of replicas for HA (minimum 2 recommended, requires HA license)
 - **`db_availability_type = "REGIONAL"`** - Regional database with automatic failover
 - **`enable_read_replica = true`** - Database read replica for load distribution
-- **`filestore_capacity_gb = 2560`** - 2.5 TB minimum for BASIC_SSD tier
+- **`filestore_capacity_gb = 2560`** - 2.5 TiB, the Size L capacity. Size M uses 1024 and Size XL uses 10240
 - **`gcp_project_id`** - Your GCP project ID (required)
 - **`db_password`** - Use a strong, unique password (required change)
 - **`db_deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
@@ -320,14 +331,14 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 - **Shared Storage**: Cloud Filestore (BASIC_SSD) provides consistent storage across all replicas with ReadWriteMany access
 - **Database Sharing**: All replicas connect to the shared regional Cloud SQL cluster via Kubernetes secrets
 - **Service Discovery**: Kubernetes service provides stable DNS and load balancing
-- **Horizontal Pod Autoscaler**: Pods scale from 3 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
 ## Security Features
 
 - **Private GKE Cluster**: Nodes in private subnets with no public IPs
-- **Workload Identity**: Secure service account access without keys (GCP's equivalent to AWS IRSA)
+- **Workload Identity**: Secure service account access without keys
 - **Database Security**: Regional Cloud SQL in isolated database subnet with private DNS
 - **Secrets Management**: Database credentials stored in Kubernetes secrets
 - **Encryption**:
@@ -343,7 +354,7 @@ This deployment leverages Kubernetes and Helm for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: GKE nodes, pods, and database distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: Pods scale from 3 based on CPU/memory utilization
+- **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Cluster Autoscaler**: GKE nodes scale from 2-5 based on pod resource requests
 - **Regional Database**: Cloud SQL with REGIONAL availability type provides automatic failover (~30 seconds) between zones
 - **Read Replica**: Optional read replica for load distribution
@@ -366,7 +377,7 @@ This is a **High Availability** deployment with comprehensive reliability featur
 ## Persistent Storage
 
 - **Cloud Filestore (BASIC_SSD)**: Shared storage for `/sonatype-work` directory (2.5 TB minimum)
-- **Database**: Cloud SQL PostgreSQL 15 (regional) for application data
+- **Database**: Cloud SQL PostgreSQL (regional) for application data. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: Cloud SQL storage scales automatically up to configured limit
 - **Backup Configuration**: Database backups retained for 7 days with transaction logs for point-in-time recovery
 

@@ -4,7 +4,7 @@ resource "aws_db_subnet_group" "iq_db_subnet_group" {
   subnet_ids = aws_subnet.db_subnets[*].id
 
   tags = {
-    Name        = "ref-arch-iq-db-subnet-group"
+    Name = "ref-arch-iq-db-subnet-group"
   }
 }
 
@@ -15,7 +15,7 @@ resource "aws_secretsmanager_secret" "db_credentials" {
   recovery_window_in_days = 7
 
   tags = {
-    Name        = "ref-arch-iq-db-credentials"
+    Name = "ref-arch-iq-db-credentials"
   }
 }
 
@@ -47,20 +47,20 @@ resource "aws_db_instance" "iq_db" {
   db_subnet_group_name   = aws_db_subnet_group.iq_db_subnet_group.name
 
   backup_retention_period = var.db_backup_retention_period
-  backup_window          = var.db_backup_window
-  maintenance_window     = var.db_maintenance_window
+  backup_window           = var.db_backup_window
+  maintenance_window      = var.db_maintenance_window
 
   skip_final_snapshot = var.db_skip_final_snapshot
   deletion_protection = var.db_deletion_protection
 
   performance_insights_enabled = true
-  monitoring_interval         = 60
-  monitoring_role_arn        = aws_iam_role.rds_enhanced_monitoring.arn
+  monitoring_interval          = 60
+  monitoring_role_arn          = aws_iam_role.rds_enhanced_monitoring.arn
 
   auto_minor_version_upgrade = true
 
   tags = {
-    Name        = "ref-arch-iq-database"
+    Name = "ref-arch-iq-database"
   }
 }
 
@@ -82,7 +82,7 @@ resource "aws_iam_role" "rds_enhanced_monitoring" {
   })
 
   tags = {
-    Name        = "ref-arch-rds-enhanced-monitoring"
+    Name = "ref-arch-rds-enhanced-monitoring"
   }
 }
 

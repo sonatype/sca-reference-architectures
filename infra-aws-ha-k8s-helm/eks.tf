@@ -1,3 +1,12 @@
+# The node AMI must match the instance architecture: Graviton types get the arm64 AMI.
+data "aws_ec2_instance_type" "node" {
+  instance_type = var.node_instance_type
+}
+
+locals {
+  node_ami_type = contains(data.aws_ec2_instance_type.node.supported_architectures, "arm64") ? "AL2023_ARM_64_STANDARD" : "AL2023_x86_64_STANDARD"
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 19.15"
@@ -21,10 +30,21 @@ module "eks" {
       max_size     = var.node_group_max_size
       desired_size = var.node_group_desired_size
 
-      ami_type       = "AL2_x86_64"
-      capacity_type  = "ON_DEMAND"
-      disk_size      = var.node_disk_size
+      ami_type      = local.node_ami_type
+      capacity_type = "ON_DEMAND"
 
+      # The module builds a launch template for the node group, and EKS ignores disk_size
+      # when a launch template is used, so the root volume size is set here.
+      block_device_mappings = {
+        xvda = {
+          device_name = "/dev/xvda"
+          ebs = {
+            volume_size           = var.node_disk_size
+            volume_type           = "gp3"
+            delete_on_termination = true
+          }
+        }
+      }
 
       iam_role_additional_policies = {
         AmazonEFSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"

@@ -1,6 +1,11 @@
 variable "gcp_project_id" {
   description = "GCP Project ID"
   type        = string
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.gcp_project_id))
+    error_message = "gcp_project_id still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "gcp_region" {
@@ -96,7 +101,7 @@ variable "gke_maintenance_window_start" {
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
-  default     = "POSTGRES_15"
+  default     = "POSTGRES_18"
 }
 
 variable "db_instance_tier" {
@@ -112,9 +117,9 @@ variable "db_availability_type" {
 }
 
 variable "db_disk_size" {
-  description = "Database disk size in GB"
+  description = "Database disk size in GB. The default is the Size L value."
   type        = number
-  default     = 100
+  default     = 256
 }
 
 variable "db_max_disk_size" {
@@ -142,9 +147,9 @@ variable "db_transaction_log_retention_days" {
 }
 
 variable "db_backup_retention_count" {
-  description = "Number of database backups to retain"
+  description = "Number of automated backups to retain. Cloud SQL refuses a count that is not greater than db_transaction_log_retention_days, with \"backup retention should be > transaction log retention\", so this stays above that variable."
   type        = number
-  default     = 7
+  default     = 8
 }
 
 variable "db_maintenance_window_day" {
@@ -187,6 +192,11 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "filestore_zone" {
@@ -242,10 +252,4 @@ variable "helm_chart_version" {
   description = "Nexus IQ Server Helm chart version"
   type        = string
   default     = "195.0.0"
-}
-
-variable "java_opts" {
-  description = "Java options for Nexus IQ Server"
-  type        = string
-  default     = "-Xms24g -Xmx24g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }

@@ -1,7 +1,7 @@
 variable "azure_region" {
   description = "Azure region for infrastructure deployment"
   type        = string
-  default     = "eastus2"
+  default     = "eastus"
 }
 
 variable "environment" {
@@ -80,9 +80,9 @@ variable "node_disk_size" {
 
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {
@@ -125,6 +125,11 @@ variable "database_password" {
   description = "Password for PostgreSQL database"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.database_password))
+    error_message = "database_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "backup_retention_period" {
@@ -190,12 +195,6 @@ variable "app_gateway_max_capacity" {
 }
 
 
-variable "nexus_iq_version" {
-  description = "Version of Nexus IQ Server to deploy"
-  type        = string
-  default     = "1.195.0"
-}
-
 variable "nexus_iq_license" {
   description = "Base64 encoded Nexus IQ Server license"
   type        = string
@@ -243,7 +242,7 @@ variable "nexus_iq_cpu_limit" {
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
-  default     = "195.0.0"
+  default     = "201.0.0"
 }
 
 variable "helm_namespace" {
@@ -281,37 +280,6 @@ variable "enable_monitoring" {
   description = "Enable Application Insights monitoring"
   type        = bool
   default     = true
-}
-
-
-variable "enable_hpa" {
-  description = "Enable Horizontal Pod Autoscaler"
-  type        = bool
-  default     = true
-}
-
-variable "hpa_min_replicas" {
-  description = "Minimum replicas for HPA"
-  type        = number
-  default     = 2
-}
-
-variable "hpa_max_replicas" {
-  description = "Maximum replicas for HPA"
-  type        = number
-  default     = 10
-}
-
-variable "hpa_target_cpu_utilization" {
-  description = "Target CPU utilization percentage for HPA"
-  type        = number
-  default     = 70
-}
-
-variable "hpa_target_memory_utilization" {
-  description = "Target memory utilization percentage for HPA"
-  type        = number
-  default     = 80
 }
 
 

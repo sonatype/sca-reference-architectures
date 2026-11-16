@@ -217,7 +217,10 @@ else
 fi
 
 FLUENTD_IRSA_ROLE_ARN=$($TERRAFORM_PREFIX terraform output -raw fluentd_irsa_role_arn 2>/dev/null || echo "")
-REPLICA_COUNT=$(grep '^nexus_iq_replica_count' terraform.tfvars | cut -d'=' -f2 | tr -d ' ' 2>/dev/null || echo "3")
+# sed rather than cut, which keeps a trailing comment. The default is on its own line because
+# `|| echo` after a pipe sees only the last command's status.
+REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
@@ -230,7 +233,7 @@ sed -i.bak \
     -e "s/port: 5432/port: $DB_PORT/" \
     -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
     -e "s|eks.amazonaws.com/role-arn: \"\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
-    -e "s/replicaCount: [0-9]*/replicaCount: $REPLICA_COUNT/" \
+    -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
     "$TEMP_VALUES_FILE"
 
 sed -i '' \
@@ -255,7 +258,8 @@ fi
 echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2)
+CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -280,7 +280,7 @@ show_deployment_summary() {
     
     warning "This deployment will:"
     echo "  • Create a high-availability Nexus IQ Server infrastructure"
-    echo "  • Deploy 2-6 Compute Engine instances across multiple zones"
+    echo "  • Deploy 2 to 5 Compute Engine instances across multiple zones, depending on size"
     echo "  • Create a regional Cloud SQL PostgreSQL database"
     echo "  • Set up a global load balancer with SSL/TLS"
     echo "  • Configure auto-scaling and monitoring"

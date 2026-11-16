@@ -31,7 +31,7 @@ container_memory     = "64Gi"              # 64 GB
 iq_min_replicas      = 2                   # 2 replicas for HA
 iq_max_replicas      = 3
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 ```
@@ -46,7 +46,7 @@ container_memory     = "64Gi"              # 64 GB
 iq_min_replicas      = 2
 iq_max_replicas      = 4
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
 db_high_availability_mode = "ZoneRedundant"
 storage_account_tier             = "Standard"
@@ -63,10 +63,10 @@ container_memory     = "128Gi"             # 128 GB
 iq_min_replicas      = 3
 iq_max_replicas      = 5
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "MO_Standard_E16s_v3" # 16 vCores, 128 GB
 db_high_availability_mode = "ZoneRedundant"
-storage_account_tier             = "Premium"  # Required for NFS with AKS
+storage_account_tier             = "Premium"  # The quota is the provisioned and billed size
 storage_account_replication_type = "ZRS"
 ```
 </details>
@@ -81,13 +81,13 @@ storage_account_replication_type = "ZRS"
 
 ### Shared Storage (Azure Files)
 
-| Size | Tier | Protocol | Redundancy | Estimated Capacity |
+| Size | Tier | Protocol | Redundancy | Share quota (`file_share_quota_gb`) |
 |------|:-----|:--------:|:----------:|:------------------:|
-| **M** | Standard HDD | SMB 3.0 | ZRS | 100 GB initial |
-| **L** | Standard HDD | SMB 3.0 | ZRS | 500 GB – 1.5 TB |
-| **XL** | Premium SSD | SMB/NFS | ZRS | 1.5 TB – 4 TB |
+| **M** | Standard HDD | SMB 3.0 | ZRS | 500 GB |
+| **L** | Standard HDD | SMB 3.0 | ZRS | 1,536 GB |
+| **XL** | Premium SSD | SMB | ZRS | 4,096 GB, billed as provisioned |
 
-> Standard HDD is the default recommendation based on performance testing. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
+> Standard HDD is the default recommendation. Use Premium SSD when NFS protocol is required or high sustained write volume exceeds transaction-based pricing.
 
 ---
 
@@ -107,7 +107,7 @@ Install these tools on your local machine:
 - Azure subscription with Contributor access
 - Ability to create: Resource Groups, Virtual Networks, Container Apps, PostgreSQL, Application Gateway
 - Key Vault access for secrets management
-- Zone-redundant resource support in target region (default: East US 2)
+- Zone-redundant resource support in target region (default: East US)
 
 #### Required Azure Permissions
 Your Azure account needs permissions for these services:
@@ -115,7 +115,7 @@ Your Azure account needs permissions for these services:
 - **Compute**: Container Apps, Container App Environments, Container App Environment Storage
 - **Networking**: Virtual Networks, subnets (multi-zone), Network Security Groups, Application Gateways (zone-redundant), Public IPs, Private DNS Zones
 - **Database**: Azure Database for PostgreSQL Flexible Server (zone-redundant with HA mode), databases, firewall rules, server configurations
-- **Storage**: Storage Accounts (Premium ZRS), File Shares, Blob Storage
+- **Storage**: Storage Accounts (Standard ZRS at M and L, Premium ZRS at XL), File Shares, Blob Storage
 - **Security**: Key Vault, Key Vault access policies, Key Vault secrets, Managed Identities (system-assigned)
 - **Monitoring**: Log Analytics workspaces, Application Insights, Monitor diagnostic settings
 - **Backup**: Data Protection Backup Vaults, Backup Policies (if enabled)
@@ -185,7 +185,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the deployment.
 
-   Example: `http://ref-arch-iq-ha-abc123.eastus2.cloudapp.azure.com`
+   Example: `http://ref-arch-iq-ha-abc123.eastus.cloudapp.azure.com`
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -208,13 +208,16 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-azure_region  = "East US 2"
+azure_region  = "East US"
 cluster_name  = "ref-arch-iq-ha"
 
 # Network Configuration (Multi-zone for HA)
@@ -226,8 +229,8 @@ db_subnet_cidr          = "10.0.40.0/24"
 # High Availability Container App Configuration
 container_cpu      = 4.0      # CPU per replica (max for Azure Container Apps)
 container_memory   = "8Gi"    # Memory per replica (max for Azure Container Apps)
-iq_min_replicas    = 3        # Minimum replicas for HA (must be >= 2)
-iq_max_replicas    = 5        # Maximum replicas for auto-scaling
+iq_min_replicas    = 2        # Minimum replicas, the Size L value (must be >= 2)
+iq_max_replicas    = 4        # Maximum replicas for auto-scaling, the Size L value
 iq_docker_image    = "sonatype/nexus-iq-server:latest"
 java_opts          = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
@@ -238,7 +241,7 @@ scale_rule_concurrent_requests = 100  # Concurrent requests threshold for HTTP s
 db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version               = "15"
+postgres_version               = "18"
 db_sku_name                    = "MO_Standard_E16s_v3"     # Memory Optimized: 16 vCores, 128GB RAM
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
@@ -250,8 +253,8 @@ app_gateway_sku_tier    = "Standard_v2"    # v2 required for zone redundancy
 app_gateway_capacity    = 2                # Number of instances
 app_gateway_zones       = ["1", "2", "3"] # Availability zones
 
-# Premium Storage Configuration (HA)
-storage_account_tier             = "Premium"  # Premium for better performance
+# Storage Configuration (HA)
+storage_account_tier             = "Standard"
 storage_account_replication_type = "ZRS"      # Zone-Redundant Storage
 file_share_quota_gb              = 200        # File share size in GB
 
@@ -265,8 +268,8 @@ enable_backup = true
 ```
 
 **Important Settings:**
-- **`iq_min_replicas = 3`** - Minimum replicas for HA (minimum 2 recommended)
-- **`iq_max_replicas = 5`** - Maximum auto scaling capacity
+- **`iq_min_replicas = 2`** - Minimum replicas, the Size M and L value. Size XL uses 3, and every size must be at least 2 for HA
+- **`iq_max_replicas = 4`** - Maximum auto scaling capacity, the Size L value. Size M uses 3 and Size XL uses 5
 - **`db_high_availability_mode = "ZoneRedundant"`** - Zone-redundant PostgreSQL with automatic failover
 - **`storage_account_replication_type = "ZRS"`** - Zone-Redundant Storage for file share
 - **`app_gateway_zones = ["1", "2", "3"]`** - Multi-zone Application Gateway
@@ -282,7 +285,7 @@ This deployment uses Azure Container Apps for IQ Server clustering:
 - **Unique Work Directories**: Each replica gets isolated `/sonatype-work/clm-server-${HOSTNAME}`
 - **Shared Cluster Directory**: Coordination through `/sonatype-work/clm-cluster`
 - **Database Sharing**: All replicas connect to the shared zone-redundant PostgreSQL cluster
-- **Premium Storage**: Azure Files Premium (ZRS) provides consistent storage across all replicas
+- **Shared Storage**: Azure Files (ZRS) provides consistent storage across all replicas, Standard at M and L and Premium at XL
 
 **Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
 
@@ -292,7 +295,7 @@ This deployment uses Azure Container Apps for IQ Server clustering:
 - **Database Security**: Zone-redundant PostgreSQL in isolated database subnet with private DNS
 - **Secrets Management**: Database credentials stored in Azure Key Vault
 - **Encryption**:
-  - Azure File Share (Premium ZRS) encrypted at rest
+  - Azure File Share (ZRS) encrypted at rest
   - PostgreSQL encrypted at rest
   - Application Gateway SSL termination support
 - **Network Security Groups**: Least-privilege network access
@@ -303,14 +306,14 @@ This deployment uses Azure Container Apps for IQ Server clustering:
 This is a **High Availability** deployment with comprehensive reliability features:
 
 - **Multi-Zone Deployment**: Container Apps, Application Gateway, and database distributed across 3 availability zones
-- **Auto Scaling**: Container App replicas scale from 3-5 based on concurrent HTTP request load
+- **Auto Scaling**: Container App replicas scale between the minimum and maximum for your size based on concurrent HTTP request load. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
 - **Zone-Redundant Database**: PostgreSQL Flexible Server with automatic failover (~30 seconds) between zones
 - **Automatic Restart**: Container Apps automatically restarts failed replicas
-- **Zone-Redundant Storage**: Premium Azure Files (ZRS) provides 99.9999999999% durability
+- **Zone-Redundant Storage**: Azure Files (ZRS) provides 99.9999999999% durability
 - **Load Balancing**: Application Gateway distributes traffic with health probes
 - **Database Backups**: Automated PostgreSQL backups with 7-day retention (configurable)
 - **Geo-Redundant Backups**: Optional geo-redundant backups for disaster recovery
-- **File Share Persistence**: Application data stored on Premium Azure Files survives replica restarts
+- **File Share Persistence**: Application data stored on Azure Files survives replica restarts
 
 ## Monitoring and Logging
 
@@ -322,8 +325,8 @@ This is a **High Availability** deployment with comprehensive reliability featur
 
 ## Persistent Storage
 
-- **Azure File Share (Premium ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
-- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data
+- **Azure File Share (ZRS)**: Shared storage for `/sonatype-work` directory with zone redundancy
+- **Database**: PostgreSQL Flexible Server (zone-redundant) for application data. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking

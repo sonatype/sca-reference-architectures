@@ -1,5 +1,5 @@
 # GCP Project Configuration
-gcp_project_id = "your-gcp-project-id"
+gcp_project_id = "CHANGE_ME-gcp-project-id"
 gcp_region     = "us-central1"
 
 # Availability zones for multi-zone deployment
@@ -9,67 +9,78 @@ availability_zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
 environment = "prod"
 
 # Network Configuration
-vpc_cidr               = "10.200.0.0/16"
-public_subnet_cidr     = "10.200.1.0/24"
-private_subnet_cidrs   = ["10.200.10.0/24", "10.200.11.0/24", "10.200.12.0/24"]
-db_subnet_cidr         = "10.200.20.0/24"
+# This root creates subnets inside an auto-created VPC, so there is no
+# VPC-wide CIDR variable. Set the three subnet ranges instead.
+public_subnet_cidr   = "10.200.1.0/24"
+private_subnet_cidrs = ["10.200.10.0/24", "10.200.11.0/24", "10.200.12.0/24"]
+db_subnet_cidr       = "10.200.20.0/24"
 
 # Security - SSH access (restrict to your IP range)
-allowed_ssh_cidrs = ["0.0.0.0/0"]  # Change this to your IP range for security
+allowed_ssh_cidrs = ["CHANGE_ME/32"] # the range allowed to SSH to the instances
 
 # Nexus IQ Server Configuration
-iq_docker_image = "sonatypecommunity/nexus-iq-server:latest"
+iq_docker_image = "sonatype/nexus-iq-server:latest"
 
-# Compute Engine Instance Configuration  
-instance_machine_type = "e2-standard-2"  # 2 vCPU, 8GB RAM
+# Compute Engine Instance Configuration
+instance_machine_type = "n4a-highmem-8" # 8 vCPU, 64 GB (ARM)
 
 # High Availability Configuration
-iq_min_instances    = 2  # Minimum for HA
-iq_max_instances    = 6  # Maximum for scaling
-iq_target_instances = 2  # Initial target
+# Size L instance counts. README.md gives Size M and XL.
+iq_min_instances    = 2 # Minimum for HA
+iq_max_instances    = 4 # Maximum for scaling
+iq_target_instances = 3 # Initial target
 
 # Database Configuration
 db_name     = "nexusiq"
 db_username = "nexusiq"
-db_password = "your-secure-database-password"  # Change this!
+db_password = "CHANGE_ME_STRONG_PASSWORD" # Change this!
 
 # Database settings
-postgres_version       = "POSTGRES_15"
-db_instance_tier      = "db-custom-2-7680"  # 2 vCPU, 7.5GB RAM
-db_availability_type  = "REGIONAL"          # REGIONAL for HA, ZONAL for single-zone
-db_disk_size          = 100
-db_max_disk_size      = 1000
-db_max_connections    = "200"
+postgres_version     = "POSTGRES_18"
+db_instance_tier     = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+db_edition           = "ENTERPRISE"        # ENTERPRISE_PLUS for db-perf-optimized-N-* or db-c4a-highmem-*
+db_disk_type         = "PD_SSD"            # HYPERDISK_BALANCED for db-c4a-highmem-*
+db_availability_type = "REGIONAL"          # REGIONAL for HA, ZONAL for single-zone
+db_disk_size         = 200
+db_max_disk_size     = 1000
+db_max_connections   = "200"
 
 # Database backup configuration
-db_backup_start_time              = "03:00"  # UTC time
+db_backup_start_time              = "03:00" # UTC time
 db_transaction_log_retention_days = 7
-db_backup_retention_count         = 7
-db_maintenance_window_day         = 7        # Sunday
-db_maintenance_window_hour        = 4        # 4 AM UTC
-db_deletion_protection           = true
+db_backup_retention_count         = 8
+db_maintenance_window_day         = 7 # Sunday
+db_maintenance_window_hour        = 4 # 4 AM UTC
+db_deletion_protection            = true
 
 # Enable read replica for load distribution
 enable_read_replica = true
 
-# Shared Storage Configuration
-shared_disk_size_gb = 100      # GB
-shared_disk_type   = "pd-ssd"  # Options: pd-standard, pd-balanced, pd-ssd
+# Shared Storage Configuration (Cloud Filestore)
+filestore_zone        = "us-central1-a"
+filestore_tier        = "BASIC_HDD"
+filestore_capacity_gb = 2560 # 2.5 TiB, the Size L capacity
 
 # Load Balancer and SSL Configuration
-enable_ssl  = false  # Set to true and provide domain_name for HTTPS
-domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
+enable_ssl  = false # Set to true and provide domain_name for HTTPS
+domain_name = ""    # Required if enable_ssl is true (e.g., "iq.example.com")
+
+# Seconds the load balancer waits for IQ Server before answering 502
+lb_backend_timeout_sec = 30
 
 # Auto Scaling Configuration
-cpu_target_utilization      = 0.7   # 70% CPU utilization target
-scale_in_cooldown_seconds   = 300   # 5 minutes
-scale_out_cooldown_seconds  = 60    # 1 minute
+cpu_target_utilization     = 0.7 # 70% CPU utilization target
+scale_in_cooldown_seconds  = 300 # 5 minutes
+scale_out_cooldown_seconds = 60  # 1 minute
 
 # Java Configuration
-java_opts = "-Xmx3g -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Logging
 log_retention_days = 30
+
+# Extra logger levels for config.yml, for example for a support case
+# iq_log_levels = { "com.sonatype.insight.brain.search" = "DEBUG" }
 
 # Common Tags/Labels
 common_tags = {
@@ -80,22 +91,33 @@ common_tags = {
   cost-center = "engineering"
 }
 
-# Example configurations for different environments:
+# The values above are Size L. The blocks below are Size M and XL.
 
-# Development Environment:
-# iq_min_instances    = 1
-# iq_max_instances    = 2
-# iq_target_instances = 1
-# db_instance_tier    = "db-custom-1-3840"  # Smaller instance
-# db_availability_type = "ZONAL"            # Single zone for cost savings
-# enable_read_replica  = false
-# shared_disk_size_gb  = 50
+# Size M:
+# Under 2,000 applications, use infra-gcp: this root requires at least 2 instances.
+# instance_machine_type = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
+# iq_min_instances      = 2
+# iq_max_instances      = 3
+# iq_target_instances   = 2
+# db_instance_tier      = "db-custom-8-30720" # 8 vCPU, 30 GB (Enterprise)
+# db_availability_type  = "REGIONAL"
+# db_disk_size          = 128
+# db_max_disk_size      = 500   # the Size L value above is 1000
+# filestore_tier        = "BASIC_HDD"
+# filestore_capacity_gb = 1024                # 1 TiB
+# enable_read_replica   = true
+# java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
-# Production Environment:
-# iq_min_instances    = 3
-# iq_max_instances    = 10
-# iq_target_instances = 3
-# db_instance_tier    = "db-custom-4-15360"  # Larger instance
-# db_availability_type = "REGIONAL"          # Regional for HA
-# enable_read_replica  = true
-# shared_disk_size_gb  = 500
+# Size XL:
+# instance_machine_type = "n4a-highmem-16"     # 16 vCPU, 128 GB (ARM)
+# iq_min_instances      = 3
+# iq_max_instances      = 5
+# iq_target_instances   = 4
+# db_instance_tier      = "db-custom-16-65536" # 16 vCPU, 64 GB (Enterprise)
+# db_availability_type  = "REGIONAL"
+# db_disk_size          = 512
+# db_max_disk_size      = 2000  # the Size L value above is 1000
+# filestore_tier        = "BASIC_HDD"
+# filestore_capacity_gb = 10240                # 10 TiB
+# enable_read_replica   = true
+# java_opts             = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"

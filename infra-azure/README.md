@@ -18,6 +18,8 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 
 > **Need more capacity?** For 10,000+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
+> **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
+
 ### Recommended `terraform.tfvars` by Size
 
 <details>
@@ -26,10 +28,9 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 ```hcl
 container_cpu        = 2.0                 # 2 vCPU
 container_memory     = "16Gi"              # 16 GB
-container_min_replicas = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms12g -Xmx12g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=3 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-db_sku_name          = "B_Standard_B2ms"   # 2 vCores, 8 GB (burstable)
+db_sku_name          = "GP_Standard_D2ds_v6" # 2 vCores, 8 GB
 db_storage_mb        = 51200               # 50 GB
 ```
 </details>
@@ -40,7 +41,6 @@ db_storage_mb        = 51200               # 50 GB
 ```hcl
 container_cpu        = 4.0                 # 4 vCPU
 container_memory     = "32Gi"              # 32 GB
-container_min_replicas = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
 java_opts            = "-Xms24g -Xmx24g -XX:MaxDirectMemorySize=6g -XX:+UseG1GC -XX:+AlwaysPreTouch -Dinsight.threads.monitor=5 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D2s_v3" # 2 vCores, 8 GB
@@ -54,9 +54,8 @@ db_storage_mb        = 102400              # 100 GB
 ```hcl
 container_cpu        = 8.0                 # 8 vCPU
 container_memory     = "64Gi"              # 64 GB
-container_min_replicas = 1
 iq_docker_image      = "sonatype/nexus-iq-server:latest"
-java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/Java_Heap_logs -XX:+CrashOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts            = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 db_sku_name          = "GP_Standard_D8s_v3" # 8 vCores, 32 GB
 db_storage_mb        = 102400              # 100 GB
 ```
@@ -66,7 +65,7 @@ db_storage_mb        = 102400              # 100 GB
 
 | Size | DB SKU | vCores | Memory | Storage |
 |------|:-------|:------:|:------:|:-------:|
-| **XS** | B_Standard_B2ms (burstable) | 2 | 8 GB | 50 GB |
+| **XS** | GP_Standard_D2ds_v6 | 2 | 8 GB | 50 GB |
 | **S** | GP_Standard_D2s_v3 | 2 | 8 GB | 100 GB |
 | **M** | GP_Standard_D8s_v3 | 8 | 32 GB | 100 GB (auto-grow enabled) |
 
@@ -164,7 +163,7 @@ Your Azure account needs permissions for these services:
 
    Use the application URL displayed at the end of the deployment.
 
-   Example: `http://ref-arch-iq-abc123.westus2.cloudapp.azure.com`
+   Example: `http://ref-arch-iq-abc123.eastus.cloudapp.azure.com`
 
 3. **Login credentials:**
    - **Username:** `admin`
@@ -187,13 +186,16 @@ Your Azure account needs permissions for these services:
 
 ## Configuration
 
+> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
+> PostgreSQL 18.
+
 ### Configuration Variables
 
 Edit `terraform.tfvars` to customize your deployment:
 
 ```hcl
 # General Configuration
-azure_region = "West US 2"  # Use West US 2 to avoid GP tier quota restrictions in East US
+azure_region = "East US"
 
 # Network Configuration
 vnet_cidr           = "10.0.0.0/16"
@@ -211,9 +213,9 @@ java_opts        = "-Xms6g -Xmx6g -Djava.util.prefs.userRoot=/sonatype-work/java
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version                 = "15"
+postgres_version                 = "18"
 db_sku_name                      = "MO_Standard_E16s_v3"  # Memory Optimized (16 vCores, 128GB RAM)
-db_storage_mb                    = 524288                 # 512GB storage
+db_storage_mb                    = 131072                 # 128 GB, the Size M value
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
 db_geo_redundant_backup_enabled  = false
@@ -273,7 +275,7 @@ This is a **single instance** deployment.
 ## Persistent Storage
 
 - **Azure File Share**: Shared storage for `/sonatype-work` directory using SMB protocol
-- **Database**: PostgreSQL Flexible Server for application data
+- **Database**: PostgreSQL Flexible Server for application data. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
 - **Auto-scaling Storage**: PostgreSQL storage scales automatically
 
 ## Networking

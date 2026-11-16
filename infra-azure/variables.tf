@@ -2,7 +2,7 @@
 variable "azure_region" {
   description = "Azure region for resources"
   type        = string
-  default     = "West US 2"
+  default     = "East US"
 }
 
 
@@ -72,12 +72,17 @@ variable "db_password" {
   description = "Database administrator password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "postgres_version" {
-  description = "PostgreSQL version"
+  description = "PostgreSQL major version."
   type        = string
-  default     = "15"
+  default     = "18"
 }
 
 variable "db_sku_name" {
@@ -87,9 +92,9 @@ variable "db_sku_name" {
 }
 
 variable "db_storage_mb" {
-  description = "Database storage in MB"
+  description = "Database storage in MB. Flexible Server accepts 32768, 65536, 131072, 262144, 524288 and larger powers of two. The default, 128 GB, is the Size M value."
   type        = number
-  default     = 524288
+  default     = 131072
 }
 
 variable "db_auto_grow_enabled" {

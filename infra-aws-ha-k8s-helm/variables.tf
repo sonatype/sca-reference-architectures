@@ -25,13 +25,13 @@ variable "vpc_cidr" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.30"
+  default     = "1.36"
 }
 
 variable "node_instance_type" {
-  description = "EC2 instance type for EKS worker nodes"
+  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture. Graviton5 types such as m9gd and r9g are not offered in every region, and the plan fails reading the type where it is missing: pick an x86 or an earlier Graviton type there."
   type        = string
-  default     = "m5d.2xlarge"
+  default     = "m9gd.2xlarge"
 }
 
 variable "node_group_min_size" {
@@ -59,15 +59,15 @@ variable "node_disk_size" {
 }
 
 variable "aurora_engine_version" {
-  description = "Aurora PostgreSQL engine version"
+  description = "Aurora PostgreSQL engine version."
   type        = string
-  default     = "15.8"
+  default     = "18.6"
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "Aurora instance class. The default is the Size M and L value; Size XL uses db.r8g.4xlarge."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "aurora_instance_count" {
@@ -92,6 +92,11 @@ variable "database_password" {
   description = "Password for PostgreSQL database"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.database_password))
+    error_message = "database_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "backup_retention_period" {
@@ -110,18 +115,6 @@ variable "deletion_protection" {
   description = "Enable deletion protection for RDS cluster"
   type        = bool
   default     = false
-}
-
-variable "efs_provisioned_throughput" {
-  description = "Provisioned throughput for EFS in MiB/s"
-  type        = number
-  default     = 100
-}
-
-variable "nexus_iq_version" {
-  description = "Version of Nexus IQ Server to deploy"
-  type        = string
-  default     = "1.195.0"
 }
 
 variable "nexus_iq_license" {
@@ -170,7 +163,7 @@ variable "nexus_iq_cpu_limit" {
 variable "helm_chart_version" {
   description = "Version of the Nexus IQ Server HA Helm chart"
   type        = string
-  default     = "195.0.0"
+  default     = "201.0.0"
 }
 
 variable "helm_namespace" {
@@ -213,37 +206,13 @@ variable "acm_certificate_arn" {
   description = "ARN of ACM certificate for TLS"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.acm_certificate_arn))
+    error_message = "acm_certificate_arn still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
-variable "enable_hpa" {
-  description = "Enable Horizontal Pod Autoscaler"
-  type        = bool
-  default     = true
-}
-
-variable "hpa_min_replicas" {
-  description = "Minimum replicas for HPA"
-  type        = number
-  default     = 2
-}
-
-variable "hpa_max_replicas" {
-  description = "Maximum replicas for HPA"
-  type        = number
-  default     = 5
-}
-
-variable "hpa_target_cpu_utilization" {
-  description = "Target CPU utilization percentage for HPA"
-  type        = number
-  default     = 70
-}
-
-variable "hpa_target_memory_utilization" {
-  description = "Target memory utilization percentage for HPA"
-  type        = number
-  default     = 80
-}
 variable "log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number

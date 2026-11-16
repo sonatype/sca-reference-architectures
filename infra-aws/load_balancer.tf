@@ -15,7 +15,7 @@ resource "aws_lb" "iq_alb" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-alb"
+    Name = "ref-arch-iq-alb"
   }
 }
 
@@ -41,7 +41,7 @@ resource "aws_lb_target_group" "iq_tg" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-target-group"
+    Name = "ref-arch-iq-target-group"
   }
 }
 
@@ -66,7 +66,7 @@ resource "aws_lb_target_group" "iq_admin_tg" {
   }
 
   tags = {
-    Name        = "ref-arch-iq-admin-target-group"
+    Name = "ref-arch-iq-admin-target-group"
   }
 }
 
@@ -90,7 +90,7 @@ resource "aws_s3_bucket" "alb_logs" {
   force_destroy = true
 
   tags = {
-    Name        = "ref-arch-iq-alb-logs"
+    Name = "ref-arch-iq-alb-logs"
   }
 }
 

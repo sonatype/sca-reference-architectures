@@ -7,8 +7,9 @@ resource "google_sql_database_instance" "iq_ha_db" {
 
   settings {
     tier                  = var.db_instance_tier
+    edition               = var.db_edition
     availability_type     = var.db_availability_type # REGIONAL for HA
-    disk_type             = "PD_SSD"
+    disk_type             = var.db_disk_type
     disk_size             = var.db_disk_size
     disk_autoresize       = true
     disk_autoresize_limit = var.db_max_disk_size
@@ -20,11 +21,6 @@ resource "google_sql_database_instance" "iq_ha_db" {
     database_flags {
       name  = "max_connections"
       value = var.db_max_connections
-    }
-
-    database_flags {
-      name  = "synchronous_commit"
-      value = "off"
     }
 
     backup_configuration {
@@ -97,8 +93,9 @@ resource "google_sql_database_instance" "iq_ha_db_replica" {
 
   settings {
     tier              = var.db_instance_tier
+    edition           = var.db_edition
     availability_type = "ZONAL" # Replicas are typically zonal
-    disk_type         = "PD_SSD"
+    disk_type         = var.db_disk_type
     disk_size         = var.db_disk_size
     disk_autoresize   = true
 
@@ -109,11 +106,6 @@ resource "google_sql_database_instance" "iq_ha_db_replica" {
     database_flags {
       name  = "max_connections"
       value = var.db_max_connections
-    }
-
-    database_flags {
-      name  = "synchronous_commit"
-      value = "off"
     }
 
     ip_configuration {

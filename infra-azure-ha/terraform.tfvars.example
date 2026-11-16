@@ -2,7 +2,7 @@
 # Copy this file to terraform.tfvars and customize for your environment
 
 # General Configuration
-azure_region  = "East US 2"
+azure_region  = "East US"
 cluster_name  = "ref-arch-iq-ha"
 
 # Network Configuration (Multi-zone for HA)
@@ -14,8 +14,8 @@ db_subnet_cidr          = "10.0.40.0/24"
 # High Availability Container App Configuration
 container_cpu           = 4.0      # CPU per replica (max for Azure Container Apps)
 container_memory       = "8Gi"     # Memory per replica (max for Azure Container Apps)
-iq_min_replicas        = 3         # Minimum replicas for HA (must be >= 2)
-iq_max_replicas        = 5         # Maximum replicas for auto-scaling
+iq_min_replicas        = 2         # Minimum replicas, the Size L value (must be >= 2)
+iq_max_replicas        = 4         # Maximum replicas for auto-scaling, the Size L value
 iq_docker_image        = "sonatype/nexus-iq-server:latest"
 java_opts              = "-Xms6g -Xmx6g -XX:+UseG1GC -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
@@ -28,7 +28,7 @@ scale_rule_concurrent_requests = 100  # Concurrent requests threshold
 db_name                         = "nexusiq"
 db_username                     = "nexusiq"
 db_password                     = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-postgres_version               = "15"
+postgres_version               = "18"
 db_sku_name                    = "MO_Standard_E16s_v3"     # Memory Optimized: 16 vCores, 128GB RAM
 db_backup_retention_days       = 7
 db_geo_redundant_backup_enabled = false                    # Set to true if region supports geo-redundant backups
@@ -40,8 +40,8 @@ app_gateway_sku_tier    = "Standard_v2"    # v2 required for zone redundancy
 app_gateway_capacity    = 2                # Number of instances
 app_gateway_zones       = ["1", "2", "3"] # Availability zones
 
-# Premium Storage Configuration (HA)
-storage_account_tier            = "Premium"  # Premium for better performance
+# Storage Configuration (HA)
+storage_account_tier            = "Standard"
 storage_account_replication_type = "ZRS"     # Zone-Redundant Storage
 file_share_quota_gb            = 200         # File share size in GB
 

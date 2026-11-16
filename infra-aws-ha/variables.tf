@@ -93,7 +93,7 @@ variable "iq_min_count" {
 variable "iq_max_count" {
   description = "Maximum number of IQ Server tasks for auto scaling"
   type        = number
-  default     = 5
+  default     = 4
 }
 
 variable "iq_cpu_target_value" {
@@ -137,18 +137,23 @@ variable "db_password" {
   description = "Database master password"
   type        = string
   sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.db_password))
+    error_message = "db_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "aurora_engine_version" {
-  description = "Aurora PostgreSQL engine version"
+  description = "Aurora PostgreSQL engine version. The parameter group family follows its major version."
   type        = string
-  default     = "15.10"
+  default     = "18.6"
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. Scale with number of IQ nodes: db.r6g.2xlarge for 1-3 nodes, db.r6g.4xlarge for 3-4 nodes."
+  description = "Aurora instance class. The default is the Size M and L value; Size XL uses db.r8g.4xlarge."
   type        = string
-  default     = "db.r6g.2xlarge"
+  default     = "db.r8g.2xlarge"
 }
 
 variable "aurora_instances" {
@@ -197,30 +202,17 @@ variable "ssl_certificate_arn" {
   description = "ARN of SSL certificate for ALB HTTPS listener"
   type        = string
   default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.ssl_certificate_arn))
+    error_message = "ssl_certificate_arn still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
 }
 
 variable "alb_deletion_protection" {
   description = "Enable deletion protection for ALB"
   type        = bool
   default     = false
-}
-
-
-variable "efs_throughput_mode" {
-  description = "EFS throughput mode. Elastic is recommended for pay-per-use pricing with automatic scaling."
-  type        = string
-  default     = "elastic"
-
-  validation {
-    condition     = contains(["bursting", "provisioned", "elastic"], var.efs_throughput_mode)
-    error_message = "EFS throughput mode must be one of: 'bursting', 'provisioned', or 'elastic'."
-  }
-}
-
-variable "efs_provisioned_throughput_in_mibps" {
-  description = "EFS provisioned throughput in MiB/s"
-  type        = number
-  default     = 100
 }
 
 
@@ -263,5 +255,10 @@ variable "common_tags" {
     Project     = "nexus-iq-server-ha"
     Environment = "production"
     Terraform   = "true"
+  }
+
+  validation {
+    condition     = alltrue([for v in values(var.common_tags) : !can(regex("CHANGE_ME", v))])
+    error_message = "common_tags still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }

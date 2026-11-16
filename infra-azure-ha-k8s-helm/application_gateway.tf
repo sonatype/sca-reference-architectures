@@ -84,7 +84,7 @@ resource "azurerm_application_gateway" "appgw" {
   }
 
 
-  enable_http2 = true
+  http2_enabled = true
 
 
   autoscale_configuration {
