@@ -8,11 +8,13 @@ This directory contains Terraform configuration for deploying a **single-instanc
 
 This single-instance architecture supports sizes **XS**, **S**, and **M**. Choose your size based on application count and daily evaluation volume:
 
-| Size | Applications | Evaluations/Day | Compute | Java Heap | Machine Type |
-|------|:------------:|:---------------:|:-------:|:---------:|:------------:|
-| **XS** | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) |
-| **S** | 500 – 2,000 | 1,000 – 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) |
-| **M** | 2,000 – 10,000 | 5,000 – 10,000 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) |
+| Size | Applications | Evaluations/Day | Compute | Java Heap | Machine Type | OpenSearch |
+|------|:------------:|:---------------:|:-------:|:---------:|:------------:|:----------:|
+| **XS** | < 500 | < 1,000 | 2 vCPU / 16 GB | 12 GB | n4a-highmem-2 (ARM) | Required ¹ |
+| **S** | 500 - 2,000 | 1,000 - 5,000 | 4 vCPU / 32 GB | 24 GB | n4a-highmem-4 (ARM) | Required ¹ |
+| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 8 vCPU / 64 GB | 48 GB | n4a-highmem-8 (ARM) | Required ¹ |
+
+> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch` and supplies the cluster's endpoint and credentials. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
 
 > **ARM instances recommended.** n4a costs less on demand than the x86 n4 equivalent.
 
@@ -21,6 +23,10 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**. Choos
 > **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
 
 ### Recommended `terraform.tfvars` by Size
+
+> **Heap dumps.** At M, L and XL the first out-of-memory error writes a heap dump to
+> `/sonatype-work/heap-dump.hprof` and the JVM exits; a later one skips the dump while that file
+> exists, so delete it to allow another.
 
 <details>
 <summary><strong>Size XS</strong> — Extra Small (< 500 applications)</summary>
@@ -67,6 +73,60 @@ filestore_capacity_gb = 1024               # 1 TiB minimum
 | **XS** | db-custom-2-7680 | 2 | 7.5 GB | 64 GB |
 | **S** | db-custom-2-13312 | 2 | 13 GB | 128 GB |
 | **M** | db-custom-8-30720 (Enterprise) | 8 | 30 GB | 128 GB (auto-resize to 500 GB) |
+
+### OpenSearch
+
+IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
+One list pages, typeahead, and dashboard, and **it is required at every size this architecture
+supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
+`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
+feature.
+
+Google Cloud has no first-party managed OpenSearch service, so the cluster is **self-managed
+OpenSearch on Compute Engine instances** and IQ Server authenticates with a username and password. That
+means you also choose the OpenSearch server version and own upgrades, snapshots, and node replacement.
+Use `https` on the cluster's REST layer: with no IAM to sign with, that password is the only thing
+protecting the index, and on plain `http` it crosses the network in clear text on every request.
+
+**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
+a deployment that wants either feature sets `search_engine = "opensearch"` and supplies
+`opensearch_endpoint`, `opensearch_username` and `opensearch_password`. Every variable and its default
+is in [Search Backend](#search-backend) below.
+
+**This architecture does not create the cluster.** It takes an endpoint and points IQ Server at it, so
+the cluster's lifecycle and its indexed data stay independent of this deployment. Two consequences: the
+cluster has to exist before the deployment is useful, and `terraform destroy` here cannot delete your
+index.
+
+#### Replicas
+
+A replica is a full second copy of every shard, and it is what makes losing a data node
+survivable. Set `opensearch_index_replicas` per size:
+
+| Size | OpenSearch data nodes | Replica count |
+|------|:---------------------:|:-------------:|
+| **XS** | 1 | `0` |
+| **S** | 1 | `0` |
+| **M** | 3 | `1` |
+
+When to use `0`, and how to give the Advanced Search index the same count, are in the
+[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
+
+#### Plan for twice the index during a rebuild
+
+**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
+replica is a separate doubling that applies at the same time. The full rules, and why
+a rebuild is not a backup, are in the
+[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
+
+#### Per-size cluster specification
+
+The data node type and count, storage per node, shards and replicas for each size are in the
+[cluster table](#the-cluster-to-build) below. At M the component, violation and vulnerability indices are
+created with 3 primary shards and every other index with 1; at XS and S every index has 1. The
+shard counts are set through the configuration API before the first build, as shown there.
+
+See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
 
 ---
 
@@ -136,7 +196,7 @@ Enable these APIs in your project:
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. **Edit `terraform.tfvars` with your values:**
+2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"` and your cluster's details, see [Search Backend](#search-backend)):**
    ```bash
    vi terraform.tfvars
    ```
@@ -144,6 +204,7 @@ Enable these APIs in your project:
    **Required changes:**
    - `gcp_project_id` - Your GCP project ID
    - `db_password` - Strong, unique password
+   - `search_engine` - `"opensearch"`, with your cluster's details, see [Search Backend](#search-backend)
 
 ### Step 4: Deploy Infrastructure
 
@@ -159,7 +220,10 @@ Enable these APIs in your project:
    ./gcp-plan.sh
    ```
 
-   This shows what resources will be created without actually deploying them.
+   This shows what resources will be created without actually deploying them. The plan script
+   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
+   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
+   rather than plain `terraform apply`.
 
 3. **Deploy the infrastructure:**
    ```bash
@@ -188,6 +252,8 @@ Enable these APIs in your project:
 ---
 
 ## Teardown / Cleanup
+
+> **Your OpenSearch cluster is not part of this.** This architecture never creates the cluster, so `./destroy.sh` does not delete it or its indices. Remove it separately when you no longer need it.
 
 **WARNING: This will delete ALL infrastructure and data!**
 
@@ -257,7 +323,7 @@ filestore_capacity_gb = 1024  # 1 TB minimum
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 
-# Search Backend
+# Search Backend, needed for Advanced Search and the Nexus One index at every size
 # "lucene" (default) uses the built-in index. "opensearch" needs a cluster you run yourself:
 # see "Search Backend" below.
 search_engine = "lucene"
@@ -458,6 +524,10 @@ node does not change its configuration. Create:
 - **A forwarding rule on a reserved private IP address** in this VPC, for TCP port 9200.
 - **A firewall rule allowing TCP 9200 from Google's health check ranges** `35.191.0.0/16` and
   `130.211.0.0/22` to the `nexus-iq-opensearch` tag. Without it the backends never turn healthy.
+- **With `opensearch_use_tls = true`, a data node certificate that names the load balancer's
+  address.** The load balancer passes TLS through to the nodes, so IQ Server checks each node's
+  certificate against `opensearch_endpoint`, and that address has to be in its subject alternative
+  names.
 
 At XS and S, with one data node, `opensearch_endpoint` can name that node directly.
 
@@ -466,14 +536,8 @@ Google describes the load balancer in
 
 ¹ Primary shards for the component, violation and vulnerability indices. Every other index keeps 1.
 Shard counts are not set in `config.yml`, and only take effect when
-an index is created, so **at M set them before the Nexus One index is first built**, with
-one request to the configuration API as an administrator:
-
-```bash
-curl -u admin -X PUT -H 'Content-Type: application/json' \
-  -d '{"nexusOneIndexComponentShards": 3, "nexusOneIndexViolationShards": 3, "nexusOneIndexVulnerabilityShards": 3}' \
-  https://<your IQ Server URL>/api/v2/config
-```
+an index is created, so **at M set them before the Nexus One index is first built**, with the request in
+[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
 
 An index built before the change keeps its count until it is rebuilt.
 
