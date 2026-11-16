@@ -26,11 +26,6 @@ output "vnet_address_space" {
 }
 
 
-output "public_subnet_id" {
-  description = "ID of the public subnet"
-  value       = azurerm_subnet.public_subnet.id
-}
-
 output "private_subnet_id" {
   description = "ID of the private subnet"
   value       = azurerm_subnet.private_subnet.id
@@ -41,21 +36,6 @@ output "db_subnet_id" {
   value       = azurerm_subnet.db_subnet.id
 }
 
-
-output "application_gateway_public_ip" {
-  description = "Public IP address of the Application Gateway"
-  value       = azurerm_public_ip.app_gateway_pip.ip_address
-}
-
-output "application_gateway_fqdn" {
-  description = "FQDN of the Application Gateway"
-  value       = azurerm_public_ip.app_gateway_pip.fqdn
-}
-
-output "application_gateway_id" {
-  description = "ID of the Application Gateway"
-  value       = azurerm_application_gateway.iq_app_gateway.id
-}
 
 
 output "container_app_environment_id" {
@@ -120,14 +100,9 @@ output "application_insights_id" {
 
 output "application_url" {
   description = "URL to access Nexus IQ Server"
-  value       = azurerm_public_ip.app_gateway_pip.fqdn != null ? "http://${azurerm_public_ip.app_gateway_pip.fqdn}" : "http://${azurerm_public_ip.app_gateway_pip.ip_address}"
+  value       = "https://${azurerm_container_app.iq_app.ingress[0].fqdn}"
 }
 
-
-output "public_nsg_id" {
-  description = "ID of the public network security group"
-  value       = azurerm_network_security_group.public_nsg.id
-}
 
 output "private_nsg_id" {
   description = "ID of the private network security group"
@@ -137,4 +112,20 @@ output "private_nsg_id" {
 output "db_nsg_id" {
   description = "ID of the database network security group"
   value       = azurerm_network_security_group.db_nsg.id
+}
+
+
+output "search_engine" {
+  description = "Which search backend IQ Server is configured to use"
+  value       = var.search_engine
+}
+
+output "opensearch_uri" {
+  description = "The OpenSearch URI written into IQ Server's config.yml. Null when search_engine is 'lucene'."
+  value       = local.opensearch_enabled ? local.opensearch_uri : null
+}
+
+output "opensearch_index_replicas" {
+  description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
+  value       = local.opensearch_enabled ? var.opensearch_index_replicas : null
 }

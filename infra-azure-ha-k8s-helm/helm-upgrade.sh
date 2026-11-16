@@ -14,6 +14,12 @@ HELM_CHART_REPO="https://sonatype.github.io/helm3-charts"
 HELM_CHART_NAME="nexus-iq-server-ha"
 VALUES_FILE="helm-values.yaml"
 
+# search-values.sh defines tfvar, load_search_vars and write_search_block. The
+# upgrade rebuilds the values file without --reuse-values, so the search: block is
+# written here too.
+# shellcheck source=search-values.sh
+source "$(dirname "$0")/search-values.sh"
+
 echo -e "${BLUE}🔄 Nexus IQ Server HA on AKS - Helm Upgrade${NC}"
 echo "================================================"
 echo ""
@@ -82,7 +88,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 if [[ -f "terraform.tfstate" ]]; then
     DB_ENDPOINT=$(terraform output -raw postgres_server_fqdn 2>/dev/null)
-    AZURE_REGION=$(sed -n 's/^azure_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null)
+    AZURE_REGION=$(tfvar azure_region)
     AZURE_REGION=${AZURE_REGION:-eastus}
     CLUSTER_NAME=$(terraform output -raw aks_cluster_name 2>/dev/null)
     RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null)
@@ -92,14 +98,19 @@ if [[ -f "terraform.tfstate" ]]; then
     echo "• Cluster: $CLUSTER_NAME"
     echo "• Resource Group: $RESOURCE_GROUP"
 else
-    AZURE_REGION=$(sed -n 's/^azure_region *= *"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null)
+    AZURE_REGION=$(tfvar azure_region)
     AZURE_REGION=${AZURE_REGION:-eastus}
 fi
 echo ""
 
 helm repo update >/dev/null 2>&1
 
-CHART_VERSION=$(grep '^helm_chart_version' terraform.tfvars | cut -d'"' -f2 2>/dev/null || echo "latest")
+CHART_VERSION=$(tfvar helm_chart_version)
+# Unset in terraform.tfvars, keep the chart version the release already runs.
+if [[ -z "$CHART_VERSION" ]]; then
+    CHART_VERSION=$(helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+fi
+CHART_VERSION=${CHART_VERSION:-201.0.0}
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"
@@ -107,21 +118,85 @@ echo "━━━━━━━━━━━━━━━━━━━"
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
-DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
-# sed rather than cut, which keeps a trailing comment. The default is on its own line because
-# `|| echo` after a pipe sees only the last command's status.
-REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
+DB_PASSWORD=$(tfvar database_password)
+# Unset in terraform.tfvars, Terraform uses the variables.tf default, which is nexusiq for both.
+DB_NAME=$(tfvar database_name)
+DB_NAME=${DB_NAME:-nexusiq}
+DB_USERNAME=$(tfvar database_username)
+DB_USERNAME=${DB_USERNAME:-nexusiq}
+REPLICA_COUNT=$(tfvar nexus_iq_replica_count)
+# An absent key gives an empty count, which would write an invalid "replicas:" line.
 REPLICA_COUNT=${REPLICA_COUNT:-3}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
         -e "s/hostname: \"\"/hostname: \"$DB_ENDPOINT\"/" \
         -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
+        -e "s/^    name: \"nexusiq\"/    name: \"$DB_NAME\"/" \
+        -e "s/^    username: \"nexusiq\"/    username: \"$DB_USERNAME\"/" \
+        -e "/name: DB_NAME/{n;s/value: \"nexusiq\"/value: \"$DB_NAME\"/;}" \
+        -e "/name: DB_USERNAME/{n;s/value: \"nexusiq\"/value: \"$DB_USERNAME\"/;}" \
         -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 fi
 
+load_search_vars
+if ! write_search_block "$TEMP_VALUES_FILE"; then
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
+# A CHANGE_ME from terraform.tfvars, such as the database password, stops the upgrade here.
+if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
+    echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
+    grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
+if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
+    echo "• Search backend: OpenSearch at $SEARCH_URI"
+else
+    echo "• Search backend: Lucene (embedded)"
+fi
+
 echo "• Chart Version: $CHART_VERSION"
+
+# The migration job is a post-install hook (helm-values.yaml), so this upgrade runs it
+# only when the IQ Server image changes, and then only with MIGRATE_DATABASE=yes. The
+# migration refuses to start while any IQ Server instance uses the database, so IQ
+# Server is scaled to zero first and the job runs as a pre-upgrade hook, which helm
+# waits for and fails the upgrade on.
+IQ_DEPLOYMENT="${HELM_RELEASE_NAME}-iq-server-deployment"
+IQ_CONTAINER="${HELM_RELEASE_NAME}-iq-server-container"
+CURRENT_IMAGE=$(kubectl get deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" \
+    -o jsonpath="{.spec.template.spec.containers[?(@.name==\"$IQ_CONTAINER\")].image}" 2>/dev/null || echo "")
+NEW_IMAGE=$(helm template "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+    --namespace "$NAMESPACE" \
+    --version "$CHART_VERSION" \
+    --values "$TEMP_VALUES_FILE" \
+    --show-only templates/iq-server-deployment.yaml 2>/dev/null \
+    | sed -n "/name: $IQ_CONTAINER\$/{n;s/^ *image: *//p;}" || true)
+if [[ -z "$NEW_IMAGE" ]]; then
+    echo -e "${RED}❌ Error: could not render the IQ Server image from chart $CHART_VERSION${NC}"
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+MIGRATE_ARGS=()
+if [[ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]]; then
+    if [[ "$MIGRATE_DATABASE" != "yes" ]]; then
+        echo -e "${RED}❌ Error: the IQ Server image changes from ${CURRENT_IMAGE:-none} to $NEW_IMAGE${NC}"
+        echo "   A new image needs a database migration, which stops IQ Server for its duration."
+        echo "   Back up the database, then re-run with MIGRATE_DATABASE=yes ./helm-upgrade.sh"
+        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+        exit 1
+    fi
+    MIGRATE_ARGS=(--set-string 'iq_server_jobs.migrationJobAnnotations.helm\.sh/hook=pre-upgrade')
+    echo "• IQ Server image: ${CURRENT_IMAGE:-none} -> $NEW_IMAGE"
+    echo "  IQ Server is scaled to zero and the database migration runs before it starts again."
+else
+    echo "• IQ Server image: $NEW_IMAGE, unchanged, so the database migration does not run"
+fi
 echo ""
 
 helm diff upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
@@ -141,7 +216,7 @@ fi
 
 echo -e "${BLUE}💾 Creating Backup${NC}"
 echo "━━━━━━━━━━━━━━━━━━"
-helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml"
+(umask 077; helm get values "$HELM_RELEASE_NAME" -n "$NAMESPACE" > "backup-values-revision-${CURRENT_REVISION}.yaml")
 echo "• Saved: backup-values-revision-${CURRENT_REVISION}.yaml"
 echo ""
 
@@ -150,13 +225,43 @@ echo "━━━━━━━━━━━━━━━━━━━━━"
 echo "This may take 15-20 minutes..."
 echo ""
 
-helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
+    echo "• Scaling IQ Server to zero for the database migration"
+    kubectl scale deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" --replicas=0
+    kubectl wait --for=delete pod -l "name=${HELM_RELEASE_NAME}-iq-server" -n "$NAMESPACE" --timeout=10m 2>/dev/null || true
+    # The migration refuses to run within 15 seconds of an IQ Server instance using the database.
+    sleep 20
+fi
+
+if ! helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
+    "${MIGRATE_ARGS[@]}" \
     --timeout 20m \
     --wait \
-    --atomic
+    --atomic; then
+    echo ""
+    echo -e "${RED}❌ Upgrade failed, and --atomic rolls the release back to revision $CURRENT_REVISION${NC}"
+    kubectl logs "job/${HELM_RELEASE_NAME}-migrate-db" -n "$NAMESPACE" --tail=20 2>/dev/null || true
+    if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
+        echo "IQ Server was scaled to zero for the migration. Once the cause is fixed, start it again:"
+        echo "  kubectl scale deployment $IQ_DEPLOYMENT -n $NAMESPACE --replicas=$REPLICA_COUNT"
+    fi
+    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
+# helm keeps the replica count kubectl scale set, since the chart value did not change,
+# and the autoscaler does not act on a deployment at zero, so IQ Server is started here.
+if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
+    kubectl scale deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" --replicas="$REPLICA_COUNT"
+    if ! kubectl rollout status deployment/"$IQ_DEPLOYMENT" -n "$NAMESPACE" --timeout=15m; then
+        echo -e "${RED}❌ Error: IQ Server did not become ready after the database migration${NC}"
+        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+        exit 1
+    fi
+fi
 
 echo ""
 echo -e "${GREEN}✅ Upgrade Completed Successfully${NC}"
@@ -168,19 +273,26 @@ AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo ""
 if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then
     LB_IP=$(kubectl get svc nexus-iq-server-ha-iq-server-application-service -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
-    if [[ -n "$LB_IP" ]]; then
-        CURRENT_BACKEND=$(az network application-gateway address-pool show \
+    if [[ -z "$LB_IP" ]]; then
+        echo -e "${RED}❌ Error: the application service has no load balancer address${NC}"
+        echo "   The Application Gateway backend pool is not set. Check: kubectl get svc -n $NAMESPACE"
+        exit 1
+    fi
+
+    CURRENT_BACKEND=$(az network application-gateway address-pool show \
+        --gateway-name "$AGW_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --name aks-backend-pool \
+        --query 'backendAddresses[0].ipAddress' -o tsv 2>/dev/null || echo "")
+
+    if [[ "$CURRENT_BACKEND" != "$LB_IP" ]]; then
+        if ! az network application-gateway address-pool update \
             --gateway-name "$AGW_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --name aks-backend-pool \
-            --query 'backendAddresses[0].ipAddress' -o tsv 2>/dev/null || echo "")
-
-        if [[ "$CURRENT_BACKEND" != "$LB_IP" ]]; then
-            az network application-gateway address-pool update \
-                --gateway-name "$AGW_NAME" \
-                --resource-group "$RESOURCE_GROUP" \
-                --name aks-backend-pool \
-                --set backendAddresses[0].ipAddress="$LB_IP" >/dev/null 2>&1 || true
+            --servers "$LB_IP" >/dev/null; then
+            echo -e "${RED}❌ Error: could not point the Application Gateway backend pool at $LB_IP${NC}"
+            exit 1
         fi
     fi
 fi

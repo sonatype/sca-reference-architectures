@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.2"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -29,7 +29,7 @@ locals {
 
 
 resource "azurerm_resource_group" "iq_rg" {
-  name     = "rg-ref-arch-iq-ha"
+  name     = "rg-${var.cluster_name}"
   location = var.azure_region
 
   tags = var.common_tags
@@ -37,13 +37,13 @@ resource "azurerm_resource_group" "iq_rg" {
 
 
 resource "azurerm_virtual_network" "iq_vnet" {
-  name                = "vnet-ref-arch-iq-ha"
+  name                = "vnet-${var.cluster_name}"
   address_space       = [var.vnet_cidr]
   location            = azurerm_resource_group.iq_rg.location
   resource_group_name = azurerm_resource_group.iq_rg.name
 
   tags = merge(var.common_tags, {
-    Name = "vnet-ref-arch-iq-ha"
+    Name = "vnet-${var.cluster_name}"
   })
 
   lifecycle {
@@ -118,11 +118,15 @@ resource "azurerm_subnet" "db_subnet" {
   virtual_network_name = azurerm_virtual_network.iq_vnet.name
   address_prefixes     = [var.db_subnet_cidr]
 
+  # The endpoint and the action are the ones Azure stores for a subnet delegated to Flexible
+  # Server, so a plan with no edits compares equal.
+  service_endpoints = ["Microsoft.Storage"]
+
   delegation {
     name = "postgres-delegation"
     service_delegation {
       name    = "Microsoft.DBforPostgreSQL/flexibleServers"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
 }

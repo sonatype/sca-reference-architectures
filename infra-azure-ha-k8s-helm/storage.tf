@@ -40,16 +40,3 @@ resource "azurerm_storage_share" "iq_data" {
   }
 }
 
-
-resource "azurerm_storage_share" "iq_cluster" {
-  name                 = "iq-cluster-ha"
-  storage_account_name = azurerm_storage_account.iq_storage.name
-  quota                = 100
-  enabled_protocol     = "NFS"
-
-  metadata = {
-    environment = var.environment
-    purpose     = "nexus-iq-ha-cluster-coordination"
-  }
-}
-

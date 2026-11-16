@@ -49,7 +49,8 @@ for resource in pv pvc; do
     done
 done
 
-kubectl delete storageclass azurefile-nfs --ignore-not-found=true >/dev/null 2>&1 || true
+# The volume is Retain, so deleting it leaves the Azure Files share and its data in place.
+kubectl delete pv nexus-iq-azurefiles-pv --ignore-not-found=true >/dev/null 2>&1 || true
 
 RESOURCE_GROUP=$(terraform output -raw resource_group_name 2>/dev/null || echo "")
 AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
@@ -69,7 +70,7 @@ echo -e "${BLUE}📝 Cleanup Summary${NC}"
 echo "━━━━━━━━━━━━━━━━━"
 echo "• Helm release: $HELM_RELEASE_NAME"
 echo "• Namespace: $NAMESPACE"
-echo "• All PersistentVolumeClaims and data"
+echo "• All PersistentVolumeClaims and the PersistentVolume, the Azure Files share keeps its data"
 echo "• All Services (including LoadBalancer)"
 echo ""
 echo -e "${YELLOW}💡 Ready for fresh installation: ./helm-install.sh${NC}"
