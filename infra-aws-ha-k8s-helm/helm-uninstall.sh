@@ -10,17 +10,38 @@ NC='\033[0m'
 
 NAMESPACE="nexus-iq"
 HELM_RELEASE_NAME="nexus-iq-server-ha"
-AWS_PROFILE="admin@iq-sandbox"
 
 echo -e "${RED}🧹 Nexus IQ Server HA on EKS - Complete Cleanup${NC}"
 echo "===================================================="
 echo ""
 
-KUBECTL_PREFIX=""
-HELM_PREFIX=""
-if command -v aws-vault >/dev/null 2>&1; then
-    KUBECTL_PREFIX="aws-vault exec $AWS_PROFILE --"
-    HELM_PREFIX="aws-vault exec $AWS_PROFILE --"
+# Credentials come from the standard AWS chain: the named profile in AWS_PROFILE,
+# such as an IAM Identity Center profile, or credentials already in the environment.
+if [[ -z "$AWS_PROFILE" && -z "$AWS_ACCESS_KEY_ID" ]]; then
+    echo -e "${RED}❌ Error: AWS_PROFILE environment variable is not set${NC}"
+    echo ""
+    echo "Please set your AWS profile name:"
+    echo "  export AWS_PROFILE=your-profile-name"
+    echo ""
+    echo "Or run with inline variable:"
+    echo "  AWS_PROFILE=your-profile-name ./helm-uninstall.sh"
+    echo ""
+    exit 1
+fi
+
+if ! command -v aws &> /dev/null; then
+    echo -e "${RED}❌ Error: aws not found${NC}"
+    exit 1
+fi
+
+if ! aws sts get-caller-identity --region "${AWS_REGION:-us-east-1}" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: no valid AWS credentials${NC}"
+    echo ""
+    echo "The credentials are missing or have expired. For an IAM Identity Center"
+    echo "profile, sign in again:"
+    echo "  aws sso login --profile ${AWS_PROFILE:-your-profile-name}"
+    echo ""
+    exit 1
 fi
 
 echo -e "${RED}⚠️  COMPLETE CLEANUP: This will remove EVERYTHING:${NC}"
@@ -34,29 +55,29 @@ echo -e "${RED}🚀 Beginning Uninstallation${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-$HELM_PREFIX helm uninstall "$HELM_RELEASE_NAME" -n "$NAMESPACE" --ignore-not-found --timeout=2m >/dev/null 2>&1 || true
+helm uninstall "$HELM_RELEASE_NAME" -n "$NAMESPACE" --ignore-not-found --timeout=2m >/dev/null 2>&1 || true
 
-$KUBECTL_PREFIX kubectl delete namespace "$NAMESPACE" --force --grace-period=0 --ignore-not-found=true >/dev/null 2>&1 || true
+kubectl delete namespace "$NAMESPACE" --force --grace-period=0 --ignore-not-found=true >/dev/null 2>&1 || true
 
 timeout=60
 elapsed=0
-while $KUBECTL_PREFIX kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; do
+while kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; do
     if [ $elapsed -ge $timeout ]; then
-        $KUBECTL_PREFIX kubectl patch namespace "$NAMESPACE" -p '{"metadata":{"finalizers":[]}}' --type=merge >/dev/null 2>&1 || true
+        kubectl patch namespace "$NAMESPACE" -p '{"metadata":{"finalizers":[]}}' --type=merge >/dev/null 2>&1 || true
         break
     fi
     sleep 3
     elapsed=$((elapsed + 3))
 done
 
-$KUBECTL_PREFIX kubectl delete storageclass efs-sc --ignore-not-found=true >/dev/null 2>&1 || true
+kubectl delete storageclass efs-sc --ignore-not-found=true >/dev/null 2>&1 || true
 
-$KUBECTL_PREFIX kubectl get pv -o name 2>/dev/null | grep -iE "(nexus|iq)" | xargs -r $KUBECTL_PREFIX kubectl delete --ignore-not-found=true >/dev/null 2>&1 || true
-$KUBECTL_PREFIX kubectl delete pv nexus-iq-data-pv nexus-iq-logs-pv iq-server-pv --ignore-not-found=true >/dev/null 2>&1 || true
+kubectl get pv -o name 2>/dev/null | grep -iE "(nexus|iq)" | xargs -r kubectl delete --ignore-not-found=true >/dev/null 2>&1 || true
+kubectl delete pv nexus-iq-data-pv nexus-iq-logs-pv iq-server-pv --ignore-not-found=true >/dev/null 2>&1 || true
 
 for resource in pv pvc; do
-    for item in $($KUBECTL_PREFIX kubectl get $resource -o name 2>/dev/null | grep -iE "(nexus|iq)" || true); do
-        $KUBECTL_PREFIX kubectl patch $item -p '{"metadata":{"finalizers":[]}}' --type=merge >/dev/null 2>&1 || true
+    for item in $(kubectl get $resource -o name 2>/dev/null | grep -iE "(nexus|iq)" || true); do
+        kubectl patch $item -p '{"metadata":{"finalizers":[]}}' --type=merge >/dev/null 2>&1 || true
     done
 done
 

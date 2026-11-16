@@ -38,5 +38,6 @@ pre-destroy-backup-*/
 *.bak
 *.orig
 
-# Generated runtime values (rendered with real credentials)
+# Generated runtime values and release backups (rendered with real credentials)
 helm-values-runtime.yaml*
+backup-values-revision-*.yaml

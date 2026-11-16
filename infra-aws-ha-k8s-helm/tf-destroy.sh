@@ -14,8 +14,21 @@ DEPLOYMENT_NAME="Nexus IQ Server"
 DEPLOYMENT_TYPE="High Availability on EKS"
 CLOUD_PROVIDER="AWS"
 TERRAFORM_DIR="$(dirname "$0")"
-AWS_PROFILE="admin@iq-sandbox"
 AWS_REGION="us-east-1"
+
+# Credentials come from the standard AWS chain: the named profile in AWS_PROFILE,
+# such as an IAM Identity Center profile, or credentials already in the environment.
+if [[ -z "$AWS_PROFILE" && -z "$AWS_ACCESS_KEY_ID" ]]; then
+    echo -e "${RED}❌ Error: AWS_PROFILE environment variable is not set${NC}"
+    echo ""
+    echo "Please set your AWS profile name:"
+    echo "  export AWS_PROFILE=your-profile-name"
+    echo ""
+    echo "Or run with inline variable:"
+    echo "  AWS_PROFILE=your-profile-name ./tf-destroy.sh"
+    echo ""
+    exit 1
+fi
 
 echo -e "${BLUE}🧹 ${DEPLOYMENT_NAME} ${DEPLOYMENT_TYPE} - Terraform Destroy${NC}"
 echo "==========================================================="
@@ -31,22 +44,53 @@ command -v terraform >/dev/null 2>&1 || {
     exit 1
 }
 
-command -v aws-vault >/dev/null 2>&1 || {
-    echo -e "${RED}❌ Error: aws-vault not installed${NC}"
+command -v aws >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: aws not installed${NC}"
     exit 1
 }
 
+if ! aws sts get-caller-identity --region "${AWS_REGION:-us-east-1}" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: no valid AWS credentials${NC}"
+    echo ""
+    echo "The credentials are missing or have expired. For an IAM Identity Center"
+    echo "profile, sign in again:"
+    echo "  aws sso login --profile ${AWS_PROFILE:-your-profile-name}"
+    echo ""
+    exit 1
+fi
+
 echo "• Cloud Provider: AWS"
-echo "• AWS Profile: $AWS_PROFILE"
+echo "• AWS Profile: ${AWS_PROFILE:-not set, using credentials from the environment}"
 echo "• Deployment: $DEPLOYMENT_NAME $DEPLOYMENT_TYPE"
 echo ""
 
 echo -e "${BLUE}🔍 Checking Existing Infrastructure${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy > /dev/null 2>&1
+# set -e is on, so the status is captured on the failure branch: `$?` after
+# `|| true` is always 0.
+PLAN_STATUS=0
+PLAN_OUTPUT=$(terraform plan -destroy 2>&1) || PLAN_STATUS=$?
 
-if [[ $? -ne 0 ]]; then
+if [[ $PLAN_STATUS -ne 0 ]]; then
+    if grep -q "prevent_destroy" <<<"$PLAN_OUTPUT"; then
+        DOMAIN_NAME=$(terraform output -raw opensearch_domain_name 2>/dev/null || true)
+        DOMAIN_NAME=${DOMAIN_NAME:-<the domain>}
+        echo -e "${RED}❌ A resource carrying prevent_destroy is in the way${NC}"
+        echo ""
+        echo "The OpenSearch domain holds the Nexus One index, so Terraform refuses to"
+        echo "plan its destruction. Removing it from state gets past that, and the domain"
+        echo "itself then has to be deleted before the VPC can be, because its network"
+        echo "interfaces sit in these subnets:"
+        echo ""
+        echo "  terraform state rm aws_opensearch_domain.nexus_one"
+        echo "  aws opensearch delete-domain --domain-name ${DOMAIN_NAME}"
+        echo "  # wait for the domain to finish deleting, then re-run this script"
+        echo ""
+        echo "See the OpenSearch section of README.md before doing any of that."
+        exit 1
+    fi
+
     echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
     echo "Nothing to destroy."
     exit 0
@@ -55,7 +99,7 @@ fi
 echo -e "${BLUE}📊 Resources to be Destroyed${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-aws-vault exec "$AWS_PROFILE" -- terraform plan -destroy
+printf '%s\n' "$PLAN_OUTPUT"
 
 echo ""
 echo -e "${RED}⚠️  DANGER: Permanent Destruction${NC}"
@@ -81,7 +125,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "This may take 15-30 minutes to complete."
 echo ""
 
-aws-vault exec "$AWS_PROFILE" -- terraform destroy -auto-approve
+terraform destroy -auto-approve
 
 if [[ $? -eq 0 ]]; then
     echo ""

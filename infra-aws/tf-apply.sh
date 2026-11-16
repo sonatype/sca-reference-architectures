@@ -12,11 +12,11 @@ DEPLOYMENT_NAME="Nexus IQ Server"
 DEPLOYMENT_TYPE="Single Instance"
 CLOUD_PROVIDER="AWS"
 TERRAFORM_DIR="$(dirname "$0")"
-AWS_PROFILE="${AWS_PROFILE}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 
-# Check if AWS_PROFILE is set
-if [[ -z "$AWS_PROFILE" ]]; then
+# Credentials come from the standard AWS chain: the named profile in AWS_PROFILE,
+# such as an IAM Identity Center profile, or credentials already in the environment.
+if [[ -z "$AWS_PROFILE" && -z "$AWS_ACCESS_KEY_ID" ]]; then
     echo -e "${RED}❌ Error: AWS_PROFILE environment variable is not set${NC}"
     echo ""
     echo "Please set your AWS profile name:"
@@ -58,13 +58,28 @@ command -v terraform >/dev/null 2>&1 || {
     exit 1
 }
 
-command -v aws-vault >/dev/null 2>&1 || {
-    echo -e "${RED}❌ Error: aws-vault not installed${NC}"
+command -v aws >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: aws not installed${NC}"
+    exit 1
+}
+
+if ! aws sts get-caller-identity --region "${AWS_REGION:-us-east-1}" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: no valid AWS credentials${NC}"
+    echo ""
+    echo "The credentials are missing or have expired. For an IAM Identity Center"
+    echo "profile, sign in again:"
+    echo "  aws sso login --profile ${AWS_PROFILE:-your-profile-name}"
+    echo ""
+    exit 1
+fi
+
+command -v jq >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: jq not installed${NC}"
     exit 1
 }
 
 echo "• Cloud Provider: AWS"
-echo "• AWS Profile: $AWS_PROFILE"
+echo "• AWS Profile: ${AWS_PROFILE:-not set, using credentials from the environment}"
 echo "• Deployment: $DEPLOYMENT_NAME $DEPLOYMENT_TYPE"
 echo "• Plan file: tfplan ✓"
 echo ""
@@ -76,15 +91,19 @@ echo ""
 echo "🚀 Proceeding with deployment..."
 echo ""
 
-LOG_GROUP_EXISTS=$(aws-vault exec "$AWS_PROFILE" -- aws logs describe-log-groups \
-  --log-group-name-prefix "/ecs/ref-arch-nexus-iq-server" \
+# Read from the saved plan, which holds cluster_name however it was set.
+CLUSTER_NAME=$(terraform show -json tfplan | jq -r '.variables.cluster_name.value')
+LOG_GROUP_NAME="/ecs/${CLUSTER_NAME}-nexus-iq-server"
+
+LOG_GROUP_EXISTS=$(aws logs describe-log-groups \
+  --log-group-name-prefix "$LOG_GROUP_NAME" \
   --region $AWS_REGION \
-  --query 'logGroups[?logGroupName==`/ecs/ref-arch-nexus-iq-server`].logGroupName' \
+  --query "logGroups[?logGroupName=='$LOG_GROUP_NAME'].logGroupName" \
   --output text 2>/dev/null || echo "")
 
 if [[ -n "$LOG_GROUP_EXISTS" ]]; then
   if ! terraform state show aws_cloudwatch_log_group.iq_logs >/dev/null 2>&1; then
-    aws-vault exec "$AWS_PROFILE" -- terraform import aws_cloudwatch_log_group.iq_logs /ecs/ref-arch-nexus-iq-server >/dev/null 2>&1 || true
+    terraform import aws_cloudwatch_log_group.iq_logs "$LOG_GROUP_NAME" >/dev/null 2>&1 || true
   fi
 fi
 
@@ -94,7 +113,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━"
 echo "This may take 15-30 minutes to complete."
 echo ""
 
-aws-vault exec "$AWS_PROFILE" -- terraform apply tfplan
+terraform apply tfplan
 
 if [[ $? -eq 0 ]]; then
     echo ""
@@ -104,7 +123,7 @@ if [[ $? -eq 0 ]]; then
     echo -e "${BLUE}📊 Deployment Summary${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━"
     
-    APP_URL=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw application_url 2>/dev/null || echo "N/A")
+    APP_URL=$(terraform output -raw application_url 2>/dev/null || echo "N/A")
     
     echo "• Application URL: $APP_URL"
     echo "• Deployment Type: $DEPLOYMENT_TYPE"

@@ -12,8 +12,21 @@ DEPLOYMENT_NAME="Nexus IQ Server"
 DEPLOYMENT_TYPE="High Availability on EKS"
 CLOUD_PROVIDER="AWS"
 TERRAFORM_DIR="$(dirname "$0")"
-AWS_PROFILE="admin@iq-sandbox"
 AWS_REGION="us-east-1"
+
+# Credentials come from the standard AWS chain: the named profile in AWS_PROFILE,
+# such as an IAM Identity Center profile, or credentials already in the environment.
+if [[ -z "$AWS_PROFILE" && -z "$AWS_ACCESS_KEY_ID" ]]; then
+    echo -e "${RED}❌ Error: AWS_PROFILE environment variable is not set${NC}"
+    echo ""
+    echo "Please set your AWS profile name:"
+    echo "  export AWS_PROFILE=your-profile-name"
+    echo ""
+    echo "Or run with inline variable:"
+    echo "  AWS_PROFILE=your-profile-name ./tf-apply.sh"
+    echo ""
+    exit 1
+fi
 
 echo -e "${BLUE}🚀 ${DEPLOYMENT_NAME} ${DEPLOYMENT_TYPE} - Terraform Apply${NC}"
 echo "========================================================="
@@ -45,13 +58,23 @@ command -v terraform >/dev/null 2>&1 || {
     exit 1
 }
 
-command -v aws-vault >/dev/null 2>&1 || {
-    echo -e "${RED}❌ Error: aws-vault not installed${NC}"
+command -v aws >/dev/null 2>&1 || {
+    echo -e "${RED}❌ Error: aws not installed${NC}"
     exit 1
 }
 
+if ! aws sts get-caller-identity --region "${AWS_REGION:-us-east-1}" >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: no valid AWS credentials${NC}"
+    echo ""
+    echo "The credentials are missing or have expired. For an IAM Identity Center"
+    echo "profile, sign in again:"
+    echo "  aws sso login --profile ${AWS_PROFILE:-your-profile-name}"
+    echo ""
+    exit 1
+fi
+
 echo "• Cloud Provider: AWS"
-echo "• AWS Profile: $AWS_PROFILE"
+echo "• AWS Profile: ${AWS_PROFILE:-not set, using credentials from the environment}"
 echo "• Deployment: $DEPLOYMENT_NAME $DEPLOYMENT_TYPE"
 echo "• Plan file: tfplan ✓"
 echo ""
@@ -68,7 +91,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━"
 echo "This may take 15-30 minutes to complete."
 echo ""
 
-aws-vault exec "$AWS_PROFILE" -- terraform apply tfplan
+terraform apply tfplan
 
 if [[ $? -eq 0 ]]; then
     echo ""
@@ -78,7 +101,7 @@ if [[ $? -eq 0 ]]; then
     echo -e "${BLUE}📊 Deployment Summary${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━"
     
-    APP_URL=$(aws-vault exec "$AWS_PROFILE" -- terraform output -raw application_url 2>/dev/null || echo "N/A")
+    APP_URL=$(terraform output -raw application_url 2>/dev/null || echo "N/A")
     
     echo "• Application URL: $APP_URL"
     echo "• Deployment Type: $DEPLOYMENT_TYPE"
