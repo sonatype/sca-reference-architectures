@@ -140,6 +140,12 @@ variable "db_high_availability_enabled" {
 
 
 
+variable "log_share_quota_gb" {
+  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running. With storage_account_tier = \"Premium\" the share is billed on this full size and cannot be below 100."
+  type        = number
+  default     = 128
+}
+
 variable "storage_account_tier" {
   description = "Storage account tier (Standard, Premium)"
   type        = string

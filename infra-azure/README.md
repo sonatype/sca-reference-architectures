@@ -356,6 +356,7 @@ This is a **single instance** deployment.
 ## Monitoring and Logging
 
 - **Log Analytics**: Application logs centralized in Log Analytics workspace
+- **Log files**: `clm-server.log`, `request.log` and `audit.log` are written to the `nexus-iq-logs` Azure Files share, mounted at `/var/log/nexus-iq-server`. `clm-server.log` rolls hourly and keeps 24 archives. `log_share_quota_gb` sets the share's size, 128 GB by default
 - **Container App Logs**: Application and system logs with structured logging
 - **Azure Monitor**: Optional monitoring and alerting
 

@@ -540,6 +540,10 @@ left unset.
 
 > An instance class change applies in the next maintenance window, because this
 > configuration does not set `apply_immediately`.
+>
+> Each task writes its logs under its own host name. A task that has gone leaves its
+> directory behind, and the next task to start deletes any other task's directory
+> unchanged for 7 days.
 
 ### Configuration Variables
 
