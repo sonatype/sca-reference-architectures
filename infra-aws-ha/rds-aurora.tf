@@ -181,7 +181,7 @@ resource "aws_rds_cluster_parameter_group" "iq_aurora_cluster_pg" {
 
   parameter {
     name  = "log_statement"
-    value = "all"
+    value = "none"
   }
 
   parameter {

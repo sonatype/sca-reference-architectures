@@ -95,7 +95,7 @@ resource "azurerm_postgresql_flexible_server_configuration" "shared_preload_libr
 resource "azurerm_postgresql_flexible_server_configuration" "log_statement" {
   name      = "log_statement"
   server_id = azurerm_postgresql_flexible_server.iq_db_ha.id
-  value     = "all"
+  value     = "none"
 }
 
 resource "azurerm_postgresql_flexible_server_configuration" "log_min_duration_statement" {
