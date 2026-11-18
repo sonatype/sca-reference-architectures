@@ -10,14 +10,14 @@ locals {
   # cluster's certificate: see README.md, "Trusting a private certificate authority".
   opensearch_scheme = var.opensearch_use_tls ? "https" : "http"
 
-  opensearch_uri = "${local.opensearch_scheme}://${var.opensearch_endpoint}:${var.opensearch_port}"
+  opensearch_uri = "${local.opensearch_scheme}://${local.os_endpoint}:${var.opensearch_port}"
 }
 
 # Ingress to an OpenSearch cluster inside this VPC, on nodes tagged "nexus-iq-opensearch".
 # The cluster is VPC-native, so pods send from their alias IPs and the nodes from their
 # own address; both ranges are needed. A cluster outside the VPC is not affected.
 resource "google_compute_firewall" "allow_opensearch" {
-  count   = local.opensearch_enabled ? 1 : 0
+  count   = local.opensearch_enabled && !local.opensearch_create ? 1 : 0
   name    = "${local.cluster_name}-allow-opensearch"
   network = google_compute_network.iq_vpc.name
   project = var.gcp_project_id

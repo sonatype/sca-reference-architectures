@@ -72,9 +72,9 @@ variable "ecs_cpu" {
 }
 
 variable "ecs_memory" {
-  description = "Memory for ECS task in MiB. The default is the Size M value, the most Fargate allows at 8192 CPU."
+  description = "Memory for ECS task in MiB. The default is the Size M value, 32 GB at 8 vCPU."
   type        = number
-  default     = 61440
+  default     = 32768
 }
 
 variable "iq_desired_count" {
@@ -86,13 +86,13 @@ variable "iq_desired_count" {
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:latest"
+  default     = "sonatype/nexus-iq-server:1.209.2"
 }
 
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -119,10 +119,21 @@ variable "db_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in Secrets Manager and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "db_instance_class" {
   description = "RDS instance class. The default is the Size M value; XS uses db.m8g.large and S db.r8g.large."
   type        = string
-  default     = "db.r8g.2xlarge"
+  default     = "db.r8g.xlarge"
 }
 
 variable "db_allocated_storage" {
@@ -225,13 +236,12 @@ variable "log_archive_retention_days" {
 # names one. The defaults are the Size M shape; README.md gives XS and S.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one, and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 
@@ -266,7 +276,7 @@ variable "opensearch_instance_type" {
 }
 
 variable "opensearch_instance_count" {
-  description = "Data nodes in the created domain. The default, 3, is the Size M value; XS and S use 1, which has nowhere to place a replica and needs no dedicated masters. Above 1 the domain gets three masters."
+  description = "Data nodes in the created domain. The default, 3, is the Size M value; XS and S use 1, which has nowhere to place a replica and needs no dedicated masters. Above 1 the domain gets three masters. iq-post-deploy.sh sets each Nexus One index's shard count to this number, so with opensearch_domain_endpoint set, give it the existing domain's data node count."
   type        = number
   default     = 3
 
@@ -293,7 +303,7 @@ variable "opensearch_volume_size_gb" {
 
     The index needs room for more than one copy of itself: a replica doubles it,
     and a rebuild needs free disk for a second copy of the index. AWS also
-    reserves 20% of each volume, capped at 20 GiB.
+    reserves 20% of each volume, capped at 20 GB.
 
     See the OpenSearch section of this directory's README.md for the size each
     tier needs. The default, 100, is the Size M value.

@@ -86,18 +86,32 @@ resource "google_container_cluster" "iq_gke" {
 # The N4, N4A, C4 and C4A machine series accept only Hyperdisk.
 locals {
   machine_needs_hyper = can(regex("^(n4|n4a|n4d|c4|c4a|c4d)-", var.node_instance_type))
+  iq_zones            = length(var.node_pool_zones) > 0 ? var.node_pool_zones : slice(sort(data.google_compute_zones.iq.names), 0, min(3, max(2, var.node_group_min_size)))
+}
+
+# Every zone of the region, whatever its status at plan time, so a zone that is briefly down
+# does not move the pool.
+data "google_compute_zones" "iq" {
+  region  = var.gcp_region
+  project = var.gcp_project_id
 }
 
 resource "google_container_node_pool" "iq_node_pool" {
-  name       = "${local.cluster_name}-node-pool"
-  location   = var.gcp_region
-  cluster    = google_container_cluster.iq_gke.name
-  project    = var.gcp_project_id
-  node_count = var.node_group_desired_size
+  name     = "${local.cluster_name}-node-pool"
+  location = var.gcp_region
+  cluster  = google_container_cluster.iq_gke.name
+  project  = var.gcp_project_id
+  # node_pool_zones, or as many zones as the minimum node count, up to 3: 2 at Size M and L,
+  # 3 at Size XL, so the pool starts with one node in each. node_count is per zone, while
+  # node_group_*_size are totals, so the start count is divided by the zone count and the
+  # autoscaler is bounded by the totals.
+  node_locations = local.iq_zones
+  node_count     = floor(var.node_group_desired_size / length(local.iq_zones))
 
   autoscaling {
-    min_node_count = var.node_group_min_size
-    max_node_count = var.node_group_max_size
+    total_min_node_count = var.node_group_min_size
+    total_max_node_count = var.node_group_max_size
+    location_policy      = "BALANCED"
   }
 
   management {
@@ -138,6 +152,21 @@ resource "google_container_node_pool" "iq_node_pool" {
     max_surge       = 1
     max_unavailable = 0
   }
+
+  lifecycle {
+    precondition {
+      condition     = var.node_group_max_size >= var.node_group_min_size
+      error_message = "node_group_max_size (${var.node_group_max_size}) must be at least node_group_min_size (${var.node_group_min_size})."
+    }
+    precondition {
+      condition     = var.node_group_desired_size >= var.node_group_min_size && var.node_group_desired_size <= var.node_group_max_size
+      error_message = "node_group_desired_size (${var.node_group_desired_size}) must be from node_group_min_size (${var.node_group_min_size}) to node_group_max_size (${var.node_group_max_size})."
+    }
+    precondition {
+      condition     = var.node_group_desired_size % length(local.iq_zones) == 0
+      error_message = "node_group_desired_size (${var.node_group_desired_size}) must divide evenly across the ${length(local.iq_zones)} zones of the node pool (${join(", ", local.iq_zones)}), since GKE starts the same number of nodes in each. Change node_group_desired_size or node_pool_zones."
+    }
+  }
 }
 
 resource "google_service_account" "gke_workload_identity" {
@@ -170,26 +199,6 @@ resource "google_project_iam_member" "gke_secret_accessor" {
   project = var.gcp_project_id
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_service_account.gke_workload_identity.email}"
-}
-
-resource "google_service_account" "fluentd_workload_identity" {
-  account_id   = "${local.cluster_name}-fluentd-sa"
-  display_name = "Fluentd Workload Identity for Cloud Logging"
-  project      = var.gcp_project_id
-
-  depends_on = [google_project_service.required_apis]
-}
-
-resource "google_service_account_iam_member" "fluentd_workload_identity_binding" {
-  service_account_id = google_service_account.fluentd_workload_identity.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.gcp_project_id}.svc.id.goog[nexus-iq/fluentd-aggregator-sa]"
-}
-
-resource "google_project_iam_member" "fluentd_logging_writer" {
-  project = var.gcp_project_id
-  role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.fluentd_workload_identity.email}"
 }
 
 data "google_container_cluster" "iq_gke" {

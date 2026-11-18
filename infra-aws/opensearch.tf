@@ -6,7 +6,8 @@
 # there creates nothing here.
 #
 # The domain carries prevent_destroy, and its interfaces sit in this VPC, so a
-# teardown removes it from state and deletes it first:
+# teardown removes it from state and deletes it first. ./tf-destroy.sh
+# --delete-opensearch-domain does that and waits for the delete; by hand:
 #
 #     DOMAIN=$(terraform output -raw opensearch_domain_name)
 #     terraform state rm aws_opensearch_domain.nexus_one

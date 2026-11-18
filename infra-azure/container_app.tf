@@ -1,7 +1,7 @@
 
 locals {
   opensearch_enabled    = var.search_engine == "opensearch"
-  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
+  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${local.os_endpoint}:${var.opensearch_port}"
   workload_profile_name = "${var.workload_profile_type}-Profile"
 }
 
@@ -64,6 +64,23 @@ resource "azurerm_container_app" "iq_app" {
     type = "SystemAssigned"
   }
 
+  dynamic "secret" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      name  = "registry-password"
+      value = var.container_registry_password
+    }
+  }
+
+  dynamic "registry" {
+    for_each = var.container_registry_server == "" ? [] : [1]
+    content {
+      server               = var.container_registry_server
+      username             = var.container_registry_username
+      password_secret_name = "registry-password"
+    }
+  }
+
   template {
     min_replicas = 1
     max_replicas = 1
@@ -101,6 +118,28 @@ resource "azurerm_container_app" "iq_app" {
         <<-EOF
           set -e
           echo "Creating config.yml in proper /etc/nexus-iq-server location"
+%{if local.opensearch_enabled && var.opensearch_use_tls}
+
+          if [ -n "$OPENSEARCH_CA_PEM" ]; then
+            # On the container's own disk, rebuilt every start, so nothing collects on the share.
+            TRUST_STORE=/tmp/iq-truststore.jks
+            JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+            KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+            if [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ]; then
+              cp "$JVM_CACERTS" "$TRUST_STORE"
+              printf '%s' "$OPENSEARCH_CA_PEM" | base64 -d > /tmp/opensearch-ca.crt
+              "$KEYTOOL" -importcert -noprompt \
+                -keystore "$TRUST_STORE" -storepass changeit \
+                -alias opensearch-ca -file /tmp/opensearch-ca.crt
+              rm -f /tmp/opensearch-ca.crt
+              echo "trust store built, authorities: $("$KEYTOOL" -list -keystore "$TRUST_STORE" -storepass changeit 2>/dev/null | grep -c trustedCertEntry)"
+              export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.trustStore=$TRUST_STORE -Djavax.net.ssl.trustStorePassword=changeit"
+            else
+              echo "REFUSING: cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"
+              exit 1
+            fi
+          fi
+%{endif}
 
 
           cat > /etc/nexus-iq-server/config.yml << 'CONFIGEOF'
@@ -200,11 +239,16 @@ CONFIGEOF
             printf '    uri: %s\n' '${local.opensearch_uri}'
             printf "    username: '%s'\n" "$os_user"
             printf "    password: '%s'\n" "$os_pass"
-            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+            printf '    nexusOneIndexReplicas: %s\n' '${local.os_replicas}'
           } >> /etc/nexus-iq-server/config.yml
 
           unset os_user os_pass
 %{endif}
+
+          # IQ Server installs this license on start when it has none.
+          printf '%s' "$IQ_LICENSE_B64" | base64 -d > /etc/nexus-iq-server/license.lic
+          echo "licenseFile: /etc/nexus-iq-server/license.lic" >> /etc/nexus-iq-server/config.yml
+          unset IQ_LICENSE_B64
 
           echo "Successfully created config.yml with PostgreSQL configuration at /etc/nexus-iq-server/config.yml"
           echo "Generated config file contents, with every password redacted:"
@@ -218,6 +262,11 @@ CONFIGEOF
       env {
         name  = "JAVA_OPTS"
         value = var.java_opts
+      }
+
+      env {
+        name  = "OPENSEARCH_CA_PEM"
+        value = local.os_ca_pem_b64
       }
 
       env {
@@ -248,6 +297,16 @@ CONFIGEOF
       env {
         name        = "DB_PASSWORD"
         secret_name = "db-password"
+      }
+
+      env {
+        name        = "NXIQ_INITIAL_ADMIN_PASSWORD"
+        secret_name = "iq-admin-initial-password"
+      }
+
+      env {
+        name        = "IQ_LICENSE_B64"
+        secret_name = "iq-license"
       }
 
       env {
@@ -299,11 +358,21 @@ CONFIGEOF
     value = var.db_password
   }
 
+  secret {
+    name  = "iq-admin-initial-password"
+    value = var.iq_admin_initial_password
+  }
+
+  secret {
+    name  = "iq-license"
+    value = local.iq_license_b64
+  }
+
   dynamic "secret" {
     for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-username"
-      value = var.opensearch_username
+      value = local.os_username
     }
   }
 
@@ -311,7 +380,7 @@ CONFIGEOF
     for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-password"
-      value = var.opensearch_password
+      value = local.os_password
     }
   }
 
@@ -334,18 +403,23 @@ CONFIGEOF
     ]
 
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
-      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+      condition     = var.search_engine != "opensearch" || local.os_create || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
 
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      condition     = var.search_engine != "opensearch" || length(local.os_username) > 0
       error_message = "opensearch_username must be set when search_engine is 'opensearch'."
     }
 
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
-      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+      condition     = var.search_engine != "opensearch" || local.os_create || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch' and opensearch_create is false."
+    }
+
+    precondition {
+      condition     = var.container_registry_server == "" || (length(var.container_registry_username) > 0 && length(var.container_registry_password) > 0)
+      error_message = "container_registry_username and container_registry_password must both be set when container_registry_server is set."
     }
   }
 
@@ -357,6 +431,7 @@ CONFIGEOF
     azurerm_postgresql_flexible_server.iq_db,
     azurerm_postgresql_flexible_server_database.iq_database,
     azurerm_container_app_environment_storage.iq_storage,
-    azurerm_container_app_environment_storage.iq_logs
+    azurerm_container_app_environment_storage.iq_logs,
+    azurerm_linux_virtual_machine.opensearch,
   ]
 }

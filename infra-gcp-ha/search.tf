@@ -11,7 +11,7 @@ locals {
   # certificate: see README.md, "Trusting a private certificate authority".
   opensearch_scheme = var.opensearch_use_tls ? "https" : "http"
 
-  opensearch_uri = "${local.opensearch_scheme}://${var.opensearch_endpoint}:${var.opensearch_port}"
+  opensearch_uri = "${local.opensearch_scheme}://${local.os_endpoint}:${var.opensearch_port}"
 }
 
 # The OpenSearch password, read from Secret Manager at boot rather than written into the
@@ -35,7 +35,7 @@ resource "google_secret_manager_secret" "opensearch_password" {
 resource "google_secret_manager_secret_version" "opensearch_password" {
   count       = local.opensearch_enabled ? 1 : 0
   secret      = google_secret_manager_secret.opensearch_password[0].id
-  secret_data = var.opensearch_password
+  secret_data = local.os_iq_password
 }
 
 # Secret Manager access is granted per secret in this root (iam.tf).
@@ -50,7 +50,7 @@ resource "google_secret_manager_secret_iam_member" "iq_compute_opensearch_passwo
 # A private certificate authority for the cluster, read from Secret Manager at boot.
 # Not needed for a certificate from a public authority.
 locals {
-  opensearch_private_ca = local.opensearch_enabled && var.opensearch_use_tls && var.opensearch_ca_certificate != ""
+  opensearch_private_ca = local.opensearch_enabled && var.opensearch_use_tls && (local.opensearch_create || var.opensearch_ca_certificate != "")
 }
 
 resource "google_secret_manager_secret" "opensearch_ca" {
@@ -72,7 +72,7 @@ resource "google_secret_manager_secret" "opensearch_ca" {
 resource "google_secret_manager_secret_version" "opensearch_ca" {
   count       = local.opensearch_private_ca ? 1 : 0
   secret      = google_secret_manager_secret.opensearch_ca[0].id
-  secret_data = var.opensearch_ca_certificate
+  secret_data = local.os_ca_pem
 }
 
 resource "google_secret_manager_secret_iam_member" "iq_compute_opensearch_ca" {
@@ -102,18 +102,18 @@ resource "google_compute_firewall" "allow_opensearch" {
 
   lifecycle {
     precondition {
-      condition     = length(var.opensearch_endpoint) > 0
-      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+      condition     = local.opensearch_create || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
 
     precondition {
-      condition     = length(var.opensearch_username) > 0
-      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+      condition     = local.opensearch_create || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
 
     precondition {
-      condition     = length(var.opensearch_password) > 0
-      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+      condition     = local.opensearch_create || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
   }
 }

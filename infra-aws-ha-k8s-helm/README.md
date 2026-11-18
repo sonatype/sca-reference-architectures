@@ -1,228 +1,54 @@
 # Sonatype IQ Reference Architecture - AWS EKS with Helm (High Availability)
 
-This directory contains Terraform configuration for deploying Sonatype IQ Server on AWS using EKS (Elastic Kubernetes Service) with Helm in a **High Availability configuration** with auto-scaling and multi-AZ deployment.
+This directory contains Terraform configuration for deploying Sonatype IQ Server on AWS using EKS with Helm in a **High Availability configuration**, with Aurora PostgreSQL, Amazon EFS, pod and node auto-scaling, multi-AZ deployment and, with `search_engine = "opensearch"`, an Amazon OpenSearch Service domain.
+
+Sizing, the JVM rules, OpenSearch planning, the Helm chart pins and the shared troubleshooting table are in the [top-level README](../README.md). This page covers what is specific to this architecture.
 
 ---
 
 ## Sizing Guide
 
-This EKS HA architecture supports sizes **M**, **L**, and **XL**. Choose your size based on application count and daily evaluation volume:
+This EKS HA architecture supports sizes **M**, **L**, and **XL**:
 
-| Size | Applications | Evaluations/Day | Nodes | Compute (per node) | Java Heap | Instance Type | OpenSearch |
-|------|:------------:|:---------------:|:-----:|:-------------------:|:---------:|:-------------:|:----------:|
-| **M** | 2,000 - 10,000 | 5,000 - 10,000 | 2 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) | Required ¹ |
-| **L** | 10,000 - 20,000 | 10,000 - 20,000 | 3 | 8 vCPU / 64 GB | 48 GB | r9g.2xlarge (ARM) | Required ¹ |
-| **XL** | 20,000 - 80,000 | 20,000+ | 4 | 16 vCPU / 128 GB | 96 GB | r9g.4xlarge (ARM) | Required ¹ |
+| Size | Applications | Evaluations per day, hour | Nodes (min / desired / max) | IQ pods, HPA min / max | Node type | Pod limit, heap / direct memory | Aurora | OpenSearch |
+|------|:------------:|:---------------:|:---------------------------:|:----------------------:|:---------:|:-------------------------------:|:------:|:----------:|
+| **M** | 2k - 10k | ~7.5k, 250 | 2 / 2 / 3 | 2, 2 / 3 | m8g.2xlarge (ARM) | 26 GB, 17 GB / 4 GB | 2 x db.r8g.xlarge | 3 x `m8g.large.search`, 100 GB |
+| **L** | 10k - 30k | ~15k, 350 | 2 / 2 / 4 | 2, 2 / 4 | m8g.4xlarge (ARM) | 56 GB, 37 GB / 8 GB | 2 x db.r8g.2xlarge | 3 x `m8g.xlarge.search`, 150 GB |
+| **XL** | 30k - 100k | ~25k, 450 | 3 / 3 / 5 | 3, 3 / 5 | r9g.4xlarge (ARM) | 112 GB, 74 GB / 8 GB | 2 x db.r8g.4xlarge | 3 x `r8g.2xlarge.search`, 250 GB |
 
-> Evaluations an hour per task on `infra-aws-ha`, sustained in testing, not a limit: 1,630 at M on 2 tasks, about 3,700 at L on 3 tasks and 3,830 at XL.
+Evaluations per day, hour are typical figures for the whole cluster on a normal day, a guide for planning,
+not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).
 
-> ¹ Required for Advanced Search and the Nexus One index at every size, and not switched on for you: `search_engine` defaults to `lucene` in `variables.tf`, so a deployment that wants either feature sets it to `opensearch`, and this configuration then creates the domain. See [OpenSearch](#opensearch) for what it serves, what this architecture does and does not do about it, and the per-size cluster specification.
+The Terraform values for each size are in [`examples/<size>.tfvars`](./examples/), and the pod's CPU,
+memory, heap and autoscaler bounds in `examples/<size>.helm-values.yaml`, which `helm-install.sh --values`
+applies after `helm-values.yaml`. The top-level `deploy.sh` uses both. Why the pod heap is lower than on a
+whole VM is in [JVM Configuration](../README.md#jvm-configuration).
 
-> **Pod memory limit.** The heap and `-XX:MaxDirectMemorySize` together stay under the pod's memory limit, so metaspace, thread stacks and code cache have room: at M and L a 48 GB heap and 4 GB of direct memory leave 4 GB of the `56Gi` limit, and at XL a 96 GB heap and 8 GB leave 8 GB of `112Gi`.
+Aurora storage grows on its own, from about 128 GB at M, 256 GB at L and 512 GB at XL, and is expected to
+grow to about 500 GB, 1 TB and 2 TB. EFS uses Elastic throughput and grows with use: plan for 200 to 500 GB
+at M, 500 GB to 1.5 TB at L and 1.5 to 4 TB at XL.
 
-> **ARM instances recommended.** r9g (Graviton5) costs less on demand than the x86 equivalent (r8i). The node AMI follows the instance architecture, so both ARM and x86 types deploy.
+> **ARM instances are the default.** The node AMI follows the instance architecture, so the x86 equivalents (m8i and r8i) deploy too.
 
-> **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
-
-### Recommended `terraform.tfvars` by Size
-
-> **Heap dumps.** At M, L and XL the first out-of-memory error in any pod writes a heap dump to
-> `/sonatype-work/clm-cluster/heap-dump.hprof`, one file on the shared storage, and the JVM exits;
-> a later one skips the dump while that file exists, so delete it to allow another.
-
-<details>
-<summary><strong>Size M</strong> — Medium (2,000 – 10,000 applications, 2 nodes)</summary>
-
-```hcl
-node_instance_type      = "r9g.2xlarge"    # 8 vCPU, 64 GB (ARM)
-node_group_desired_size = 2
-node_group_min_size     = 2
-node_group_max_size     = 3
-nexus_iq_replica_count  = 2                # 2 IQ pods
-aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
-aurora_instance_count   = 2
-
-search_engine                      = "opensearch"
-opensearch_instance_type           = "m8g.large.search"
-opensearch_instance_count          = 2
-opensearch_volume_size_gb          = 100
-opensearch_availability_zone_count = 2
-opensearch_index_replicas          = 1
-```
-In `helm-values.yaml`:
-
-```yaml
-iq_server:
-  resources:
-    requests:
-      cpu: "6"
-      memory: "48Gi"
-    limits:
-      cpu: "8"
-      memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-```
-</details>
-
-<details>
-<summary><strong>Size L</strong> — Large (10,000 – 20,000 applications, 3 nodes)</summary>
-
-```hcl
-node_instance_type      = "r9g.2xlarge"    # 8 vCPU, 64 GB (ARM)
-node_group_desired_size = 3
-node_group_min_size     = 2
-node_group_max_size     = 5
-nexus_iq_replica_count  = 3                # 3 IQ pods
-aurora_instance_class   = "db.r8g.2xlarge" # 8 vCPU, 64 GB
-aurora_instance_count   = 2
-
-search_engine                      = "opensearch"
-opensearch_instance_type           = "m8g.xlarge.search"
-opensearch_instance_count          = 2
-opensearch_volume_size_gb          = 150
-opensearch_availability_zone_count = 2
-opensearch_index_replicas          = 1
-```
-In `helm-values.yaml`:
-
-```yaml
-iq_server:
-  resources:
-    requests:
-      cpu: "6"
-      memory: "48Gi"
-    limits:
-      cpu: "8"
-      memory: "56Gi"
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-```
-</details>
-
-<details>
-<summary><strong>Size XL</strong> — Extra Large (20,000 – 80,000 applications, 4 nodes)</summary>
-
-```hcl
-node_instance_type      = "r9g.4xlarge"    # 16 vCPU, 128 GB (ARM)
-node_group_desired_size = 4
-node_group_min_size     = 3
-node_group_max_size     = 5
-nexus_iq_replica_count  = 4                # 4 IQ pods
-aurora_instance_class   = "db.r8g.4xlarge" # 16 vCPU, 128 GB
-aurora_instance_count   = 2
-
-search_engine                      = "opensearch"
-opensearch_instance_type           = "r8g.2xlarge.search"
-opensearch_instance_count          = 2
-opensearch_volume_size_gb          = 250
-opensearch_availability_zone_count = 2
-opensearch_dedicated_master_type   = "m8g.large.search"
-opensearch_index_replicas          = 1
-```
-In `helm-values.yaml`:
-
-```yaml
-iq_server:
-  resources:
-    requests:
-      cpu: "12"
-      memory: "96Gi"
-    limits:
-      cpu: "16"
-      memory: "112Gi"
-  javaOpts: "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
-```
-</details>
-
-### Database Sizing (Aurora PostgreSQL)
-
-| Size | Aurora Instance Class | vCPU | Memory | Storage |
-|------|:--------------------|:----:|:------:|:-------:|
-| **M** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 128 GB, expected to grow to about 500 GB |
-| **L** | db.r8g.2xlarge | 8 | 64 GB | Grows automatically, about 256 GB, expected to grow to about 1 TB |
-| **XL** | db.r8g.4xlarge | 16 | 128 GB | Grows automatically, about 512 GB, expected to grow to about 2 TB |
-
-### Shared Storage (EFS)
-
-All sizes use Amazon EFS with Elastic throughput mode. Enable lifecycle policies to move files older than 30 days to Infrequent Access (IA) for ~92% storage savings.
-
-| Size | Estimated Capacity |
-|------|:------------------:|
-| **M** | 200 GB – 500 GB |
-| **L** | 500 GB – 1.5 TB |
-| **XL** | 1.5 TB – 4 TB |
-
-### OpenSearch
-
-IQ Server uses an OpenSearch cluster for Advanced Search and for the Nexus One index behind the Nexus
-One list pages, typeahead, and dashboard, and **it is required at every size this architecture
-supports.** One cluster serves both features, through a `search:` block and a `nexusOne.connection` block in IQ Server's
-`config.yml` that name the same endpoint and credentials, with nothing extra to switch on per
-feature.
-
-On AWS the cluster is an **Amazon OpenSearch Service domain**, and IQ Server authenticates with AWS
-SigV4 signed by the deployment's own role, so there is no password to store. That role needs the
-`es:ESHttpGet`, `es:ESHttpPost`, `es:ESHttpPut`, `es:ESHttpHead` and `es:ESHttpDelete` actions on the
-domain.
-
-**The templates do not turn it on for you.** `search_engine` defaults to `lucene` in `variables.tf`, so
-a deployment that wants either feature sets `search_engine = "opensearch"`. Every variable and its
-default is in [OpenSearch for the Nexus One Index](#opensearch-for-the-nexus-one-index) below.
-
-**This architecture creates the domain unless you name one.** With `search_engine = "opensearch"` and
-`opensearch_domain_endpoint` left empty, the domain is created here. Set that endpoint and
-`opensearch_domain_name` to point at a domain you already run, and nothing is created. A domain created
-here carries `prevent_destroy`, so `terraform destroy` stops rather than deleting your index; a domain
-you named stays independent of this deployment entirely.
-
-#### Replicas
-
-A replica is a full second copy of every shard, and it is what makes losing a data node
-survivable. Set `opensearch_index_replicas` per size:
-
-| Size | OpenSearch data nodes | Replica count |
-|------|:---------------------:|:-------------:|
-| **M** | 2 | `1` |
-| **L** | 2 | `1` |
-| **XL** | 2 | `1` |
-
-When to use `0`, and how to give the Advanced Search index the same count, are in the
-[top-level OpenSearch section](../README.md#replicas-each-architecture-sets-the-count).
-
-#### Plan for twice the index during a rebuild
-
-**Plan free disk for twice the Nexus One index, because a rebuild needs room for a second copy.** A
-replica is a separate doubling that applies at the same time. The full rules, and why
-a rebuild is not a backup, are in the
-[top-level OpenSearch section](../README.md#plan-for-twice-the-index-during-a-rebuild).
-
-#### Per-size cluster specification
-
-The data node type and count, storage per node, shards and replicas for each size are in the
-[domain shape table](#domain-shape-per-size) below. At M, L and XL the component, violation and vulnerability indices are
-created with 3 primary shards and every other index with 1. The
-shard counts are set through the configuration API before the first build, as shown there.
-
-See the [top-level OpenSearch section](../README.md#opensearch) for the full planning rules.
+> **Heap dumps.** The first out-of-memory error in any pod writes a heap dump to
+> `/sonatype-work/clm-cluster/heap-dump.hprof`, one file on the shared storage, and the JVM exits; a later
+> one skips the dump while that file exists, so delete it to allow another.
 
 ---
 
 ## OpenSearch for the Nexus One Index
 
-Sonatype IQ Server keeps its Nexus One index in an AWS-managed OpenSearch
-domain. With `search_engine = "lucene"` there is no Nexus One index, and
-Advanced Search uses the index built into the server. Set `search_engine` to
-`opensearch` and this configuration creates the domain:
+With `search_engine = "opensearch"`, this configuration creates an Amazon OpenSearch Service domain
+running `OpenSearch_3.7` (`opensearch_engine_version`), on three data nodes in three zones at every size.
+The IQ Server pods sign their requests with SigV4 through an IAM role for service accounts, which
+`iq_server_irsa_role_arn` outputs, so there is no password to store. With `search_engine = "lucene"` there
+is no domain and no Nexus One index.
 
-```hcl
-search_engine                      = "opensearch"
-opensearch_instance_type           = "m8g.large.search"
-opensearch_instance_count          = 2
-opensearch_volume_size_gb          = 100
-opensearch_availability_zone_count = 2
-opensearch_index_replicas          = 1
-```
-
-`search_engine = "lucene"` is the default and needs none of the others.
+The domain shape is set per size by `opensearch_instance_type`, `opensearch_instance_count`,
+`opensearch_volume_size_gb`, `opensearch_availability_zone_count`, `opensearch_dedicated_master_type` and
+`opensearch_index_replicas`, from the size's example file. The defaults are the Size M shape. The node
+group runs in two private subnets; with three zones, Terraform adds a third private subnet for the domain
+only, so the region needs three availability zones.
 
 To use a domain you already run, name it instead and nothing is created:
 
@@ -230,49 +56,44 @@ To use a domain you already run, name it instead and nothing is created:
 search_engine              = "opensearch"
 opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
 opensearch_domain_name     = "CHANGE_ME-search-domain"
+opensearch_instance_count  = 3   # the domain's data node count, which sets the shard counts
 ```
 
-IQ Server needs OpenSearch 3.x. A domain created here runs `OpenSearch_3.7`, set by
-`opensearch_engine_version`, the newest version Amazon OpenSearch Service offers as of November 2026.
-A domain you name should run 3.x as well.
+A domain you name should run OpenSearch 3.x, and the pods' role needs the `es:ESHttpGet`,
+`es:ESHttpPost`, `es:ESHttpPut`, `es:ESHttpHead` and `es:ESHttpDelete` actions on it.
 
-### `terraform destroy` will not delete the domain
+### Domain shape per size
 
-The domain carries `prevent_destroy`, because it holds the index. A destroy
-fails while it is in state, so removing it is deliberate:
+| Size | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Shards ¹ | Replicas |
+|------|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|:--------:|
+| **M** | 3 | `m8g.large.search` | 4 GB | 100 GB | 3 x `m8g.medium.search` | 3 | 3 | 1 |
+| **L** | 3 | `m8g.xlarge.search` | 8 GB | 150 GB | 3 x `m8g.medium.search` | 3 | 3 | 1 |
+| **XL** | 3 | `r8g.2xlarge.search` | 32 GB | 250 GB | 3 x `m8g.large.search` | 3 | 3 | 1 |
 
-```bash
-DOMAIN=$(terraform output -raw opensearch_domain_name)
-terraform state rm aws_opensearch_domain.nexus_one
-aws opensearch delete-domain --domain-name "$DOMAIN"
-# wait for the domain to finish deleting, which releases its interfaces
-./tf-destroy.sh
-```
+¹ Primary shards for the component, violation and vulnerability indices, set by `iq-post-deploy.sh`
+from `opensearch_instance_count`. Every other index keeps 1.
 
-Read the name first, because `state rm` removes it from state along with the
-domain. `./tf-destroy.sh` is the same teardown script the Teardown section uses.
+Heap is half of each node's memory, capped at 32 GB. AWS sets it, and it is not a setting this
+configuration can change. The rules for replicas, the Advanced Search index and disk during a rebuild are
+in the [top-level OpenSearch section](../README.md#opensearch).
 
-The `state rm` is what gets past `prevent_destroy`. The delete is what lets the
-rest of the teardown finish: the domain's network interfaces sit in this VPC's
-private subnets and hold its security group, so destroying the VPC around a live
-domain fails on `DependencyViolation`.
+**Storage holds more than one copy of the index.** A replica doubles it, a rebuild holds a second copy while it runs, and AWS reserves 20% of each volume capped at 20 GB. The figures
+above allow for all three.
 
-**Switching away from this domain takes the same steps.** Setting
-`search_engine = "lucene"`, or pointing `opensearch_domain_endpoint` at another
-domain, drops this one from the plan, so the plan fails on `prevent_destroy` in
-the same way. Read the name, `state rm`, delete the domain and wait, then run
-`terraform apply` with the new settings in place of `./tf-destroy.sh`.
+What the created domain gets, none of which needs configuring:
 
-**To keep the index, keep this deployment standing.** A domain cannot outlive the
-VPC it was built in. A deployment that builds its own network can then name this
-domain through `opensearch_domain_endpoint` and share the index with it.
+- **The private subnets of this VPC**, reachable on 443 from the EKS nodes and from nowhere else.
+- **Encryption at rest and node to node**, and TLS 1.2 enforced.
+- **An access policy naming the pods' IRSA role and no other principal.**
+- **Three dedicated master nodes**, one per zone.
+
+**Fine-grained access control has to stay off for as long as the domain holds this index.** With it on,
+SigV4 alone does not reach the domain, and IQ Server's `type: aws` configuration does not work.
 
 ### One account-level prerequisite before the first domain
 
-A VPC domain needs the OpenSearch service-linked role,
-`AWSServiceRoleForAmazonOpenSearchService`, which is what OpenSearch assumes to
-put the domain's network interfaces in the private subnets. AWS creates it on its
-own when a VPC domain is made through the console. Otherwise, once per account:
+A VPC domain needs the OpenSearch service-linked role, `AWSServiceRoleForAmazonOpenSearchService`. AWS
+creates it on its own when a VPC domain is made through the console. Otherwise, once per account:
 
 ```bash
 aws iam create-service-linked-role \
@@ -287,102 +108,61 @@ aws iam list-roles \
   --query 'Roles[].RoleName' --output text
 ```
 
-The calling identity needs `iam:CreateServiceLinkedRole`. An account still
-carrying the legacy `AWSServiceRoleForAmazonElasticsearchService` role goes on
-using that one and needs nothing. This configuration does not create the role,
-because AWS allows one per account and every deployment's domain depends on it.
+The calling identity needs `iam:CreateServiceLinkedRole`. An account still carrying the legacy
+`AWSServiceRoleForAmazonElasticsearchService` role goes on using that one and needs nothing.
 
-What the created domain gets, none of which needs configuring:
+### `terraform destroy` will not delete the domain
 
-- **The private subnets of this VPC**, one per Availability Zone it spreads
-  across, reachable on 443 from the EKS node security groups alone.
-- **Encryption at rest and node to node**, and TLS 1.2 enforced.
-- **An access policy naming the pods' IRSA role and no other principal**, so
-  nothing has to be wired up by hand after the apply. The pods sign with SigV4
-  through that role, and `iq_server_irsa_role_arn` outputs it.
-- **Three dedicated master nodes** whenever there is more than one data node,
-  which keeps cluster state off the nodes serving queries.
+The domain carries `prevent_destroy`, because it holds the index. A destroy fails while it is in state,
+so removing it is deliberate. `./tf-destroy.sh --delete-opensearch-domain` removes the domain from state,
+deletes it, waits for the delete to finish and then destroys the rest. By hand:
 
-**Fine-grained access control has to stay off for as long as the domain holds this
-index.** Turning it on gives the domain an internal user database and changes how
-every request is authenticated, so SigV4 alone does not reach it and IQ Server's
-`type: aws` configuration does not work. There is no credential to supply instead:
-this architecture authenticates with the pods' IAM role and nothing else.
+```bash
+DOMAIN=$(terraform output -raw opensearch_domain_name)
+terraform state rm aws_opensearch_domain.nexus_one
+aws opensearch delete-domain --domain-name "$DOMAIN"
+# wait for the domain to finish deleting, which releases its interfaces
+./tf-destroy.sh
+```
+
+Read the name first, because `state rm` removes it from state along with the domain. The delete is what
+lets the rest of the teardown finish: the domain's network interfaces sit in this VPC's private subnets
+and hold its security group, so destroying the VPC around a live domain fails on `DependencyViolation`.
+
+**Switching away from this domain takes the same steps.** Setting `search_engine = "lucene"`, or pointing
+`opensearch_domain_endpoint` at another domain, drops this one from the plan, so the plan fails on
+`prevent_destroy` in the same way. Read the name, `state rm`, delete the domain and wait, then run
+`terraform apply` with the new settings in place of `./tf-destroy.sh`.
 
 ### How the configuration reaches IQ Server
 
-Terraform does not write `config.yml` here. The Helm chart builds it from the
-`iq_server.config` block in `helm-values.yaml`, and `helm-install.sh` prepares
-that file at install time:
+Terraform does not write `config.yml` here. The Helm chart builds it from the `iq_server.config` block in
+`helm-values.yaml`, and `helm-install.sh` prepares that file at install time:
 
-1. It reads the `search_engine`, `opensearch_domain_endpoint` and
-   `opensearch_index_replicas` outputs.
-2. With `opensearch`, it fills in the three placeholders inside the
-   `# BEGIN search backend` block and points the `nexus-iq-sa` service account
-   at `iq_server_irsa_role_arn`.
-3. With `lucene`, it deletes that whole block, so `config.yml` carries no
-   `search:` key at all.
-4. Either way it then fails if any placeholder survived, rather than installing
-   a chart with a literal placeholder in it.
+1. It reads the `search_engine`, `opensearch_domain_endpoint` and `opensearch_index_replicas` outputs.
+2. With `opensearch`, it fills in the values inside the `# BEGIN search backend` block and points the
+   `nexus-iq-sa` service account at `iq_server_irsa_role_arn`.
+3. With `lucene`, it deletes that whole block, so `config.yml` carries no `search:` key at all.
+4. Either way it then fails if any of those values was left unfilled.
 
-`helm-upgrade.sh` does the same. **Leave the placeholders inside that block
-alone**; the scripts fill them in.
-
-### Domain shape per size
-
-| Size | Applications | Data nodes | Instance type | Heap | Storage per node | Masters | Zones | Shards ¹ | Replicas |
-|------|:------------:|:----------:|:-------------:|:----:|:----------------:|:-------:|:-----:|:--------:|:--------:|
-| **M** | 2,000 - 10,000 | 2 | `m8g.large.search` | 4 GiB | 100 GB | 3 x `m8g.medium.search` | 2 | 3 | 1 |
-| **L** | 10,000 - 20,000 | 2 | `m8g.xlarge.search` | 8 GiB | 150 GB | 3 x `m8g.medium.search` | 2 | 3 | 1 |
-| **XL** | 20,000 - 80,000 | 2 | `r8g.2xlarge.search` | 32 GiB | 250 GB | 3 x `m8g.large.search` | 2 | 3 | 1 |
-
-¹ Primary shards for the component, violation and vulnerability indices. Every
-other index keeps 1. See [What ends up in `config.yml`](#what-ends-up-in-configyml)
-for how to set them.
-
-Heap is half of each node's memory, capped at 32 GiB. AWS sets it, and it is
-not a setting this configuration can change.
-
-**Two zones, because that is what this architecture builds.** `main.tf` creates
-two private subnets, and the domain needs one subnet per zone, so two is the
-most it can spread across. Two nodes with one replica keeps a complete copy of
-the index in each zone, and a node count has to divide evenly by the zone count
-or AWS refuses the domain. Three zones needs a third private subnet in `main.tf`
-first.
-
-**Storage holds more than one copy of the index.** A replica doubles it, a rebuild holds a second copy while it runs, and AWS reserves 20% of each volume capped at 20 GiB. The figures
-above allow for all three.
+`helm-upgrade.sh` does the same. **Leave the values inside that block alone**; the scripts fill them in.
+The result in `config.yml` is the `type: aws` form shown in the
+[top-level OpenSearch section](../README.md#what-iq-servers-configuration-carries).
 
 ### Where the domain's own logs go
 
-Three CloudWatch log groups per domain, written by OpenSearch itself. `<domain>`
-is the `opensearch_domain_name` output, which is `cluster_name` cut to 18
-characters plus `-nexus-one`:
+Three CloudWatch log groups per domain, written by OpenSearch itself, under
+`/aws/opensearch/<domain>/`: `search_slow_logs`, `index_slow_logs` and `es_application_logs`. `<domain>` is
+the `opensearch_domain_name` output. Retention is `opensearch_log_retention_days`, 30 days by default.
 
-| Log group | Holds |
-|---|---|
-| `/aws/opensearch/<domain>/search_slow_logs` | Searches past the index's slow threshold |
-| `/aws/opensearch/<domain>/index_slow_logs` | Writes past the index's slow threshold |
-| `/aws/opensearch/<domain>/es_application_logs` | What the cluster itself saw: rejected writes, cluster state changes, errors behind a 5xx |
+**An account at 10 CloudWatch Logs resource policies needs one written by hand**, covering every domain's
+log groups, with `opensearch_create_log_resource_policy = false` in each deployment. That skips the policy
+only; the log groups are still created.
 
-Retention is `opensearch_log_retention_days`, 30 days by default.
-
-**An account at 10 CloudWatch Logs resource policies needs one written by
-hand.** OpenSearch needs a resource policy granting it `logs:PutLogEvents` and
-`logs:CreateLogStream` on the groups, and AWS allows 10 per region, so a
-deployment into an account at that limit fails with `LimitExceededException`.
-Write one policy covering every domain's log groups outside Terraform, and set
-`opensearch_create_log_resource_policy = false` in each deployment. That skips
-the policy only; the log groups and `log_publishing_options` are still created.
-With no such policy in the account, the domain create fails.
-
-**The slow logs stay empty until a threshold is set.** OpenSearch ships with
-slow logging off per index, so set a threshold on the index to get any rows.
-
-The domain only accepts HTTPS from the EKS node security group, and only requests signed with
-the IQ Server IRSA role. An IQ Server pod, reached with `kubectl exec`, has
-both, so the request has to run from there and carry that role's temporary
-credentials. `--aws-sigv4` needs curl 7.75 or later:
+**The slow logs stay empty until a threshold is set.** The domain only accepts HTTPS from the EKS node
+security group, and only requests signed with the IQ Server IRSA role, so set one from an IQ Server pod,
+reached with `kubectl exec`, with that role's temporary credentials. `--aws-sigv4` needs curl 7.75 or
+later:
 
 ```bash
 curl --aws-sigv4 "aws:amz:<aws_region>:es" \
@@ -394,55 +174,17 @@ curl --aws-sigv4 "aws:amz:<aws_region>:es" \
 }'
 ```
 
-The application log needs nothing and fills on its own.
-
-**Audit logs are not available here.** They need fine-grained access control,
-which this architecture cannot turn on without breaking SigV4.
-
-### What ends up in `config.yml`
-
-```yaml
-search:
-  type: aws
-  mode: OPENSEARCH
-  domain: https://<the created domain's endpoint, or opensearch_domain_endpoint>
-  region: <aws_region>
-  nexusOneIndexReplicas: <opensearch_index_replicas>
-
-nexusOne:
-  connection:
-    type: aws
-    mode: OPENSEARCH
-    domain: https://<the same endpoint>
-    region: <aws_region>
-    nexusOneIndexReplicas: <opensearch_index_replicas>
-```
-
-- **`type: aws`** signs every request with SigV4 through the pod's role.
-  `type: http` always sends a user name and password, which a domain with
-  fine-grained access control off has no way to check.
-- **`mode: OPENSEARCH`** is written out rather than left to the default.
-- **`nexusOneIndexReplicas`** is always written, from `opensearch_index_replicas`.
-- **`nexusOne.connection` repeats the same fields**, because the Nexus One index
-  needs its own connection block naming the same domain.
-
-Shard counts are not set in `config.yml`, and a shard count only takes
-effect when an index is created. **At M, L and XL, set
-the component, violation and vulnerability indices to 3 shards before the
-Nexus One index is first built**, with the request in
-[Shards](../README.md#shards-3-for-three-indices-at-m-and-above).
-
-The other Nexus One indices keep 1 shard. An
-index built before the change keeps its count until it is rebuilt.
+**Audit logs are not available here.** They need fine-grained access control, which this architecture
+cannot turn on without breaking SigV4.
 
 ---
 
 ## Deployment Guide
 
-### Step 1: Prerequisites
+The quickest route is the top-level [guided deploy script](../README.md#option-1-the-guided-deploy-script).
+The steps below deploy this directory by hand.
 
-#### Required Tools
-Install these tools on your local machine:
+### Step 1: Prerequisites
 
 | Tool | Version | Installation | Purpose |
 |------|---------|--------------|---------|
@@ -451,355 +193,119 @@ Install these tools on your local machine:
 | **kubectl** | Latest | [Install Guide](https://kubernetes.io/docs/tasks/tools/) | Kubernetes cluster management |
 | **Helm** | >= 3.9.3 | [Install Guide](https://helm.sh/docs/intro/install/) | Application deployment |
 
-#### AWS Account Requirements
-- AWS account with administrative access (or sufficient permissions listed below)
-- An IAM Identity Center user with access to the account (recommended), or another way to get credentials, see Step 2
-- Ability to create: VPC, EKS, RDS Aurora, EFS, ALB, IAM roles
-
-#### Required AWS Permissions
-Your IAM user/role needs these AWS service permissions:
-- **EC2**: VPC, subnets, security groups, network interfaces, EIPs, NAT gateways
-- **EKS**: Clusters, node groups, add-ons (CoreDNS, kube-proxy, VPC CNI, EBS CSI, EFS CSI), OIDC providers
-- **RDS**: Aurora clusters, instances, subnet groups, parameter groups
-- **EFS**: File systems, mount targets, access points, backup policies
-- **ELB**: Application Load Balancers, target groups, listeners
-- **IAM**: Roles, policies, OIDC providers
-- **Auto Scaling**: Launch configurations, auto scaling groups (for EKS node groups)
-- **KMS**: Keys and aliases for encryption (RDS, EFS)
-- **Logs**: CloudWatch log groups and streams
-- **Secrets Manager**: Secrets creation and management
-- **SSM Parameter Store**: Parameters for storing database credentials and EFS IDs
-- **S3**: Terraform state storage (if using remote state)
+Your IAM identity needs permissions for EC2 (VPC, subnets, security groups, network interfaces, EIPs, NAT
+gateways), EKS (clusters, node groups, add-ons, OIDC providers), RDS Aurora, EFS, ELB, IAM roles, policies
+and OIDC providers, Auto Scaling, KMS, CloudWatch Logs, Secrets Manager and Amazon OpenSearch Service. The
+license must support clustering.
 
 ### Step 2: Configure AWS Credentials
 
-The scripts call `terraform` and `aws` directly, so they use the standard AWS credential chain
-with the profile named in `AWS_PROFILE`. AWS recommends
-[short-lived credentials from IAM Identity Center](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#bp-users-federation-idp)
-rather than long-term access keys, and both AWS CLI v2 and the Terraform AWS provider read an
-IAM Identity Center profile natively.
+The scripts use the standard AWS credential chain with the profile named in `AWS_PROFILE`. AWS recommends
+[short-lived credentials from IAM Identity Center](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html#bp-users-federation-idp):
 
-1. **Create an IAM Identity Center profile** with the AWS CLI wizard, choosing a profile name
-   such as `nexus-iq-deployment`:
-   ```bash
-   aws configure sso --profile nexus-iq-deployment
-   ```
-   It asks for your access portal URL, its region, and the account and role to use, then
-   writes the profile to `~/.aws/config`. See
-   [Configuring IAM Identity Center authentication with the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html).
-
-2. **Sign in and test:**
-   ```bash
-   aws sso login --profile nexus-iq-deployment
-   aws sts get-caller-identity --profile nexus-iq-deployment
-   ```
-   You should see your AWS account details. Run `aws sso login` again when the session
-   expires; the scripts stop with that instruction if the credentials are missing or expired.
-
-3. **Set the AWS_PROFILE environment variable:**
-
-   The scripts require the `AWS_PROFILE` environment variable to be set:
-
-   Option 1: Export for your entire session
-   ```bash
-   export AWS_PROFILE=nexus-iq-deployment
-   export AWS_REGION=us-east-1  # Optional: override default region
-   ```
-
-   Option 2: Set inline for a single command
-   ```bash
-   AWS_PROFILE=nexus-iq-deployment <script>
-   ```
-
-Any other source in the standard chain works too, such as a profile with access keys or one
-that assumes a role. A tool that injects credentials into the environment also works, for
-example `aws-vault exec nexus-iq-deployment -- ./tf-plan.sh`, in which case `AWS_PROFILE` may be
-left unset.
+```bash
+aws configure sso --profile nexus-iq-deployment   # once, writes the profile to ~/.aws/config
+aws sso login --profile nexus-iq-deployment
+export AWS_PROFILE=nexus-iq-deployment
+```
 
 ### Step 3: Configure Terraform Variables
 
-1. **Copy the example configuration:**
-   ```bash
-   cd /path/to/sca-example-terraform/infra-aws-ha-k8s-helm
-   cp terraform.tfvars.example terraform.tfvars
-   ```
+```bash
+cd sca-reference-architectures/infra-aws-ha-k8s-helm
+cp terraform.tfvars.example terraform.tfvars
+# copy in your size's values from examples/<size>.tfvars, then replace every CHANGE_ME
+```
 
-2. **Edit `terraform.tfvars` with your values (set `search_engine = "opensearch"`, see [OpenSearch](#opensearch-for-the-nexus-one-index)):**
-   ```bash
-   vi terraform.tfvars
-   ```
+`terraform.tfvars.example` carries the Size M values. Every `CHANGE_ME` must be replaced, including
+`database_password`, `iq_admin_initial_password` (at least 12 characters, read by IQ Server on its first
+start only), `iq_license_file` (the path to your IQ Server license file, which IQ Server installs on its
+first start) and `search_engine`.
 
 ### Step 4: Deploy Infrastructure and Application
 
-1. **Initialize Terraform:**
-   ```bash
-   terraform init
-   ```
+```bash
+terraform init
+./tf-plan.sh
+./tf-apply.sh                     # the EKS cluster, Aurora, EFS, OpenSearch and networking
+./helm-install.sh --values examples/<size>.helm-values.yaml
+```
 
-   This downloads required providers (AWS, Kubernetes, Helm, etc.)
-
-2. **Review the deployment plan:**
-   ```bash
-   ./tf-plan.sh
-   ```
-
-   This shows what resources will be created without actually deploying them. The plan script
-   stops before Terraform runs if an uncommented line in `terraform.tfvars` still holds
-   `CHANGE_ME`, and Terraform rejects a `CHANGE_ME` value too, so deploy through the scripts
-   rather than plain `terraform apply`.
-
-3. **Deploy the infrastructure:**
-   ```bash
-   ./tf-apply.sh
-   ```
-
-   This creates the EKS cluster, Aurora database, EFS, and networking.
-
-4. **Install IQ Server using Helm:**
-   ```bash
-   ./helm-install.sh
-   ```
-
-   This script:
-   - Configures kubectl to access the EKS cluster
-   - Retrieves database credentials from AWS Secrets Manager
-   - Installs the official Sonatype Helm chart
-   - Configures ingress and load balancer
+`helm-install.sh` configures kubectl for the cluster, creates the initial admin password secret from
+`iq_admin_initial_password` and the license secret from `iq_license_file`, which every pod installs on
+its first start, installs the chart version in `helm_chart_version` with the IQ Server release it carries, and then runs
+`iq-post-deploy.sh`, which sets the shard counts and chooses the search backend, and installs the license
+only if IQ Server has none yet. Run `./iq-post-deploy.sh` again at any time.
 
 ### Step 5: Access Sonatype IQ Server
 
-1. **Wait for service to be ready:**
-   - Initial startup can take 10-15 minutes
-   - All pods must complete database migrations and clustering setup
-
-2. **Access the web UI:**
-
-   Use the application URL displayed at the end of the Helm deployment.
-
-   Example: `http://k8s-nexusiq-12345-67890.us-east-1.elb.amazonaws.com`
-
-3. **Login credentials:**
-   - **Username:** `admin`
-   - **Password:** `admin123` (change immediately!)
+Initial startup can take 10-15 minutes. Open the application URL the install printed, and log in as
+`admin` with the password you set in `iq_admin_initial_password`.
 
 ### Database migration in `helm-upgrade.sh`
 
-`./helm-upgrade.sh` runs the database migration only when the IQ Server image changes, and then
-only with `MIGRATE_DATABASE=yes` set. Back up the database before setting it. The script scales IQ
-Server to zero for the migration, starts it again afterwards, and exits non-zero if the migration
-or the rollout fails.
+`./helm-upgrade.sh` takes the same `--values` files. It runs the database migration only when the IQ
+Server image changes, and then only with `MIGRATE_DATABASE=yes` set. Back up the database before setting
+it. The script scales IQ Server to zero for the migration, starts it again afterwards, and exits non-zero
+if the migration or the rollout fails.
 
 ---
 
 ## Teardown / Cleanup
 
-> **Your OpenSearch domain is not deleted by this.** A domain this architecture created carries `prevent_destroy`, so `./tf-destroy.sh` stops rather than deleting it; the steps that remove it deliberately are in [`terraform destroy` will not delete the domain](#terraform-destroy-will-not-delete-the-domain). A domain named through `opensearch_domain_endpoint` was never created here and is not deleted here.
-
 **WARNING: This will delete ALL infrastructure and data!**
 
-1. **Uninstall the Helm deployment:**
-   ```bash
-   ./helm-uninstall.sh
-   ```
+```bash
+./helm-uninstall.sh
+./tf-destroy.sh
+```
 
-2. **Destroy all infrastructure:**
-   ```bash
-   ./tf-destroy.sh
-   ```
+A domain this architecture created stops the destroy, see
+[`terraform destroy` will not delete the domain](#terraform-destroy-will-not-delete-the-domain).
 
-   > **Keep the terminal open** - If you close it mid-destroy, the process will potentially stop and leave resources partially deleted.
+With `skip_final_snapshot = false` the destroy leaves the database's final snapshot, and the automatic EFS
+backup AWS Backup keeps in `aws/efs/automatic-backup-vault` is not deleted and expires on its own.
 
 ---
 
 ## Configuration
 
-> **PostgreSQL version.** Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default,
-> PostgreSQL 18.
+`terraform.tfvars.example` lists every variable with its Size M value. Settings worth knowing:
 
-> An instance class change applies in the next maintenance window, because this
-> configuration does not set `apply_immediately`.
-
-### Configuration Variables
-
-Edit `terraform.tfvars` to customize your deployment:
-
-```hcl
-# AWS Configuration
-aws_region  = "us-east-1"
-environment = "prod"
-
-# Cluster Configuration
-cluster_name = "nexus-iq-ha"
-vpc_cidr     = "10.0.0.0/16"
-
-# EKS Configuration
-kubernetes_version       = "1.36"
-node_instance_type      = "r9g.2xlarge"
-node_group_min_size     = 2
-node_group_max_size     = 5
-node_group_desired_size = 3
-node_disk_size          = 50
-
-# RDS Aurora Configuration
-aurora_engine_version   = "18.6"
-aurora_instance_class   = "db.r8g.2xlarge"
-aurora_instance_count   = 2
-database_name           = "nexusiq"
-database_username       = "nexusiq"
-database_password       = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
-backup_retention_period = 7
-skip_final_snapshot     = true
-deletion_protection     = false
-
-# Nexus IQ Server Configuration
-nexus_iq_license       = ""
-nexus_iq_admin_password = "admin123"
-nexus_iq_replica_count = 3
-
-# Pod CPU, memory and heap are Helm chart settings, not Terraform inputs.
-# Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
-
-# Helm Configuration
-helm_chart_version = "201.0.0"
-
-# Logging Configuration
-enable_fluentd        = true
-enable_cloudwatch_logs = true
-
-# Ingress Configuration
-enable_ingress_nginx = true
-ingress_hostname     = "nexus-iq.yourdomain.com"
-ingress_tls_enabled  = false
-acm_certificate_arn  = ""
-
-# Search Backend, needed for Advanced Search and the Nexus One index at every size
-# "lucene" (default) uses the index built into IQ Server. "opensearch" creates
-# a domain here, or uses one you already run if you set
-# opensearch_domain_endpoint. See the OpenSearch section above.
-search_engine = "lucene"
-# opensearch_domain_endpoint = "CHANGE_ME-search-domain.us-east-1.es.amazonaws.com"
-# opensearch_domain_name     = "CHANGE_ME-search-domain"
-# opensearch_index_replicas  = 1
-
-# Extra tags merged onto the resources the search backend creates. Keep the
-# keys lowercase, use none of name, environment or project, which this
-# configuration already sets, and keep the values in terraform.tfvars rather
-# than in terraform.tfvars.example.
-# common_tags = {
-#   owner      = "CHANGE_ME_EMAIL"
-#   department = "CHANGE_ME_DEPARTMENT"
-#   team       = "CHANGE_ME_TEAM"
-# }
-```
-
-Pod count and pod autoscaling are Helm chart values, set in `helm-values.yaml`:
-
-```yaml
-iq_server:
-  replicas: 3          # Set from nexus_iq_replica_count in terraform.tfvars. Size L. Size M uses 2 and Size XL uses 4
-hpa:
-  enabled: true
-  minReplicas: 2       # Size L. Size M uses 2 and Size XL uses 3
-  maxReplicas: 4       # Size L. Size M uses 3 and Size XL uses 5
-```
-
-**Important Settings:**
-- **`nexus_iq_replica_count = 3`** - Initial number of IQ pods, the Size L value. Size M uses 2 and Size XL uses 4
-- **`hpa.minReplicas` in `helm-values.yaml`** - Minimum auto scaling capacity, 2 for Size M and L. Size XL uses 3, and every size must be at least 2 for HA
-- **`hpa.maxReplicas` in `helm-values.yaml`** - Maximum auto scaling capacity, 4 for Size L. Size M uses 3 and Size XL uses 5
-- **`aurora_instance_count = 2`** - Number of Aurora instances (minimum 2 for HA)
-- **`database_password`** - Use a strong, unique password (required change)
-- **`nexus_iq_license`** - Base64 encoded HA-capable license
-- **`deletion_protection = false`** - Set to `true` for production to prevent accidental database deletion
-- **`skip_final_snapshot = true`** - Set to `false` for production to create a final backup snapshot before database deletion
-- **Resource Names** - All AWS resources are prefixed with the `cluster_name` variable, which defaults to `nexus-iq-ha`. **Give each deployment its own value to run more than one in a single AWS account**, since the EKS cluster, load balancer, IAM roles, log group, SSM parameters, Secrets Manager secret and Aurora cluster identifier all have to be unique. One value per size, for example `nexus-iq-m` through `nexus-iq-xl`, is the intended use.
-
-### Clustering Solution
-
-This deployment leverages Kubernetes and Helm for IQ Server clustering:
-
-- **Pod Distribution**: Kubernetes pod anti-affinity ensures replicas run on different nodes across AZs
-- **Shared Storage**: EFS provides consistent storage across all replicas with proper locking
-- **Database Sharing**: All replicas connect to the shared Aurora cluster via Kubernetes secrets
-- **Service Discovery**: Kubernetes service provides stable DNS and load balancing
-
-**Important**: Ensure your Sonatype IQ Server license supports clustering for HA deployments.
+- **`nexus_iq_replica_count`**: the initial number of IQ pods. `helm-install.sh` writes it into `iq_server.replicas`.
+- **`hpa.minReplicas`, `hpa.maxReplicas`**: the pod autoscaler bounds, set per size in `examples/<size>.helm-values.yaml`. Every size keeps at least 2 for HA.
+- **`aurora_instance_count = 2`**: a writer and a reader in different zones.
+- **`helm_chart_version`**: the `nexus-iq-server-ha` chart version, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. The chart sets the IQ Server image, so this also sets the IQ Server version.
+- **`cluster_name`**: all AWS resources are prefixed with it, `nexus-iq-ha` by default. **Give each deployment its own value to run more than one in a single AWS account**, since the EKS cluster, load balancer, IAM roles, log groups, Secrets Manager secrets and Aurora cluster identifier all have to be unique.
+- **`deletion_protection`, `skip_final_snapshot`**: set them for production.
 
 ## Security Features
 
-- **VPC Isolation**: Application runs in private subnets across multiple AZs
-- **Database Security**: Aurora cluster in isolated database subnets with Multi-AZ deployment
-- **Secrets Management**: Database credentials stored in Kubernetes secrets (sourced from AWS Secrets Manager)
-- **Encryption**:
-  - EFS encrypted at rest and in transit
-  - Aurora encrypted at rest
-  - EBS encryption for EKS node storage
-- **Security Groups**: Least-privilege network access
-- **RBAC**: Kubernetes role-based access control
+- **VPC Isolation**: Application and OpenSearch run in private subnets across multiple AZs
+- **Database Security**: Aurora cluster in isolated database subnets; the database password reaches the pods through a Kubernetes secret
+- **Initial admin password**: a Kubernetes secret, `nexus-iq-initial-admin-password`, named in `iq_server.initialAdminPasswordSecret`
+- **Encryption**: EFS encrypted at rest and in transit, Aurora and OpenSearch encrypted at rest, EBS encryption for node storage
 - **IRSA**: IAM Roles for Service Accounts for pod-level AWS permissions
 
 ## Reliability and Backup
 
-This is a **High Availability** deployment with comprehensive reliability features:
-
-- **Multi-AZ Deployment**: EKS nodes, pods, and Aurora instances distributed across multiple availability zones
-- **Horizontal Pod Autoscaler (HPA)**: IQ pods scale between the minimum and maximum for your size. Size M is 2 to 3, Size L is 2 to 4, Size XL is 3 to 5
-- **Node Auto Scaling**: EKS node groups scale from 2-5 nodes based on pod resource requests
-- **Aurora Cluster**: Multi-AZ database deployment with automatic failover (~30 seconds)
-- **Automatic Restart**: Kubernetes automatically restarts failed pods
-- **Pod Disruption Budgets**: Maintains availability during updates and node maintenance
-- **Rolling Updates**: Zero-downtime updates with controlled rollout
+- **Multi-AZ Deployment**: EKS nodes, pods, Aurora instances and OpenSearch data nodes across availability zones
+- **Horizontal Pod Autoscaler**: IQ pods scale between the minimum and maximum for your size
+- **Nodes**: the node group runs `node_group_desired_size` nodes, the size minimum, one IQ pod per node. No cluster autoscaler is installed, so a pod the HPA adds above that stays Pending until `node_group_desired_size` is raised
+- **Aurora Cluster**: automatic failover to the reader
 - **Database Backups**: Automated Aurora backups with 7-day retention (configurable)
-- **EFS Persistence**: Application data stored on EFS survives pod restarts
+- **EFS Persistence**: Application data on EFS survives pod restarts
 
 ## Monitoring and Logging
 
-This deployment includes **production-grade logging** with a unified CloudWatch approach:
-
-### Structured Logging with Fluentd
-- **Fluentd Sidecars**: Lightweight log forwarders in each IQ Server pod
-- **Fluentd Aggregator**: Central aggregator pod (DaemonSet) receives logs from sidecars
-- **5 Log Types Collected**: Application, request, audit, policy-violation, stderr
-- **Aggregated to One CloudWatch Log Group**: All logs sent to `/eks/${cluster_name}/nexus-iq-server`
-- **Separated by Stream Prefix**: Each log type has its own stream prefix for easy filtering
-- **IRSA Authentication**: Fluentd uses IAM Roles for Service Accounts to write to CloudWatch
-
-### CloudWatch Unified Log Group
-- **Log Group**: `/eks/${cluster_name}/nexus-iq-server`
-- **Log Streams** (organized by prefix):
-  - `application/` - Main IQ Server logs
-  - `request/` - HTTP request logs
-  - `audit/` - Audit events (JSON format)
-  - `policy-violation/` - Policy violations (JSON format)
-  - `stderr/` - System.err output for debugging
-  - `fluentd/` - Fluentd internal logs
-
-### Additional Monitoring
-- **Kubernetes Metrics**: Pod CPU/memory usage via `kubectl top`
-- **HPA Metrics**: Horizontal Pod Autoscaler metrics
-- **Aurora Monitoring**: Performance Insights and Enhanced Monitoring enabled
-- **EKS Control Plane Logs**: Audit, authenticator, controller logs
-- **OpenSearch Metrics**: `ClusterStatus`, `FreeStorageSpace`, `ClusterIndexWritesBlocked` and
-  the rest published to CloudWatch by the service, plus the domain's two slow logs and its
-  application log. No alarms are created; see the OpenSearch section above
-
-## Persistent Storage
-
-- **EFS File System**: Shared storage for clustering with Kubernetes CSI driver
-- **Aurora Database**: PostgreSQL cluster for application data with continuous backups. Minimum PostgreSQL 16.9 or later on 16, or 17.5 or later on 17. Recommended, and the default for new deployments, PostgreSQL 18
-- **Auto-scaling Storage**: Aurora storage scales automatically
-- **EBS Volumes**: Node storage encrypted at rest
+- **Amazon CloudWatch Observability add-on**: collects every container's standard output, including IQ Server's server, request, audit and policy-violation logs, into the Container Insights log groups under `/aws/containerinsights/<cluster>/` (`application`, `dataplane`, `host`, `performance`). Retention is `log_retention_days`. Application Signals auto-monitoring is turned off
+- **Log files**: each pod also writes its logs to `/sonatype-work/clm-cluster/log/` on EFS
+- **Audit events**: IQ Server writes them to the database by default, see [Logging](../README.md#logging)
+- **OpenSearch Metrics**: published to CloudWatch by the service, plus the domain's two slow logs and its application log. No alarms are created
 
 ## Networking
 
-### Subnets
-- **Public Subnets**: Load balancer and NAT gateways across multiple AZs
-- **Private Subnets**: EKS worker nodes across multiple AZs
+- **Public Subnets**: Load balancer and NAT gateways
+- **Private Subnets**: EKS nodes in two zones, plus a third private subnet for the OpenSearch domain
 - **Database Subnets**: Aurora cluster instances (no internet access)
-
-### Security Groups
-- **ALB**: Allows HTTP (80) and HTTPS (443) from internet
-- **EKS Nodes**: Allows traffic from ALB, inter-node communication
-- **Aurora**: Allows PostgreSQL (5432) from EKS nodes only
-- **EFS**: Allows NFS (2049) from EKS nodes only
-
+- **Load balancer**: an Application Load Balancer created by the AWS Load Balancer Controller

@@ -42,18 +42,26 @@ echo ""
 echo -e "${BLUE}🔍 Checking Existing Infrastructure${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-terraform plan -destroy > /dev/null 2>&1
+# set -e is on, so the status is captured on the failure branch: `$?` after
+# `|| true` is always 0.
+PLAN_STATUS=0
+PLAN_OUTPUT=$(terraform plan -destroy 2>&1) || PLAN_STATUS=$?
 
-if [[ $? -ne 0 ]]; then
-    echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
-    echo "Nothing to destroy."
-    exit 0
+if [[ $PLAN_STATUS -ne 0 ]]; then
+    if [[ -z "$(terraform state list 2>/dev/null)" ]]; then
+        echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
+        echo "Nothing to destroy."
+        exit 0
+    fi
+    printf '%s\n' "$PLAN_OUTPUT"
+    echo -e "${RED}❌ The destroy plan failed, so nothing was destroyed. Fix the error above, then run this script again.${NC}"
+    exit 1
 fi
 
 echo -e "${BLUE}📊 Resources to be Destroyed${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-terraform plan -destroy
+printf '%s\n' "$PLAN_OUTPUT"
 
 echo ""
 echo -e "${RED}⚠️  DANGER: Permanent Destruction${NC}"

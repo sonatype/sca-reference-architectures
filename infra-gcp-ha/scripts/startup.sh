@@ -10,6 +10,8 @@ DB_PORT="${db_port}"
 DB_NAME="${db_name}"
 DB_USER="${db_user}"
 DB_PASSWORD_SECRET="${db_password_secret}"
+IQ_ADMIN_PASSWORD_SECRET="${iq_admin_password_secret}"
+IQ_LICENSE_SECRET="${iq_license_secret}"
 JAVA_OPTS="${java_opts}"
 PROJECT_ID="${gcp_project_id}"
 FILESTORE_IP="${filestore_ip}"
@@ -23,13 +25,70 @@ log() {
 }
 
 log "Starting Nexus IQ Server HA Docker setup on $(hostname)"
+export DEBIAN_FRONTEND=noninteractive
+
+# ============================================
+# SECTION 0: Boot the newest kernel before IQ Server starts
+# ============================================
+# Debian 12's kernel 6.1.192-1 can fault in ext4 under memory pressure and hang the boot disk
+# (Debian bug 1154108, fixed in 6.1.192-2), and a boot image can still ship it. So the VM installs
+# the newest kernel the distribution offers and reboots into it before IQ Server starts. It reboots
+# at most once for each kernel, and IQ Server is never started on a kernel in KNOWN_BAD_KERNELS.
+KNOWN_BAD_KERNELS="6.1.192-1"
+KERNEL_PKG="linux-image-cloud-$(dpkg --print-architecture)"
+REBOOT_MARKER=/var/lib/nexus-iq-kernel-reboot
+is_known_bad() {
+  for bad in $KNOWN_BAD_KERNELS; do
+    if [ "$1" = "$bad" ]; then return 0; fi
+  done
+  return 1
+}
+RUNNING_BUILD=$(uname -v | sed -n 's/.* Debian \([^ ]*\) .*/\1/p')
+
+# The security mirror can time out on a first boot. apt reports that only as an "Ign" or "Err"
+# line and then offers no newer kernel, so the index is fetched again until the security suite
+# arrives.
+SECURITY_INDEX_FETCHED=no
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update >/tmp/apt-update.log 2>&1 &&
+    ! grep -Eq '^(Ign|Err):.*-security' /tmp/apt-update.log; then
+    SECURITY_INDEX_FETCHED=yes
+    break
+  fi
+  log "The security package index was not fetched (attempt $attempt of 10), retrying in 30 seconds"
+  sleep 30
+done
+cat /tmp/apt-update.log
+
+if dpkg -s "$KERNEL_PKG" >/dev/null 2>&1; then
+  if [ "$SECURITY_INDEX_FETCHED" = yes ]; then
+    apt-get -o DPkg::Lock::Timeout=300 install -y --only-upgrade "$KERNEL_PKG"
+  fi
+  RUNNING_KERNEL=$(uname -r)
+  NEWEST_KERNEL=$(linux-version list | linux-version sort | tail -n 1)
+  INSTALLED_BUILD=$(dpkg-query -W -f='$${Version}' "linux-image-$RUNNING_KERNEL" 2>/dev/null || true)
+  if [ "$NEWEST_KERNEL" != "$RUNNING_KERNEL" ] ||
+    { is_known_bad "$RUNNING_BUILD" && ! is_known_bad "$INSTALLED_BUILD"; }; then
+    REBOOT_TO="$NEWEST_KERNEL $INSTALLED_BUILD"
+    if [ "$(cat "$REBOOT_MARKER" 2>/dev/null || true)" != "$REBOOT_TO" ]; then
+      echo "$REBOOT_TO" >"$REBOOT_MARKER"
+      log "Rebooting from kernel $RUNNING_KERNEL ($RUNNING_BUILD) into $REBOOT_TO"
+      systemctl reboot
+      exit 0
+    fi
+    log "Already rebooted once for kernel $REBOOT_TO, still running $RUNNING_KERNEL ($RUNNING_BUILD)"
+  fi
+fi
+if is_known_bad "$RUNNING_BUILD"; then
+  log "FATAL: kernel $RUNNING_BUILD has a known ext4 fault and no fixed kernel could be installed."
+  log "IQ Server is not started. The health check replaces this VM, which tries again."
+  exit 1
+fi
 
 # ============================================
 # SECTION 1: Install Required Packages
 # ============================================
 log "Installing required packages..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get update
 apt-get install -y \
   docker.io \
   nfs-common \
@@ -171,6 +230,28 @@ if [ -z "$DB_PASSWORD" ]; then
   exit 1
 fi
 log "Database password retrieved successfully"
+
+log "Retrieving the IQ Server admin password from Secret Manager..."
+IQ_ADMIN_PASSWORD=$(gcloud secrets versions access latest \
+  --secret="$${IQ_ADMIN_PASSWORD_SECRET}" \
+  --project="$${PROJECT_ID}")
+
+if [ -z "$IQ_ADMIN_PASSWORD" ]; then
+  log "FATAL: Failed to retrieve the IQ Server admin password from Secret Manager"
+  exit 1
+fi
+log "IQ Server admin password retrieved successfully"
+
+log "Retrieving the IQ Server license from Secret Manager..."
+gcloud secrets versions access latest \
+  --secret="$${IQ_LICENSE_SECRET}" \
+  --project="$${PROJECT_ID}" | base64 -d > /etc/nexus-iq-server-license.lic
+if [ ! -s /etc/nexus-iq-server-license.lic ]; then
+  log "FATAL: Failed to retrieve the IQ Server license from Secret Manager"
+  exit 1
+fi
+chmod 600 /etc/nexus-iq-server-license.lic
+log "IQ Server license retrieved successfully"
 
 %{ if search_engine == "opensearch" ~}
 log "Retrieving OpenSearch password from Secret Manager..."
@@ -330,31 +411,56 @@ log "Trust store ready at $${TRUSTSTORE_HOST}"
 %{ endif ~}
 %{ endif ~}
 
+# IQ Server installs this license on start when it has none.
+echo "licenseFile: /etc/nexus-iq-server/license.lic" >> /etc/nexus-iq-server/config.yml
+
 log "Configuration file created at: /etc/nexus-iq-server/config.yml"
 
 # ============================================
 # SECTION 7: Configure Cloud Logging Agent
 # ============================================
 log "Configuring Cloud Logging agent for log collection..."
-cat > /etc/google-cloud-ops-agent/config.yaml << 'OPSAGENTEOF'
+# Every instance mounts the same Filestore share, so each agent reads only its own instance's
+# log directory. The level at the start of each line becomes the entry's severity, which the
+# error and warning log metrics in logging.tf count.
+cat > /etc/google-cloud-ops-agent/config.yaml << OPSAGENTEOF
 logging:
   receivers:
     iq_application_log:
       type: files
       include_paths:
-      - /mnt/filestore/clm-server-*/logs/clm-server.log
+      - /mnt/filestore/clm-server-$${INSTANCE_HOSTNAME}/logs/clm-server.log
     iq_request_log:
       type: files
       include_paths:
-      - /mnt/filestore/clm-server-*/logs/request.log
+      - /mnt/filestore/clm-server-$${INSTANCE_HOSTNAME}/logs/request.log
     iq_audit_log:
       type: files
       include_paths:
-      - /mnt/filestore/clm-server-*/logs/audit.log
+      - /mnt/filestore/clm-server-$${INSTANCE_HOSTNAME}/logs/audit.log
+  processors:
+    iq_level:
+      type: parse_regex
+      field: message
+      regex: '^(?<message>\S+ \S+ (?<level>TRACE|DEBUG|INFO|WARN|ERROR)\s.*)$'
+    iq_severity:
+      type: modify_fields
+      fields:
+        severity:
+          move_from: jsonPayload.level
+          map_values:
+            TRACE: DEBUG
+            DEBUG: DEBUG
+            INFO: INFO
+            WARN: WARNING
+            ERROR: ERROR
   service:
     pipelines:
       iq_logs:
-        receivers: [iq_application_log, iq_request_log, iq_audit_log]
+        receivers: [iq_application_log, iq_audit_log]
+        processors: [iq_level, iq_severity]
+      iq_requests:
+        receivers: [iq_request_log]
 OPSAGENTEOF
 
 systemctl enable google-cloud-ops-agent
@@ -432,7 +538,9 @@ docker run -d \
   -p 8071:8071 \
   -v "$${MOUNT_POINT}:/sonatype-work" \
   -v /etc/nexus-iq-server/config.yml:/etc/nexus-iq-server/config.yml:ro \
+  -v /etc/nexus-iq-server-license.lic:/etc/nexus-iq-server/license.lic:ro \
   -e JAVA_OPTS="$${JAVA_OPTS}" \
+  -e NXIQ_INITIAL_ADMIN_PASSWORD="$${IQ_ADMIN_PASSWORD}" \
   --entrypoint /bin/sh \
   $${IQ_DOCKER_IMAGE} \
   -c "exec /opt/sonatype/nexus-iq-server/bin/nexus-iq-server server /etc/nexus-iq-server/config.yml"

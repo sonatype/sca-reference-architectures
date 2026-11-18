@@ -201,9 +201,20 @@ perform_destroy() {
         print_warning "Force destroy enabled - attempting to disable deletion protection..."
         
         # A -var given after -var-file overrides the tfvars value, whether or not the tfvars
-        # file sets db_deletion_protection itself.
+        # file sets db_deletion_protection itself. The apply targets only the Cloud SQL
+        # instance, and the database and user while they are still in the state, so that it
+        # changes nothing else and never recreates a resource already removed from the state.
         print_status "Disabling deletion protection..."
-        if terraform apply -auto-approve -var-file="$TFVARS_FILE" -var="db_deletion_protection=false" >> "$LOG_FILE" 2>&1; then
+        local protection_targets=(-target=google_sql_database_instance.iq_db)
+        local in_state
+        in_state=$(terraform state list 2>/dev/null || true)
+        for address in google_sql_database.iq_database google_sql_user.iq_db_user; do
+            if grep -qx "$address" <<<"$in_state"; then
+                protection_targets+=("-target=$address")
+            fi
+        done
+        if terraform apply -auto-approve -var-file="$TFVARS_FILE" -var="db_deletion_protection=false" \
+            "${protection_targets[@]}" >> "$LOG_FILE" 2>&1; then
             print_status "Deletion protection disabled"
         else
             print_warning "Could not disable deletion protection automatically"
@@ -326,32 +337,43 @@ verify_destruction() {
     
     # Verify with GCP (if project info is available)
     local project_id
-    project_id=$(grep "^gcp_project_id[[:space:]]*=" "$TFVARS_FILE" | cut -d'"' -f2 2>/dev/null || echo "")
-    
+    project_id=$(sed -n 's/^gcp_project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS_FILE")
+    # Only this deployment's resources are counted, by the name prefixes they carry (cluster_name,
+    # or nexus-iq and ref-arch-iq when it is empty), since the project may hold other deployments.
+    local name_prefix name_filter
+    name_prefix=$(sed -n 's/^cluster_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS_FILE")
+    if [[ -n "$name_prefix" ]]; then
+        name_filter="name~${name_prefix}-"
+    else
+        name_prefix="nexus-iq"
+        name_filter="name~'(nexus-iq|ref-arch-iq)-'"
+    fi
+
     if [[ -n "$project_id" ]]; then
-        print_status "Checking for remaining GCP resources in project: $project_id"
-        
-        # Check for major resource types
-        local resource_types=("instances" "sql-instances" "buckets" "addresses")
-        for resource_type in "${resource_types[@]}"; do
-            local count
-            case $resource_type in
-                "instances")
-                    count=$(gcloud compute instances list --project="$project_id" --format="value(name)" 2>/dev/null | wc -l || echo "0")
-                    ;;
-                "sql-instances")
-                    count=$(gcloud sql instances list --project="$project_id" --format="value(name)" 2>/dev/null | wc -l || echo "0")
-                    ;;
-                "buckets")
-                    count=$(gsutil ls -p "$project_id" 2>/dev/null | wc -l || echo "0")
-                    ;;
-                "addresses")
-                    count=$(gcloud compute addresses list --project="$project_id" --format="value(name)" 2>/dev/null | wc -l || echo "0")
-                    ;;
-            esac
-            
+        print_status "Checking for remaining resources named ${name_prefix}-* in project: $project_id"
+
+        local resource_checks=(
+            "instances:gcloud compute instances list"
+            "sql-instances:gcloud sql instances list"
+            "filestore-instances:gcloud filestore instances list"
+            "addresses:gcloud compute addresses list"
+            "forwarding-rules:gcloud compute forwarding-rules list"
+            "health-checks:gcloud compute health-checks list"
+            "secrets:gcloud secrets list"
+        )
+
+        for check_info in "${resource_checks[@]}"; do
+            local resource_type="${check_info%%:*}"
+            local command="${check_info##*:}"
+            local names count
+            if ! names=$(${command} --project="$project_id" --filter="$name_filter" --format="value(name)" 2>/dev/null); then
+                print_warning "Could not list $resource_type, check them by hand"
+                continue
+            fi
+            count=$(printf '%s' "$names" | grep -c . || true)
+
             if [[ "$count" -gt 0 ]]; then
-                print_warning "$count $resource_type still exist in project"
+                print_warning "$count $resource_type named ${name_prefix}-* still exist in project"
             fi
         done
     fi

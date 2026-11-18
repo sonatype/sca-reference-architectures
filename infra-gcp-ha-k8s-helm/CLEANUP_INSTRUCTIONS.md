@@ -35,7 +35,7 @@ gcloud sql instances delete INSTANCE_NAME --project=YOUR_PROJECT_ID
 gcloud filestore instances list --project=YOUR_PROJECT_ID
 
 # Delete if found
-gcloud filestore instances delete INSTANCE_NAME --location=us-central1-a --project=YOUR_PROJECT_ID
+gcloud filestore instances delete INSTANCE_NAME --location=us-central1 --project=YOUR_PROJECT_ID
 ```
 
 ### Step 3: Remove Service Connection from Terraform State

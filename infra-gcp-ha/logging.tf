@@ -11,7 +11,7 @@ resource "google_logging_project_bucket_config" "iq_ha_logs" {
   description = "Centralized log bucket for Nexus IQ HA application logs"
 }
 
-# Log sink for Docker container logs (stderr/stdout)
+# Log sink for the IQ Server log files the Ops Agent ships (application, request, audit)
 resource "google_logging_project_sink" "iq_ha_container_logs" {
   name        = "${local.app_name}-container-logs-${random_string.suffix.result}"
   project     = var.gcp_project_id
@@ -20,7 +20,7 @@ resource "google_logging_project_sink" "iq_ha_container_logs" {
   filter = <<-EOT
     resource.type="gce_instance"
     labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
-    logName:"docker"
+    logName=~"/logs/iq_(application|request|audit)_log$"
   EOT
 
   unique_writer_identity = true
@@ -143,7 +143,7 @@ resource "google_monitoring_alert_policy" "iq_ha_container_restart" {
       filter = <<-EOT
         resource.type="gce_instance"
         labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
-        textPayload=~"Starting Nexus IQ Server HA Docker Installation"
+        jsonPayload.message=~"Starting Nexus IQ Server HA Docker Installation"
       EOT
     }
   }
@@ -178,7 +178,7 @@ resource "google_monitoring_alert_policy" "iq_ha_nfs_mount_failure" {
       filter = <<-EOT
         resource.type="gce_instance"
         labels."compute.googleapis.com/resource_name"=~"^${local.app_name}-[a-z0-9]{4}$"
-        textPayload=~"FATAL: NFS mount failed after 5 attempts"
+        jsonPayload.message=~"FATAL: NFS mount failed after 5 attempts"
       EOT
     }
   }

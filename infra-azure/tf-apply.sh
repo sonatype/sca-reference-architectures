@@ -85,16 +85,24 @@ if [[ $? -eq 0 ]]; then
     echo "• Status: Ready"
     echo ""
     
+    # One-time IQ Server settings, such as the Nexus One shard counts.
+    if ! "$(dirname "$0")/iq-post-deploy.sh"; then
+        echo -e "${RED}❌ Post-deploy settings did not complete${NC}"
+        echo "The infrastructure is deployed. Fix the cause above, then run ./iq-post-deploy.sh"
+        exit 1
+    fi
+    echo ""
+
     echo -e "${BLUE}🎯 Next Steps${NC}"
     echo "━━━━━━━━━━━━"
     echo "1. Access IQ Server at: $APP_URL"
-    echo "2. Default credentials: admin / admin123"
+    echo "2. Sign in as admin, with the password set in iq_admin_initial_password"
     echo "3. Monitor deployment health"
     echo ""
     
     echo -e "${YELLOW}⚠️  Important Security Notes${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "• Change default admin password immediately"
+    echo "• Keep terraform.tfvars and the Terraform state private, since both hold the admin password"
     echo "• Review network security rules"
     echo "• Set up monitoring and alerting"
     echo ""

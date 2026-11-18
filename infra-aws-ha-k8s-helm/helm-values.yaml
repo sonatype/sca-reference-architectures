@@ -1,36 +1,30 @@
 
 iq_server:
   image: "sonatype/nexus-iq-server"
-  tag: "latest"
-  imagePullPolicy: "Always"
+  # No tag here. The chart sets it, so IQ Server always matches helm_chart_version in variables.tf.
+  imagePullPolicy: "IfNotPresent"
 
   resources:
     requests:
       cpu: "6"
-      memory: "48Gi"
+      memory: "25Gi"
     limits:
       cpu: "8"
-      memory: "56Gi"
+      memory: "26Gi"
 
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms17g -Xmx17g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   env:
     - name: CLUSTER_DIRECTORY
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
       value: "false"
-    - name: DB_HOSTNAME
-      value: ""
-    - name: DB_PORT
-      value: "5432"
-    - name: DB_NAME
-      value: "nexusiq"
-    - name: DB_USERNAME
-      value: "nexusiq"
-    - name: DB_PASSWORD
-      value: ""
 
   licenseSecret: "nexus-iq-license"
+
+  # helm-install.sh creates this secret from iq_admin_initial_password. IQ Server
+  # reads it on its very first start only.
+  initialAdminPasswordSecret: "nexus-iq-initial-admin-password"
 
   database:
     hostname: ""
@@ -38,8 +32,6 @@ iq_server:
     name: "nexusiq"
     username: "nexusiq"
     password: ""
-    type: "postgresql"
-    migration: true
 
   persistence:
     existingPersistentVolumeClaimName: "iq-server-pvc"
@@ -49,9 +41,9 @@ iq_server:
   serviceType: "ClusterIP"
 
   # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
-  # This is the Size L value. Size M uses 2 and Size XL uses 4.
+  # This is the Size M value, the HPA minimum. Size L uses 2 and Size XL uses 3.
   # helm-install.sh overwrites it with nexus_iq_replica_count from terraform.tfvars.
-  replicas: 3
+  replicas: 2
 
   config:
     sonatypeWork: "/sonatype-work"
@@ -61,15 +53,14 @@ iq_server:
     # BEGIN search backend
     # helm-install.sh and helm-upgrade.sh fill the three placeholders below from
     # Terraform when search_engine is "opensearch", and delete everything between
-    # these two markers when it is "lucene", which is the default. Leave the
+    # these two markers when it is "lucene". Leave the
     # markers, the indentation and the placeholder names alone.
     #
     # The values here are placeholders on purpose. Both scripts first substitute
-    # default values over the whole file for the database and for CloudWatch,
-    # such as hostname: "" and region: "us-east-1", with no line anchor. A key
-    # here holding one of those defaults would be handed the database or
-    # CloudWatch value, so these keys hold placeholders that are filled in after
-    # those substitutions run.
+    # default values over the whole file for the database, such as hostname: "",
+    # with no line anchor. A key here holding one of those defaults would be
+    # handed the database value, so these keys hold placeholders that are filled
+    # in after those substitutions run.
     # Advanced Search reads this block.
     search:
       type: aws
@@ -95,11 +86,14 @@ iq_server:
       adminConnectors:
         - type: http
           port: 8071
+      # Every log goes to stdout, for the cluster's log agent, and to a per-pod file on
+      # the shared volume, where the support zip and the chart's cleanup job find it.
       requestLog:
         appenders:
+          - type: console
           - type: file
-            currentLogFilename: "/var/log/nexus-iq-server/request.log"
-            archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+            currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-request.log"
+            archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-request-%d.log.gz"
             archivedFileCount: 50
 
     logging:
@@ -126,15 +120,17 @@ iq_server:
         com.networknt.schema: false
         com.sonatype.insight.audit:
           appenders:
+            - type: console
             - type: file
-              currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-              archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+              currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-audit.log"
+              archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-audit-%d.log.gz"
               archivedFileCount: 50
         com.sonatype.insight.policy.violation:
           appenders:
+            - type: console
             - type: file
-              currentLogFilename: "/var/log/nexus-iq-server/policy-violation.log"
-              archivedLogFilenamePattern: "/var/log/nexus-iq-server/policy-violation-%d.log.gz"
+              currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-policy-violation.log"
+              archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-policy-violation-%d.log.gz"
               archivedFileCount: 50
       appenders:
         - type: console
@@ -142,26 +138,27 @@ iq_server:
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
         - type: file
           threshold: ALL
-          currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-          archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
+          currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server.log"
+          archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server-%d{yyyy-MM-dd-HH}.log.gz"
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
           archivedFileCount: 24
 
 serviceAccount:
   create: true
-  name: "nexus-iq-sa"
+  # helm-install.sh and helm-upgrade.sh fill this with the iq_server_irsa_role_arn
+  # Terraform output when search_engine is "opensearch", and leave it empty otherwise.
   annotations:
     eks.amazonaws.com/role-arn: ""
 
 # Horizontal pod autoscaler. The chart reads hpa.enabled, hpa.minReplicas and
 # hpa.maxReplicas, and renders the HPA only when a resource metric is enabled.
-# These are the Size L bounds. Size M is 2 to 3 and Size XL is 3 to 5.
+# These are the Size M bounds, 2 to 3. Size L is 2 to 4 and Size XL is 3 to 5.
 # Memory is left disabled because the JVM holds its heap, so memory utilization
 # stays near the limit and would scale out without bound.
 hpa:
   enabled: true
   minReplicas: 2
-  maxReplicas: 4
+  maxReplicas: 3
   resources:
     cpu:
       enabled: true
@@ -169,15 +166,6 @@ hpa:
         threshold: 70
     memory:
       enabled: false
-
-# helm-install.sh and helm-upgrade.sh replace CLOUDWATCH_LOG_GROUP_PLACEHOLDER with the
-# cloudwatch_log_group Terraform output, /eks/<cluster_name>/nexus-iq-server, the only
-# group the Fluentd role may write to.
-cloudwatch:
-  enabled: true
-  region: "us-east-1"
-  logGroupName: "CLOUDWATCH_LOG_GROUP_PLACEHOLDER"
-  logStreamName: "aggregator"
 
 ingress:
   enabled: true
@@ -187,60 +175,6 @@ ingress:
     alb.ingress.kubernetes.io/target-type: "ip"
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
     alb.ingress.kubernetes.io/healthcheck-path: "/ping"
-
-fluentd:
-  enabled: true
-
-  image:
-    repository: bitnamilegacy/fluentd
-    tag: "1.17.1-debian-12-r4"
-    pullPolicy: IfNotPresent
-
-  cloudwatch:
-    enabled: true
-    region: "us-east-1"
-    logGroupName: "CLOUDWATCH_LOG_GROUP_PLACEHOLDER"
-    logStreamPrefix: "pod/"
-
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "200m"
-      memory: "256Mi"
-
-  aggregator:
-    enabled: true
-    persistence:
-      existingPersistentVolumeClaimName: "nexus-iq-pvc"
-    serviceAccount:
-      create: true
-      annotations:
-        eks.amazonaws.com/role-arn: ""
-    # The aggregator runs as uid 1000, the owner the init container below gives the log
-    # directory. The bundled fluentd chart reads these two keys and defaults both to 1001.
-    podSecurityContext:
-      fsGroup: 1000
-    containerSecurityContext:
-      runAsUser: 1000
-      runAsGroup: 1000
-      runAsNonRoot: true
-    initContainers:
-      - name: "{{ .Release.Name }}-set-fluentd-persistence-ownership"
-        image: busybox:latest
-        command: ["/bin/sh", "-c"]
-        args: ["mkdir -p /opt/bitnami/fluentd/logs/nexus-iq-server && chmod 755 /opt/bitnami/fluentd/logs/nexus-iq-server"]
-        securityContext:
-          runAsUser: 1000
-          runAsGroup: 1000
-        volumeMounts:
-          - mountPath: "/opt/bitnami/fluentd/logs/nexus-iq-server"
-            name: "iq-server-pod-volume"
-            subPath: log
-
-external-dns:
-  enabled: false
 
 # The database migration job runs once, as a post-install hook, so a helm upgrade does
 # not start it again while IQ Server is using the database. helm waits for a hook and

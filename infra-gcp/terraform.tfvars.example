@@ -20,25 +20,27 @@ private_subnet_cidr = "10.100.10.0/24"
 db_subnet_cidr      = "10.100.20.0/24"
 
 # GCE with Docker Configuration
-gce_machine_type   = "n4a-highmem-8"
+gce_machine_type   = "n4a-standard-8"
 gce_boot_image     = ""  # Empty picks Debian 12 for the machine type's architecture
 gce_boot_disk_size = 100
 iq_desired_count   = 1
-iq_docker_image    = "sonatype/nexus-iq-server:latest"
-java_opts          = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# iq_docker_image defaults to the IQ Server release pinned in variables.tf. Set it here only to run a different image.
+java_opts          = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                             = "nexusiq"
 db_username                         = "nexusiq"
 db_password                         = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
+iq_admin_initial_password = "CHANGE_ME"  # IQ Server's admin password, at least 12 characters, read on its first start only
+iq_license_file = "CHANGE_ME"  # path to your IQ Server license file (.lic), installed by every IQ Server node on its first start
 # Cloud SQL cannot downgrade a major version in place. If an instance already exists
 # on another major version, set that version here.
 postgres_version                    = "POSTGRES_18"
-db_instance_tier                    = "db-custom-N4-8-65536"  # 8 vCPU, 64 GB, N4 series
+db_instance_tier                    = "db-custom-N4-4-32768"  # 4 vCPU, 32 GB, N4 series
 db_edition                          = "ENTERPRISE"
 db_disk_type                        = "HYPERDISK_BALANCED"    # PD_SSD with the XS and S db-custom-2-* tiers
 db_disk_provisioned_iops            = 8000                    # used only on HYPERDISK_BALANCED
-db_disk_provisioned_throughput      = 340                     # MiB/s, set with the IOPS, used only on HYPERDISK_BALANCED
+db_disk_provisioned_throughput      = 240                     # 252 MB/s, given to the API in MiB/s, set with the IOPS, used only on HYPERDISK_BALANCED
 db_availability_type                = "ZONAL"
 db_disk_size                        = 128
 db_max_disk_size                    = 500
@@ -51,19 +53,30 @@ db_maintenance_window_hour          = 4
 db_deletion_protection              = false
 
 # Storage Configuration
-filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_HDD"
-filestore_capacity_gb = 1024
+# Filestore Regional, in gcp_region. Size M: 500 GB at 8,000 IOPS.
+# Sizes XS and S: 500 GB at 4,000 IOPS.
+filestore_tier        = "REGIONAL"
+filestore_capacity_gb = 500
+filestore_max_iops    = 8000
 
 # Load Balancer Configuration
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 
 # Search Backend, needed for Advanced Search and the Nexus One index at every size
-# "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
-# you run yourself; build it to README.md, "Search Backend".
-search_engine = "lucene"
+# Required: "lucene" uses the built-in index. "opensearch" builds an OpenSearch cluster
+# with this configuration, sized below.
+search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run without it
 
+# The OpenSearch cluster this configuration builds. These are the Size M values; README.md
+# gives every size. Passwords left unset are generated.
+opensearch_data_node_count       = 3
+opensearch_data_instance_type    = "c4a-standard-2"
+opensearch_manager_instance_type = "c4a-standard-1"
+opensearch_data_disk_gb          = 100
+
+# To use a cluster you run yourself instead, set opensearch_create = false and these:
+# opensearch_create                   = false
 # opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true

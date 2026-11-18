@@ -24,8 +24,10 @@ resource "aws_rds_cluster" "iq_cluster" {
   storage_encrypted            = true
   kms_key_id                   = aws_kms_key.iq_kms_key.arn
   skip_final_snapshot          = var.skip_final_snapshot
-  final_snapshot_identifier    = var.skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
-  deletion_protection          = var.deletion_protection
+  # The suffix comes from the KMS key's id, fixed when the deployment is created, so the name
+  # does not change on every plan.
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${substr(aws_kms_key.iq_kms_key.key_id, 0, 8)}"
+  deletion_protection       = var.deletion_protection
 
   enabled_cloudwatch_logs_exports = ["postgresql"]
 

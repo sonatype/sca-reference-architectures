@@ -2,6 +2,30 @@
 
 set -e
 
+# Extra Helm values files, applied after helm-values.yaml so their settings win.
+# ../deploy.sh passes the size file this way, examples/<size>.helm-values.yaml.
+EXTRA_VALUES_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f|--values)
+            if [[ $# -lt 2 || ! -f "$2" ]]; then
+                echo "Error: $1 needs an existing values file" >&2
+                exit 1
+            fi
+            EXTRA_VALUES_ARGS+=(--values "$2")
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [-f|--values FILE]...  extra values files, applied after helm-values.yaml"
+            exit 0
+            ;;
+        *)
+            echo "Error: unknown option $1 (see $0 --help)" >&2
+            exit 1
+            ;;
+    esac
+done
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -105,17 +129,25 @@ echo ""
 
 helm repo update >/dev/null 2>&1
 
+# terraform.tfvars wins when it sets helm_chart_version, otherwise the pin in variables.tf.
 CHART_VERSION=$(tfvar helm_chart_version)
-# Unset in terraform.tfvars, keep the chart version the release already runs.
 if [[ -z "$CHART_VERSION" ]]; then
-    CHART_VERSION=$(helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+    CHART_VERSION=$(awk '/^variable "helm_chart_version"/ {f=1} f && /^[[:space:]]*default[[:space:]]*=/ {split($0, q, "\""); print q[2]; exit}' variables.tf)
 fi
-CHART_VERSION=${CHART_VERSION:-201.0.0}
+if [[ -z "$CHART_VERSION" ]]; then
+    echo -e "${RED}❌ Error: no helm_chart_version in terraform.tfvars or variables.tf${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
+# The file holds the database password, so it is written mode 600, and the trap removes it
+# however the script ends.
+trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE".bak*' EXIT INT TERM
+umask 077
+rm -f "$TEMP_VALUES_FILE"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(tfvar database_password)
@@ -126,7 +158,7 @@ DB_USERNAME=$(tfvar database_username)
 DB_USERNAME=${DB_USERNAME:-nexusiq}
 REPLICA_COUNT=$(tfvar nexus_iq_replica_count)
 # An absent key gives an empty count, which would write an invalid "replicas:" line.
-REPLICA_COUNT=${REPLICA_COUNT:-3}
+REPLICA_COUNT=${REPLICA_COUNT:-2}
 
 if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
     sed -i.bak \
@@ -134,15 +166,16 @@ if [[ -f "terraform.tfstate" && -n "$DB_ENDPOINT" ]]; then
         -e "s/password: \"\"/password: \"$DB_PASSWORD\"/" \
         -e "s/^    name: \"nexusiq\"/    name: \"$DB_NAME\"/" \
         -e "s/^    username: \"nexusiq\"/    username: \"$DB_USERNAME\"/" \
-        -e "/name: DB_NAME/{n;s/value: \"nexusiq\"/value: \"$DB_NAME\"/;}" \
-        -e "/name: DB_USERNAME/{n;s/value: \"nexusiq\"/value: \"$DB_USERNAME\"/;}" \
         -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
         "$TEMP_VALUES_FILE"
 fi
 
 load_search_vars
 if ! write_search_block "$TEMP_VALUES_FILE"; then
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    exit 1
+fi
+
+if ! write_ca_block "$TEMP_VALUES_FILE" "$NAMESPACE"; then
     exit 1
 fi
 
@@ -150,7 +183,6 @@ fi
 if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
     grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -175,11 +207,11 @@ NEW_IMAGE=$(helm template "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
+    ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
     --show-only templates/iq-server-deployment.yaml 2>/dev/null \
     | sed -n "/name: $IQ_CONTAINER\$/{n;s/^ *image: *//p;}" || true)
 if [[ -z "$NEW_IMAGE" ]]; then
     echo -e "${RED}❌ Error: could not render the IQ Server image from chart $CHART_VERSION${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 MIGRATE_ARGS=()
@@ -188,7 +220,6 @@ if [[ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]]; then
         echo -e "${RED}❌ Error: the IQ Server image changes from ${CURRENT_IMAGE:-none} to $NEW_IMAGE${NC}"
         echo "   A new image needs a database migration, which stops IQ Server for its duration."
         echo "   Back up the database, then re-run with MIGRATE_DATABASE=yes ./helm-upgrade.sh"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
         exit 1
     fi
     MIGRATE_ARGS=(--set-string 'iq_server_jobs.migrationJobAnnotations.helm\.sh/hook=pre-upgrade')
@@ -203,6 +234,7 @@ helm diff upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
+    ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
     --allow-unreleased 2>/dev/null || echo -e "${YELLOW}⚠️  helm diff plugin not available${NC}"
 
 echo ""
@@ -210,7 +242,6 @@ echo ""
 read -p "Continue with upgrade? (yes/no): " -r
 if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
     echo -e "${YELLOW}❌ Upgrade cancelled${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 0
 fi
 
@@ -227,7 +258,19 @@ echo ""
 
 if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
     echo "• Scaling IQ Server to zero for the database migration"
-    kubectl scale deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" --replicas=0
+    # Through helm, on the release's installed chart. Helm 4 applies server-side, so a
+    # kubectl scale would own the replica count and fail the upgrade below.
+    if ! helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+        --namespace "$NAMESPACE" \
+        --version "${CURRENT_CHART#nexus-iq-server-ha-}" \
+        --reuse-values \
+        --set iq_server.replicas=0 \
+        --set hpa.enabled=false \
+        --wait \
+        --timeout 10m; then
+        echo -e "${RED}❌ Error: scaling IQ Server to zero failed, so the migration did not start${NC}"
+        exit 1
+    fi
     kubectl wait --for=delete pod -l "name=${HELM_RELEASE_NAME}-iq-server" -n "$NAMESPACE" --timeout=10m 2>/dev/null || true
     # The migration refuses to run within 15 seconds of an IQ Server instance using the database.
     sleep 20
@@ -237,37 +280,27 @@ if ! helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --namespace "$NAMESPACE" \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
+    ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
     "${MIGRATE_ARGS[@]}" \
     --timeout 20m \
     --wait \
     --atomic; then
     echo ""
-    echo -e "${RED}❌ Upgrade failed, and --atomic rolls the release back to revision $CURRENT_REVISION${NC}"
     kubectl logs "job/${HELM_RELEASE_NAME}-migrate-db" -n "$NAMESPACE" --tail=20 2>/dev/null || true
     if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
-        echo "IQ Server was scaled to zero for the migration. Once the cause is fixed, start it again:"
-        echo "  kubectl scale deployment $IQ_DEPLOYMENT -n $NAMESPACE --replicas=$REPLICA_COUNT"
+        echo -e "${RED}❌ Upgrade failed, and --atomic rolls the release back to IQ Server at zero${NC}"
+        echo "Once the cause is fixed, start the previous version again:"
+        echo "  helm rollback $HELM_RELEASE_NAME $CURRENT_REVISION -n $NAMESPACE"
+    else
+        echo -e "${RED}❌ Upgrade failed, and --atomic rolls the release back to revision $CURRENT_REVISION${NC}"
     fi
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
-fi
-
-# helm keeps the replica count kubectl scale set, since the chart value did not change,
-# and the autoscaler does not act on a deployment at zero, so IQ Server is started here.
-if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
-    kubectl scale deployment "$IQ_DEPLOYMENT" -n "$NAMESPACE" --replicas="$REPLICA_COUNT"
-    if ! kubectl rollout status deployment/"$IQ_DEPLOYMENT" -n "$NAMESPACE" --timeout=15m; then
-        echo -e "${RED}❌ Error: IQ Server did not become ready after the database migration${NC}"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
-        exit 1
-    fi
 fi
 
 echo ""
 echo -e "${GREEN}✅ Upgrade Completed Successfully${NC}"
 echo ""
 
-rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
 AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
 if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then

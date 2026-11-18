@@ -74,6 +74,16 @@ output "filestore_name" {
   value       = google_filestore_instance.iq_ha_filestore.name
 }
 
+output "filestore_performance" {
+  description = "Filestore tier, region, capacity in GB and fixed read IOPS"
+  value = {
+    tier        = google_filestore_instance.iq_ha_filestore.tier
+    location    = google_filestore_instance.iq_ha_filestore.location
+    capacity_gb = google_filestore_instance.iq_ha_filestore.file_shares[0].capacity_gb
+    max_iops    = google_filestore_instance.iq_ha_filestore.performance_config[0].fixed_iops[0].max_iops
+  }
+}
+
 output "nfs_mount_point" {
   description = "NFS mount path for applications"
   value       = "${google_filestore_instance.iq_ha_filestore.networks[0].ip_addresses[0]}:/nexus_iq_ha_data"

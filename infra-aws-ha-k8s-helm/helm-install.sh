@@ -2,6 +2,30 @@
 
 set -e
 
+# Extra Helm values files, applied after helm-values.yaml so their settings win.
+# ../deploy.sh passes the size file this way, examples/<size>.helm-values.yaml.
+EXTRA_VALUES_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f|--values)
+            if [[ $# -lt 2 || ! -f "$2" ]]; then
+                echo "Error: $1 needs an existing values file" >&2
+                exit 1
+            fi
+            EXTRA_VALUES_ARGS+=(--values "$2")
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [-f|--values FILE]...  extra values files, applied after helm-values.yaml"
+            exit 0
+            ;;
+        *)
+            echo "Error: unknown option $1 (see $0 --help)" >&2
+            exit 1
+            ;;
+    esac
+done
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -99,18 +123,16 @@ EFS_DATA_ACCESS_POINT=$(terraform output -raw efs_data_access_point_id 2>/dev/nu
 EFS_LOGS_ACCESS_POINT=$(terraform output -raw efs_logs_access_point_id 2>/dev/null || echo "")
 AWS_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "us-east-1")
 CLUSTER_NAME=$(terraform output -raw cluster_name 2>/dev/null || echo "")
-LOG_GROUP=$(terraform output -raw cloudwatch_log_group 2>/dev/null || echo "")
 
 echo "• Database: $DB_ENDPOINT"
 echo "• EFS: $EFS_ID"
 echo "• Region: $AWS_REGION"
 echo "• Cluster: $CLUSTER_NAME"
-echo "• Log group: $LOG_GROUP"
 echo ""
 
-if [[ -z "$EFS_ID" || -z "$EFS_DATA_ACCESS_POINT" || -z "$CLUSTER_NAME" || -z "$LOG_GROUP" ]]; then
+if [[ -z "$EFS_ID" || -z "$EFS_DATA_ACCESS_POINT" || -z "$CLUSTER_NAME" ]]; then
     echo -e "${RED}❌ Error: Missing required infrastructure outputs${NC}"
-    echo "   efs_id, efs_data_access_point_id, cluster_name and cloudwatch_log_group must all be set."
+    echo "   efs_id, efs_data_access_point_id and cluster_name must all be set."
     echo "   Run ./tf-apply.sh in this directory first."
     exit 1
 fi
@@ -164,11 +186,34 @@ while true; do
     elapsed=$((elapsed + 5))
 done
 
-if ! kubectl get secret nexus-iq-license -n "$NAMESPACE" >/dev/null 2>&1; then
-    kubectl create secret generic nexus-iq-license \
-        --from-literal=license_lic="sample-license-content" \
-        -n "$NAMESPACE" >/dev/null 2>&1
+# IQ Server installs the license in this secret on its first start, on every pod, so
+# every replica starts licensed. The file is the one iq_license_file names in
+# terraform.tfvars. iq-post-deploy.sh installs it again only if IQ Server has none.
+IQ_LICENSE_FILE=$(terraform output -raw iq_license_file 2>/dev/null || echo "")
+if [[ -z "$IQ_LICENSE_FILE" || ! -f "$IQ_LICENSE_FILE" ]]; then
+    echo -e "${RED}❌ Error: the license file iq_license_file names was not found: ${IQ_LICENSE_FILE:-not set}${NC}"
+    echo "Set iq_license_file in terraform.tfvars to your IQ Server license file, then run ./tf-apply.sh again."
+    exit 1
 fi
+export IQ_LICENSE_FILE
+kubectl create secret generic nexus-iq-license \
+    --from-file=license_lic="$IQ_LICENSE_FILE" \
+    -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+# IQ Server reads its admin password from this secret on its very first start,
+# through iq_server.initialAdminPasswordSecret in helm-values.yaml.
+ADMIN_PASSWORD=$(terraform output -raw iq_admin_initial_password 2>/dev/null || echo "")
+if [[ -z "$ADMIN_PASSWORD" ]]; then
+    echo -e "${RED}❌ Error: no iq_admin_initial_password output found${NC}"
+    echo "   Run ./tf-apply.sh in this directory first."
+    exit 1
+fi
+ADMIN_PASSWORD_FILE=$(mktemp)
+printf '%s' "$ADMIN_PASSWORD" > "$ADMIN_PASSWORD_FILE"
+kubectl create secret generic nexus-iq-initial-admin-password \
+    --from-file=password="$ADMIN_PASSWORD_FILE" \
+    -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+rm -f "$ADMIN_PASSWORD_FILE"
 
 echo -e "${GREEN}✅ Storage configured${NC}"
 echo ""
@@ -219,16 +264,20 @@ else
     DB_PASSWORD=$(grep '^database_password' terraform.tfvars | cut -d'"' -f2)
 fi
 
-FLUENTD_IRSA_ROLE_ARN=$(terraform output -raw fluentd_irsa_role_arn 2>/dev/null || echo "")
 # sed rather than cut, which keeps a trailing comment. The default is on its own line because
 # `|| echo` after a pipe sees only the last command's status.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
-REPLICA_COUNT=${REPLICA_COUNT:-3}
+REPLICA_COUNT=${REPLICA_COUNT:-2}
 SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "lucene")
 OPENSEARCH_ENDPOINT=$(terraform output -raw opensearch_domain_endpoint 2>/dev/null || echo "")
 OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
+# The file holds the database password, so it is written mode 600, and the trap removes it
+# however the script ends.
+trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE".bak*' EXIT INT TERM
+umask 077
+rm -f "$TEMP_VALUES_FILE"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 sed -i.bak \
@@ -237,10 +286,7 @@ sed -i.bak \
     -e "s/username: \"nexusiq\"/username: \"$DB_USERNAME\"/" \
     -e "s/name: \"nexusiq\"/name: \"$DB_NAME\"/" \
     -e "s/port: 5432/port: $DB_PORT/" \
-    -e "s/region: \"us-east-1\"/region: \"$AWS_REGION\"/" \
-    -e "s|eks.amazonaws.com/role-arn: \"\"|eks.amazonaws.com/role-arn: \"$FLUENTD_IRSA_ROLE_ARN\"|g" \
     -e "s/^  replicas: [0-9]*/  replicas: $REPLICA_COUNT/" \
-    -e "s|CLOUDWATCH_LOG_GROUP_PLACEHOLDER|$LOG_GROUP|g" \
     "$TEMP_VALUES_FILE"
 
 # Fill in or delete the search: block between its markers, after the database
@@ -250,7 +296,6 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
         echo -e "${RED}❌ Error: search_engine is 'opensearch' but no domain endpoint was found${NC}"
         echo "   Run terraform apply with search_engine = \"opensearch\" and check it created the domain."
         echo "   Set opensearch_domain_endpoint only to use a domain you already run."
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
         exit 1
     fi
     sed -i.bak2 \
@@ -258,19 +303,16 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
         -e "s|OPENSEARCH_REGION_PLACEHOLDER|$AWS_REGION|" \
         -e "s|OPENSEARCH_REPLICAS_PLACEHOLDER|$OPENSEARCH_REPLICAS|" \
         "$TEMP_VALUES_FILE"
-    # The unanchored role-arn substitution above also gave nexus-iq-sa the Fluentd
-    # role; point that service account at the OpenSearch role instead.
+    # nexus-iq-sa signs its OpenSearch requests with this role.
     IQ_IRSA_ROLE_ARN=$(terraform output -raw iq_server_irsa_role_arn 2>/dev/null || echo "")
     if [[ -z "$IQ_IRSA_ROLE_ARN" ]]; then
         echo -e "${RED}❌ Error: no iq_server_irsa_role_arn output found${NC}"
         echo "   Re-run terraform apply with search_engine = \"opensearch\" set."
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" "${TEMP_VALUES_FILE}.bak2"
         exit 1
     fi
     sed -i.bak3 \
         -e "/^serviceAccount:/,/^[a-z]/s|^\( \{4\}\)eks.amazonaws.com/role-arn: \".*\"|\1eks.amazonaws.com/role-arn: \"$IQ_IRSA_ROLE_ARN\"|" \
         "$TEMP_VALUES_FILE"
-    rm -f "${TEMP_VALUES_FILE}.bak3"
     echo "• Search backend: OpenSearch at $OPENSEARCH_ENDPOINT, $OPENSEARCH_REPLICAS replica(s)"
 else
     sed -i.bak2 \
@@ -278,34 +320,22 @@ else
         "$TEMP_VALUES_FILE"
     echo "• Search backend: Lucene, built into IQ Server"
 fi
-rm -f "${TEMP_VALUES_FILE}.bak2"
 
 if grep -q "_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
     echo -e "${RED}❌ Error: a placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
     grep -n "_PLACEHOLDER" "$TEMP_VALUES_FILE"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
-
-sed -i '' \
-    -e "/name: DB_HOSTNAME/{n;s/value: \"\"/value: \"$DB_ENDPOINT\"/;}" \
-    -e "/name: DB_PASSWORD/{n;s/value: \"\"/value: \"$DB_PASSWORD\"/;}" \
-    -e "/name: DB_USERNAME/{n;s/value: \"nexusiq\"/value: \"$DB_USERNAME\"/;}" \
-    -e "/name: DB_NAME/{n;s/value: \"nexusiq\"/value: \"$DB_NAME\"/;}" \
-    -e "/name: DB_PORT/{n;s/value: \"5432\"/value: \"$DB_PORT\"/;}" \
-    "$TEMP_VALUES_FILE"
 
 # A CHANGE_ME from terraform.tfvars, such as the database password, stops the install here.
 if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
     grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -317,8 +347,15 @@ fi
 echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
+# terraform.tfvars wins when it sets helm_chart_version, otherwise the pin in variables.tf.
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
-CHART_VERSION=${CHART_VERSION:-201.0.0}
+if [[ -z "$CHART_VERSION" ]]; then
+    CHART_VERSION=$(awk '/^variable "helm_chart_version"/ {f=1} f && /^[[:space:]]*default[[:space:]]*=/ {split($0, q, "\""); print q[2]; exit}' variables.tf)
+fi
+if [[ -z "$CHART_VERSION" ]]; then
+    echo -e "${RED}❌ Error: no helm_chart_version in terraform.tfvars or variables.tf${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -330,9 +367,46 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     --create-namespace \
     --version "$CHART_VERSION" \
     --values "$TEMP_VALUES_FILE" \
+    ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
+    --set iq_server.replicas=0 \
+    --set hpa.enabled=false \
     --timeout 10m; then
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
+    # The release went in with no IQ Server pod, so the database migration Job, a
+    # post-install hook helm waits for, ran against the empty database alone and no pod
+    # restarted waiting for it. One pod starts next, so it alone creates the Advanced
+    # Search index, and only then does the release get its replica count and autoscaler.
+    # Every replica change goes through helm. Helm 4 applies server-side, so a kubectl
+    # scale would own the replica count and the next helm upgrade would fail on it.
+    IQ_DEPLOYMENT="$HELM_RELEASE_NAME-iq-server-deployment"
+    echo "Starting the first IQ Server pod on its own"
+    if ! helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+        --namespace "$NAMESPACE" \
+        --version "$CHART_VERSION" \
+        --reuse-values \
+        --set iq_server.replicas=1 \
+        --set hpa.enabled=false \
+        --wait \
+        --timeout 30m; then
+        echo -e "${RED}❌ The first IQ Server pod did not become ready within 30 minutes${NC}"
+        echo "Check it with: kubectl logs -n $NAMESPACE deployment/$IQ_DEPLOYMENT"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
+        exit 1
+    fi
+    # The values files carry the configured replica count and autoscaler, so this
+    # upgrade replaces the staging overrides rather than reusing them.
+    echo "Starting the other IQ Server pods"
+    if ! helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
+        --namespace "$NAMESPACE" \
+        --version "$CHART_VERSION" \
+        --values "$TEMP_VALUES_FILE" \
+        ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
+        --timeout 10m; then
+        echo -e "${RED}❌ Setting the IQ Server replica count failed${NC}"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
+        exit 1
+    fi
+
 
     kubectl wait --for=condition=ready pod -l name=nexus-iq-server-ha-iq-server -n "$NAMESPACE" --timeout=5m >/dev/null 2>&1 || true
 
@@ -365,9 +439,17 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         echo ""
     fi
 
+    # One-time IQ Server settings, such as the Nexus One shard counts.
+    if ! "$(dirname "$0")/iq-post-deploy.sh"; then
+        echo -e "${RED}❌ Post-deploy settings did not complete${NC}"
+        echo "The infrastructure is deployed. Fix the cause above, then run ./iq-post-deploy.sh"
+        exit 1
+    fi
+    echo ""
+
     echo -e "${BLUE}🎯 Next Steps${NC}"
     echo "━━━━━━━━━━━━"
-    echo "1. Access IQ Server (default credentials: admin / admin123)"
+    echo "1. Sign in to IQ Server as admin, with the password set in iq_admin_initial_password"
     echo "2. Monitor pods: kubectl get pods -n $NAMESPACE -w"
     echo ""
 
@@ -385,6 +467,5 @@ else
     kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || true
     echo ""
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi

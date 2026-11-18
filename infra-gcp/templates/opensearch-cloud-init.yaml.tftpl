@@ -1,0 +1,63 @@
+#cloud-config
+# One OpenSearch node, rendered by opensearch_cluster.tf. Nothing secret is in here: every key,
+# certificate and password is read from Secret Manager at boot with the node's service account.
+write_files:
+  - path: /usr/local/sbin/opensearch-secret
+    owner: root:root
+    permissions: "0700"
+    content: |
+      #!/bin/bash
+      # opensearch-secret <secret id> <file>: writes the latest version of a secret to a file.
+      # Retries for up to ten minutes, because a new IAM grant can take a while to apply.
+      set -uo pipefail
+      for i in $(seq 1 60); do
+        if TOKEN=$(curl -fsS -H 'Metadata-Flavor: Google' \
+              http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])') \
+          && curl -fsS -H "Authorization: Bearer $TOKEN" \
+              "https://secretmanager.googleapis.com/v1/projects/${project}/secrets/$1/versions/latest:access" \
+              | python3 -c 'import base64,json,sys; sys.stdout.write(base64.b64decode(json.load(sys.stdin)["payload"]["data"]).decode())' > "$2.tmp" \
+          && [ -s "$2.tmp" ]; then
+          mv "$2.tmp" "$2"
+          exit 0
+        fi
+        rm -f "$2.tmp"
+        sleep 10
+      done
+      echo "FATAL: could not read secret $1" >&2
+      exit 1
+
+  - path: /usr/local/sbin/opensearch-node-setup.sh
+    owner: root:root
+    permissions: "0700"
+    content: |
+      ${indent(6, setup_script)}
+%{ if bootstrap }
+
+  - path: /usr/local/sbin/opensearch-iq-user.sh
+    owner: root:root
+    permissions: "0700"
+    content: |
+      ${indent(6, iq_user_script)}
+
+  - path: /etc/systemd/system/opensearch-iq-user.service
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Create the OpenSearch user Nexus IQ Server authenticates as
+      After=opensearch.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/opensearch-iq-user.sh
+      Restart=on-failure
+      RestartSec=60
+
+      [Install]
+      WantedBy=multi-user.target
+%{ endif }
+
+runcmd:
+  - [/usr/local/sbin/opensearch-node-setup.sh]

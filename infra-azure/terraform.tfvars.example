@@ -15,17 +15,19 @@ db_subnet_cidr      = "10.0.30.0/24"
 
 # Container App Configuration
 container_cpu         = 7.5
-container_memory      = "56Gi"
-workload_profile_type = "E8"
-iq_docker_image       = "sonatype/nexus-iq-server:latest"
-java_opts             = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+container_memory      = "30Gi"
+workload_profile_type = "D8"
+# iq_docker_image defaults to the IQ Server release pinned in variables.tf. Set it here only to run a different image.
+java_opts             = "-Xms18g -Xmx18g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Database Configuration
 db_name                          = "nexusiq"
 db_username                      = "nexusiq"
 db_password                      = "CHANGE_ME_STRONG_PASSWORD"  # Change this!
+iq_admin_initial_password = "CHANGE_ME"  # IQ Server's admin password, at least 12 characters, read on its first start only
+iq_license_file = "CHANGE_ME"  # path to your IQ Server license file (.lic), installed by every IQ Server node on its first start
 postgres_version                 = "18"
-db_sku_name                      = "MO_Standard_E8ds_v6"
+db_sku_name                      = "MO_Standard_E4ds_v6"
 db_storage_mb                    = 131072
 db_auto_grow_enabled             = true
 db_backup_retention_days         = 7
@@ -46,17 +48,31 @@ enable_monitoring  = true
 key_vault_sku_name = "standard"
 
 # Search Backend, needed for Advanced Search and the Nexus One index at every size
-# "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
-# cluster you run on Azure Virtual Machines; this configuration does not create it.
-# README.md gives the cluster specification and the private certificate authority steps.
-search_engine = "lucene"
+# Required: "lucene" uses IQ Server's embedded index. "opensearch" builds an OpenSearch
+# cluster on Azure Virtual Machines with this configuration, sized below.
+search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run without it
 
+# The OpenSearch cluster this configuration builds. These are the Size M values; README.md
+# gives every size. Passwords left unset are generated.
+opensearch_data_node_count       = 3
+opensearch_data_instance_type    = "Standard_D2ps_v6"
+opensearch_manager_instance_type = "Standard_D2pls_v6"
+opensearch_data_disk_gb          = 128
+
+# To use a cluster you run yourself instead, set opensearch_create = false and these:
+# opensearch_create         = false
 # opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port           = 9200
 # opensearch_use_tls        = true
 # opensearch_username       = "iq-server"
 # opensearch_password       = "CHANGE_ME_STRONG_PASSWORD"
 # opensearch_index_replicas = 1  # 1 for three data nodes at M, 0 for one at XS and S
+
+# Private registry holding iq_docker_image. Leave all three empty for a public image.
+# Put the password in terraform.tfvars, not here.
+# container_registry_server   = "CHANGE_ME.azurecr.io"
+# container_registry_username = "CHANGE_ME"
+# container_registry_password = "CHANGE_ME_REGISTRY_PASSWORD"
 
 # Tags
 # Merged on top of the tags this root sets; a key with the same name replaces one.

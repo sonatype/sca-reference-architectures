@@ -79,6 +79,16 @@ output "filestore_ip_address" {
   value       = google_filestore_instance.iq_filestore.networks[0].ip_addresses[0]
 }
 
+output "filestore_performance" {
+  description = "Filestore tier, region, capacity in GB and fixed read IOPS"
+  value = {
+    tier        = google_filestore_instance.iq_filestore.tier
+    location    = google_filestore_instance.iq_filestore.location
+    capacity_gb = google_filestore_instance.iq_filestore.file_shares[0].capacity_gb
+    max_iops    = google_filestore_instance.iq_filestore.performance_config[0].fixed_iops[0].max_iops
+  }
+}
+
 # IAM Outputs
 output "iq_service_account_email" {
   description = "Email of the Nexus IQ service account"

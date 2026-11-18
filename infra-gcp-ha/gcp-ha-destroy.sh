@@ -483,9 +483,20 @@ perform_destroy() {
         print_warning "Force destroy enabled - attempting to disable deletion protection..."
         
         # A -var given after -var-file overrides the tfvars value, whether or not the tfvars
-        # file sets db_deletion_protection itself.
+        # file sets db_deletion_protection itself. The apply targets only the Cloud SQL
+        # instance, and the database and user while they are still in the state, so that it
+        # changes nothing else and never recreates a resource already removed from the state.
         print_status "Disabling deletion protection..."
-        if terraform apply -auto-approve -var-file="$TFVARS_FILE" -var="db_deletion_protection=false" >> "$LOG_FILE" 2>&1; then
+        local protection_targets=(-target=google_sql_database_instance.iq_ha_db)
+        local in_state
+        in_state=$(terraform state list 2>/dev/null || true)
+        for address in google_sql_database.iq_ha_database google_sql_user.iq_ha_db_user; do
+            if grep -qx "$address" <<<"$in_state"; then
+                protection_targets+=("-target=$address")
+            fi
+        done
+        if terraform apply -auto-approve -var-file="$TFVARS_FILE" -var="db_deletion_protection=false" \
+            "${protection_targets[@]}" >> "$LOG_FILE" 2>&1; then
             print_status "Deletion protection disabled"
         else
             print_warning "Could not disable deletion protection automatically"
@@ -643,40 +654,41 @@ verify_destruction() {
         print_status "✅ All HA resources successfully removed from Terraform state"
     fi
     
-    # Verify with GCP (if project info is available)
-    local project_id
-    project_id=$(grep "^gcp_project_id[[:space:]]*=" "$TFVARS_FILE" | cut -d'"' -f2 2>/dev/null || echo "")
-    
-    if [[ -n "$project_id" ]]; then
-        print_status "Checking for remaining GCP resources in project: $project_id"
-        
-        # Check for HA-specific resource types
+    # Verify with GCP (if project info is available). PROJECT_ID is global: the final summary prints it.
+    PROJECT_ID=$(sed -n 's/^gcp_project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS_FILE")
+    # Only this deployment's resources are counted, by the name prefix every one of them carries
+    # (cluster_name, or nexus-iq-ha when it is empty), since the project may hold other deployments.
+    local name_prefix
+    name_prefix=$(sed -n 's/^cluster_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS_FILE")
+    name_prefix=${name_prefix:-nexus-iq-ha}
+
+    if [[ -n "$PROJECT_ID" ]]; then
+        print_status "Checking for remaining resources named ${name_prefix}-* in project: $PROJECT_ID"
+
         local resource_checks=(
             "instances:gcloud compute instances list"
             "instance-groups:gcloud compute instance-groups managed list"
-            "autoscalers:gcloud compute autoscalers list"
             "sql-instances:gcloud sql instances list"
-            "buckets:gsutil ls -p"
+            "filestore-instances:gcloud filestore instances list"
             "addresses:gcloud compute addresses list"
+            "forwarding-rules:gcloud compute forwarding-rules list"
             "health-checks:gcloud compute health-checks list"
+            "secrets:gcloud secrets list"
         )
-        
+
         for check_info in "${resource_checks[@]}"; do
             local resource_name="${check_info%%:*}"
             local command="${check_info##*:}"
-            
-            local count
-            case $resource_name in
-                "buckets")
-                    count=$(${command} "$project_id" 2>/dev/null | wc -l || echo "0")
-                    ;;
-                *)
-                    count=$(${command} --project="$project_id" --format="value(name)" 2>/dev/null | wc -l || echo "0")
-                    ;;
-            esac
-            
+
+            local names count
+            if ! names=$(${command} --project="$PROJECT_ID" --filter="name~${name_prefix}-" --format="value(name)" 2>/dev/null); then
+                print_warning "Could not list $resource_name, check them by hand"
+                continue
+            fi
+            count=$(printf '%s' "$names" | grep -c . || true)
+
             if [[ "$count" -gt 0 ]]; then
-                print_warning "$count $resource_name still exist in project"
+                print_warning "$count $resource_name named ${name_prefix}-* still exist in project"
             else
                 print_debug "✓ No $resource_name found"
             fi
@@ -718,7 +730,7 @@ show_final_summary() {
     print_warning "   gcloud services vpc-peerings delete \\"
     print_warning "     --network=${VPC_NAME:-<your vpc name>} \\"
     print_warning "     --service=servicenetworking.googleapis.com \\"
-    print_warning "     --project=$project_id"
+    print_warning "     --project=${PROJECT_ID:-<your project id>}"
     echo ""
     
     print_status "✅ Destruction Process Completed"

@@ -12,7 +12,7 @@ resource "aws_db_subnet_group" "iq_db_subnet_group" {
 resource "aws_secretsmanager_secret" "db_credentials" {
   name                    = "${var.cluster_name}-db-credentials"
   description             = "Database credentials for Nexus IQ Server HA"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-db-credentials"
@@ -62,11 +62,12 @@ resource "aws_rds_cluster" "iq_aurora_cluster" {
   preferred_maintenance_window = var.db_maintenance_window
 
 
-  storage_encrypted         = true
-  kms_key_id                = aws_kms_key.aurora.arn
-  deletion_protection       = var.db_deletion_protection
-  skip_final_snapshot       = var.db_skip_final_snapshot
-  final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  storage_encrypted   = true
+  kms_key_id          = aws_kms_key.aurora.arn
+  deletion_protection = var.db_deletion_protection
+  skip_final_snapshot = var.db_skip_final_snapshot
+  # The suffix is fixed when the deployment is created, so the name does not change on every plan.
+  final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${random_string.bucket_suffix.result}"
 
 
   availability_zones = slice(data.aws_availability_zones.available.names, 0, min(length(data.aws_availability_zones.available.names), 3))

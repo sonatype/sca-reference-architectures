@@ -57,8 +57,18 @@ output "filestore_share_name" {
 }
 
 output "filestore_capacity_gb" {
-  description = "Filestore share capacity in GiB, which helm-install.sh uses as the PersistentVolume and claim size"
+  description = "Filestore share capacity in GB, which helm-install.sh uses as the PersistentVolume and claim size"
   value       = google_filestore_instance.iq_ha_filestore.file_shares[0].capacity_gb
+}
+
+output "filestore_performance" {
+  description = "Filestore tier, region, capacity in GB and fixed read IOPS"
+  value = {
+    tier        = google_filestore_instance.iq_ha_filestore.tier
+    location    = google_filestore_instance.iq_ha_filestore.location
+    capacity_gb = google_filestore_instance.iq_ha_filestore.file_shares[0].capacity_gb
+    max_iops    = google_filestore_instance.iq_ha_filestore.performance_config[0].fixed_iops[0].max_iops
+  }
 }
 
 output "ingress_ip" {
@@ -74,11 +84,6 @@ output "ingress_ip_name" {
 output "workload_identity_email" {
   description = "Workload Identity service account email"
   value       = google_service_account.gke_workload_identity.email
-}
-
-output "fluentd_workload_identity_email" {
-  description = "Fluentd Workload Identity service account email"
-  value       = google_service_account.fluentd_workload_identity.email
 }
 
 output "log_bucket_id" {
@@ -128,21 +133,21 @@ output "opensearch_uri" {
 
 output "opensearch_username" {
   description = "OpenSearch user Nexus IQ Server authenticates as, empty when the built-in index is in use"
-  value       = var.search_engine == "opensearch" ? var.opensearch_username : ""
+  value       = var.search_engine == "opensearch" ? local.os_iq_username : ""
 }
 
 output "opensearch_password" {
   description = "Password for opensearch_username, empty when the built-in index is in use"
-  value       = var.search_engine == "opensearch" ? var.opensearch_password : ""
+  value       = var.search_engine == "opensearch" ? local.os_iq_password : ""
   sensitive   = true
 }
 
 output "opensearch_ca_certificate" {
   description = "PEM certificate of the OpenSearch cluster's private certificate authority, empty when none is set or TLS is off"
-  value       = var.search_engine == "opensearch" && var.opensearch_use_tls ? var.opensearch_ca_certificate : ""
+  value       = var.search_engine == "opensearch" && var.opensearch_use_tls ? local.os_ca_pem : ""
 }
 
 output "opensearch_index_replicas" {
   description = "Replicas every Nexus One index is created with"
-  value       = var.opensearch_index_replicas
+  value       = local.os_index_replicas
 }

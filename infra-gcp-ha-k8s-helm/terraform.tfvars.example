@@ -9,23 +9,23 @@ gke_pods_cidr        = "10.101.0.0/16"
 gke_services_cidr    = "10.102.0.0/16"
 gke_master_cidr      = "172.16.0.0/28"
 
-node_instance_type           = "n4a-highmem-8"
+node_instance_type           = "n4a-standard-8"  # 8 vCPU, 32 GB (ARM), Size M
 node_group_min_size          = 2
-node_group_max_size          = 5
-node_group_desired_size      = 3
+node_group_max_size          = 3
+node_group_desired_size      = 2
 node_disk_size               = 100
 gke_maintenance_window_start = "03:00"
 
 postgres_version                   = "POSTGRES_18"
-db_instance_tier                   = "db-custom-N4-8-65536" # 8 vCPU, 64 GB; db-custom-N4-16-131072 at Size XL
+db_instance_tier                   = "db-custom-N4-4-32768" # 4 vCPU, 32 GB, Size M; db-custom-N4-8-65536 at Size L, db-custom-N4-16-131072 at Size XL
 db_edition                         = "ENTERPRISE"
 db_disk_type                       = "HYPERDISK_BALANCED"   # the only storage the N4 tiers take
-db_disk_provisioned_iops           = 8000                   # 10000 at Size XL
-db_disk_provisioned_throughput     = 340                    # MiB/s, 425 at Size XL, set with the IOPS
+db_disk_provisioned_iops           = 8000                   # 10,000 at Size XL
+db_disk_provisioned_throughput     = 240                    # 252 MB/s, given to the API in MiB/s; 340 (357 MB/s) at Size L, 425 (446 MB/s) at Size XL, set with the IOPS
 db_availability_type               = "REGIONAL"
-db_disk_size                       = 256
-db_max_disk_size                   = 1000
-db_max_connections                 = "400"
+db_disk_size                       = 128
+db_max_disk_size                   = 500
+db_max_connections                 = "500"
 db_backup_start_time               = "03:00"
 db_transaction_log_retention_days  = 7
 db_backup_retention_count          = 8
@@ -35,24 +35,37 @@ db_deletion_protection             = false
 db_name                            = "nexusiq"
 db_username                        = "nexusiq"
 db_password                        = "CHANGE_ME_STRONG_PASSWORD"
+iq_admin_initial_password = "CHANGE_ME"  # IQ Server's admin password, at least 12 characters, read on its first start only
+iq_license_file = "CHANGE_ME"  # path to your IQ Server license file (.lic), installed by every IQ Server node on its first start
 
-filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_HDD"
-filestore_capacity_gb = 2560
+# Filestore Regional, in gcp_region. Size M below; 1,536 GB at 16,000 IOPS at Size L,
+# 4,096 GB at 24,000 IOPS at Size XL.
+filestore_tier        = "REGIONAL"
+filestore_capacity_gb = 500
+filestore_max_iops    = 8000
 
 log_retention_days               = 7
 enable_monitoring_alerts         = true
 cloud_armor_rate_limit_threshold = 1000
 
-nexus_iq_replica_count  = 3
-nexus_iq_admin_password = "admin123"
-helm_chart_version      = "201.0.0"
+nexus_iq_replica_count  = 2
+# helm_chart_version defaults to the chart pinned in variables.tf, which also sets the IQ Server version.
+# Set it here only to run a different chart.
 
 # Search Backend, needed for Advanced Search and the Nexus One index at every size
-# "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
-# you run yourself; build it to README.md, "Search Backend".
-search_engine = "lucene"
+# Required: "lucene" uses the built-in index. "opensearch" builds an OpenSearch cluster
+# with this configuration, sized below.
+search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run without it
 
+# The OpenSearch cluster this configuration builds. These are the Size M values; README.md
+# gives every size. Passwords left unset are generated.
+opensearch_data_node_count       = 3
+opensearch_data_instance_type    = "c4a-standard-2"
+opensearch_manager_instance_type = "c4a-standard-1"
+opensearch_data_disk_gb          = 100
+
+# To use a cluster you run yourself instead, set opensearch_create = false and these:
+# opensearch_create                   = false
 # opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true

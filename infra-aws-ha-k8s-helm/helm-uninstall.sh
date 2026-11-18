@@ -74,6 +74,12 @@ kubectl delete storageclass efs-sc --ignore-not-found=true >/dev/null 2>&1 || tr
 
 kubectl get pv -o name 2>/dev/null | grep -iE "(nexus|iq)" | xargs -r kubectl delete --ignore-not-found=true >/dev/null 2>&1 || true
 kubectl delete pv nexus-iq-data-pv nexus-iq-logs-pv iq-server-pv --ignore-not-found=true >/dev/null 2>&1 || true
+# The efs-sc StorageClass names its volumes pvc-<uid> and retains them, so the volume
+# bound to iq-server-pvc is found by its claim, not by its name. Deleting the volume
+# leaves its directory and access point on EFS, which tf-destroy.sh removes with the
+# file system.
+kubectl get pv -o jsonpath='{range .items[?(@.spec.claimRef.namespace=="'"$NAMESPACE"'")]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+    | xargs -r kubectl delete pv --ignore-not-found=true >/dev/null 2>&1 || true
 
 for resource in pv pvc; do
     for item in $(kubectl get $resource -o name 2>/dev/null | grep -iE "(nexus|iq)" || true); do

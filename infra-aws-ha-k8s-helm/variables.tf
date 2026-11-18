@@ -55,27 +55,27 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_type" {
-  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture. Graviton5 types such as m9gd and r9g are not offered in every region, and the plan fails reading the type where it is missing: pick an x86 or an earlier Graviton type there."
+  description = "EC2 instance type for EKS worker nodes. Graviton (arm64) and x86_64 types both work, the node AMI follows the instance architecture. Graviton5 types such as m9gd and r9g are not offered in every region, and the plan fails reading the type where it is missing: pick an x86 or an earlier Graviton type there. The default is the Size M value, m8g.2xlarge with 8 vCPU and 32 GB; Size L uses m8g.4xlarge and Size XL r9g.4xlarge."
   type        = string
-  default     = "r9g.2xlarge"
+  default     = "m8g.2xlarge"
 }
 
 variable "node_group_min_size" {
-  description = "Minimum number of nodes in EKS node group"
+  description = "Minimum number of nodes in the EKS node group, one per IQ pod: 2 at Size M and L, 3 at Size XL."
   type        = number
   default     = 2
 }
 
 variable "node_group_max_size" {
-  description = "Maximum number of nodes in EKS node group"
+  description = "Maximum number of nodes in the EKS node group: 3 at Size M, 4 at Size L, 5 at Size XL. Must be at least node_group_min_size."
   type        = number
-  default     = 5
+  default     = 2
 }
 
 variable "node_group_desired_size" {
-  description = "Desired number of nodes in EKS node group"
+  description = "Number of nodes the EKS node group runs. Set it to node_group_min_size: 2 at Size M and L, 3 at Size XL."
   type        = number
-  default     = 3
+  default     = 2
 }
 
 variable "node_disk_size" {
@@ -91,9 +91,9 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. The default is the Size M and L value; Size XL uses db.r8g.4xlarge."
+  description = "Aurora instance class. The default is the Size M value; Size L uses db.r8g.2xlarge and Size XL db.r8g.4xlarge."
   type        = string
-  default     = "db.r8g.2xlarge"
+  default     = "db.r8g.xlarge"
 }
 
 variable "aurora_instance_count" {
@@ -125,6 +125,17 @@ variable "database_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in a Kubernetes secret that helm-install.sh creates and the chart reads through iq_server.initialAdminPasswordSecret, and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "backup_retention_period" {
   description = "Number of days to retain automated backups"
   type        = number
@@ -143,41 +154,16 @@ variable "deletion_protection" {
   default     = false
 }
 
-variable "nexus_iq_license" {
-  description = "Base64 encoded Nexus IQ Server license"
-  type        = string
-  sensitive   = true
-}
-
-variable "nexus_iq_admin_password" {
-  description = "Initial admin password for Nexus IQ Server"
-  type        = string
-  sensitive   = true
-  default     = "admin123"
-}
-
 variable "nexus_iq_replica_count" {
-  description = "Number of Nexus IQ Server replicas for high availability"
+  description = "Number of Nexus IQ Server pods at start, the HPA minimum: 2 at Size M and L, 3 at Size XL."
   type        = number
-  default     = 3
+  default     = 2
 }
 
 variable "helm_chart_version" {
-  description = "Version of the Nexus IQ Server HA Helm chart"
+  description = "Version of the Nexus IQ Server HA Helm chart. The chart sets the IQ Server image, so this also sets the IQ Server version."
   type        = string
-  default     = "201.0.0"
-}
-
-variable "enable_fluentd" {
-  description = "Enable Fluentd for log aggregation"
-  type        = bool
-  default     = true
-}
-
-variable "enable_cloudwatch_logs" {
-  description = "Enable CloudWatch logs integration"
-  type        = bool
-  default     = true
+  default     = "209.2.0"
 }
 
 variable "enable_ingress_nginx" {
@@ -223,13 +209,12 @@ variable "log_retention_days" {
 # opensearch_domain_endpoint names one. README.md gives the shape per size.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one, and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 
@@ -299,9 +284,9 @@ variable "opensearch_instance_type" {
 }
 
 variable "opensearch_instance_count" {
-  description = "Data nodes in the created domain. Two is the default, because this root builds two private subnets and AWS spreads data nodes evenly across the zones it is given. Two nodes in two zones with one replica keeps a complete copy of the index in each zone."
+  description = "Data nodes in the created domain. The default, 3, is the Size M, L and XL value: one data node in each of three zones, with one replica, so losing a zone loses no data. iq-post-deploy.sh sets each Nexus One index's shard count to this number, so with opensearch_domain_endpoint set, give it the existing domain's data node count."
   type        = number
-  default     = 2
+  default     = 3
 
   validation {
     condition     = var.opensearch_instance_count >= 1 && var.opensearch_instance_count <= 20
@@ -326,7 +311,7 @@ variable "opensearch_volume_size_gb" {
 
     The index needs room for more than one copy of itself: a replica doubles it,
     and a rebuild needs free disk for a second copy of the index. AWS also
-    reserves 20% of each volume, capped at 20 GiB.
+    reserves 20% of each volume, capped at 20 GB.
 
     See the OpenSearch section of this directory's README.md for the size each
     tier needs.
@@ -341,9 +326,9 @@ variable "opensearch_volume_size_gb" {
 }
 
 variable "opensearch_availability_zone_count" {
-  description = "Availability zones the created domain's data nodes spread across. 1 disables zone awareness. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot. Two is the default and the most this root supports, because it builds two private subnets and the domain needs one subnet per zone. Three needs a third private subnet in main.tf."
+  description = "Availability zones the created domain's data nodes spread across. 1 disables zone awareness. Above 1, opensearch_instance_count has to be a multiple of this, because AWS spreads data nodes evenly and refuses a domain where it cannot. The default, 3, uses the node group's two private subnets and a third subnet opensearch.tf builds for the domain alone, so the region needs three availability zones."
   type        = number
-  default     = 2
+  default     = 3
 
   validation {
     condition     = contains([1, 2, 3], var.opensearch_availability_zone_count)
@@ -384,7 +369,7 @@ variable "opensearch_create_log_resource_policy" {
 }
 
 variable "opensearch_index_replicas" {
-  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This architecture always writes it; when IQ Server is not given a count, it uses 1. One is the default here, matching the default domain's two data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This architecture always writes it; when IQ Server is not given a count, it uses 1. One is the default here, matching the default domain's three data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
   type        = number
   default     = 1
 

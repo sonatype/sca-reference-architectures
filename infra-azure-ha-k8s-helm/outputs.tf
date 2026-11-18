@@ -69,7 +69,7 @@ output "storage_share_name" {
 }
 
 output "storage_share_quota_gb" {
-  description = "Quota of the Azure Files share in GiB. helm-install.sh sizes the PersistentVolume and its claim from it"
+  description = "Quota of the Azure Files share in GB. helm-install.sh sizes the PersistentVolume and its claim from it"
   value       = azurerm_storage_share.iq_data.quota
 }
 
@@ -198,5 +198,5 @@ output "opensearch_uri" {
 
 output "opensearch_index_replicas" {
   description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
-  value       = local.opensearch_enabled ? var.opensearch_index_replicas : null
+  value       = local.opensearch_enabled ? local.os_index_replicas : null
 }

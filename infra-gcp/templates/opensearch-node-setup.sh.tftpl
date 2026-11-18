@@ -1,0 +1,132 @@
+#!/bin/bash
+# Configures one OpenSearch node. Rendered by opensearch_cluster.tf into the node's cloud-init
+# user data and run once, on the first boot. Every key, certificate and password is read from
+# Secret Manager here, so none of them is in the instance metadata.
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+APT="apt-get -o DPkg::Lock::Timeout=900 -y -q"
+echo "configuring ${node_name}"
+
+%{ if is_data ~}
+# Data disk, attached with device name osdata.
+DEV=/dev/disk/by-id/google-osdata
+for i in $(seq 1 60); do [ -e "$DEV" ] && break; sleep 2; done
+[ -e "$DEV" ] || { echo "FATAL: no data disk at $DEV"; exit 1; }
+blkid "$DEV" >/dev/null 2>&1 || mkfs.ext4 -F -q "$DEV"
+mkdir -p /var/lib/opensearch
+grep -q " /var/lib/opensearch " /etc/fstab || echo "$DEV /var/lib/opensearch ext4 defaults,nofail 0 2" >> /etc/fstab
+mountpoint -q /var/lib/opensearch || mount /var/lib/opensearch
+mountpoint -q /var/lib/opensearch || { echo "FATAL: data disk not mounted at /var/lib/opensearch"; exit 1; }
+
+%{ endif ~}
+# The 3.x repository is signed by opensearch-release.pgp, not the older opensearch.pgp.
+if ! dpkg -l opensearch 2>/dev/null | grep -q '^ii'; then
+  $APT update
+  $APT install curl gnupg ca-certificates python3
+  curl -fsS https://artifacts.opensearch.org/publickeys/opensearch-release.pgp \
+    | gpg --batch --yes --dearmor -o /usr/share/keyrings/opensearch-release.gpg
+  echo "deb [signed-by=/usr/share/keyrings/opensearch-release.gpg] https://artifacts.opensearch.org/releases/bundle/opensearch/3.x/apt stable main" \
+    > /etc/apt/sources.list.d/opensearch-3.x.list
+  $APT update
+  # No demo configuration: this script writes the security files itself. The package also
+  # wants an initial admin password, which it uses only for the demo configuration.
+  /usr/local/sbin/opensearch-secret "${admin_password_secret}" /root/.opensearch-admin-password
+  DISABLE_INSTALL_DEMO_CONFIG=true OPENSEARCH_INITIAL_ADMIN_PASSWORD="$(cat /root/.opensearch-admin-password)" \
+    $APT install "opensearch=${opensearch_version}"
+  rm -f /root/.opensearch-admin-password
+  apt-mark hold opensearch
+fi
+systemctl stop opensearch 2>/dev/null || true
+mkdir -p /var/lib/opensearch
+chown -R opensearch:opensearch /var/lib/opensearch
+
+sysctl -w vm.max_map_count=262144 >/dev/null
+echo "vm.max_map_count=262144" > /etc/sysctl.d/99-opensearch.conf
+swapoff -a || true
+
+C=/etc/opensearch
+/usr/local/sbin/opensearch-secret "${ca_secret}" "$C/root-ca.pem"
+/usr/local/sbin/opensearch-secret "${crt_secret}" "$C/esnode.pem"
+/usr/local/sbin/opensearch-secret "${key_secret}" "$C/esnode-key.pem"
+%{ if bootstrap ~}
+/usr/local/sbin/opensearch-secret "${admin_crt_secret}" "$C/admin.pem"
+/usr/local/sbin/opensearch-secret "${admin_key_secret}" "$C/admin-key.pem"
+%{ endif ~}
+rm -f "$C"/kirk.pem "$C"/kirk-key.pem "$C"/esnode-key.pem.bak
+chown opensearch:opensearch "$C"/*.pem
+chmod 600 "$C"/*.pem
+
+# The admin user. The hash is made on the node, so the password stays in Secret Manager.
+umask 077
+/usr/local/sbin/opensearch-secret "${admin_password_secret}" /root/.opensearch-admin-password
+HASH=$(HASH_PW="$(cat /root/.opensearch-admin-password)" OPENSEARCH_JAVA_HOME=/usr/share/opensearch/jdk \
+  bash /usr/share/opensearch/plugins/opensearch-security/tools/hash.sh -env HASH_PW | tail -1)
+rm -f /root/.opensearch-admin-password
+case "$HASH" in '$2'*) ;; *) echo "FATAL: could not hash the admin password"; exit 1 ;; esac
+cat > "$C/opensearch-security/internal_users.yml" <<USERS
+_meta:
+  type: "internalusers"
+  config_version: 2
+admin:
+  hash: "$HASH"
+  reserved: true
+  backend_roles:
+    - "admin"
+  description: "Cluster administrator"
+USERS
+chown opensearch:opensearch "$C/opensearch-security/internal_users.yml"
+chmod 600 "$C/opensearch-security/internal_users.yml"
+umask 022
+
+printf -- '-Xms%sm\n-Xmx%sm\n' "${heap_mb}" "${heap_mb}" > "$C/jvm.options.d/heap.options"
+
+cat > "$C/opensearch.yml" <<'YML'
+cluster.name: ${cluster_name}
+node.name: ${node_name}
+node.roles: ${node_roles}
+node.attr.zone: "${zone}"
+network.host: 0.0.0.0
+http.port: 9200
+transport.port: 9300
+path.data: /var/lib/opensearch
+path.logs: /var/log/opensearch
+%{ if single_node ~}
+discovery.type: single-node
+%{ else ~}
+discovery.seed_hosts: ${seed_hosts}
+cluster.initial_cluster_manager_nodes: ${initial_managers}
+cluster.routing.allocation.awareness.attributes: zone
+%{ if force_zone_values != "" ~}
+cluster.routing.allocation.awareness.force.zone.values: ${force_zone_values}
+%{ endif ~}
+%{ endif ~}
+bootstrap.memory_lock: true
+plugins.security.ssl.transport.pemcert_filepath: esnode.pem
+plugins.security.ssl.transport.pemkey_filepath: esnode-key.pem
+plugins.security.ssl.transport.pemtrustedcas_filepath: root-ca.pem
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.http.pemcert_filepath: esnode.pem
+plugins.security.ssl.http.pemkey_filepath: esnode-key.pem
+plugins.security.ssl.http.pemtrustedcas_filepath: root-ca.pem
+plugins.security.allow_default_init_securityindex: true
+plugins.security.authcz.admin_dn:
+  - "${admin_dn}"
+plugins.security.nodes_dn:
+  - "${nodes_dn}"
+plugins.security.audit.type: internal_opensearch
+plugins.security.enable_snapshot_restore_privilege: true
+plugins.security.check_snapshot_restore_write_privileges: true
+plugins.security.restapi.roles_enabled: ["all_access", "security_rest_api_access"]
+YML
+
+mkdir -p /etc/systemd/system/opensearch.service.d
+printf '[Service]\nLimitMEMLOCK=infinity\nLimitNOFILE=65536\n' > /etc/systemd/system/opensearch.service.d/override.conf
+systemctl daemon-reload
+systemctl enable opensearch
+systemctl restart opensearch
+%{ if bootstrap ~}
+systemctl enable opensearch-iq-user.service
+systemctl start --no-block opensearch-iq-user.service
+%{ endif ~}
+echo "NODE_CONFIGURED ${node_name}"

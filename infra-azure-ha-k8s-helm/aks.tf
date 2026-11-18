@@ -10,17 +10,20 @@ resource "azurerm_kubernetes_cluster" "iq_aks" {
   automatic_upgrade_channel = "stable"
 
 
+  # A small fixed pool for the AKS system pods only. The IQ pods run on user_pool below,
+  # which is sized and counted with IQ Server.
   default_node_pool {
-    name                 = "system"
-    vm_size              = var.node_instance_type
-    vnet_subnet_id       = azurerm_subnet.aks_subnet.id
-    zones                = local.availability_zones
-    auto_scaling_enabled = true
-    min_count            = var.node_group_min_size
-    max_count            = var.node_group_max_size
-    os_disk_size_gb      = var.node_disk_size
-    os_disk_type         = "Managed"
-    type                 = "VirtualMachineScaleSets"
+    name                         = "system"
+    temporary_name_for_rotation  = "systemtmp"
+    vm_size                      = var.system_node_instance_type
+    vnet_subnet_id               = azurerm_subnet.aks_subnet.id
+    zones                        = local.availability_zones
+    auto_scaling_enabled         = false
+    node_count                   = var.system_node_count
+    only_critical_addons_enabled = true
+    os_disk_size_gb              = var.node_disk_size
+    os_disk_type                 = "Managed"
+    type                         = "VirtualMachineScaleSets"
 
 
     node_public_ip_enabled = false
@@ -87,10 +90,11 @@ resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   kubernetes_cluster_id = azurerm_kubernetes_cluster.iq_aks.id
   vm_size               = var.node_instance_type
   vnet_subnet_id        = azurerm_subnet.aks_subnet.id
-  zones                 = local.availability_zones
+  zones                 = length(var.node_pool_zones) > 0 ? var.node_pool_zones : local.availability_zones
   auto_scaling_enabled  = true
   min_count             = var.node_group_min_size
   max_count             = var.node_group_max_size
+  node_count            = var.node_group_desired_size
   os_disk_size_gb       = var.node_disk_size
   os_disk_type          = "Managed"
   mode                  = "User"
@@ -108,6 +112,21 @@ resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   tags = merge(local.common_tags, {
     Name = "aks-${var.cluster_name}-user-nodepool"
   })
+
+  lifecycle {
+    # The cluster autoscaler owns the live node count, so node_count only sets the
+    # count the pool starts with.
+    ignore_changes = [node_count]
+
+    precondition {
+      condition     = var.node_group_max_size >= var.node_group_min_size
+      error_message = "node_group_max_size (${var.node_group_max_size}) must be at least node_group_min_size (${var.node_group_min_size})."
+    }
+    precondition {
+      condition     = var.node_group_desired_size >= var.node_group_min_size && var.node_group_desired_size <= var.node_group_max_size
+      error_message = "node_group_desired_size (${var.node_group_desired_size}) must be from node_group_min_size (${var.node_group_min_size}) to node_group_max_size (${var.node_group_max_size})."
+    }
+  }
 }
 
 

@@ -48,25 +48,25 @@ variable "db_subnet_cidr" {
 
 
 variable "container_cpu" {
-  description = "vCPU per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
+  description = "vCPU per IQ Server replica. The default is the Size M value; Size L and XL use 15.5. Every size leaves 0.5 vCPU of one node of workload_profile_type, because Container Apps keeps part of every node for itself."
   type        = number
-  default     = 8.0
+  default     = 7.5
 }
 
 variable "container_memory" {
-  description = "Memory per IQ Server replica. The default is the Size M and L value. It must fit on one node of workload_profile_type."
+  description = "Memory per IQ Server replica. The default is the Size M value; Size L uses 62Gi and Size XL 126Gi. Every size leaves 2 GB of one node of workload_profile_type, because Container Apps keeps part of every node for itself."
   type        = string
-  default     = "64Gi"
+  default     = "30Gi"
 }
 
 variable "workload_profile_type" {
-  description = "Azure Container Apps workload profile type, which sets the cores and memory of each node the replicas run on. E8 is 8 cores and 64 GB, which is what the published Size M and L rows of README.md ask for per node; E16 is 16 cores and 128 GB for Size XL. A profile smaller than container_cpu and container_memory cannot host a replica, and the app then reports insufficient capacity rather than naming the profile. Run `az rest --method get --url \"https://management.azure.com/subscriptions/<id>/providers/Microsoft.App/locations/<region>/availableManagedEnvironmentsWorkloadProfileTypes?api-version=2024-03-01\"` for the types a region offers."
+  description = "Azure Container Apps workload profile type, which sets the vCPU and memory of each node the replicas run on. D8 is 8 vCPU and 32 GB, which is what the published Size M row of README.md asks for per node; D16 is 16 vCPU and 64 GB for Size L, and E16 is 16 vCPU and 128 GB for Size XL. A profile smaller than container_cpu and container_memory cannot host a replica, and the app then reports insufficient capacity rather than naming the profile. Run `az rest --method get --url \"https://management.azure.com/subscriptions/<id>/providers/Microsoft.App/locations/<region>/availableManagedEnvironmentsWorkloadProfileTypes?api-version=2024-03-01\"` for the types a region offers."
   type        = string
-  default     = "E8"
+  default     = "D8"
 }
 
 variable "iq_min_replicas" {
-  description = "Minimum number of IQ Server replicas (HA requires minimum 2)"
+  description = "Minimum number of IQ Server replicas, which is also the number the app starts with: 2 at Size M and L, 3 at Size XL. HA requires at least 2."
   type        = number
   default     = 2
 
@@ -77,21 +77,26 @@ variable "iq_min_replicas" {
 }
 
 variable "iq_max_replicas" {
-  description = "Maximum number of IQ Server replicas for auto scaling"
+  description = "Maximum number of IQ Server replicas for auto scaling: 3 at Size M, 4 at Size L, 5 at Size XL. Must be at least iq_min_replicas."
   type        = number
-  default     = 4
+  default     = 2
+
+  validation {
+    condition     = var.iq_max_replicas >= 2
+    error_message = "iq_max_replicas must be at least 2, and at least iq_min_replicas."
+  }
 }
 
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:latest"
+  default     = "sonatype/nexus-iq-server:1.209.2"
 }
 
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -137,6 +142,17 @@ variable "db_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in Key Vault and as a Container App secret and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "postgres_version" {
   description = "PostgreSQL major version."
   type        = string
@@ -144,9 +160,9 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "PostgreSQL Flexible Server SKU. The default, 8 vCores and 64 GB, is the Size M and L value; XL uses MO_Standard_E16ds_v6, as the Sizing Guide in README.md gives."
+  description = "PostgreSQL Flexible Server SKU. The default, 4 vCPU and 32 GB, is the Size M value; L uses MO_Standard_E8ds_v6 and XL MO_Standard_E16ds_v6, as the Sizing Guide in README.md gives."
   type        = string
-  default     = "MO_Standard_E8ds_v6"
+  default     = "MO_Standard_E4ds_v6"
 }
 
 variable "db_storage_mb" {
@@ -211,7 +227,7 @@ variable "app_gateway_zones" {
 
 
 variable "log_share_quota_gb" {
-  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running. With storage_account_tier = \"Premium\" the share is billed on this full size and cannot be below 100."
+  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running. With storage_account_tier = \"Premium\" the share is provisioned at this full size and cannot be below 100."
   type        = number
   default     = 128
 }
@@ -229,7 +245,7 @@ variable "storage_account_replication_type" {
 }
 
 variable "file_share_quota_gb" {
-  description = "File share quota in GB for IQ Server data. The default is the Size M value; L uses 1536 and XL 4096, as README.md gives. On Premium the quota is the provisioned and billed size."
+  description = "File share quota in GB for IQ Server data. The default is the Size M value; L uses 1,536 and XL 4,096, as README.md gives. On Premium the quota is the provisioned size."
   type        = number
   default     = 500
 }
@@ -295,22 +311,22 @@ variable "common_tags" {
 # SEARCH BACKEND (Lucene or self-managed OpenSearch)
 # =============================================================================
 # search_engine picks the engine the conditional search: block in container_app.tf
-# names. "opensearch" means a cluster you run on Azure Virtual Machines, reached over
-# basic auth and named by opensearch_endpoint; this configuration does not create it.
+# names. "opensearch" means an OpenSearch cluster on Azure Virtual Machines, which this
+# configuration builds (opensearch_cluster.tf) unless opensearch_create is false, in which case
+# opensearch_endpoint names a cluster you run yourself.
 
 variable "search_engine" {
-  description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 
 variable "opensearch_endpoint" {
-  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
+  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\" and opensearch_create is false; ignored otherwise."
   type        = string
   default     = ""
 
@@ -338,7 +354,7 @@ variable "opensearch_use_tls" {
 }
 
 variable "opensearch_username" {
-  description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
+  description = "User name IQ Server authenticates to OpenSearch with. Empty, the default, means iq-server."
   type        = string
   default     = ""
 }

@@ -326,18 +326,18 @@ show_next_steps() {
     print_status "🎯 Next Steps"
     print_status "━━━━━━━━━━━━"
     print_status "1. Access IQ Server (wait 5-10 minutes for initialization)"
-    print_status "2. Default credentials: admin / admin123"
+    print_status "2. Sign in as admin, with the password set in iq_admin_initial_password"
     print_status "3. Monitor deployment health"
     echo ""
     print_warning "⚠️  Important Security Notes"
     print_warning "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_warning "• Change default admin password immediately"
+    print_warning "• Keep terraform.tfvars and the Terraform state private, since both hold the admin password"
     print_warning "• Review firewall rules"
     print_warning "• Set up monitoring and alerting"
     echo ""
     print_status "📖 Resources:"
     print_status "   - GCP Console: https://console.cloud.google.com"
-    print_status "   - Nexus IQ Documentation: https://help.sonatype.com/iqserver"
+    print_status "   - Nexus IQ Documentation: https://help.sonatype.com/en/sonatype-lifecycle.html"
     print_status "   - Apply logs: $LOG_FILE"
     echo ""
 }
@@ -452,6 +452,12 @@ main() {
     
     # Verify deployment
     verify_deployment
+
+    # One-time IQ Server settings, such as the Nexus One shard counts
+    if ! "$SCRIPT_DIR/iq-post-deploy.sh"; then
+        print_error "Post-deploy settings did not complete. The infrastructure is deployed: fix the cause above, then run ./iq-post-deploy.sh"
+        exit 1
+    fi
     
     # Show next steps
     show_next_steps

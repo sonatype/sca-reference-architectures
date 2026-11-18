@@ -4,25 +4,24 @@
 
 iq_server:
   image: "sonatype/nexus-iq-server"
-  tag: "latest"
-  imagePullPolicy: "Always"
+  # No tag here. The chart sets it, so IQ Server always matches helm_chart_version in variables.tf.
+  imagePullPolicy: "IfNotPresent"
 
   resources:
     requests:
       cpu: "6"
-      memory: "48Gi"
+      memory: "25Gi"
     limits:
       cpu: "8"
-      memory: "56Gi"
+      memory: "26Gi"
 
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms17g -Xmx17g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
   # GKE taints every Arm node with kubernetes.io/arch=arm64:NoSchedule, and this
   # root's only node pool is Arm. The IQ Server image is published for amd64 and
   # arm64, so the pods tolerate it. Chart 201.0.0 is the first to read this key,
-  # and the same toleration is set on iq_server_jobs, aggregateLogFileRetention
-  # and fluentd.aggregator below, because every pod the chart starts lands on
-  # that pool.
+  # and the same toleration is set on iq_server_jobs and aggregateLogFileRetention
+  # below, because every pod the chart starts lands on that pool.
   tolerations:
     - key: "kubernetes.io/arch"
       operator: "Equal"
@@ -34,16 +33,6 @@ iq_server:
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
       value: "false"
-    - name: DB_HOSTNAME
-      value: ""
-    - name: DB_PORT
-      value: "5432"
-    - name: DB_NAME
-      value: "nexusiq"
-    - name: DB_USERNAME
-      value: "nexusiq"
-    - name: DB_PASSWORD
-      value: ""
     # opensearch-ca-begin
     - name: OPENSEARCH_CA_PEM
       valueFrom:
@@ -54,14 +43,16 @@ iq_server:
 
   licenseSecret: "nexus-iq-license"
 
+  # helm-install.sh creates this secret from iq_admin_initial_password. IQ Server
+  # reads it on its very first start only.
+  initialAdminPasswordSecret: "nexus-iq-initial-admin-password"
+
   database:
     hostname: ""
     port: 5432
     name: "nexusiq"
     username: "nexusiq"
     password: ""
-    type: "postgresql"
-    migration: true
 
   persistence:
     existingPersistentVolumeClaimName: "nexus-iq-pvc"
@@ -91,9 +82,9 @@ iq_server:
   # opensearch-ca-end
 
   # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
-  # This is the Size L value. Size M uses 2 and Size XL uses 4.
+  # This is the Size M value, the HPA minimum. Size L uses 2 and Size XL uses 3.
   # helm-install.sh overwrites it with nexus_iq_replica_count from terraform.tfvars.
-  replicas: 3
+  replicas: 2
 
   config:
     sonatypeWork: "/sonatype-work"
@@ -134,11 +125,14 @@ iq_server:
       adminConnectors:
         - type: http
           port: 8071
+      # Every log goes to stdout, for GKE's logging agent, and to a per-pod file on the
+      # Filestore share, where the support zip and the chart's cleanup job find it.
       requestLog:
         appenders:
+          - type: console
           - type: file
-            currentLogFilename: "/var/log/nexus-iq-server/request.log"
-            archivedLogFilenamePattern: "/var/log/nexus-iq-server/request-%d.log.gz"
+            currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-request.log"
+            archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-request-%d.log.gz"
             archivedFileCount: 50
 
     logging:
@@ -165,15 +159,17 @@ iq_server:
         com.networknt.schema: false
         com.sonatype.insight.audit:
           appenders:
+            - type: console
             - type: file
-              currentLogFilename: "/var/log/nexus-iq-server/audit.log"
-              archivedLogFilenamePattern: "/var/log/nexus-iq-server/audit-%d.log.gz"
+              currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-audit.log"
+              archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-audit-%d.log.gz"
               archivedFileCount: 50
         com.sonatype.insight.policy.violation:
           appenders:
+            - type: console
             - type: file
-              currentLogFilename: "/var/log/nexus-iq-server/policy-violation.log"
-              archivedLogFilenamePattern: "/var/log/nexus-iq-server/policy-violation-%d.log.gz"
+              currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-policy-violation.log"
+              archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-policy-violation-%d.log.gz"
               archivedFileCount: 50
       appenders:
         - type: console
@@ -181,8 +177,8 @@ iq_server:
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
         - type: file
           threshold: ALL
-          currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-          archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
+          currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server.log"
+          archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server-%d{yyyy-MM-dd-HH}.log.gz"
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
           archivedFileCount: 24
 
@@ -211,14 +207,8 @@ aggregateLogFileRetention:
 
 serviceAccount:
   create: true
-  name: "nexus-iq-sa"
   annotations:
     iam.gke.io/gcp-service-account: ""
-
-cloudLogging:
-  enabled: true
-  projectId: ""
-  logName: "nexus-iq-server"
 
 ingress:
   enabled: false
@@ -228,81 +218,16 @@ ingress:
     kubernetes.io/ingress.global-static-ip-name: ""
     kubernetes.io/ingress.allow-http: "true"
     ingress.gcp.kubernetes.io/pre-shared-cert: ""
-  # Only expose the application service (not admin service) for GCE Ingress
-  service:
-    name: "nexus-iq-server-ha-iq-server-application-service"
-    port: 8070
-
-fluentd:
-  enabled: true
-
-  image:
-    repository: bitnamilegacy/fluentd
-    tag: "1.17.1-debian-12-r4"
-    pullPolicy: IfNotPresent
-
-  cloudLogging:
-    enabled: true
-    projectId: ""
-    logName: "nexus-iq-server"
-
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "200m"
-      memory: "256Mi"
-
-  aggregator:
-    enabled: true
-    tolerations:
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "arm64"
-        effect: "NoSchedule"
-    serviceAccount:
-      create: true
-      name: "fluentd-aggregator-sa"
-      annotations:
-        iam.gke.io/gcp-service-account: ""
-    # The aggregator runs as uid 1000, the owner the init container below gives the log
-    # directory. The bundled fluentd chart reads these two keys and defaults both to 1001.
-    podSecurityContext:
-      fsGroup: 1000
-    containerSecurityContext:
-      runAsUser: 1000
-      runAsGroup: 1000
-      runAsNonRoot: true
-    extraVolumes:
-      - name: "iq-server-pod-volume"
-        persistentVolumeClaim:
-          claimName: "nexus-iq-pvc"
-    initContainers:
-      - name: "set-fluentd-persistence-ownership"
-        image: busybox:latest
-        command: ["/bin/sh", "-c"]
-        args: ["mkdir -p /opt/bitnami/fluentd/logs/nexus-iq-server"]
-        securityContext:
-          runAsUser: 1000
-          runAsGroup: 1000
-        volumeMounts:
-          - mountPath: "/opt/bitnami/fluentd/logs/nexus-iq-server"
-            name: "iq-server-pod-volume"
-            subPath: log
-
-external-dns:
-  enabled: false
 
 # Horizontal pod autoscaler. The chart reads hpa.enabled, hpa.minReplicas and
 # hpa.maxReplicas, and renders the HPA only when a resource metric is enabled.
-# These are the Size L bounds. Size M is 2 to 3 and Size XL is 3 to 5.
+# These are the Size M bounds, 2 to 3. Size L is 2 to 4 and Size XL is 3 to 5.
 # Memory is left disabled because the JVM holds its heap, so memory utilization
 # stays near the limit and would scale out without bound.
 hpa:
   enabled: true
   minReplicas: 2
-  maxReplicas: 4
+  maxReplicas: 3
   resources:
     cpu:
       enabled: true
@@ -310,11 +235,3 @@ hpa:
         threshold: 70
     memory:
       enabled: false
-
-podAntiAffinity:
-  enabled: true
-  topologyKey: "kubernetes.io/hostname"
-
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1

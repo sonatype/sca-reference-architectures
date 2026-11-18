@@ -59,27 +59,50 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_type" {
-  description = "VM size for AKS worker nodes. The default is the Size M and L value, 8 vCPU and 64 GB. Size XL uses Standard_E16ps_v6."
+  description = "VM size of the AKS user node pool, where the IQ pods run. The default is the Size M value, 8 vCPU and 32 GB. Size L uses Standard_D16ps_v6 and Size XL Standard_E16ps_v6. When Azure has no capacity for it (ZonalAllocationFailed), set node_pool_zones to the zones that have it, or use the same size from another series with as many vCPUs and as much memory, such as Standard_D8as_v6."
   type        = string
-  default     = "Standard_E8ps_v6"
+  default     = "Standard_D8ps_v6"
+}
+
+variable "node_pool_zones" {
+  description = "Availability zones of the IQ Server node pool. Empty, the default, uses zones 1, 2 and 3. When one zone has no capacity for node_instance_type (ZonalAllocationFailed), list the zones that do, for example [\"2\", \"3\"]."
+  type        = list(string)
+  default     = []
+}
+
+variable "system_node_instance_type" {
+  description = "VM size of the AKS system node pool, which runs the AKS system pods only and does not change with size. Standard_D2pls_v6 is 2 vCPU and 4 GB (Arm), the AKS minimum for a system pool."
+  type        = string
+  default     = "Standard_D2pls_v6"
+}
+
+variable "system_node_count" {
+  description = "Number of nodes in the AKS system node pool, a fixed count with no autoscaling. At least 2, so the system pods survive the loss of one node."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.system_node_count >= 2
+    error_message = "system_node_count must be at least 2."
+  }
 }
 
 variable "node_group_min_size" {
-  description = "Minimum number of nodes in AKS node pool"
+  description = "Minimum number of nodes in the AKS user node pool, one per IQ pod: 2 at Size M and L, 3 at Size XL."
   type        = number
   default     = 2
 }
 
 variable "node_group_max_size" {
-  description = "Maximum number of nodes in AKS node pool"
+  description = "Maximum number of nodes in the AKS user node pool: 3 at Size M, 4 at Size L, 5 at Size XL. Must be at least node_group_min_size."
   type        = number
-  default     = 5
+  default     = 2
 }
 
 variable "node_group_desired_size" {
-  description = "Desired number of nodes in AKS node pool"
+  description = "Nodes the AKS user node pool starts with: 2 at Size M and L, 3 at Size XL. Must be from node_group_min_size to node_group_max_size. After the pool exists the cluster autoscaler sets the count, so a later change here has no effect."
   type        = number
-  default     = 3
+  default     = 2
 }
 
 variable "node_disk_size" {
@@ -96,9 +119,9 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "PostgreSQL Flexible Server SKU. The default, 8 vCores and 64 GB, is the Size M and L value; XL uses MO_Standard_E16ds_v6, as the Sizing Guide in README.md gives."
+  description = "PostgreSQL Flexible Server SKU. The default, 4 vCPU and 32 GB, is the Size M value; L uses MO_Standard_E8ds_v6 and XL MO_Standard_E16ds_v6, as the Sizing Guide in README.md gives."
   type        = string
-  default     = "MO_Standard_E8ds_v6"
+  default     = "MO_Standard_E4ds_v6"
 }
 
 variable "db_high_availability_mode" {
@@ -142,6 +165,17 @@ variable "database_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in a Kubernetes secret that helm-install.sh creates and the chart reads through iq_server.initialAdminPasswordSecret, and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "backup_retention_period" {
   description = "Number of days to retain automated backups"
   type        = number
@@ -168,7 +202,7 @@ variable "storage_account_replication_type" {
 }
 
 variable "storage_share_quota_gb" {
-  description = "Quota in GB for the Azure Files share. The default is the Size M value; L uses 1536 and XL 4096, as README.md gives. The share is Premium, so the quota is the provisioned and billed size."
+  description = "Quota in GB for the Azure Files share. The default is the Size M value; L uses 1,536 and XL 4,096, as README.md gives. The share is Premium, so the quota is the provisioned size."
   type        = number
   default     = 500
 }
@@ -205,30 +239,17 @@ variable "app_gateway_max_capacity" {
 }
 
 
-variable "nexus_iq_license" {
-  description = "Base64 encoded Nexus IQ Server license"
-  type        = string
-  sensitive   = true
-}
-
-variable "nexus_iq_admin_password" {
-  description = "Initial admin password for Nexus IQ Server"
-  type        = string
-  sensitive   = true
-  default     = "admin123"
-}
-
 variable "nexus_iq_replica_count" {
-  description = "Number of Nexus IQ Server replicas for high availability"
+  description = "Number of Nexus IQ Server pods at start, the HPA minimum: 2 at Size M and L, 3 at Size XL."
   type        = number
-  default     = 3
+  default     = 2
 }
 
 
 variable "helm_chart_version" {
-  description = "Version of the Nexus IQ Server HA Helm chart"
+  description = "Version of the Nexus IQ Server HA Helm chart. The chart sets the IQ Server image, so this also sets the IQ Server version."
   type        = string
-  default     = "201.0.0"
+  default     = "209.2.0"
 }
 
 variable "helm_namespace" {
@@ -256,18 +277,6 @@ variable "log_retention_days" {
   default     = 30
 }
 
-variable "enable_fluentd" {
-  description = "Enable Fluentd for log aggregation"
-  type        = bool
-  default     = true
-}
-
-variable "enable_monitoring" {
-  description = "Enable Application Insights monitoring"
-  type        = bool
-  default     = true
-}
-
 
 variable "ingress_hostname" {
   description = "Hostname for Nexus IQ Server ingress"
@@ -285,24 +294,23 @@ variable "ingress_tls_enabled" {
 # =============================================================================
 # SEARCH BACKEND (Lucene or self-managed OpenSearch)
 # =============================================================================
-# helm-install.sh and helm-upgrade.sh read these from terraform.tfvars through
-# search-values.sh and write the search: block; Terraform only checks them.
-# "opensearch" means a cluster you run on Azure Virtual Machines, reached over basic
-# auth and named by opensearch_endpoint; this configuration does not create it.
+# helm-install.sh and helm-upgrade.sh read the search settings through search-values.sh
+# and write the search: block. "opensearch" means an OpenSearch cluster this configuration
+# builds on AKS (opensearch_cluster.tf) unless opensearch_create is false, in which case
+# opensearch_endpoint names a cluster you run yourself.
 
 variable "search_engine" {
-  description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 
 variable "opensearch_endpoint" {
-  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
+  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\" and opensearch_create is false; ignored otherwise."
   type        = string
   default     = ""
 
@@ -330,7 +338,7 @@ variable "opensearch_use_tls" {
 }
 
 variable "opensearch_username" {
-  description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
+  description = "User name IQ Server authenticates to OpenSearch with. Empty, the default, means iq-server when this configuration builds the cluster; required for a cluster you bring."
   type        = string
   default     = ""
 }

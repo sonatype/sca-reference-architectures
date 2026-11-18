@@ -98,7 +98,7 @@ if [ -n "$FILESTORE" ]; then
     echo "$FILESTORE"
     for FS in $FILESTORE; do
         ZONE=$(gcloud filestore instances describe "$FS" --project="$PROJECT_ID" --format="value(location)")
-        echo "Deleting Filestore instance: $FS in zone: $ZONE"
+        echo "Deleting Filestore instance: $FS in location: $ZONE"
         gcloud filestore instances delete "$FS" --location="$ZONE" --project="$PROJECT_ID" --quiet || true
     done
     sleep 10

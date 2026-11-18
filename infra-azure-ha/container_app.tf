@@ -29,7 +29,7 @@ resource "azurerm_application_insights" "iq_insights_ha" {
 locals {
   workload_profile_name = "${var.workload_profile_type}-Profile-HA"
   opensearch_enabled    = var.search_engine == "opensearch"
-  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
+  opensearch_uri        = "${var.opensearch_use_tls ? "https" : "http"}://${local.os_endpoint}:${var.opensearch_port}"
 }
 
 resource "azurerm_container_app_environment" "iq_env_ha" {
@@ -272,11 +272,16 @@ CONFIGEOF
             printf '    uri: %s\n' '${local.opensearch_uri}'
             printf "    username: '%s'\n" "$os_user"
             printf "    password: '%s'\n" "$os_pass"
-            printf '    nexusOneIndexReplicas: %s\n' '${var.opensearch_index_replicas}'
+            printf '    nexusOneIndexReplicas: %s\n' '${local.os_replicas}'
           } >> /etc/nexus-iq-server/config.yml
 
           unset os_user os_pass
 %{endif}
+
+          # IQ Server installs this license on start when it has none.
+          printf '%s' "$IQ_LICENSE_B64" | base64 -d > /etc/nexus-iq-server/license.lic
+          echo "licenseFile: /etc/nexus-iq-server/license.lic" >> /etc/nexus-iq-server/config.yml
+          unset IQ_LICENSE_B64
 
           echo "Successfully created HA config.yml for replica: $HOSTNAME at /etc/nexus-iq-server/config.yml"
           echo "Generated config file contents, with every password redacted:"
@@ -355,7 +360,7 @@ CONFIGEOF
 
       env {
         name  = "OPENSEARCH_CA_PEM"
-        value = var.opensearch_ca_pem
+        value = local.os_ca_pem_b64
       }
 
       env {
@@ -390,6 +395,11 @@ CONFIGEOF
       }
 
       env {
+        name        = "NXIQ_INITIAL_ADMIN_PASSWORD"
+        secret_name = "iq-admin-initial-password"
+      }
+
+      env {
         name  = "NEXUS_SECURITY_RANDOMPASSWORD"
         value = "false"
       }
@@ -419,6 +429,11 @@ CONFIGEOF
           name        = "OPENSEARCH_PASSWORD"
           secret_name = "opensearch-password"
         }
+      }
+
+      env {
+        name        = "IQ_LICENSE_B64"
+        secret_name = "iq-license"
       }
 
 
@@ -451,11 +466,16 @@ CONFIGEOF
     value = var.db_password
   }
 
+  secret {
+    name  = "iq-admin-initial-password"
+    value = var.iq_admin_initial_password
+  }
+
   dynamic "secret" {
     for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-username"
-      value = var.opensearch_username
+      value = local.os_username
     }
   }
 
@@ -463,8 +483,13 @@ CONFIGEOF
     for_each = local.opensearch_enabled ? [1] : []
     content {
       name  = "opensearch-password"
-      value = var.opensearch_password
+      value = local.os_password
     }
+  }
+
+  secret {
+    name  = "iq-license"
+    value = local.iq_license_b64
   }
 
 
@@ -489,23 +514,28 @@ CONFIGEOF
 
   lifecycle {
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
-      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+      condition     = var.search_engine != "opensearch" || local.os_create || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
 
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
+      condition     = var.search_engine != "opensearch" || length(local.os_username) > 0
       error_message = "opensearch_username must be set when search_engine is 'opensearch'."
     }
 
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
-      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+      condition     = var.search_engine != "opensearch" || local.os_create || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
 
     precondition {
       condition     = var.container_registry_server == "" || (length(var.container_registry_username) > 0 && length(var.container_registry_password) > 0)
       error_message = "container_registry_username and container_registry_password must both be set when container_registry_server is set."
+    }
+
+    precondition {
+      condition     = var.iq_max_replicas >= var.iq_min_replicas
+      error_message = "iq_max_replicas (${var.iq_max_replicas}) must be at least iq_min_replicas (${var.iq_min_replicas})."
     }
   }
 
@@ -517,6 +547,7 @@ CONFIGEOF
     azurerm_postgresql_flexible_server.iq_db_ha,
     azurerm_postgresql_flexible_server_database.iq_database_ha,
     azurerm_container_app_environment_storage.iq_storage_ha,
-    azurerm_container_app_environment_storage.iq_logs_ha
+    azurerm_container_app_environment_storage.iq_logs_ha,
+    azurerm_linux_virtual_machine.opensearch,
   ]
 }

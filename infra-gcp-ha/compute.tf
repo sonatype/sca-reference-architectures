@@ -51,10 +51,12 @@ resource "google_compute_instance_template" "iq_template" {
 
     search_engine              = var.search_engine
     opensearch_uri             = local.opensearch_enabled ? local.opensearch_uri : ""
-    opensearch_username        = var.opensearch_username
+    opensearch_username        = local.os_iq_username
     opensearch_password_secret = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
-    opensearch_index_replicas  = var.opensearch_index_replicas
+    opensearch_index_replicas  = local.os_index_replicas
     opensearch_ca_secret       = local.opensearch_private_ca ? google_secret_manager_secret.opensearch_ca[0].secret_id : ""
+    iq_admin_password_secret   = google_secret_manager_secret.iq_admin_password.secret_id
+    iq_license_secret          = google_secret_manager_secret.iq_license.secret_id
   })
 
   labels = merge(var.common_tags, {
@@ -73,6 +75,10 @@ resource "google_compute_instance_template" "iq_template" {
     google_secret_manager_secret_version.db_password,
     google_secret_manager_secret_iam_member.iq_compute_db_credentials,
     google_secret_manager_secret_iam_member.iq_compute_db_password,
+    google_secret_manager_secret_version.iq_admin_password,
+    google_secret_manager_secret_iam_member.iq_compute_admin_password,
+    google_secret_manager_secret_version.iq_license,
+    google_secret_manager_secret_iam_member.iq_compute_license,
     google_secret_manager_secret_version.opensearch_password,
     google_secret_manager_secret_iam_member.iq_compute_opensearch_password,
     google_secret_manager_secret_version.opensearch_ca,
@@ -177,6 +183,17 @@ resource "google_compute_region_autoscaler" "iq_autoscaler" {
         fixed = 1
       }
       time_window_sec = var.scale_in_cooldown_seconds
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.iq_max_instances >= var.iq_min_instances
+      error_message = "iq_max_instances (${var.iq_max_instances}) must be at least iq_min_instances (${var.iq_min_instances})."
+    }
+    precondition {
+      condition     = var.iq_target_instances >= var.iq_min_instances && var.iq_target_instances <= var.iq_max_instances
+      error_message = "iq_target_instances (${var.iq_target_instances}) must be from iq_min_instances (${var.iq_min_instances}) to iq_max_instances (${var.iq_max_instances})."
     }
   }
 }

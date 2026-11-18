@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Reads the search settings from terraform.tfvars and writes the search: block into a
-# Helm values file. Sourced by helm-install.sh and helm-upgrade.sh.
+# Reads the search settings and writes the search: block into a Helm values file. When
+# this configuration built the OpenSearch cluster they come from terraform output, and from
+# terraform.tfvars otherwise. Sourced by helm-install.sh and helm-upgrade.sh.
 
 # Reads one scalar from terraform.tfvars, quoted or unquoted, with or without a trailing
 # comment. A quoted value runs to its closing quote, so a # inside it is kept, and HCL's
@@ -53,6 +54,37 @@ load_search_vars() {
     OPENSEARCH_USE_TLS=${OPENSEARCH_USE_TLS:-true}
     OPENSEARCH_INDEX_REPLICAS=$(tfvar opensearch_index_replicas)
     OPENSEARCH_INDEX_REPLICAS=${OPENSEARCH_INDEX_REPLICAS:-1}
+    OPENSEARCH_CA=""
+
+    if [[ "$SEARCH_ENGINE" == "opensearch" && "$(terraform output -raw opensearch_created 2>/dev/null)" == "true" ]]; then
+        OPENSEARCH_ENDPOINT=$(terraform output -raw opensearch_endpoint)
+        OPENSEARCH_USERNAME=$(terraform output -raw opensearch_username)
+        OPENSEARCH_PASSWORD=$(terraform output -raw opensearch_password)
+        OPENSEARCH_INDEX_REPLICAS=$(terraform output -raw opensearch_index_replicas)
+        OPENSEARCH_CA=$(terraform output -raw opensearch_ca_certificate)
+        OPENSEARCH_PORT=9200
+        OPENSEARCH_USE_TLS=true
+    fi
+}
+
+# A private certificate authority reaches the IQ Server pods as the Secret
+# nexus-iq-opensearch-ca in namespace $2. Without one, the lines between the opensearch-ca
+# markers in the values file named in $1 are deleted.
+write_ca_block() {
+    local values_file="$1" namespace="$2"
+
+    if [[ "$SEARCH_ENGINE" == "opensearch" && -n "$OPENSEARCH_CA" ]]; then
+        if ! kubectl create secret generic nexus-iq-opensearch-ca \
+            --from-literal=ca.pem="$OPENSEARCH_CA" \
+            -n "$namespace" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; then
+            echo "Error: could not create the Secret nexus-iq-opensearch-ca in $namespace" >&2
+            return 1
+        fi
+    else
+        sed -i.cabak "/# opensearch-ca-begin/,/# opensearch-ca-end/d" "$values_file"
+        rm -f "${values_file}.cabak"
+    fi
+    return 0
 }
 
 # Appends the search: block under iq_server.config to the file named in $1, or nothing
