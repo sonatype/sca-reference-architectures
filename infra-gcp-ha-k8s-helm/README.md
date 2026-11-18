@@ -12,9 +12,9 @@ This GKE HA architecture supports sizes **M**, **L**, and **XL**:
 
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node | Nodes (min / desired / max) | IQ pods, HPA min / max | Node type | Pod limit, heap / direct memory | Database | Filestore |
 |------|:------------:|:---------------:|:----------------------------:|:---------------------------:|:----------------------:|:---------:|:-------------------------------:|:--------:|:---------:|
-| **M** | 2,000 - 20,000 | ~10k | ~250 | 2 / 2 / 3 | 2, 2 / 3 | n4a-standard-8 (ARM) | 26 GB, 17 GB / 4 GB | db-custom-N4-4-32768, 128 GB, 8,000 IOPS, 252 MB/s | 500 GB, 8,000 IOPS |
-| **L** | 20,000 - 40,000 | ~15k | ~350 | 2 / 2 / 4 | 2, 2 / 4 | n4a-standard-16 (ARM) | 56 GB, 37 GB / 8 GB | db-custom-N4-8-65536, 256 GB, 8,000 IOPS, 357 MB/s | 1,536 GB, 16,000 IOPS |
-| **XL** | 40,000 - 100,000 | ~25k | ~450 | 3 / 3 / 5 | 3, 3 / 5 | n4a-highmem-16 (ARM) | 110 GB, 73 GB / 8 GB | db-custom-N4-16-131072, 512 GB, 10,000 IOPS, 446 MB/s | 4,096 GB, 24,000 IOPS |
+| **M** | 2k - 20k | ~10k | ~250 | 2 / 2 / 3 | 2, 2 / 3 | n4a-standard-8 (ARM) | 26 GB, 17 GB / 4 GB | db-custom-N4-4-32768, 128 GB, 8,000 IOPS, 252 MB/s | 500 GB, 8,000 IOPS |
+| **L** | 20k - 40k | ~15k | ~350 | 2 / 2 / 4 | 2, 2 / 4 | n4a-standard-16 (ARM) | 56 GB, 37 GB / 8 GB | db-custom-N4-8-65536, 256 GB, 8,000 IOPS, 357 MB/s | 1,536 GB, 16,000 IOPS |
+| **XL** | 40k - 100k | ~25k | ~450 | 3 / 3 / 5 | 3, 3 / 5 | n4a-highmem-16 (ARM) | 110 GB, 73 GB / 8 GB | db-custom-N4-16-131072, 512 GB, 10,000 IOPS, 446 MB/s | 4,096 GB, 24,000 IOPS |
 
 Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).

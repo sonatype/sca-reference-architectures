@@ -100,10 +100,10 @@ Choose your deployment size based on your application count and daily evaluation
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node ³ | IQ Server nodes | Compute (per node) | Database (AWS) | HA Required | OpenSearch data nodes (AWS) |
 |------|:------------:|:---------------:|:------------------------------:|:---------------:|:------------------:|:--------------:|:-----------:|:---------------------:|
 | **XS** | < 500 | ~2.5k | ~100 | 1 | 2 vCPU / 16 GB | db.m8g.large (2 vCPU / 8 GB) | No | 1 x m8g.medium.search ¹ ² |
-| **S** | 500 - 2,000 | ~5k | ~150 | 1 | 4 vCPU / 32 GB | db.r8g.large (2 vCPU / 16 GB) | No | 1 x m8g.large.search ¹ ² |
-| **M** | 2,000 - 20,000 | ~10k | ~250 | 2 to 3 | 8 vCPU / 32 GB | db.r8g.xlarge (4 vCPU / 32 GB) | Recommended | 3 x m8g.large.search ¹ |
-| **L** | 20,000 - 40,000 | ~15k | ~350 | 2 to 4 | 16 vCPU / 64 GB | db.r8g.2xlarge (8 vCPU / 64 GB) | Required | 3 x m8g.xlarge.search ¹ |
-| **XL** | 40,000 - 100,000 | ~25k | ~450 | 3 to 5 | 16 vCPU / 128 GB | db.r8g.4xlarge (16 vCPU / 128 GB) | Required | 3 x r8g.2xlarge.search ¹ |
+| **S** | 500 - 2k | ~5k | ~150 | 1 | 4 vCPU / 32 GB | db.r8g.large (2 vCPU / 16 GB) | No | 1 x m8g.large.search ¹ ² |
+| **M** | 2k - 20k | ~10k | ~250 | 2 to 3 | 8 vCPU / 32 GB | db.r8g.xlarge (4 vCPU / 32 GB) | Recommended | 3 x m8g.large.search ¹ |
+| **L** | 20k - 40k | ~15k | ~350 | 2 to 4 | 16 vCPU / 64 GB | db.r8g.2xlarge (8 vCPU / 64 GB) | Required | 3 x m8g.xlarge.search ¹ |
+| **XL** | 40k - 100k | ~25k | ~450 | 3 to 5 | 16 vCPU / 128 GB | db.r8g.4xlarge (16 vCPU / 128 GB) | Required | 3 x r8g.2xlarge.search ¹ |
 
 > ¹ OpenSearch is part of every size, and Terraform creates it. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
 
@@ -234,7 +234,7 @@ The three cloud tables carry the same rows. XS and S are single instance sizes; 
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
-| **Applications** | 2,000 - 20,000 | 20,000 - 40,000 | 40,000 - 100,000 |
+| **Applications** | 2k - 20k | 20k - 40k | 40k - 100k |
 | **Number of IQ Server nodes** | 2 to 3 | 2 to 4 | 3 to 5 |
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Typical evaluations/day** | ~10k | ~15k | ~25k |
@@ -272,7 +272,7 @@ On EKS the Application Load Balancer is created by the AWS Load Balancer Control
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
-| **Applications** | 2,000 - 20,000 | 20,000 - 40,000 | 40,000 - 100,000 |
+| **Applications** | 2k - 20k | 20k - 40k | 40k - 100k |
 | **Number of IQ Server nodes** | 2 to 3 | 2 to 4 | 3 to 5 |
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Typical evaluations/day** | ~10k | ~15k | ~25k |
@@ -311,7 +311,7 @@ On EKS the Application Load Balancer is created by the AWS Load Balancer Control
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
-| **Applications** | 2,000 - 20,000 | 20,000 - 40,000 | 40,000 - 100,000 |
+| **Applications** | 2k - 20k | 20k - 40k | 40k - 100k |
 | **Number of IQ Server nodes** | 2 to 3 | 2 to 4 | 3 to 5 |
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
 | **Typical evaluations/day** | ~10k | ~15k | ~25k |
@@ -468,7 +468,7 @@ iq_license_file = "CHANGE_ME" # path to your IQ Server license file (.lic)
 
 ---
 
-#### Size S: Small (500 - 2,000 applications)
+#### Size S: Small (500 - 2k applications)
 
 Single instance for small production environments.
 
@@ -534,7 +534,7 @@ iq_license_file = "CHANGE_ME" # path to your IQ Server license file (.lic)
 
 ---
 
-#### Size M: Medium (2,000 - 20,000 applications)
+#### Size M: Medium (2k - 20k applications)
 
 Production deployment. HA (2 to 3 nodes) is recommended. A single instance fits only where downtime for upgrades and restarts is acceptable.
 
@@ -805,7 +805,7 @@ hpa:
 
 ---
 
-#### Size L: Large (20,000 - 40,000 applications)
+#### Size L: Large (20k - 40k applications)
 
 High-availability production deployment. Runs 2 to 4 nodes.
 
@@ -1011,7 +1011,7 @@ hpa:
 
 ---
 
-#### Size XL: Extra Large (40,000 - 100,000 applications)
+#### Size XL: Extra Large (40k - 100k applications)
 
 Enterprise-scale HA deployment. Runs 3 to 5 nodes with larger instances.
 

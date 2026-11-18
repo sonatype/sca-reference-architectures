@@ -78,17 +78,17 @@ search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run wi
 
 # Domain shape by size, three data nodes across three zones at every size.
 #
-# M (2,000 - 20,000 apps):
+# M (2k - 20k apps):
 # opensearch_instance_type           = "m8g.large.search"
 # opensearch_volume_size_gb          = 100
 # opensearch_dedicated_master_type   = "m8g.medium.search"
 #
-# L (20,000 - 40,000 apps):
+# L (20k - 40k apps):
 # opensearch_instance_type           = "m8g.xlarge.search"
 # opensearch_volume_size_gb          = 150
 # opensearch_dedicated_master_type   = "m8g.medium.search"
 #
-# XL (40,000 - 100,000 apps):
+# XL (40k - 100k apps):
 # opensearch_instance_type           = "r8g.2xlarge.search"
 # opensearch_volume_size_gb          = 250
 # opensearch_dedicated_master_type   = "m8g.large.search"

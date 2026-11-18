@@ -13,8 +13,8 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**:
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node | Fargate task | Java heap / direct memory | Database | OpenSearch |
 |------|:------------:|:---------------:|:----------------------------:|:------------:|:-------------------------:|:--------:|:----------:|
 | **XS** | < 500 | ~2.5k | ~100 | 2 vCPU / 16 GB (`2048` / `16384`) | 10 GB / 3 GB | db.m8g.large, 64 GB | 1 x `m8g.medium.search`, 25 GB |
-| **S** | 500 - 2,000 | ~5k | ~150 | 4 vCPU / 30 GB (`4096` / `30720`) | 20 GB / 4 GB | db.r8g.large, 128 GB | 1 x `m8g.large.search`, 50 GB |
-| **M** | 2,000 - 20,000 | ~10k | ~250 | 8 vCPU / 32 GB (`8192` / `32768`) | 20 GB / 4 GB | db.r8g.xlarge, 128 GB, auto-scaling to 500 GB | 3 x `m8g.large.search`, 100 GB, 3 managers |
+| **S** | 500 - 2k | ~5k | ~150 | 4 vCPU / 30 GB (`4096` / `30720`) | 20 GB / 4 GB | db.r8g.large, 128 GB | 1 x `m8g.large.search`, 50 GB |
+| **M** | 2k - 20k | ~10k | ~250 | 8 vCPU / 32 GB (`8192` / `32768`) | 20 GB / 4 GB | db.r8g.xlarge, 128 GB, auto-scaling to 500 GB | 3 x `m8g.large.search`, 100 GB, 3 managers |
 
 Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).
@@ -23,7 +23,7 @@ The values for each size are in [`examples/<size>.tfvars`](./examples/), which t
 applies for you, and in the top README's [Detailed Specifications](../README.md#detailed-specifications).
 Why the Fargate heap is lower than on a whole VM is in [JVM Configuration](../README.md#jvm-configuration).
 
-> **Need more capacity?** For 20,000+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
+> **Need more capacity?** For 20k+ applications or multi-node deployments, use the [High Availability](../infra-aws-ha/) or [Kubernetes](../infra-aws-ha-k8s-helm/) architectures.
 
 > **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
 

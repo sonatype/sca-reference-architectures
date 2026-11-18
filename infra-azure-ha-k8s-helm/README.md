@@ -12,9 +12,9 @@ This AKS HA architecture supports sizes **M**, **L**, and **XL**:
 
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node | Nodes (min / desired / max) | IQ pods, HPA min / max | Node type | Pod limit, heap / direct memory | Database | Share quota |
 |------|:------------:|:---------------:|:----------------------------:|:---------------------------:|:----------------------:|:---------:|:-------------------------------:|:--------:|:-----------:|
-| **M** | 2,000 - 20,000 | ~10k | ~250 | 2 / 2 / 3 | 2, 2 / 3 | Standard_D8ps_v6 (ARM) | 26 GB, 17 GB / 4 GB | MO_Standard_E4ds_v6, 128 GB | 500 GB |
-| **L** | 20,000 - 40,000 | ~15k | ~350 | 2 / 2 / 4 | 2, 2 / 4 | Standard_D16ps_v6 (ARM) | 56 GB, 37 GB / 8 GB | MO_Standard_E8ds_v6, 256 GB, P15 | 1,536 GB |
-| **XL** | 40,000 - 100,000 | ~25k | ~450 | 3 / 3 / 5 | 3, 3 / 5 | Standard_E16ps_v6 (ARM) | 110 GB, 73 GB / 8 GB | MO_Standard_E16ds_v6, 512 GB, P20 | 4,096 GB |
+| **M** | 2k - 20k | ~10k | ~250 | 2 / 2 / 3 | 2, 2 / 3 | Standard_D8ps_v6 (ARM) | 26 GB, 17 GB / 4 GB | MO_Standard_E4ds_v6, 128 GB | 500 GB |
+| **L** | 20k - 40k | ~15k | ~350 | 2 / 2 / 4 | 2, 2 / 4 | Standard_D16ps_v6 (ARM) | 56 GB, 37 GB / 8 GB | MO_Standard_E8ds_v6, 256 GB, P15 | 1,536 GB |
+| **XL** | 40k - 100k | ~25k | ~450 | 3 / 3 / 5 | 3, 3 / 5 | Standard_E16ps_v6 (ARM) | 110 GB, 73 GB / 8 GB | MO_Standard_E16ds_v6, 512 GB, P20 | 4,096 GB |
 
 Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).

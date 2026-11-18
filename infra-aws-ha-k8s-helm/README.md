@@ -12,9 +12,9 @@ This EKS HA architecture supports sizes **M**, **L**, and **XL**:
 
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node | Nodes (min / desired / max) | IQ pods, HPA min / max | Node type | Pod limit, heap / direct memory | Aurora | OpenSearch |
 |------|:------------:|:---------------:|:----------------------------:|:---------------------------:|:----------------------:|:---------:|:-------------------------------:|:------:|:----------:|
-| **M** | 2,000 - 20,000 | ~10k | ~250 | 2 / 2 / 3 | 2, 2 / 3 | m8g.2xlarge (ARM) | 26 GB, 17 GB / 4 GB | 2 x db.r8g.xlarge | 3 x `m8g.large.search`, 100 GB |
-| **L** | 20,000 - 40,000 | ~15k | ~350 | 2 / 2 / 4 | 2, 2 / 4 | m8g.4xlarge (ARM) | 56 GB, 37 GB / 8 GB | 2 x db.r8g.2xlarge | 3 x `m8g.xlarge.search`, 150 GB |
-| **XL** | 40,000 - 100,000 | ~25k | ~450 | 3 / 3 / 5 | 3, 3 / 5 | r9g.4xlarge (ARM) | 112 GB, 74 GB / 8 GB | 2 x db.r8g.4xlarge | 3 x `r8g.2xlarge.search`, 250 GB |
+| **M** | 2k - 20k | ~10k | ~250 | 2 / 2 / 3 | 2, 2 / 3 | m8g.2xlarge (ARM) | 26 GB, 17 GB / 4 GB | 2 x db.r8g.xlarge | 3 x `m8g.large.search`, 100 GB |
+| **L** | 20k - 40k | ~15k | ~350 | 2 / 2 / 4 | 2, 2 / 4 | m8g.4xlarge (ARM) | 56 GB, 37 GB / 8 GB | 2 x db.r8g.2xlarge | 3 x `m8g.xlarge.search`, 150 GB |
+| **XL** | 40k - 100k | ~25k | ~450 | 3 / 3 / 5 | 3, 3 / 5 | r9g.4xlarge (ARM) | 112 GB, 74 GB / 8 GB | 2 x db.r8g.4xlarge | 3 x `r8g.2xlarge.search`, 250 GB |
 
 Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).

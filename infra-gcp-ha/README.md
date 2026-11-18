@@ -12,9 +12,9 @@ This MIG HA architecture supports sizes **M**, **L**, and **XL**:
 
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node | Instances (min / target / max) | Machine type | Java heap / direct memory | Database | Filestore | OpenSearch |
 |------|:------------:|:---------------:|:----------------------------:|:------------------------------:|:------------:|:-------------------------:|:--------:|:---------:|:----------:|
-| **M** | 2,000 - 20,000 | ~10k | ~250 | 2 / 2 / 3 | n4a-standard-8 (ARM) | 20 GB / 4 GB | db-custom-N4-4-32768, 128 GB, 8,000 IOPS, 252 MB/s | 500 GB, 8,000 IOPS | 3 x `c4a-standard-2` |
-| **L** | 20,000 - 40,000 | ~15k | ~350 | 2 / 2 / 4 | n4a-standard-16 (ARM) | 42 GB / 8 GB | db-custom-N4-8-65536, 256 GB, 8,000 IOPS, 357 MB/s | 1,536 GB, 16,000 IOPS | 3 x `c4a-standard-4` |
-| **XL** | 40,000 - 100,000 | ~25k | ~450 | 3 / 3 / 5 | n4a-highmem-16 (ARM) | 85 GB / 8 GB | db-custom-N4-16-131072, 512 GB, 10,000 IOPS, 446 MB/s | 4,096 GB, 24,000 IOPS | 3 x `c4a-highmem-8` |
+| **M** | 2k - 20k | ~10k | ~250 | 2 / 2 / 3 | n4a-standard-8 (ARM) | 20 GB / 4 GB | db-custom-N4-4-32768, 128 GB, 8,000 IOPS, 252 MB/s | 500 GB, 8,000 IOPS | 3 x `c4a-standard-2` |
+| **L** | 20k - 40k | ~15k | ~350 | 2 / 2 / 4 | n4a-standard-16 (ARM) | 42 GB / 8 GB | db-custom-N4-8-65536, 256 GB, 8,000 IOPS, 357 MB/s | 1,536 GB, 16,000 IOPS | 3 x `c4a-standard-4` |
+| **XL** | 40k - 100k | ~25k | ~450 | 3 / 3 / 5 | n4a-highmem-16 (ARM) | 85 GB / 8 GB | db-custom-N4-16-131072, 512 GB, 10,000 IOPS, 446 MB/s | 4,096 GB, 24,000 IOPS | 3 x `c4a-highmem-8` |
 
 Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).
@@ -28,7 +28,7 @@ Server instances. Shared storage is a Cloud Filestore instance on the Regional t
 `filestore_capacity_gb` with fixed IOPS `filestore_max_iops`, mounted over NFS v3, so it stays available
 through a zone outage.
 
-> **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
+> **Smaller deployments?** For < 2k applications with a single instance, use the [Single Instance](../infra-gcp/) architecture.
 
 ---
 

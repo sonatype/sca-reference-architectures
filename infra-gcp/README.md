@@ -13,8 +13,8 @@ This single-instance architecture supports sizes **XS**, **S**, and **M**:
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node | Machine type | Java heap / direct memory | Database | Filestore | OpenSearch |
 |------|:------------:|:---------------:|:----------------------------:|:------------:|:-------------------------:|:--------:|:---------:|:----------:|
 | **XS** | < 500 | ~2.5k | ~100 | n4a-highmem-2 (ARM), 2 vCPU / 16 GB | 10 GB / 3 GB | db-custom-2-7680, 64 GB PD_SSD | 500 GB, 4,000 IOPS | 1 x `c4a-standard-1` |
-| **S** | 500 - 2,000 | ~5k | ~150 | n4a-highmem-4 (ARM), 4 vCPU / 32 GB | 20 GB / 4 GB | db-custom-2-13312, 128 GB PD_SSD | 500 GB, 4,000 IOPS | 1 x `c4a-standard-2` |
-| **M** | 2,000 - 20,000 | ~10k | ~250 | n4a-standard-8 (ARM), 8 vCPU / 32 GB | 20 GB / 4 GB | db-custom-N4-4-32768, 128 GB Hyperdisk Balanced, 8,000 IOPS, 252 MB/s | 500 GB, 8,000 IOPS | 3 x `c4a-standard-2`, 3 managers |
+| **S** | 500 - 2k | ~5k | ~150 | n4a-highmem-4 (ARM), 4 vCPU / 32 GB | 20 GB / 4 GB | db-custom-2-13312, 128 GB PD_SSD | 500 GB, 4,000 IOPS | 1 x `c4a-standard-2` |
+| **M** | 2k - 20k | ~10k | ~250 | n4a-standard-8 (ARM), 8 vCPU / 32 GB | 20 GB / 4 GB | db-custom-N4-4-32768, 128 GB Hyperdisk Balanced, 8,000 IOPS, 252 MB/s | 500 GB, 8,000 IOPS | 3 x `c4a-standard-2`, 3 managers |
 
 Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).
@@ -27,7 +27,7 @@ Shared storage is a Cloud Filestore instance on the Regional tier (`filestore_ti
 `gcp_region`, at `filestore_capacity_gb` with fixed IOPS `filestore_max_iops`, mounted over NFS v3. The
 database is zonal by default (`db_availability_type`).
 
-> **Need more capacity?** For 20,000+ applications or multi-node deployments, use the [High Availability](../infra-gcp-ha/) or [Kubernetes](../infra-gcp-ha-k8s-helm/) architectures.
+> **Need more capacity?** For 20k+ applications or multi-node deployments, use the [High Availability](../infra-gcp-ha/) or [Kubernetes](../infra-gcp-ha-k8s-helm/) architectures.
 
 > **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
 

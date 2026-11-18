@@ -124,7 +124,7 @@ opensearch_data_disk_gb          = 100
 #   -----END CERTIFICATE-----
 # EOT
 
-# The values above are Size M. Under 2,000 applications, use infra-gcp: this root requires
+# The values above are Size M. Under 2k applications, use infra-gcp: this root requires
 # at least 2 instances. The blocks below are Size L and XL.
 
 # Size L:

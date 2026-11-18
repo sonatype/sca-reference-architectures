@@ -12,9 +12,9 @@ This HA architecture supports sizes **M**, **L**, and **XL**:
 
 | Size | Applications | Typical evaluations/day | Evaluations an hour per node | Tasks (min / desired / max) | Fargate task | Java heap / direct memory | Aurora | OpenSearch |
 |------|:------------:|:---------------:|:----------------------------:|:---------------------------:|:------------:|:-------------------------:|:------:|:----------:|
-| **M** | 2,000 - 20,000 | ~10k | ~250 | 2 / 2 / 3 | 8 vCPU / 32 GB (`8192` / `32768`) | 20 GB / 4 GB | 2 x db.r8g.xlarge | 3 x `m8g.large.search`, 100 GB |
-| **L** | 20,000 - 40,000 | ~15k | ~350 | 2 / 2 / 4 | 16 vCPU / 64 GB (`16384` / `65536`) | 42 GB / 8 GB | 2 x db.r8g.2xlarge | 3 x `m8g.xlarge.search`, 150 GB |
-| **XL** | 40,000 - 100,000 | ~25k | ~450 | 3 / 3 / 5 | 16 vCPU / 120 GB (`16384` / `122880`) | 80 GB / 8 GB | 2 x db.r8g.4xlarge | 3 x `r8g.2xlarge.search`, 250 GB |
+| **M** | 2k - 20k | ~10k | ~250 | 2 / 2 / 3 | 8 vCPU / 32 GB (`8192` / `32768`) | 20 GB / 4 GB | 2 x db.r8g.xlarge | 3 x `m8g.large.search`, 100 GB |
+| **L** | 20k - 40k | ~15k | ~350 | 2 / 2 / 4 | 16 vCPU / 64 GB (`16384` / `65536`) | 42 GB / 8 GB | 2 x db.r8g.2xlarge | 3 x `m8g.xlarge.search`, 150 GB |
+| **XL** | 40k - 100k | ~25k | ~450 | 3 / 3 / 5 | 16 vCPU / 120 GB (`16384` / `122880`) | 80 GB / 8 GB | 2 x db.r8g.4xlarge | 3 x `r8g.2xlarge.search`, 250 GB |
 
 Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).
@@ -29,7 +29,7 @@ Aurora storage grows on its own, from about 128 GB at M, 256 GB at L and 512 GB 
 grow to about 500 GB, 1 TB and 2 TB. EFS uses Elastic throughput and grows with use: plan for 200 to 500 GB
 at M, 500 GB to 1.5 TB at L and 1.5 to 4 TB at XL.
 
-> **Smaller deployments?** For < 2,000 applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
+> **Smaller deployments?** For < 2k applications with a single instance, use the [Single Instance](../infra-aws/) architecture.
 
 > **Heap dumps.** The first out-of-memory error on any task writes a heap dump to
 > `/sonatype-work/heap-dump.hprof`, one file on the shared storage, and the JVM exits; a later one skips
