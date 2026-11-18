@@ -10,13 +10,13 @@ Sizing, the JVM rules, OpenSearch planning and the shared troubleshooting table 
 
 This single-instance architecture supports sizes **XS**, **S**, and **M**:
 
-| Size | Applications | Typical evaluations/day | Evaluations an hour per node | Container (workload profile) | Java heap / direct memory | Database | OpenSearch |
-|------|:------------:|:---------------:|:----------------------------:|:----------------------------:|:-------------------------:|:--------:|:----------:|
-| **XS** | < 500 | ~2.5k | ~100 | 3.5 vCPU / 14 GB (D4) | 8 GB / 2 GB | GP_Standard_D2ds_v6, 64 GB | 1 x `Standard_D2pls_v6` |
-| **S** | 500 - 2k | ~5k | ~150 | 3.5 vCPU / 30 GB (E4) | 18 GB / 4 GB | MO_Standard_E2ds_v6, 128 GB | 1 x `Standard_D2ps_v6` |
-| **M** | 2k - 20k | ~10k | ~250 | 7.5 vCPU / 30 GB (D8) | 18 GB / 4 GB | MO_Standard_E4ds_v6, 128 GB, grows automatically | 3 x `Standard_D2ps_v6`, 3 managers |
+| Size | Applications | Evaluations per day, hour | Container (workload profile) | Java heap / direct memory | Database | OpenSearch |
+|------|:------------:|:---------------:|:----------------------------:|:-------------------------:|:--------:|:----------:|
+| **XS** | < 500 | ~2.5k, 100 | 3.5 vCPU / 14 GB (D4) | 8 GB / 2 GB | GP_Standard_D2ds_v6, 64 GB | 1 x `Standard_D2pls_v6` |
+| **S** | 500 - 2k | ~5k, 150 | 3.5 vCPU / 30 GB (E4) | 18 GB / 4 GB | MO_Standard_E2ds_v6, 128 GB | 1 x `Standard_D2ps_v6` |
+| **M** | 2k - 10k | ~7.5k, 250 | 7.5 vCPU / 30 GB (D8) | 18 GB / 4 GB | MO_Standard_E4ds_v6, 128 GB, grows automatically | 3 x `Standard_D2ps_v6`, 3 managers |
 
-Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
+Evaluations per day, hour are typical figures for the whole cluster on a normal day, a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).
 
 Each container leaves 0.5 vCPU and 2 GB of its node, because Container Apps keeps part of every node for itself
@@ -28,7 +28,7 @@ The heap rule, and why the heap is 8 GB at XS and 18 GB at S and M, are in [JVM 
 Shared storage is an Azure Files share over SMB, Standard tier and LRS (`storage_account_tier`,
 `storage_account_replication_type`), with a 500 GB quota (`file_share_quota`).
 
-> **Need more capacity?** For 20k+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
+> **Need more capacity?** For 10k+ applications or multi-node deployments, use the [High Availability](../infra-azure-ha/) or [Kubernetes](../infra-azure-ha-k8s-helm/) architectures.
 
 > **HA is recommended at M.** Run M on this single-instance architecture only where downtime for upgrades and restarts is acceptable.
 

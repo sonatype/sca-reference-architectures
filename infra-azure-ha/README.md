@@ -10,13 +10,13 @@ Sizing, the JVM rules, OpenSearch planning and the shared troubleshooting table 
 
 This HA architecture supports sizes **M**, **L**, and **XL**:
 
-| Size | Applications | Typical evaluations/day | Evaluations an hour per node | Replicas (min / max) | Replica (workload profile) | Java heap / direct memory | Database | Shared storage | OpenSearch |
-|------|:------------:|:---------------:|:----------------------------:|:--------------------:|:--------------------------:|:-------------------------:|:--------:|:--------------:|:----------:|
-| **M** | 2k - 20k | ~10k | ~250 | 2 / 3 | 7.5 vCPU / 30 GB (D8) | 20 GB / 4 GB | MO_Standard_E4ds_v6, 128 GB | Standard HDD, 500 GB | 3 x `Standard_D2ps_v6` |
-| **L** | 20k - 40k | ~15k | ~350 | 2 / 4 | 15.5 vCPU / 62 GB (D16) | 41 GB / 8 GB | MO_Standard_E8ds_v6, 256 GB, P15 | Standard HDD, 1,536 GB | 3 x `Standard_D4ps_v6` |
-| **XL** | 40k - 100k | ~25k | ~450 | 3 / 5 | 15.5 vCPU / 126 GB (E16) | 80 GB / 8 GB | MO_Standard_E16ds_v6, 512 GB, P20 | Premium SSD, 4,096 GB | 3 x `Standard_E8ps_v6` |
+| Size | Applications | Evaluations per day, hour | Replicas (min / max) | Replica (workload profile) | Java heap / direct memory | Database | Shared storage | OpenSearch |
+|------|:------------:|:---------------:|:--------------------:|:--------------------------:|:-------------------------:|:--------:|:--------------:|:----------:|
+| **M** | 2k - 10k | ~7.5k, 250 | 2 / 3 | 7.5 vCPU / 30 GB (D8) | 20 GB / 4 GB | MO_Standard_E4ds_v6, 128 GB | Standard HDD, 500 GB | 3 x `Standard_D2ps_v6` |
+| **L** | 10k - 30k | ~15k, 350 | 2 / 4 | 15.5 vCPU / 62 GB (D16) | 41 GB / 8 GB | MO_Standard_E8ds_v6, 256 GB, P15 | Standard HDD, 1,536 GB | 3 x `Standard_D4ps_v6` |
+| **XL** | 30k - 100k | ~25k, 450 | 3 / 5 | 15.5 vCPU / 126 GB (E16) | 80 GB / 8 GB | MO_Standard_E16ds_v6, 512 GB, P20 | Premium SSD, 4,096 GB | 3 x `Standard_E8ps_v6` |
 
-Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning,
+Evaluations per day, hour are typical figures for the whole cluster on a normal day, a guide for planning,
 not a limit, as in the top README's [Sizing Guide](../README.md#sizing-guide).
 
 The values for each size are in [`examples/<size>.tfvars`](./examples/), which the top-level `deploy.sh`

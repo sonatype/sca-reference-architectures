@@ -97,19 +97,19 @@ For HTTPS access, prepare:
 
 Choose your deployment size based on your application count and daily evaluation volume:
 
-| Size | Applications | Typical evaluations/day | Evaluations an hour per node ³ | IQ Server nodes | Compute (per node) | Database (AWS) | HA Required | OpenSearch data nodes (AWS) |
-|------|:------------:|:---------------:|:------------------------------:|:---------------:|:------------------:|:--------------:|:-----------:|:---------------------:|
-| **XS** | < 500 | ~2.5k | ~100 | 1 | 2 vCPU / 16 GB | db.m8g.large (2 vCPU / 8 GB) | No | 1 x m8g.medium.search ¹ ² |
-| **S** | 500 - 2k | ~5k | ~150 | 1 | 4 vCPU / 32 GB | db.r8g.large (2 vCPU / 16 GB) | No | 1 x m8g.large.search ¹ ² |
-| **M** | 2k - 20k | ~10k | ~250 | 2 to 3 | 8 vCPU / 32 GB | db.r8g.xlarge (4 vCPU / 32 GB) | Recommended | 3 x m8g.large.search ¹ |
-| **L** | 20k - 40k | ~15k | ~350 | 2 to 4 | 16 vCPU / 64 GB | db.r8g.2xlarge (8 vCPU / 64 GB) | Required | 3 x m8g.xlarge.search ¹ |
-| **XL** | 40k - 100k | ~25k | ~450 | 3 to 5 | 16 vCPU / 128 GB | db.r8g.4xlarge (16 vCPU / 128 GB) | Required | 3 x r8g.2xlarge.search ¹ |
+| Size | Applications | Evaluations per day, hour ³ | IQ Server nodes | Compute (per node) | Database (AWS) | HA Required | OpenSearch data nodes (AWS) |
+|------|:------------:|:---------------:|:---------------:|:------------------:|:--------------:|:-----------:|:---------------------:|
+| **XS** | < 500 | ~2.5k, 100 | 1 | 2 vCPU / 16 GB | db.m8g.large (2 vCPU / 8 GB) | No | 1 x m8g.medium.search ¹ ² |
+| **S** | 500 - 2k | ~5k, 150 | 1 | 4 vCPU / 32 GB | db.r8g.large (2 vCPU / 16 GB) | No | 1 x m8g.large.search ¹ ² |
+| **M** | 2k - 10k | ~7.5k, 250 | 2 to 3 | 8 vCPU / 32 GB | db.r8g.xlarge (4 vCPU / 32 GB) | Recommended | 3 x m8g.large.search ¹ |
+| **L** | 10k - 30k | ~15k, 350 | 2 to 4 | 16 vCPU / 64 GB | db.r8g.2xlarge (8 vCPU / 64 GB) | Required | 3 x m8g.xlarge.search ¹ |
+| **XL** | 30k - 100k | ~25k, 450 | 3 to 5 | 16 vCPU / 128 GB | db.r8g.4xlarge (16 vCPU / 128 GB) | Required | 3 x r8g.2xlarge.search ¹ |
 
 > ¹ OpenSearch is part of every size, and Terraform creates it. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
 
 > ² A future IQ Server release is expected to let smaller deployments run Nexus One without OpenSearch. Until then, OpenSearch is required as described below.
 
-> ³ Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning, not a limit.
+> ³ Evaluations per day, hour are typical figures for the whole cluster on a normal day, a guide for planning, not a limit.
 
 The Database and OpenSearch columns give the AWS types. Azure uses a database class with the same vCPU and memory at every size, and GCP does at M, L and XL; at XS and S the GCP class has the same vCPU and less memory, 7.5 GB and 13 GB against 8 GB and 16 GB. The classes are listed in [Database Instance Comparison](#database-instance-comparison) for M, L and XL and in [Detailed Specifications](#detailed-specifications) for XS and S, and their OpenSearch node types are in [Per-size cluster specification](#per-size-cluster-specification). The Java heap for each platform is in [JVM Configuration](#jvm-configuration).
 
@@ -234,10 +234,10 @@ The three cloud tables carry the same rows. XS and S are single instance sizes; 
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
-| **Applications** | 2k - 20k | 20k - 40k | 40k - 100k |
+| **Applications** | 2k - 10k | 10k - 30k | 30k - 100k |
 | **Number of IQ Server nodes** | 2 to 3 | 2 to 4 | 3 to 5 |
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
-| **Typical evaluations/day** | ~10k | ~15k | ~25k |
+| **Evaluations per day, hour** | ~7.5k, 250 | ~15k, 350 | ~25k, 450 |
 | **Compute** | | | |
 | Instance type | Fargate: 8 vCPU, 32 GB task. EKS: m8g.2xlarge (ARM) or m8i.2xlarge (x86) node | Fargate: 16 vCPU, 64 GB task. EKS: m8g.4xlarge (ARM) or m8i.4xlarge (x86) node | Fargate: 16 vCPU, 120 GB task. EKS: r9g.4xlarge (ARM) or r8i.4xlarge (x86) node |
 | Memory for IQ Server | 32 GB Fargate task, 26 GB EKS pod | 64 GB Fargate task, 56 GB EKS pod | 120 GB Fargate task, 112 GB EKS pod |
@@ -272,10 +272,10 @@ On EKS the Application Load Balancer is created by the AWS Load Balancer Control
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
-| **Applications** | 2k - 20k | 20k - 40k | 40k - 100k |
+| **Applications** | 2k - 10k | 10k - 30k | 30k - 100k |
 | **Number of IQ Server nodes** | 2 to 3 | 2 to 4 | 3 to 5 |
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
-| **Typical evaluations/day** | ~10k | ~15k | ~25k |
+| **Evaluations per day, hour** | ~7.5k, 250 | ~15k, 350 | ~25k, 450 |
 | **Compute** | | | |
 | Instance type | Container Apps: D8 workload profile, 8 vCPU, 32 GB. AKS: Standard_D8ps_v6 (ARM) or Standard_D8s_v6 (x86) node | Container Apps: D16 workload profile, 16 vCPU, 64 GB. AKS: Standard_D16ps_v6 (ARM) or Standard_D16s_v6 (x86) node | Container Apps: E16 workload profile, 16 vCPU, 128 GB. AKS: Standard_E16ps_v6 (ARM) or Standard_E16s_v7 (x86) node |
 | Memory for IQ Server | 30 GB replica, 26 GB AKS pod | 62 GB replica, 56 GB AKS pod | 126 GB replica, 110 GB AKS pod |
@@ -311,10 +311,10 @@ On EKS the Application Load Balancer is created by the AWS Load Balancer Control
 
 |  | **Size M** | **Size L** | **Size XL** |
 |--|-----------|-----------|------------|
-| **Applications** | 2k - 20k | 20k - 40k | 40k - 100k |
+| **Applications** | 2k - 10k | 10k - 30k | 30k - 100k |
 | **Number of IQ Server nodes** | 2 to 3 | 2 to 4 | 3 to 5 |
 | **Deployment type** | HA recommended; single instance only where downtime is acceptable | HA required | HA required |
-| **Typical evaluations/day** | ~10k | ~15k | ~25k |
+| **Evaluations per day, hour** | ~7.5k, 250 | ~15k, 350 | ~25k, 450 |
 | **Compute** | | | |
 | Instance type | n4a-standard-8 (ARM Google Axion), 8 vCPU, 32 GB | n4a-standard-16 (ARM Google Axion), 16 vCPU, 64 GB | n4a-highmem-16 (ARM Google Axion), 16 vCPU, 128 GB |
 | Memory for IQ Server | 32 GB VM, 26 GB GKE pod | 64 GB VM, 56 GB GKE pod | 128 GB VM, 110 GB GKE pod |
@@ -534,7 +534,7 @@ iq_license_file = "CHANGE_ME" # path to your IQ Server license file (.lic)
 
 ---
 
-#### Size M: Medium (2k - 20k applications)
+#### Size M: Medium (2k - 10k applications)
 
 Production deployment. HA (2 to 3 nodes) is recommended. A single instance fits only where downtime for upgrades and restarts is acceptable.
 
@@ -805,7 +805,7 @@ hpa:
 
 ---
 
-#### Size L: Large (20k - 40k applications)
+#### Size L: Large (10k - 30k applications)
 
 High-availability production deployment. Runs 2 to 4 nodes.
 
@@ -1011,7 +1011,7 @@ hpa:
 
 ---
 
-#### Size XL: Extra Large (40k - 100k applications)
+#### Size XL: Extra Large (30k - 100k applications)
 
 Enterprise-scale HA deployment. Runs 3 to 5 nodes with larger instances.
 
