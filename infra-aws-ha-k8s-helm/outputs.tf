@@ -168,13 +168,8 @@ output "helm_installation_command" {
 }
 
 output "cloudwatch_log_group" {
-  description = "Name of the unified CloudWatch log group for all IQ Server logs"
-  value       = aws_cloudwatch_log_group.iq_logs.name
-}
-
-output "fluentd_irsa_role_arn" {
-  description = "IAM Role ARN for Fluentd IRSA (to be annotated on ServiceAccount)"
-  value       = aws_iam_role.fluentd_irsa.arn
+  description = "CloudWatch log group that receives the IQ Server pods' stdout, through the CloudWatch Observability add-on"
+  value       = aws_cloudwatch_log_group.container_insights["application"].name
 }
 
 output "search_engine" {
@@ -195,6 +190,11 @@ output "opensearch_domain_name" {
 output "opensearch_index_replicas" {
   description = "Replicas per shard written to config.yml as search.nexusOneIndexReplicas. Null when search_engine is lucene"
   value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
+}
+
+output "opensearch_data_node_count" {
+  description = "Data nodes in the OpenSearch domain IQ Server uses, opensearch_instance_count. iq-post-deploy.sh sets each Nexus One index's shard count to it. Null when search_engine is lucene"
+  value       = var.search_engine == "opensearch" ? var.opensearch_instance_count : null
 }
 
 output "iq_server_irsa_role_arn" {

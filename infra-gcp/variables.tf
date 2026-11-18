@@ -64,9 +64,9 @@ variable "allowed_ssh_cidrs" {
 
 # GCE Variables
 variable "gce_machine_type" {
-  description = "GCE machine type for Nexus IQ Server (n4a-highmem-8 = 8 vCPU, 64GB RAM)"
+  description = "GCE machine type for Nexus IQ Server (n4a-standard-8 = 8 vCPU, 32 GB RAM)"
   type        = string
-  default     = "n4a-highmem-8"
+  default     = "n4a-standard-8"
 }
 
 variable "gce_boot_image" {
@@ -90,7 +90,7 @@ variable "iq_desired_count" {
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:latest"
+  default     = "sonatype/nexus-iq-server:1.209.0"
 }
 
 # Database Variables
@@ -117,6 +117,17 @@ variable "db_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in Secret Manager, which the instance startup script reads, and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "postgres_version" {
   description = "PostgreSQL major version. Cloud SQL cannot downgrade a major version in place."
   type        = string
@@ -124,9 +135,9 @@ variable "postgres_version" {
 }
 
 variable "db_instance_tier" {
-  description = "Cloud SQL instance tier. The default is the Size M value, 8 vCPU and 64 GB on the N4 series, which takes only HYPERDISK_BALANCED storage. XS and S use the db-custom-2-* tiers on PD_SSD."
+  description = "Cloud SQL instance tier. The default is the Size M value, 4 vCPU and 32 GB on the N4 series, which takes only HYPERDISK_BALANCED storage. XS and S use the db-custom-2-* tiers on PD_SSD."
   type        = string
-  default     = "db-custom-N4-8-65536"
+  default     = "db-custom-N4-4-32768"
 }
 
 variable "db_disk_type" {
@@ -147,9 +158,9 @@ variable "db_disk_provisioned_iops" {
 }
 
 variable "db_disk_provisioned_throughput" {
-  description = "Provisioned throughput in MiB/s for a HYPERDISK_BALANCED data disk. Ignored on PD_SSD and PD_HDD. The default is the Size M value. Both values keep the 170 MiB/s per 4,000 IOPS of the Cloud SQL Hyperdisk default. Hyperdisk Balanced takes from the larger of 140 and IOPS / 256 up to the smaller of 2400 and IOPS / 4. Set together with db_disk_provisioned_iops: both null leaves them to Cloud SQL."
+  description = "Provisioned throughput in MiB/s for a HYPERDISK_BALANCED data disk. Ignored on PD_SSD and PD_HDD. The default is the Size M value, 240 (252 MB/s), the most Cloud SQL allows at 4 vCPU. Hyperdisk Balanced takes from the larger of 140 and IOPS / 256 up to the smaller of 2,400 and IOPS / 4. Set together with db_disk_provisioned_iops: both null leaves them to Cloud SQL."
   type        = number
-  default     = 340
+  default     = 240
 }
 
 variable "db_edition" {
@@ -229,27 +240,37 @@ variable "db_deletion_protection" {
 }
 
 # Storage Variables
-variable "filestore_zone" {
-  description = "Zone for Filestore instance"
-  type        = string
-  default     = "us-central1-a"
-}
-
 variable "filestore_tier" {
-  description = "Filestore tier. BASIC_HDD is recommended for cost efficiency. For higher IOPS, provision 10+ TiB to unlock the higher performance tier, or use BASIC_SSD."
+  description = "Filestore service tier. REGIONAL keeps the share in every zone of gcp_region and takes a fixed IOPS figure from filestore_max_iops."
   type        = string
-  default     = "BASIC_HDD"
+  default     = "REGIONAL"
 
   validation {
-    condition     = contains(["BASIC_HDD", "BASIC_SSD", "HIGH_SCALE_SSD"], var.filestore_tier)
-    error_message = "Filestore tier must be one of: BASIC_HDD, BASIC_SSD, HIGH_SCALE_SSD."
+    condition     = var.filestore_tier == "REGIONAL"
+    error_message = "filestore_tier must be REGIONAL, the tier this architecture is built and sized for."
   }
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB"
+  description = "Filestore capacity in GB. 500 at Size XS, S and M. Regional takes 100 to 10,239 in steps of 1 GB."
   type        = number
-  default     = 1024
+  default     = 500
+
+  validation {
+    condition     = var.filestore_capacity_gb >= 100 && var.filestore_capacity_gb <= 10239 && floor(var.filestore_capacity_gb) == var.filestore_capacity_gb
+    error_message = "filestore_capacity_gb must be a whole number from 100 to 10239 for a Regional instance."
+  }
+}
+
+variable "filestore_max_iops" {
+  description = "Fixed read IOPS bought for the Filestore instance: 4,000 at Size XS and S, 8,000 at Size M. Write IOPS is 30% of this, and throughput follows it. A Regional instance takes 4,000 to 17,000 per TB of capacity and at least 2,000."
+  type        = number
+  default     = 8000
+
+  validation {
+    condition     = var.filestore_max_iops >= 2000 && var.filestore_max_iops % 1000 == 0
+    error_message = "filestore_max_iops must be a multiple of 1000 and at least 2000."
+  }
 }
 
 # Load Balancer Variables
@@ -273,7 +294,7 @@ variable "domain_name" {
 variable "java_opts" {
   description = "Java options for Nexus IQ Server"
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 # Search Backend
@@ -282,13 +303,12 @@ variable "java_opts" {
 # needs a cluster you run yourself, named by opensearch_endpoint.
 
 variable "search_engine" {
-  description = "Which search backend Nexus IQ Server uses: \"lucene\" (default, the built-in index, nothing else to run) or \"opensearch\" (a self-managed OpenSearch cluster, whose host must be supplied in opensearch_endpoint)."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 

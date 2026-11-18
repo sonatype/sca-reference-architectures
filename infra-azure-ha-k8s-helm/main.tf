@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -52,7 +56,7 @@ locals {
   resource_group_name = "rg-${var.cluster_name}"
   availability_zones  = ["1", "2", "3"]
   opensearch_enabled  = var.search_engine == "opensearch"
-  opensearch_uri      = "${var.opensearch_use_tls ? "https" : "http"}://${var.opensearch_endpoint}:${var.opensearch_port}"
+  opensearch_uri      = "${var.opensearch_use_tls ? "https" : "http"}://${local.os_endpoint}:${var.opensearch_port}"
 
   common_tags = merge({
     project     = "nexus-iq-server-ha"
@@ -71,18 +75,18 @@ resource "azurerm_resource_group" "iq_rg" {
 
   lifecycle {
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_endpoint) > 0
-      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch'."
+      condition     = var.search_engine != "opensearch" || local.opensearch_create || length(var.opensearch_endpoint) > 0
+      error_message = "opensearch_endpoint must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
 
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_username) > 0
-      error_message = "opensearch_username must be set when search_engine is 'opensearch'."
+      condition     = var.search_engine != "opensearch" || local.opensearch_create || length(var.opensearch_username) > 0
+      error_message = "opensearch_username must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
 
     precondition {
-      condition     = var.search_engine != "opensearch" || length(var.opensearch_password) > 0
-      error_message = "opensearch_password must be set when search_engine is 'opensearch'."
+      condition     = var.search_engine != "opensearch" || local.opensearch_create || length(var.opensearch_password) > 0
+      error_message = "opensearch_password must be set when search_engine is 'opensearch' and opensearch_create is false."
     }
   }
 }

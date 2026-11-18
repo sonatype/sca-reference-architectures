@@ -76,15 +76,15 @@ variable "ecs_cpu" {
 }
 
 variable "ecs_memory" {
-  description = "Memory for ECS task in MiB. The default is the Size M value, the most Fargate allows at 8192 CPU."
+  description = "Memory for ECS task in MiB. The default is the Size M value, 32 GB at 8 vCPU. Size L is 65536 at 16 vCPU."
   type        = number
-  default     = 61440
+  default     = 32768
 }
 
 variable "ecs_memory_reservation" {
-  description = "Soft memory limit for the IQ Server container in MiB. The default is the Size M and L heap plus direct memory, 44 GB and 8 GB."
+  description = "Soft memory limit for the IQ Server container in MiB. The default is the Size M heap plus direct memory, 20 GB and 4 GB."
   type        = number
-  default     = 53248
+  default     = 24576
 }
 
 variable "enable_container_insights" {
@@ -95,9 +95,9 @@ variable "enable_container_insights" {
 
 
 variable "iq_desired_count" {
-  description = "Desired number of IQ Server tasks (HA requires minimum 2)"
+  description = "Number of IQ Server tasks the service starts with. Set it to iq_min_count: 2 at Size M and L, 3 at Size XL. HA requires at least 2."
   type        = number
-  default     = 3
+  default     = 2
 
   validation {
     condition     = var.iq_desired_count >= 2
@@ -106,7 +106,7 @@ variable "iq_desired_count" {
 }
 
 variable "iq_min_count" {
-  description = "Minimum number of IQ Server tasks for auto scaling"
+  description = "Minimum number of IQ Server tasks for auto scaling: 2 at Size M and L, 3 at Size XL. HA requires at least 2."
   type        = number
   default     = 2
 
@@ -117,9 +117,14 @@ variable "iq_min_count" {
 }
 
 variable "iq_max_count" {
-  description = "Maximum number of IQ Server tasks for auto scaling"
+  description = "Maximum number of IQ Server tasks for auto scaling: 3 at Size M, 4 at Size L, 5 at Size XL. Must be at least iq_min_count."
   type        = number
-  default     = 4
+  default     = 2
+
+  validation {
+    condition     = var.iq_max_count >= 2
+    error_message = "iq_max_count must be at least 2, and at least iq_min_count."
+  }
 }
 
 variable "iq_cpu_target_value" {
@@ -137,13 +142,13 @@ variable "iq_memory_target_value" {
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:latest"
+  default     = "sonatype/nexus-iq-server:1.209.0"
 }
 
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -170,6 +175,17 @@ variable "db_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in Secrets Manager and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "aurora_engine_version" {
   description = "Aurora PostgreSQL engine version. The parameter group family follows its major version."
   type        = string
@@ -177,9 +193,9 @@ variable "aurora_engine_version" {
 }
 
 variable "aurora_instance_class" {
-  description = "Aurora instance class. The default is the Size M and L value; Size XL uses db.r8g.4xlarge."
+  description = "Aurora instance class. The default is the Size M value; Size L uses db.r8g.2xlarge and Size XL db.r8g.4xlarge."
   type        = string
-  default     = "db.r8g.2xlarge"
+  default     = "db.r8g.xlarge"
 }
 
 variable "aurora_instances" {
@@ -297,13 +313,12 @@ variable "common_tags" {
 # names one. The defaults are the Size M shape; README.md gives L and XL.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server: \"lucene\" (default) uses the index built into IQ Server and needs nothing else, \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an AWS-managed OpenSearch domain, created here unless opensearch_domain_endpoint names an existing one, and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 
@@ -338,7 +353,7 @@ variable "opensearch_instance_type" {
 }
 
 variable "opensearch_instance_count" {
-  description = "Data nodes in the created domain. Three is the smallest count that can place a replica and spread across three availability zones, so a single-node domain is for a deployment that does neither."
+  description = "Data nodes in the created domain. Three is the smallest count that can place a replica and spread across three availability zones, so a single-node domain is for a deployment that does neither. iq-post-deploy.sh sets each Nexus One index's shard count to this number, so with opensearch_domain_endpoint set, give it the existing domain's data node count."
   type        = number
   default     = 3
 
@@ -365,7 +380,7 @@ variable "opensearch_volume_size_gb" {
 
     The index needs room for more than one copy of itself: a replica doubles it,
     and a rebuild needs free disk for a second copy of the index. AWS also
-    reserves 20% of each volume, capped at 20 GiB.
+    reserves 20% of each volume, capped at 20 GB.
 
     See the OpenSearch section of this directory's README.md for the size each
     tier needs.

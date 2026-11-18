@@ -124,6 +124,12 @@ environment    = "dev"
 # Database Configuration
 db_password = "CHANGE_ME_STRONG_PASSWORD"
 
+# IQ Server's admin password, at least 12 characters, read on its first start only
+iq_admin_initial_password = "CHANGE_ME"
+
+# Search backend: "opensearch" for Nexus One, or "lucene" to run without it
+search_engine = "CHANGE_ME"
+
 # Network Configuration (optional - defaults will be used if not specified)
 # vpc_cidr              = "10.100.0.0/16"
 # public_subnet_cidr    = "10.100.1.0/24"
@@ -489,6 +495,11 @@ main() {
         fi
         
         run_terraform_apply
+        # One-time IQ Server settings, such as the Nexus One shard counts
+        if ! "$TERRAFORM_DIR/iq-post-deploy.sh"; then
+            print_error "Post-deploy settings did not complete. The infrastructure is deployed: fix the cause above, then run ./iq-post-deploy.sh"
+            exit 1
+        fi
         show_deployment_summary
     else
         print_status "Dry run completed. Review the plan above."

@@ -70,8 +70,8 @@ output "db_instance_endpoint" {
 }
 
 output "db_instance_id" {
-  description = "RDS instance ID"
-  value       = aws_db_instance.iq_db.id
+  description = "RDS instance identifier, the name describe-db-instances and CloudWatch take"
+  value       = aws_db_instance.iq_db.identifier
 }
 
 output "db_instance_port" {
@@ -155,4 +155,9 @@ output "opensearch_domain_name" {
 output "opensearch_index_replicas" {
   description = "Replicas per shard written to config.yml as search.nexusOneIndexReplicas. Null when search_engine is lucene"
   value       = var.search_engine == "opensearch" ? var.opensearch_index_replicas : null
+}
+
+output "opensearch_data_node_count" {
+  description = "Data nodes in the OpenSearch domain IQ Server uses, opensearch_instance_count. iq-post-deploy.sh sets each Nexus One index's shard count to it. Null when search_engine is lucene"
+  value       = var.search_engine == "opensearch" ? var.opensearch_instance_count : null
 }

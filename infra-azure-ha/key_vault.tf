@@ -117,7 +117,7 @@ resource "azurerm_key_vault_secret" "db_name" {
 resource "azurerm_key_vault_secret" "opensearch_username" {
   count        = local.opensearch_enabled ? 1 : 0
   name         = "opensearch-username"
-  value        = var.opensearch_username
+  value        = local.os_username
   key_vault_id = azurerm_key_vault.iq_kv_ha.id
 
   depends_on = [azurerm_key_vault_access_policy.current_user]
@@ -130,7 +130,7 @@ resource "azurerm_key_vault_secret" "opensearch_username" {
 resource "azurerm_key_vault_secret" "opensearch_password" {
   count        = local.opensearch_enabled ? 1 : 0
   name         = "opensearch-password"
-  value        = var.opensearch_password
+  value        = local.os_password
   key_vault_id = azurerm_key_vault.iq_kv_ha.id
 
   depends_on = [azurerm_key_vault_access_policy.current_user]

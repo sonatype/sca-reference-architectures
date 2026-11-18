@@ -1,0 +1,64 @@
+#!/bin/bash
+# Creates the role and user Nexus IQ Server authenticates as, through the security REST API.
+# Runs at every boot and is idempotent, so a password change is: add a new version of the
+# secret, then restart opensearch-iq-user.service on this node.
+set -uo pipefail
+umask 077
+H=https://${node_ip}:9200
+CA=/etc/opensearch/root-ca.pem
+W=$(mktemp -d)
+trap 'rm -rf "$W"' EXIT
+/usr/local/sbin/opensearch-secret "${admin_password_secret}" "$W/admin" || exit 1
+/usr/local/sbin/opensearch-secret "${iq_password_secret}" "$W/iq" || exit 1
+python3 - "$W" "${iq_username}" <<'PY'
+import json, sys
+w, user = sys.argv[1], sys.argv[2]
+esc = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
+admin = open(w + "/admin").read()
+iq = open(w + "/iq").read()
+open(w + "/admin.curlrc", "w").write('user = "admin:%s"\n' % esc(admin))
+open(w + "/iq.curlrc", "w").write('user = "%s:%s"\n' % (esc(user), esc(iq)))
+json.dump({"password": iq, "description": "Nexus IQ Server"}, open(w + "/user.json", "w"))
+json.dump({"users": [user]}, open(w + "/mapping.json", "w"))
+PY
+rq() { curl -s -o "$W/out" -w '%%{http_code}' --cacert "$CA" -K "$W/admin.curlrc" "$@"; }
+
+code=000
+for i in $(seq 1 180); do
+  code=$(rq "$H/_cluster/health?wait_for_status=yellow&timeout=20s")
+  [ "$code" = 200 ] && break
+  # The security index is normally created from the files on first start. If the cluster
+  # formed without it, initialize it once from those same files.
+  if [ "$i" = 30 ] && grep -q "not initialized" "$W/out" 2>/dev/null; then
+    OPENSEARCH_JAVA_HOME=/usr/share/opensearch/jdk bash /usr/share/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
+      -cd /etc/opensearch/opensearch-security -icl -nhnv -h ${node_ip} \
+      -cacert "$CA" -cert /etc/opensearch/admin.pem -key /etc/opensearch/admin-key.pem
+  fi
+  sleep 10
+done
+[ "$code" = 200 ] || { echo "cluster not healthy, last status $code"; exit 1; }
+
+%{ if data_node_count == 1 ~}
+# One data node cannot place a replica, and Nexus IQ Server creates its Advanced Search index
+# without a replica count, so the index would take the default of 1 and stay yellow. A persistent
+# cluster setting changes that default; the same key in opensearch.yml has no effect.
+c0=$(rq -X PUT -H 'Content-Type: application/json' "$H/_cluster/settings" -d '{"persistent":{"cluster.default_number_of_replicas":0}}')
+echo "default_replicas=$c0"
+[ "$c0" -lt 300 ] || { cat "$W/out"; exit 1; }
+
+%{ endif ~}
+ROLE='{"cluster_permissions":["cluster_composite_ops","cluster_monitor","cluster:monitor/*","indices:data/read/scroll*","cluster:admin/opensearch/ql/datasources/read"],"index_permissions":[{"index_patterns":["*"],"allowed_actions":["indices_all"]}]}'
+c1=$(rq -X PUT -H 'Content-Type: application/json' "$H/_plugins/_security/api/roles/iq_index_manager" -d "$ROLE")
+[ "$c1" -lt 300 ] || cat "$W/out"
+c2=$(rq -X PUT -H 'Content-Type: application/json' "$H/_plugins/_security/api/internalusers/${iq_username}" --data @"$W/user.json")
+# The response names the reason, for example a password the security plugin finds too weak.
+[ "$c2" -lt 300 ] || cat "$W/out"
+c3=$(rq -X PUT -H 'Content-Type: application/json' "$H/_plugins/_security/api/rolesmapping/iq_index_manager" --data @"$W/mapping.json")
+[ "$c3" -lt 300 ] || cat "$W/out"
+c4=$(curl -s -o /dev/null -w '%%{http_code}' --cacert "$CA" -K "$W/iq.curlrc" "$H/_cluster/health")
+echo "role=$c1 user=$c2 mapping=$c3 iq_user_health=$c4"
+for c in "$c1" "$c2" "$c3"; do
+  case "$c" in 200|201) ;; *) exit 1 ;; esac
+done
+[ "$c4" = 200 ] || exit 1
+echo "IQ_USER_READY ${iq_username}"

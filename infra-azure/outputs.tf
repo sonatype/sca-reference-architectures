@@ -127,5 +127,5 @@ output "opensearch_uri" {
 
 output "opensearch_index_replicas" {
   description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
-  value       = local.opensearch_enabled ? var.opensearch_index_replicas : null
+  value       = local.opensearch_enabled ? local.os_replicas : null
 }

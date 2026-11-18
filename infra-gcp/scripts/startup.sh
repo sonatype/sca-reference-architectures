@@ -3,7 +3,63 @@ set -e
 
 echo "=== Starting Nexus IQ Server Docker Installation ==="
 
-apt-get update
+echo "=== Booting the newest kernel before IQ Server starts ==="
+# Debian 12's kernel 6.1.192-1 can fault in ext4 under memory pressure and hang the boot disk
+# (Debian bug 1154108, fixed in 6.1.192-2), and a boot image can still ship it. So the VM installs
+# the newest kernel the distribution offers and reboots into it before IQ Server starts. It reboots
+# at most once for each kernel, and IQ Server is never started on a kernel in KNOWN_BAD_KERNELS.
+export DEBIAN_FRONTEND=noninteractive
+KNOWN_BAD_KERNELS="6.1.192-1"
+KERNEL_PKG="linux-image-cloud-$(dpkg --print-architecture)"
+REBOOT_MARKER=/var/lib/nexus-iq-kernel-reboot
+is_known_bad() {
+  for bad in $KNOWN_BAD_KERNELS; do
+    if [ "$1" = "$bad" ]; then return 0; fi
+  done
+  return 1
+}
+RUNNING_BUILD=$(uname -v | sed -n 's/.* Debian \([^ ]*\) .*/\1/p')
+
+# The security mirror can time out on a first boot. apt reports that only as an "Ign" or "Err"
+# line and then offers no newer kernel, so the index is fetched again until the security suite
+# arrives.
+SECURITY_INDEX_FETCHED=no
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update >/tmp/apt-update.log 2>&1 &&
+    ! grep -Eq '^(Ign|Err):.*-security' /tmp/apt-update.log; then
+    SECURITY_INDEX_FETCHED=yes
+    break
+  fi
+  echo "The security package index was not fetched (attempt $attempt of 10), retrying in 30 seconds"
+  sleep 30
+done
+cat /tmp/apt-update.log
+
+if dpkg -s "$KERNEL_PKG" >/dev/null 2>&1; then
+  if [ "$SECURITY_INDEX_FETCHED" = yes ]; then
+    apt-get -o DPkg::Lock::Timeout=300 install -y --only-upgrade "$KERNEL_PKG"
+  fi
+  RUNNING_KERNEL=$(uname -r)
+  NEWEST_KERNEL=$(linux-version list | linux-version sort | tail -n 1)
+  INSTALLED_BUILD=$(dpkg-query -W -f='$${Version}' "linux-image-$RUNNING_KERNEL" 2>/dev/null || true)
+  if [ "$NEWEST_KERNEL" != "$RUNNING_KERNEL" ] ||
+    { is_known_bad "$RUNNING_BUILD" && ! is_known_bad "$INSTALLED_BUILD"; }; then
+    REBOOT_TO="$NEWEST_KERNEL $INSTALLED_BUILD"
+    if [ "$(cat "$REBOOT_MARKER" 2>/dev/null || true)" != "$REBOOT_TO" ]; then
+      echo "$REBOOT_TO" >"$REBOOT_MARKER"
+      echo "=== Rebooting from kernel $RUNNING_KERNEL ($RUNNING_BUILD) into $REBOOT_TO ==="
+      systemctl reboot
+      exit 0
+    fi
+    echo "Already rebooted once for kernel $REBOOT_TO, still running $RUNNING_KERNEL ($RUNNING_BUILD)"
+  fi
+fi
+if is_known_bad "$RUNNING_BUILD"; then
+  echo "FATAL: kernel $RUNNING_BUILD has a known ext4 fault and no fixed kernel could be installed."
+  echo "IQ Server is not started. Reset the VM to try again once the Debian security mirror answers."
+  exit 1
+fi
+
 apt-get install -y docker.io curl nfs-common
 
 systemctl enable docker
@@ -43,7 +99,8 @@ fi
 
 echo "=== Sending the IQ Server log files to Cloud Logging ==="
 # The container writes its logs to /var/log/nexus-iq-server, which is /mnt/sonatype-work/logs on
-# the host, and the Ops Agent reads them from there.
+# the host, and the Ops Agent reads them from there. The level at the start of each application
+# and audit log line becomes the entry's severity.
 cat > /etc/google-cloud-ops-agent/config.yaml << 'OPSAGENTEOF'
 logging:
   receivers:
@@ -59,10 +116,29 @@ logging:
       type: files
       include_paths:
       - /mnt/sonatype-work/logs/audit.log
+  processors:
+    iq_level:
+      type: parse_regex
+      field: message
+      regex: '^(?<message>\S+ \S+ (?<level>TRACE|DEBUG|INFO|WARN|ERROR)\s.*)$'
+    iq_severity:
+      type: modify_fields
+      fields:
+        severity:
+          move_from: jsonPayload.level
+          map_values:
+            TRACE: DEBUG
+            DEBUG: DEBUG
+            INFO: INFO
+            WARN: WARNING
+            ERROR: ERROR
   service:
     pipelines:
       iq_logs:
-        receivers: [iq_application_log, iq_request_log, iq_audit_log]
+        receivers: [iq_application_log, iq_audit_log]
+        processors: [iq_level, iq_severity]
+      iq_requests:
+        receivers: [iq_request_log]
 OPSAGENTEOF
 systemctl enable google-cloud-ops-agent
 systemctl restart google-cloud-ops-agent
@@ -88,6 +164,25 @@ gcloud secrets versions access latest \
 
 %{ endif ~}
 %{ endif ~}
+echo "=== Reading the IQ Server admin password from Secret Manager ==="
+IQ_ADMIN_PASSWORD=$(gcloud secrets versions access latest \
+  --secret="${iq_admin_password_secret}" \
+  --project="${gcp_project_id}")
+
+if [ -z "$IQ_ADMIN_PASSWORD" ]; then
+  echo "FATAL: could not read the IQ Server admin password from Secret Manager"
+  exit 1
+fi
+echo "IQ Server admin password read successfully"
+
+echo "=== Reading the IQ Server license from Secret Manager ==="
+gcloud secrets versions access latest \
+  --secret="${iq_license_secret}" \
+  --project="${gcp_project_id}" | base64 -d > /opt/iq-license.lic
+[ -s /opt/iq-license.lic ] || { echo "FATAL: could not read the IQ Server license from Secret Manager"; exit 1; }
+chmod 600 /opt/iq-license.lic
+echo "IQ Server license read successfully"
+
 echo "=== Creating Docker entrypoint script ==="
 cat > /opt/docker-entrypoint.sh << 'ENTRYPOINT_EOF'
 #!/bin/sh
@@ -202,6 +297,9 @@ sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 } >> /etc/nexus-iq-server/config.yml
 %{ endif ~}
 
+# IQ Server installs this license on start when it has none.
+echo "licenseFile: /etc/nexus-iq-server-license/license.lic" >> /etc/nexus-iq-server/config.yml
+
 echo "Successfully created config.yml with database configuration"
 # Every password line is redacted. This is the container's stdout, and scripts/startup.sh reads it
 # back with `docker logs`, so whatever is printed here also reaches the instance serial console and
@@ -260,12 +358,14 @@ docker run -d \
   -e DB_PASSWORD="${db_password}" \
   -e JAVA_OPTS="${java_opts}" \
   -e NEXUS_SECURITY_RANDOMPASSWORD="false" \
+  -e NXIQ_INITIAL_ADMIN_PASSWORD="$IQ_ADMIN_PASSWORD" \
 %{ if search_engine == "opensearch" ~}
   -e OPENSEARCH_PASSWORD="$OPENSEARCH_PASSWORD" \
 %{ endif ~}
   -v /mnt/sonatype-work/sonatype-work:/sonatype-work \
   -v /mnt/sonatype-work/logs:/var/log/nexus-iq-server \
   -v /opt/docker-entrypoint.sh:/docker-entrypoint.sh \
+  -v /opt/iq-license.lic:/etc/nexus-iq-server-license/license.lic:ro \
 %{ if opensearch_ca_secret != "" ~}
   -v /opt/opensearch-ca.pem:/etc/opensearch-ca.pem:ro \
 %{ endif ~}

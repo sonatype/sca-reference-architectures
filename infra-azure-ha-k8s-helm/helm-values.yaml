@@ -4,20 +4,20 @@
 
 iq_server:
   image: "sonatype/nexus-iq-server"
-  tag: "latest"
-  imagePullPolicy: "Always"
+  tag: "1.209.0"
+  imagePullPolicy: "IfNotPresent"
 
 
   resources:
     requests:
       cpu: "6"
-      memory: "48Gi"
+      memory: "25Gi"
     limits:
       cpu: "8"
-      memory: "56Gi"
+      memory: "26Gi"
 
 
-  javaOpts: "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  javaOpts: "-Xms17g -Xmx17g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 
   config:
@@ -45,6 +45,10 @@ iq_server:
         "software.amazon.awssdk": WARN
         "org.jooq.tools": WARN
         "org.jooq.Constants": "OFF"
+      # Every log goes to stdout, for Container insights, and to a per-pod file on the
+      # Azure Files share, where the support zip and the chart's cleanup job find it.
+      # The request, audit and policy-violation logs keep the chart's appenders, which
+      # do the same.
       appenders:
         - type: console
           threshold: INFO
@@ -52,8 +56,8 @@ iq_server:
         - type: file
           threshold: ALL
           logFormat: "%d{'yyyy-MM-dd HH:mm:ss,SSSZ'} %level [%thread] %X{username} %logger - %msg%n"
-          currentLogFilename: "/var/log/nexus-iq-server/clm-server.log"
-          archivedLogFilenamePattern: "/var/log/nexus-iq-server/clm-server-%d{yyyy-MM-dd-HH}.log.gz"
+          currentLogFilename: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server.log"
+          archivedLogFilenamePattern: "/sonatype-work/clm-cluster/log/${HOSTNAME}-clm-server-%d{yyyy-MM-dd-HH}.log.gz"
           archivedFileCount: 24
 
 
@@ -62,20 +66,41 @@ iq_server:
       value: "/sonatype-work/clm-cluster"
     - name: NEXUS_SECURITY_RANDOMPASSWORD
       value: "false"
+    # opensearch-ca-begin
+    - name: OPENSEARCH_CA_PEM
+      valueFrom:
+        secretKeyRef:
+          name: nexus-iq-opensearch-ca
+          key: ca.pem
+    # opensearch-ca-end
 
-    - name: DB_HOSTNAME
-      value: ""
-    - name: DB_PORT
-      value: "5432"
-    - name: DB_NAME
-      value: "nexusiq"
-    - name: DB_USERNAME
-      value: "nexusiq"
-    - name: DB_PASSWORD
-      value: ""
+
+  # A private certificate authority for the OpenSearch cluster. search-values.sh keeps the lines
+  # between the two markers only when there is one, and deletes them otherwise. Each pod copies
+  # the image's JVM trust store to /tmp, adds the authority to the copy, points the JVM at the
+  # copy, and then runs the image's own start script. Replacing the JVM's own store would break
+  # IQ Server's calls to the Sonatype data services.
+  # opensearch-ca-begin
+  command: ["/bin/sh", "-c"]
+  args:
+    - |
+      set -e
+      printf '%s\n' "$OPENSEARCH_CA_PEM" > /tmp/opensearch-ca.pem
+      JVM_CACERTS=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name cacerts -path "*lib/security*" -print 2>/dev/null | head -1)
+      KEYTOOL=$(find / \( -path /sonatype-work -o -path /proc -o -path /sys \) -prune -o -name keytool -type f -perm -u+x -print 2>/dev/null | head -1)
+      [ -n "$JVM_CACERTS" ] && [ -n "$KEYTOOL" ] || { echo "cacerts=$JVM_CACERTS keytool=$KEYTOOL, one is missing"; exit 1; }
+      cp "$JVM_CACERTS" /tmp/opensearch-cacerts
+      "$KEYTOOL" -importcert -noprompt -keystore /tmp/opensearch-cacerts -storepass changeit -alias opensearch-ca -file /tmp/opensearch-ca.pem
+      export JAVA_OPTS="$JAVA_OPTS -Djavax.net.ssl.trustStore=/tmp/opensearch-cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+      exec sh /opt/sonatype/nexus-iq-server/start.sh
+  # opensearch-ca-end
 
 
   licenseSecret: "nexus-iq-license"
+
+  # helm-install.sh creates this secret from iq_admin_initial_password. IQ Server
+  # reads it on its very first start only.
+  initialAdminPasswordSecret: "nexus-iq-initial-admin-password"
 
 
   database:
@@ -84,8 +109,6 @@ iq_server:
     name: "nexusiq"
     username: "nexusiq"
     password: ""
-    type: "postgresql"
-    migration: true
 
 
   persistence:
@@ -110,14 +133,16 @@ iq_server:
 
 
   # Number of IQ pods. The chart reads iq_server.replicas and defaults it to 2.
-  # This is the Size L value. Size M uses 2 and Size XL uses 4.
+  # This is the Size M value, the HPA minimum. Size L uses 2 and Size XL uses 3.
   # helm-install.sh overwrites it with nexus_iq_replica_count from terraform.tfvars.
-  replicas: 3
+  replicas: 2
 
 
 
 
 
+  # Spread the IQ pods across nodes. The chart labels each IQ pod
+  # name: <release>-iq-server, and the scripts install the release as nexus-iq-server-ha.
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -125,21 +150,15 @@ iq_server:
           podAffinityTerm:
             labelSelector:
               matchExpressions:
-                - key: app.kubernetes.io/name
+                - key: name
                   operator: In
                   values:
-                    - nexus-iq-server-ha
+                    - nexus-iq-server-ha-iq-server
             topologyKey: "kubernetes.io/hostname"
-
-
-  podDisruptionBudget:
-    enabled: true
-    minAvailable: 1
 
 
 serviceAccount:
   create: true
-  name: "nexus-iq-sa"
   annotations:
 
     azure.workload.identity/client-id: ""
@@ -159,23 +178,18 @@ ingress:
     appgw.ingress.kubernetes.io/health-probe-interval: "30"
     appgw.ingress.kubernetes.io/health-probe-timeout: "30"
     appgw.ingress.kubernetes.io/health-probe-unhealthy-threshold: "3"
-  hosts:
-    - host: ""
-      paths:
-        - path: /
-          pathType: Prefix
   tls: []
 
 
 # Horizontal pod autoscaler. The chart reads hpa.enabled, hpa.minReplicas and
 # hpa.maxReplicas, and renders the HPA only when a resource metric is enabled.
-# These are the Size L bounds. Size M is 2 to 3 and Size XL is 3 to 5.
+# These are the Size M bounds, 2 to 3. Size L is 2 to 4 and Size XL is 3 to 5.
 # Memory is left disabled because the JVM holds its heap, so memory utilization
 # stays near the limit and would scale out without bound.
 hpa:
   enabled: true
   minReplicas: 2
-  maxReplicas: 4
+  maxReplicas: 3
   resources:
     cpu:
       enabled: true
@@ -184,33 +198,6 @@ hpa:
     memory:
       enabled: false
 
-
-fluentd:
-  enabled: true
-
-
-  image:
-    repository: bitnamilegacy/fluentd
-    tag: "1.17.1-debian-12-r4"
-    pullPolicy: IfNotPresent
-
-
-  azureMonitor:
-    enabled: true
-    workspaceId: ""
-    logType: "nexus-iq-server"
-
-
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "200m"
-      memory: "256Mi"
-
-external-dns:
-  enabled: false
 
 # The database migration job runs once, as a post-install hook, so a helm upgrade does
 # not start it again while IQ Server is using the database. helm waits for a hook and
@@ -221,29 +208,3 @@ iq_server_jobs:
   migrationJobAnnotations:
     "helm.sh/hook": post-install
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-
-
-livenessProbe:
-  httpGet:
-    path: /ping
-    port: 8071
-  initialDelaySeconds: 120
-  periodSeconds: 60
-  timeoutSeconds: 10
-  failureThreshold: 3
-
-readinessProbe:
-  httpGet:
-    path: /ping
-    port: 8071
-  initialDelaySeconds: 60
-  periodSeconds: 30
-  timeoutSeconds: 10
-  failureThreshold: 3
-
-
-monitoring:
-  enabled: true
-  applicationInsights:
-    enabled: true
-    instrumentationKey: ""

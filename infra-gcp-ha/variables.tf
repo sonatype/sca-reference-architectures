@@ -36,7 +36,7 @@ variable "environment" {
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:latest"
+  default     = "sonatype/nexus-iq-server:1.209.0"
 }
 
 # Network Variables
@@ -71,13 +71,13 @@ variable "allowed_ssh_cidrs" {
 
 # Compute Engine Variables
 variable "instance_machine_type" {
-  description = "Machine type for Compute Engine instances (n4a-highmem-8 = 8 vCPU, 64GB RAM)"
+  description = "Machine type for Compute Engine instances. The default is the Size M value, n4a-standard-8 with 8 vCPU and 32 GB; Size L uses n4a-standard-16 and Size XL n4a-highmem-16."
   type        = string
-  default     = "n4a-highmem-8"
+  default     = "n4a-standard-8"
 }
 
 variable "iq_min_instances" {
-  description = "Minimum number of instances in MIG"
+  description = "Minimum number of instances in the MIG: 2 at Size M and L, 3 at Size XL. HA requires at least 2."
   type        = number
   default     = 2
 
@@ -88,9 +88,9 @@ variable "iq_min_instances" {
 }
 
 variable "iq_max_instances" {
-  description = "Maximum number of instances in MIG"
+  description = "Maximum number of instances in the MIG: 3 at Size M, 4 at Size L, 5 at Size XL. Must be at least iq_min_instances."
   type        = number
-  default     = 4
+  default     = 2
 
   validation {
     condition     = var.iq_max_instances >= 2
@@ -99,9 +99,9 @@ variable "iq_max_instances" {
 }
 
 variable "iq_target_instances" {
-  description = "Target number of instances in MIG"
+  description = "Number of instances the MIG starts with. Set it to iq_min_instances: 2 at Size M and L, 3 at Size XL."
   type        = number
-  default     = 3
+  default     = 2
 }
 
 # Database Variables
@@ -128,6 +128,17 @@ variable "db_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in Secret Manager, which the instance startup script reads, and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "postgres_version" {
   description = "PostgreSQL version"
   type        = string
@@ -135,9 +146,9 @@ variable "postgres_version" {
 }
 
 variable "db_instance_tier" {
-  description = "Cloud SQL instance tier. The default is the Size L value, 8 vCPU and 64 GB on the N4 series, which takes only HYPERDISK_BALANCED storage. Size XL is db-custom-N4-16-131072."
+  description = "Cloud SQL instance tier. The default is the Size M value, 4 vCPU and 32 GB on the N4 series, which takes only HYPERDISK_BALANCED storage. Size L is db-custom-N4-8-65536 and Size XL db-custom-N4-16-131072."
   type        = string
-  default     = "db-custom-N4-8-65536"
+  default     = "db-custom-N4-4-32768"
 }
 
 variable "db_edition" {
@@ -163,15 +174,15 @@ variable "db_disk_type" {
 }
 
 variable "db_disk_provisioned_iops" {
-  description = "Provisioned IOPS for a HYPERDISK_BALANCED data disk, read and write combined. Ignored on PD_SSD and PD_HDD. The default is the Size L value. The Hyperdisk default for a disk up to 256 GB is 4,000. Size XL uses 10000. Set together with db_disk_provisioned_throughput: both null leaves them to Cloud SQL, which is the Hyperdisk default on a new instance and the current values on an existing one."
+  description = "Provisioned IOPS for a HYPERDISK_BALANCED data disk, read and write combined. Ignored on PD_SSD and PD_HDD. The default is the Size M value, also used at Size L. The Hyperdisk default for a disk up to 256 GB is 4,000. Size XL uses 10,000. Set together with db_disk_provisioned_throughput: both null leaves them to Cloud SQL, which is the Hyperdisk default on a new instance and the current values on an existing one."
   type        = number
   default     = 8000
 }
 
 variable "db_disk_provisioned_throughput" {
-  description = "Provisioned throughput in MiB/s for a HYPERDISK_BALANCED data disk. Ignored on PD_SSD and PD_HDD. The default is the Size M and L value. Size XL uses 425. Both values keep the 170 MiB/s per 4,000 IOPS of the Cloud SQL Hyperdisk default. Hyperdisk Balanced takes from the larger of 140 and IOPS / 256 up to the smaller of 2400 and IOPS / 4. Set together with db_disk_provisioned_iops: both null leaves them to Cloud SQL."
+  description = "Provisioned throughput in MiB/s for a HYPERDISK_BALANCED data disk. Ignored on PD_SSD and PD_HDD. The default is the Size M value, 240 (252 MB/s), the most Cloud SQL allows at 4 vCPU. Size L uses 340 (357 MB/s) and Size XL 425 (446 MB/s). These values keep the 170 MiB/s (178 MB/s) per 4,000 IOPS of the Cloud SQL Hyperdisk default. Hyperdisk Balanced takes from the larger of 140 and IOPS / 256 up to the smaller of 2,400 and IOPS / 4. Set together with db_disk_provisioned_iops: both null leaves them to Cloud SQL."
   type        = number
-  default     = 340
+  default     = 240
 }
 
 variable "db_availability_type" {
@@ -186,9 +197,9 @@ variable "db_availability_type" {
 }
 
 variable "db_disk_size" {
-  description = "Database disk size in GB. The default is the Size L value."
+  description = "Database disk size in GB. The default is the Size M value; Size L uses 256 and Size XL 512."
   type        = number
-  default     = 256
+  default     = 128
 }
 
 variable "db_backup_start_time" {
@@ -198,15 +209,15 @@ variable "db_backup_start_time" {
 }
 
 variable "db_max_disk_size" {
-  description = "Maximum database disk size in GB"
+  description = "Maximum database disk size in GB. The default is the Size M value; Size L uses 1,000 and Size XL 2,000."
   type        = number
-  default     = 1000
+  default     = 500
 }
 
 variable "db_max_connections" {
-  description = "Maximum database connections"
+  description = "PostgreSQL max_connections. Each IQ Server node opens up to 90, 45 in its main pool and 45 in its lock pool, so the default, 500, covers the five nodes the XL autoscaling maximum allows plus 50 for Cloud SQL's own and administrative connections."
   type        = string
-  default     = "200"
+  default     = "500"
 }
 
 variable "db_transaction_log_retention_days" {
@@ -296,9 +307,9 @@ variable "log_retention_days" {
 
 # Java Options
 variable "java_opts" {
-  description = "Java options for Nexus IQ Server"
+  description = "Java options for Nexus IQ Server. The default is the Size M value, a 20 GB heap and 4 GB direct memory on a 32 GB VM."
   type        = string
-  default     = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 variable "iq_log_levels" {
@@ -313,31 +324,36 @@ variable "iq_log_levels" {
 }
 
 # Storage Variables
-variable "filestore_zone" {
-  description = "Zone for Filestore instance (should be in the same region)"
-  type        = string
-  default     = "us-central1-a"
-}
-
 variable "filestore_tier" {
-  description = "Filestore tier. BASIC_HDD is recommended for cost efficiency. For higher IOPS, provision 10+ TiB to unlock the higher performance tier, or use BASIC_SSD."
+  description = "Filestore service tier. REGIONAL keeps the share in every zone of gcp_region and takes a fixed IOPS figure from filestore_max_iops."
   type        = string
-  default     = "BASIC_HDD"
+  default     = "REGIONAL"
 
   validation {
-    condition     = contains(["BASIC_HDD", "BASIC_SSD", "HIGH_SCALE_SSD"], var.filestore_tier)
-    error_message = "Filestore tier must be one of: BASIC_HDD, BASIC_SSD, HIGH_SCALE_SSD."
+    condition     = var.filestore_tier == "REGIONAL"
+    error_message = "filestore_tier must be REGIONAL, the tier this architecture is built and sized for."
   }
 }
 
 variable "filestore_capacity_gb" {
-  description = "Filestore capacity in GB. The default is the Size L capacity. Minimum 1024 for BASIC_HDD, 2560 for BASIC_SSD. Provisioning 10240+ (10 TiB) unlocks BASIC_HDD's higher performance tier."
+  description = "Filestore capacity in GB. The default is the Size M capacity: 500 at Size M, 1,536 at Size L, 4,096 at Size XL. Regional takes 100 to 10,239 in steps of 1 GB."
   type        = number
-  default     = 2560
+  default     = 500
 
   validation {
-    condition     = var.filestore_capacity_gb >= 1024
-    error_message = "Filestore capacity must be at least 1024 GB (1 TiB) for BASIC_HDD or 2560 GB (2.5 TiB) for BASIC_SSD."
+    condition     = var.filestore_capacity_gb >= 100 && var.filestore_capacity_gb <= 10239 && floor(var.filestore_capacity_gb) == var.filestore_capacity_gb
+    error_message = "filestore_capacity_gb must be a whole number from 100 to 10239 for a Regional instance."
+  }
+}
+
+variable "filestore_max_iops" {
+  description = "Fixed read IOPS bought for the Filestore instance. The default is the Size M figure: 8,000 at Size M, 16,000 at Size L, 24,000 at Size XL. Write IOPS is 30% of this, and throughput follows it. A Regional instance takes 4,000 to 17,000 per TB of capacity and at least 2,000."
+  type        = number
+  default     = 8000
+
+  validation {
+    condition     = var.filestore_max_iops >= 2000 && var.filestore_max_iops % 1000 == 0
+    error_message = "filestore_max_iops must be a multiple of 1000 and at least 2000."
   }
 }
 
@@ -366,13 +382,12 @@ variable "common_tags" {
 # Every instance reads the same endpoint, so they share one index.
 
 variable "search_engine" {
-  description = "Which search backend Nexus IQ Server uses: \"lucene\" (default, the built-in index, nothing else to run) or \"opensearch\" (a self-managed OpenSearch cluster, whose host must be supplied in opensearch_endpoint)."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 

@@ -22,6 +22,7 @@ terraform.tfstate*
 .terraform.tfstate.lock.info
 *.tfvars
 !*.tfvars.example
+!infra-*/examples/*.tfvars
 *tfvars.backup
 tfplan
 *.tfplan

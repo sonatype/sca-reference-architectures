@@ -173,6 +173,11 @@ CONFIGEOF
           sed -i "s|\$DB_USERNAME|$DB_USERNAME|g" /etc/nexus-iq-server/config.yml
           sed -i "s|\$DB_PASSWORD|$DB_PASSWORD|g" /etc/nexus-iq-server/config.yml
 
+          # IQ Server installs this license on start when it has none.
+          printf '%s' "$IQ_LICENSE_B64" | base64 -d > /etc/nexus-iq-server/license.lic
+          echo "licenseFile: /etc/nexus-iq-server/license.lic" >> /etc/nexus-iq-server/config.yml
+          unset IQ_LICENSE_B64
+
           echo "Successfully created config.yml with database configuration"
           echo "Generated config file contents, with every password redacted:"
           sed "s/^\([[:space:]]*password:\).*/\1 '***'/" /etc/nexus-iq-server/config.yml
@@ -193,6 +198,14 @@ CONFIGEOF
         {
           name      = "DB_PASSWORD"
           valueFrom = "${aws_secretsmanager_secret.db_credentials.arn}:password::"
+        },
+        {
+          name      = "NXIQ_INITIAL_ADMIN_PASSWORD"
+          valueFrom = aws_secretsmanager_secret.iq_admin_password.arn
+        },
+        {
+          name      = "IQ_LICENSE_B64"
+          valueFrom = aws_secretsmanager_secret.iq_license.arn
         }
       ]
 
@@ -385,7 +398,10 @@ resource "aws_ecs_service" "iq_service" {
 
   depends_on = [
     aws_lb_listener.iq_listener,
-    aws_iam_role_policy_attachment.ecs_execution_role_policy
+    aws_iam_role_policy_attachment.ecs_execution_role_policy,
+    # The first task reads the admin password on its first start, so the secret
+    # needs a value before the service starts one.
+    aws_secretsmanager_secret_version.iq_admin_password
   ]
 
   tags = {

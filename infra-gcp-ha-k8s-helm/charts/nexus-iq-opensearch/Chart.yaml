@@ -1,0 +1,6 @@
+apiVersion: v2
+name: nexus-iq-opensearch
+description: The OpenSearch cluster Nexus IQ Server uses, run by the OpenSearch Kubernetes Operator, and a Service that reaches only its data nodes.
+type: application
+version: 1.0.0
+appVersion: "3.7.0"

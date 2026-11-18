@@ -44,10 +44,12 @@ resource "google_compute_instance" "iq_server" {
     gcp_project_id             = var.gcp_project_id
     search_engine              = var.search_engine
     opensearch_uri             = local.opensearch_enabled ? local.opensearch_uri : ""
-    opensearch_username        = var.opensearch_username
+    opensearch_username        = local.os_iq_username
     opensearch_password_secret = local.opensearch_enabled ? google_secret_manager_secret.opensearch_password[0].secret_id : ""
-    opensearch_index_replicas  = var.opensearch_index_replicas
+    opensearch_index_replicas  = local.os_index_replicas
     opensearch_ca_secret       = local.opensearch_private_ca ? google_secret_manager_secret.opensearch_ca[0].secret_id : ""
+    iq_admin_password_secret   = google_secret_manager_secret.iq_admin_password.secret_id
+    iq_license_secret          = google_secret_manager_secret.iq_license.secret_id
   })
 
   service_account {
@@ -62,6 +64,8 @@ resource "google_compute_instance" "iq_server" {
     google_secret_manager_secret_version.db_credentials,
     google_secret_manager_secret_version.opensearch_password,
     google_secret_manager_secret_version.opensearch_ca,
+    google_secret_manager_secret_version.iq_admin_password,
+    google_secret_manager_secret_version.iq_license,
     google_project_iam_member.iq_service_secret_accessor,
     google_project_iam_member.iq_service_artifact_reader
   ]

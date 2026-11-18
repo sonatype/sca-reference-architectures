@@ -83,6 +83,26 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "This may take 15-30 minutes to complete."
 echo ""
 
+# The OpenSearch cluster goes first, while GKE still runs the controllers that delete its
+# volumes. Its volumes are deleted with it, and this waits until their disks are gone.
+if terraform state list 2>/dev/null | grep -q '^helm_release.opensearch_cluster\['; then
+    echo "Removing the OpenSearch cluster and its volumes first"
+    terraform destroy -auto-approve -target='helm_release.opensearch_cluster[0]'
+    if gcloud container clusters get-credentials "$(terraform output -raw gke_cluster_name)" \
+        --region "$(terraform output -raw gke_cluster_location)" >/dev/null 2>&1; then
+        kubectl delete pvc -n nexus-iq-opensearch -l opensearch.org/opensearch-cluster=nexus-iq-opensearch \
+            --ignore-not-found --wait=true --timeout=10m || true
+        for _ in $(seq 1 60); do
+            left=$(kubectl get pv -o jsonpath='{range .items[?(@.spec.claimRef.namespace=="nexus-iq-opensearch")]}{.metadata.name}{"\n"}{end}' 2>/dev/null | grep -c . || true)
+            [[ "$left" -eq 0 ]] && break
+            sleep 10
+        done
+        [[ "${left:-0}" -eq 0 ]] || echo -e "${YELLOW}⚠️  ${left} OpenSearch volumes still present; check for leftover disks after the destroy${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Could not reach the GKE cluster; check for leftover OpenSearch disks after the destroy${NC}"
+    fi
+fi
+
 terraform destroy -auto-approve
 
 if [[ $? -eq 0 ]]; then

@@ -1,0 +1,103 @@
+{{- $ns := .Release.Namespace -}}
+{{- $fqdn := printf "%s.%s.svc.%s" .Values.dataServiceName $ns .Values.clusterDomain -}}
+apiVersion: opensearch.org/v1
+kind: OpenSearchCluster
+metadata:
+  name: {{ .Values.clusterName }}
+  namespace: {{ $ns }}
+spec:
+  general:
+    serviceName: {{ .Values.clusterName }}
+    version: {{ .Values.version | quote }}
+    httpPort: 9200
+    setVMMaxMapCount: {{ .Values.setVMMaxMapCount }}
+    drainDataNodes: true
+    pluginsList: []
+    {{- with .Values.pvcRetentionPolicy }}
+    persistentVolumeClaimRetentionPolicy: {{ toJson . }}
+    {{- end }}
+    {{- if .Values.zoneAwareness }}
+    nodeAttributes:
+      - name: zone
+        nodeLabel: topology.kubernetes.io/zone
+    {{- end }}
+    additionalConfig:
+      plugins.security.restapi.roles_enabled: '["all_access","security_rest_api_access"]'
+      {{- if .Values.zoneAwareness }}
+      cluster.routing.allocation.awareness.attributes: zone
+      {{- end }}
+      {{- range $k, $v := .Values.additionalConfig }}
+      {{ $k }}: {{ $v | quote }}
+      {{- end }}
+  dashboards:
+    enable: false
+  security:
+    tls:
+      transport:
+        generate: true
+        perNode: true
+        caSecret:
+          name: {{ .Values.caSecret }}
+      http:
+        generate: true
+        caSecret:
+          name: {{ .Values.caSecret }}
+        customFQDN: {{ $fqdn }}
+    config:
+      adminCredentialsSecret:
+        name: {{ .Values.adminCredentialsSecret }}
+      {{- if or .Values.jobs.nodeSelector .Values.jobs.tolerations }}
+      updateJob:
+        {{- with .Values.jobs.nodeSelector }}
+        nodeSelector: {{ toJson . }}
+        {{- end }}
+        {{- with .Values.jobs.tolerations }}
+        tolerations: {{ toJson . }}
+        {{- end }}
+      {{- end }}
+  nodePools:
+    {{- range .Values.nodePools }}
+    - component: {{ .component }}
+      replicas: {{ .replicas }}
+      roles: {{ toJson .roles }}
+      diskSize: {{ .diskSize }}
+      jvm: {{ .jvm | quote }}
+      resources: {{ toJson .resources }}
+      persistence:
+        pvc:
+          accessModes: ["ReadWriteOnce"]
+          {{- if .storageClass }}
+          storageClass: {{ .storageClass }}
+          {{- end }}
+      pdb:
+        enable: {{ gt (int .replicas) 1 }}
+        {{- if gt (int .replicas) 1 }}
+        maxUnavailable: 1
+        {{- end }}
+      {{- with .nodeSelector }}
+      nodeSelector: {{ toJson . }}
+      {{- end }}
+      {{- with .tolerations }}
+      tolerations: {{ toJson . }}
+      {{- end }}
+      {{- if .requiredAntiAffinity }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  opensearch.org/opensearch-cluster: {{ $.Values.clusterName }}
+                  opensearch.org/opensearch-nodepool: {{ .component }}
+      {{- end }}
+      {{- if .zoneSpread }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              opensearch.org/opensearch-cluster: {{ $.Values.clusterName }}
+              opensearch.org/opensearch-nodepool: {{ .component }}
+      {{- end }}
+    {{- end }}

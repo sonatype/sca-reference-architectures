@@ -24,33 +24,35 @@ db_subnet_cidr       = "10.200.20.0/24"
 allowed_ssh_cidrs = ["CHANGE_ME/32"] # the range allowed to SSH to the instances
 
 # Nexus IQ Server Configuration
-iq_docker_image = "sonatype/nexus-iq-server:latest"
+iq_docker_image = "sonatype/nexus-iq-server:1.209.0"
 
 # Compute Engine Instance Configuration
-instance_machine_type = "n4a-highmem-8" # 8 vCPU, 64 GB (ARM)
+instance_machine_type = "n4a-standard-8" # 8 vCPU, 32 GB (ARM)
 
 # High Availability Configuration
-# Size L instance counts. README.md gives Size M and XL.
+# Size M instance counts. README.md gives Size L and XL.
 iq_min_instances    = 2 # Minimum for HA
-iq_max_instances    = 4 # Maximum for scaling
-iq_target_instances = 3 # Initial target
+iq_max_instances    = 3 # Maximum for scaling
+iq_target_instances = 2 # Initial target
 
 # Database Configuration
 db_name     = "nexusiq"
 db_username = "nexusiq"
 db_password = "CHANGE_ME_STRONG_PASSWORD" # Change this!
+iq_admin_initial_password = "CHANGE_ME"  # IQ Server's admin password, at least 12 characters, read on its first start only
+iq_license_file = "CHANGE_ME"  # path to your IQ Server license file (.lic), installed by every IQ Server node on its first start
 
 # Database settings
 postgres_version         = "POSTGRES_18"
-db_instance_tier         = "db-custom-N4-8-65536" # 8 vCPU, 64 GB, N4 series (Enterprise)
+db_instance_tier         = "db-custom-N4-4-32768" # 4 vCPU, 32 GB, N4 series (Enterprise)
 db_edition               = "ENTERPRISE"           # ENTERPRISE_PLUS for db-perf-optimized-N-* or db-c4a-highmem-*
 db_disk_type             = "HYPERDISK_BALANCED"   # the only storage the N4 tiers take
-db_disk_provisioned_iops = 8000                   # 10000 at Size XL
-db_disk_provisioned_throughput = 340             # MiB/s, 425 at Size XL, set with the IOPS
+db_disk_provisioned_iops = 8000                   # 10,000 at Size XL
+db_disk_provisioned_throughput = 240             # 252 MB/s, given to the API in MiB/s; 340 (357 MB/s) at Size L, 425 (446 MB/s) at Size XL, set with the IOPS
 db_availability_type     = "REGIONAL"             # REGIONAL for HA, ZONAL for single-zone
-db_disk_size             = 256
-db_max_disk_size         = 1000
-db_max_connections       = "200"
+db_disk_size             = 128
+db_max_disk_size         = 500
+db_max_connections       = "500"
 
 # Database backup configuration
 db_backup_start_time              = "03:00" # UTC time
@@ -60,10 +62,10 @@ db_maintenance_window_day         = 7 # Sunday
 db_maintenance_window_hour        = 4 # 4 AM UTC
 db_deletion_protection            = true
 
-# Shared Storage Configuration (Cloud Filestore)
-filestore_zone        = "us-central1-a"
-filestore_tier        = "BASIC_HDD"
-filestore_capacity_gb = 2560 # 2.5 TiB, the Size L capacity
+# Shared Storage Configuration (Cloud Filestore Regional, in gcp_region)
+filestore_tier        = "REGIONAL"
+filestore_capacity_gb = 500   # the Size M capacity
+filestore_max_iops    = 8000
 
 # Load Balancer and SSL Configuration
 enable_ssl  = false # Set to true and provide domain_name for HTTPS
@@ -78,7 +80,7 @@ scale_in_cooldown_seconds  = 300 # 5 minutes
 scale_out_cooldown_seconds = 60  # 1 minute
 
 # Java Configuration
-java_opts = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+java_opts = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Logging
 log_retention_days = 30
@@ -96,10 +98,19 @@ common_tags = {
 }
 
 # Search Backend, needed for Advanced Search and the Nexus One index at every size
-# "lucene" (default) uses the built-in index. "opensearch" names an OpenSearch cluster
-# you run yourself; build it to README.md, "Search Backend".
-search_engine = "lucene"
+# Required: "lucene" uses the built-in index. "opensearch" builds an OpenSearch cluster
+# with this configuration, sized below.
+search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run without it
 
+# The OpenSearch cluster this configuration builds. These are the Size M values; README.md
+# gives every size. Passwords left unset are generated.
+opensearch_data_node_count       = 3
+opensearch_data_instance_type    = "c4a-standard-2"
+opensearch_manager_instance_type = "c4a-standard-1"
+opensearch_data_disk_gb          = 100
+
+# To use a cluster you run yourself instead, set opensearch_create = false and these:
+# opensearch_create                   = false
 # opensearch_endpoint                 = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port                     = 9200
 # opensearch_use_tls                  = true
@@ -113,35 +124,40 @@ search_engine = "lucene"
 #   -----END CERTIFICATE-----
 # EOT
 
-# The values above are Size L. The blocks below are Size M and XL.
+# The values above are Size M. Under 2,000 applications, use infra-gcp: this root requires
+# at least 2 instances. The blocks below are Size L and XL.
 
-# Size M:
-# Under 2,000 applications, use infra-gcp: this root requires at least 2 instances.
-# instance_machine_type = "n4a-highmem-8"     # 8 vCPU, 64 GB (ARM)
+# Size L:
+# instance_machine_type = "n4a-standard-16"    # 16 vCPU, 64 GB (ARM)
 # iq_min_instances      = 2
-# iq_max_instances      = 3
+# iq_max_instances      = 4
 # iq_target_instances   = 2
 # db_instance_tier      = "db-custom-N4-8-65536" # 8 vCPU, 64 GB (Enterprise)
 # db_disk_provisioned_iops = 8000
 # db_disk_provisioned_throughput = 340
 # db_availability_type  = "REGIONAL"
-# db_disk_size          = 128
-# db_max_disk_size      = 500   # the Size L value above is 1000
-# filestore_tier        = "BASIC_HDD"
-# filestore_capacity_gb = 1024                # 1 TiB
-# java_opts             = "-Xms48g -Xmx48g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# db_disk_size          = 256
+# db_max_disk_size      = 1000  # the Size M value above is 500
+# filestore_capacity_gb = 1536                # the Size M value above is 500
+# filestore_max_iops    = 16000
+# opensearch_data_instance_type = "c4a-standard-4"
+# opensearch_data_disk_gb       = 150
+# java_opts             = "-Xms42g -Xmx42g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Size XL:
 # instance_machine_type = "n4a-highmem-16"     # 16 vCPU, 128 GB (ARM)
 # iq_min_instances      = 3
 # iq_max_instances      = 5
-# iq_target_instances   = 4
+# iq_target_instances   = 3
 # db_instance_tier      = "db-custom-N4-16-131072" # 16 vCPU, 128 GB (Enterprise)
 # db_disk_provisioned_iops = 10000
 # db_disk_provisioned_throughput = 425
 # db_availability_type  = "REGIONAL"
 # db_disk_size          = 512
-# db_max_disk_size      = 2000  # the Size L value above is 1000
-# filestore_tier        = "BASIC_HDD"
-# filestore_capacity_gb = 10240                # 10 TiB
-# java_opts             = "-Xms96g -Xmx96g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+# db_max_disk_size      = 2000  # the Size M value above is 500
+# filestore_capacity_gb = 4096                # 4 TB
+# filestore_max_iops    = 24000
+# opensearch_data_instance_type    = "c4a-highmem-8"
+# opensearch_manager_instance_type = "c4a-standard-2"
+# opensearch_data_disk_gb          = 250
+# java_opts             = "-Xms85g -Xmx85g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"

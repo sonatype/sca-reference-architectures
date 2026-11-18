@@ -88,7 +88,7 @@ if [[ $? -eq 0 ]]; then
     echo -e "${BLUE}🎯 Next Steps${NC}"
     echo "━━━━━━━━━━━━"
     echo "1. Access IQ Server at: $APP_URL"
-    echo "2. Default credentials: admin / admin123"
+    echo "2. Sign in as admin, with the password set in iq_admin_initial_password"
     echo "3. Monitor deployment health"
 
 echo "4. Deploy Helm chart: ./helm-install.sh"
@@ -96,7 +96,7 @@ echo "4. Deploy Helm chart: ./helm-install.sh"
     
     echo -e "${YELLOW}⚠️  Important Security Notes${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "• Change default admin password immediately"
+    echo "• Keep terraform.tfvars and the Terraform state private, since both hold the admin password"
     echo "• Review network security rules"
     echo "• Set up monitoring and alerting"
     echo ""

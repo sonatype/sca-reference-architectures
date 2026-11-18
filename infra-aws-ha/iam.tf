@@ -62,7 +62,9 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = [
-          aws_secretsmanager_secret.db_credentials.arn
+          aws_secretsmanager_secret.db_credentials.arn,
+          aws_secretsmanager_secret.iq_admin_password.arn,
+          aws_secretsmanager_secret.iq_license.arn
         ]
       },
       {

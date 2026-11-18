@@ -91,17 +91,22 @@ resource "google_sql_database_instance" "iq_ha_db" {
   ]
 }
 
+# The database and the user are deleted with the Cloud SQL instance, so Terraform only forgets them
+# on a destroy. PostgreSQL refuses to drop a role that owns objects, which is the case after a
+# database dump is restored, and a separate delete would stop the destroy there.
 resource "google_sql_database" "iq_ha_database" {
-  name     = var.db_name
-  instance = google_sql_database_instance.iq_ha_db.name
-  project  = var.gcp_project_id
+  name            = var.db_name
+  instance        = google_sql_database_instance.iq_ha_db.name
+  project         = var.gcp_project_id
+  deletion_policy = "ABANDON"
 }
 
 resource "google_sql_user" "iq_ha_db_user" {
-  name     = var.db_username
-  instance = google_sql_database_instance.iq_ha_db.name
-  password = var.db_password
-  project  = var.gcp_project_id
+  name            = var.db_username
+  instance        = google_sql_database_instance.iq_ha_db.name
+  password        = var.db_password
+  project         = var.gcp_project_id
+  deletion_policy = "ABANDON"
 }
 
 resource "google_secret_manager_secret" "db_credentials" {

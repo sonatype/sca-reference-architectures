@@ -2,6 +2,30 @@
 
 set -e
 
+# Extra Helm values files, applied after helm-values.yaml so their settings win.
+# ../deploy.sh passes the size file this way, examples/<size>.helm-values.yaml.
+EXTRA_VALUES_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f|--values)
+            if [[ $# -lt 2 || ! -f "$2" ]]; then
+                echo "Error: $1 needs an existing values file" >&2
+                exit 1
+            fi
+            EXTRA_VALUES_ARGS+=(--values "$2")
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [-f|--values FILE]...  extra values files, applied after helm-values.yaml"
+            exit 0
+            ;;
+        *)
+            echo "Error: unknown option $1 (see $0 --help)" >&2
+            exit 1
+            ;;
+    esac
+done
+
 echo "============================================="
 echo "Nexus IQ Server GKE HA - Helm Upgrade"
 echo "============================================="
@@ -17,7 +41,7 @@ echo "Rendering values from the current Terraform outputs..."
 
 # The capture stops at the digits, so a trailing comment in terraform.tfvars is ignored.
 REPLICA_COUNT=$(sed -n 's/^nexus_iq_replica_count *= *\([0-9]*\).*/\1/p' terraform.tfvars)
-REPLICA_COUNT=${REPLICA_COUNT:-3}
+REPLICA_COUNT=${REPLICA_COUNT:-2}
 sed -i.bak "s|^  replicas: [0-9]*|  replicas: ${REPLICA_COUNT}|" "$TEMP_VALUES_FILE"
 
 # A CHANGE_ME from terraform.tfvars, such as the database password, stops the upgrade here.
@@ -32,7 +56,7 @@ CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.
 if [ -z "$CHART_VERSION" ]; then
   CHART_VERSION=$(helm list -n nexus-iq -f '^nexus-iq-server-ha$' -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
 fi
-CHART_VERSION=${CHART_VERSION:-201.0.0}
+CHART_VERSION=${CHART_VERSION:-209.0.0}
 
 echo "Updating Helm repository..."
 helm repo update
@@ -50,6 +74,7 @@ NEW_IMAGE=$(helm template nexus-iq-server-ha sonatype/nexus-iq-server-ha \
   --namespace nexus-iq \
   --version "$CHART_VERSION" \
   --values "$TEMP_VALUES_FILE" \
+  ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
   --show-only templates/iq-server-deployment.yaml 2>/dev/null \
   | sed -n "/name: $IQ_CONTAINER\$/{n;s/^ *image: *//p;}" || true)
 if [ -z "$NEW_IMAGE" ]; then
@@ -67,7 +92,21 @@ if [ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]; then
   MIGRATE_ARGS=(--set-string 'iq_server_jobs.migrationJobAnnotations.helm\.sh/hook=pre-upgrade')
   echo "IQ Server image: ${CURRENT_IMAGE:-none} -> $NEW_IMAGE"
   echo "Scaling IQ Server to zero for the database migration..."
-  kubectl scale deployment "$IQ_DEPLOYMENT" -n nexus-iq --replicas=0
+  # Through helm, on the release's installed chart. Helm 4 applies server-side, so a
+  # kubectl scale would own the replica count and fail the upgrade below.
+  PREVIOUS_REVISION=$(helm list -n nexus-iq -f '^nexus-iq-server-ha$' -o json | sed -n 's/.*"revision":"\{0,1\}\([0-9]*\).*/\1/p')
+  CURRENT_CHART_VERSION=$(helm list -n nexus-iq -f '^nexus-iq-server-ha$' -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+  if ! helm upgrade nexus-iq-server-ha sonatype/nexus-iq-server-ha \
+    --namespace nexus-iq \
+    --version "$CURRENT_CHART_VERSION" \
+    --reuse-values \
+    --set iq_server.replicas=0 \
+    --set hpa.enabled=false \
+    --wait \
+    --timeout 10m; then
+    echo "Error: scaling IQ Server to zero failed, so the migration did not start"
+    exit 1
+  fi
   kubectl wait --for=delete pod -l name=nexus-iq-server-ha-iq-server -n nexus-iq --timeout=10m 2>/dev/null || true
   # The migration refuses to run within 15 seconds of an IQ Server instance using the database.
   sleep 20
@@ -81,6 +120,7 @@ if ! helm upgrade nexus-iq-server-ha sonatype/nexus-iq-server-ha \
   --namespace nexus-iq \
   --version "$CHART_VERSION" \
   --values "$TEMP_VALUES_FILE" \
+  ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
   "${MIGRATE_ARGS[@]}" \
   --wait \
   --timeout 15m; then
@@ -88,20 +128,10 @@ if ! helm upgrade nexus-iq-server-ha sonatype/nexus-iq-server-ha \
   echo "Error: helm upgrade failed"
   kubectl logs job/nexus-iq-server-ha-migrate-db -n nexus-iq --tail=20 2>/dev/null || true
   if [ ${#MIGRATE_ARGS[@]} -gt 0 ]; then
-    echo "IQ Server was scaled to zero for the migration. Once the cause is fixed, start it again:"
-    echo "  kubectl scale deployment $IQ_DEPLOYMENT -n nexus-iq --replicas=$REPLICA_COUNT"
+    echo "IQ Server was scaled to zero for the migration. Once the cause is fixed, start the previous version again:"
+    echo "  helm rollback nexus-iq-server-ha $PREVIOUS_REVISION -n nexus-iq"
   fi
   exit 1
-fi
-
-# helm keeps the replica count kubectl scale set, since the chart value did not change,
-# and the autoscaler does not act on a deployment at zero, so IQ Server is started here.
-if [ ${#MIGRATE_ARGS[@]} -gt 0 ]; then
-  kubectl scale deployment "$IQ_DEPLOYMENT" -n nexus-iq --replicas="$REPLICA_COUNT"
-  if ! kubectl rollout status deployment/"$IQ_DEPLOYMENT" -n nexus-iq --timeout=15m; then
-    echo "Error: IQ Server did not become ready after the database migration"
-    exit 1
-  fi
 fi
 
 echo ""

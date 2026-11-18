@@ -105,14 +105,13 @@ if [[ $? -eq 0 ]]; then
     
     echo -e "${BLUE}🎯 Next Steps${NC}"
     echo "━━━━━━━━━━━━"
-    echo "1. Add cluster license: kubectl create secret generic nexus-iq-license --from-file=node-cluster.lic -n nexus-iq"
-    echo "2. Deploy Nexus IQ Server: ./helm-install.sh"
-    echo "3. Monitor deployment health"
+    echo "1. Deploy Nexus IQ Server: ./helm-install.sh (it builds the license secret from iq_license_file)"
+    echo "2. Monitor deployment health"
     echo ""
     
     echo -e "${YELLOW}⚠️  Important Security Notes${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "• Change default admin password immediately"
+    echo "• Keep terraform.tfvars and the Terraform state private, since both hold the admin password"
     echo "• Review firewall rules"
     echo "• Set up monitoring and alerting"
     echo ""

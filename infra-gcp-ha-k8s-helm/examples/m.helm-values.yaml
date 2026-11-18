@@ -1,0 +1,15 @@
+# Size M Helm values for infra-gcp-ha-k8s-helm. deploy.sh, at the top of the repository, passes
+# this file to helm-install.sh with --values, so it is applied after helm-values.yaml.
+iq_server:
+  resources:
+    requests:
+      cpu: "6"
+      memory: "25Gi"
+    limits:
+      cpu: "8"
+      memory: "26Gi"
+  javaOpts: "-Xms17g -Xmx17g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/clm-cluster/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+
+hpa:
+  minReplicas: 2
+  maxReplicas: 3

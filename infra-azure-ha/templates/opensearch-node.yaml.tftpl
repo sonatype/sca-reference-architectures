@@ -1,0 +1,16 @@
+#cloud-config
+# One OpenSearch node. Terraform renders this per node; settings holds no secret, only the names of
+# the secrets the node reads at boot with its own identity.
+write_files:
+  - path: /etc/opensearch-node/node.env
+    owner: root:root
+    permissions: "0600"
+    encoding: b64
+    content: ${base64encode(join("", [for k in sort(keys(settings)) : "${k}='${replace(settings[k], "'", "'\\''")}'\n"]))}
+  - path: /usr/local/sbin/opensearch-node.sh
+    owner: root:root
+    permissions: "0700"
+    encoding: b64
+    content: ${base64encode(node_script)}
+runcmd:
+  - [/usr/local/sbin/opensearch-node.sh, setup]

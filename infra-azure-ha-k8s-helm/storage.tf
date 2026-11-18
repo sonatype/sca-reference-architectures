@@ -15,8 +15,11 @@ resource "azurerm_storage_account" "iq_storage" {
 
 
 
+  # An NFS share answers only clients on a network the account allows, so the default is Deny and
+  # the AKS subnet is allowed. Terraform manages the share through Azure Resource Manager, which
+  # these rules do not apply to.
   network_rules {
-    default_action             = "Allow"
+    default_action             = "Deny"
     bypass                     = ["AzureServices"]
     virtual_network_subnet_ids = [azurerm_subnet.aks_subnet.id]
     ip_rules                   = []
@@ -29,10 +32,10 @@ resource "azurerm_storage_account" "iq_storage" {
 
 
 resource "azurerm_storage_share" "iq_data" {
-  name                 = "iq-data-ha"
-  storage_account_name = azurerm_storage_account.iq_storage.name
-  quota                = var.storage_share_quota_gb
-  enabled_protocol     = "NFS"
+  name               = "iq-data-ha"
+  storage_account_id = azurerm_storage_account.iq_storage.id
+  quota              = var.storage_share_quota_gb
+  enabled_protocol   = "NFS"
 
   metadata = {
     environment = var.environment

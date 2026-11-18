@@ -1,0 +1,75 @@
+# Creates the role and user Nexus IQ Server authenticates as, through the security REST API,
+# after every install and upgrade. Idempotent: a password change is an upgrade with the new value.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.clusterName }}-iq-user
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 2400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.jobs.nodeSelector }}
+      nodeSelector: {{ toJson . }}
+      {{- end }}
+      {{- with .Values.jobs.tolerations }}
+      tolerations: {{ toJson . }}
+      {{- end }}
+      containers:
+        - name: iq-user
+          image: "opensearchproject/opensearch:{{ .Values.version }}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -uo pipefail
+              H="https://{{ .Values.dataServiceName }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:9200"
+              CA=/ca/ca.crt
+              esc() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
+              umask 077
+              printf 'user = "%s:%s"\n' "$(esc "$ADMIN_USER")" "$(esc "$ADMIN_PASSWORD")" > /tmp/admin.curlrc
+              printf 'user = "%s:%s"\n' "$(esc "$IQ_USER")" "$(esc "$IQ_PASSWORD")" > /tmp/iq.curlrc
+              printf '{"password":"%s","description":"Nexus IQ Server"}' "$(esc "$IQ_PASSWORD")" > /tmp/user.json
+              printf '{"users":["%s"]}' "$(esc "$IQ_USER")" > /tmp/mapping.json
+              rq() { curl -s -o /tmp/out -w '%{http_code}' --cacert "$CA" -K /tmp/admin.curlrc "$@"; }
+              code=000
+              for i in $(seq 1 200); do
+                code=$(rq "$H/_cluster/health?wait_for_status=yellow&timeout=10s")
+                [ "$code" = 200 ] && break
+                sleep 10
+              done
+              [ "$code" = 200 ] || { echo "cluster not healthy, last status $code"; exit 1; }
+              ROLE='{"cluster_permissions":["cluster_composite_ops","cluster_monitor","cluster:monitor/*","indices:data/read/scroll*","cluster:admin/opensearch/ql/datasources/read"],"index_permissions":[{"index_patterns":["*"],"allowed_actions":["indices_all"]}]}'
+              ok=1
+              c=$(rq -X PUT -H 'Content-Type: application/json' "$H/_plugins/_security/api/roles/iq_index_manager" -d "$ROLE"); echo "role=$c"; [ "$c" -lt 300 ] || { cat /tmp/out; ok=0; }
+              c=$(rq -X PUT -H 'Content-Type: application/json' "$H/_plugins/_security/api/internalusers/$IQ_USER" --data @/tmp/user.json); echo "user=$c"; [ "$c" -lt 300 ] || { cat /tmp/out; ok=0; }
+              c=$(rq -X PUT -H 'Content-Type: application/json' "$H/_plugins/_security/api/rolesmapping/iq_index_manager" --data @/tmp/mapping.json); echo "mapping=$c"; [ "$c" -lt 300 ] || { cat /tmp/out; ok=0; }
+              c=$(curl -s -o /dev/null -w '%{http_code}' --cacert "$CA" -K /tmp/iq.curlrc "$H/_cluster/health"); echo "iq_user_health=$c"
+              [ "$ok" = 1 ] && [ "$c" = 200 ] && echo "IQ_USER_READY $IQ_USER"
+          env:
+            - name: ADMIN_USER
+              valueFrom: { secretKeyRef: { name: {{ .Values.adminCredentialsSecret }}, key: username } }
+            - name: ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.adminCredentialsSecret }}, key: password } }
+            - name: IQ_USER
+              valueFrom: { secretKeyRef: { name: {{ .Values.iqUser.secret }}, key: username } }
+            - name: IQ_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.iqUser.secret }}, key: password } }
+          volumeMounts:
+            - name: ca
+              mountPath: /ca
+              readOnly: true
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: ca
+          secret:
+            secretName: {{ .Values.caSecret }}
+            items:
+              - key: ca.crt
+                path: ca.crt

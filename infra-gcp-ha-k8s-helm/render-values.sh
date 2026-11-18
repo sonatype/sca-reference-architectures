@@ -34,7 +34,6 @@ DB_NAME=$(terraform output -raw database_name 2>/dev/null || echo "")
 DB_USERNAME=$(terraform output -raw database_username 2>/dev/null || echo "")
 DB_PASSWORD=$(terraform output -raw database_password 2>/dev/null || echo "")
 FILESTORE_IP=$(terraform output -raw filestore_ip 2>/dev/null || echo "")
-PROJECT_ID=$(terraform output -raw project_id 2>/dev/null || echo "")
 WORKLOAD_IDENTITY=$(terraform output -raw workload_identity_email 2>/dev/null || echo "")
 INGRESS_IP_NAME=$(terraform output -raw ingress_ip_name 2>/dev/null || echo "")
 SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "lucene")
@@ -55,17 +54,12 @@ chmod 600 "$TEMP_VALUES_FILE"
 
 sed -i.bak "s|hostname: \"\"|hostname: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
 sed -i.bak "s|password: \"\"|password: \"${DB_PASSWORD}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|value: \"\"|value: \"${DB_HOST}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|DB_PASSWORD.*|DB_PASSWORD\n      value: \"${DB_PASSWORD}\"|g" "$TEMP_VALUES_FILE"
 # The database name and user come from db_name and db_username, through the outputs.
 sed -i.bak \
     -e "s|^    name: \"nexusiq\"|    name: \"${DB_NAME}\"|" \
     -e "s|^    username: \"nexusiq\"|    username: \"${DB_USERNAME}\"|" \
-    -e "/name: DB_NAME/{n;s|value: \"nexusiq\"|value: \"${DB_NAME}\"|;}" \
-    -e "/name: DB_USERNAME/{n;s|value: \"nexusiq\"|value: \"${DB_USERNAME}\"|;}" \
     "$TEMP_VALUES_FILE"
 sed -i.bak "s|iam.gke.io/gcp-service-account: \"\"|iam.gke.io/gcp-service-account: \"${WORKLOAD_IDENTITY}\"|g" "$TEMP_VALUES_FILE"
-sed -i.bak "s|projectId: \"\"|projectId: \"${PROJECT_ID}\"|g" "$TEMP_VALUES_FILE"
 sed -i.bak "s|kubernetes.io/ingress.global-static-ip-name: \"\"|kubernetes.io/ingress.global-static-ip-name: \"${INGRESS_IP_NAME}\"|g" "$TEMP_VALUES_FILE"
 
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then

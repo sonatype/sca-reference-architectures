@@ -1,0 +1,19 @@
+# Nexus IQ Server connects here. Unlike the operator's own Service, this one selects only the
+# data node pool, so requests never land on a cluster manager.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.dataServiceName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: nexus-iq-opensearch
+spec:
+  type: ClusterIP
+  selector:
+    opensearch.org/opensearch-cluster: {{ .Values.clusterName }}
+    opensearch.org/opensearch-nodepool: {{ .Values.dataNodePool }}
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+      protocol: TCP

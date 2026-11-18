@@ -69,6 +69,16 @@ module "eks" {
   }
 
   node_security_group_additional_rules = {
+    # The metrics-server add-on serves the resource metrics API on 10251, and the
+    # control plane calls it there.
+    ingress_cluster_metrics_server = {
+      description                   = "Cluster API to node metrics-server"
+      protocol                      = "tcp"
+      from_port                     = 10251
+      to_port                       = 10251
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
     egress_all = {
       description      = "Node all egress"
       protocol         = "-1"
@@ -95,6 +105,27 @@ module "eks" {
     }
     aws-efs-csi-driver = {
       most_recent = true
+    }
+    # Serves the resource metrics API the IQ Server horizontal pod autoscaler reads
+    # pod CPU from. Without it the autoscaler never scales.
+    metrics-server = {
+      most_recent = true
+    }
+    # Ships every container's stdout to CloudWatch Logs; see logging.tf.
+    # Application Signals auto-monitoring is turned off so the add-on does not
+    # inject a Java agent into the IQ Server pods.
+    amazon-cloudwatch-observability = {
+      most_recent              = true
+      service_account_role_arn = aws_iam_role.cloudwatch_agent.arn
+      configuration_values = jsonencode({
+        manager = {
+          applicationSignals = {
+            autoMonitor = {
+              monitorAllServices = false
+            }
+          }
+        }
+      })
     }
   }
 

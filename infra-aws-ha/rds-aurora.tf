@@ -12,7 +12,7 @@ resource "aws_db_subnet_group" "iq_db_subnet_group" {
 resource "aws_secretsmanager_secret" "db_credentials" {
   name                    = "${var.cluster_name}-db-credentials"
   description             = "Database credentials for Nexus IQ Server HA"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-db-credentials"

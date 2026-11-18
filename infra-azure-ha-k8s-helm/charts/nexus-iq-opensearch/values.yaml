@@ -1,0 +1,66 @@
+# Values Terraform sets from opensearch_cluster.tf. The defaults here are a minimal two-pod cluster
+# for a local test only.
+
+clusterName: nexus-iq-opensearch
+version: "3.7.0"
+
+# The Service Nexus IQ Server connects to. It selects only data node pods, and its name is added to
+# the HTTP certificate. It must differ from <clusterName>-<data node pool component>, the name the
+# operator gives its own headless Service for that node pool.
+dataServiceName: nexus-iq-opensearch-data-http
+dataNodePool: data
+clusterDomain: cluster.local
+
+# Secrets Terraform creates in the release namespace.
+caSecret: nexus-iq-opensearch-ca
+adminCredentialsSecret: nexus-iq-opensearch-admin
+
+# false when the node pool already sets vm.max_map_count, so no privileged init container runs.
+setVMMaxMapCount: true
+
+# Spread shards across zones by the nodes' zone label.
+zoneAwareness: false
+
+additionalConfig: {}
+
+# Delete the volumes with the cluster, so a destroy leaves no disks behind.
+pvcRetentionPolicy:
+  whenDeleted: Delete
+  whenScaled: Retain
+
+# The user Nexus IQ Server authenticates as, from a Secret with username and password.
+iqUser:
+  secret: nexus-iq-opensearch-iq-user
+
+# Where the IQ user Job and the operator's security configuration Job run.
+jobs:
+  nodeSelector: {}
+  tolerations: []
+
+nodePools:
+  - component: masters
+    replicas: 1
+    roles: ["cluster_manager"]
+    diskSize: 2Gi
+    jvm: "-Xms512m -Xmx512m"
+    resources:
+      requests: { cpu: 100m, memory: 1Gi }
+      limits: { memory: 1Gi }
+    storageClass: ""
+    nodeSelector: {}
+    tolerations: []
+    requiredAntiAffinity: false
+    zoneSpread: false
+  - component: data
+    replicas: 1
+    roles: ["data", "ingest"]
+    diskSize: 2Gi
+    jvm: "-Xms512m -Xmx512m"
+    resources:
+      requests: { cpu: 100m, memory: 1Gi }
+      limits: { memory: 1Gi }
+    storageClass: ""
+    nodeSelector: {}
+    tolerations: []
+    requiredAntiAffinity: false
+    zoneSpread: false

@@ -18,6 +18,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.5"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -129,6 +133,10 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   network                 = google_compute_network.iq_vpc.id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
+  # Google keeps a deleted Cloud SQL instance counted against the connection for a while, so a delete
+  # fails with "Producer services are still using this connection". Abandoning it leaves the peering to
+  # be removed with the VPC.
+  deletion_policy = "ABANDON"
 
   depends_on = [google_project_service.required_apis]
 }

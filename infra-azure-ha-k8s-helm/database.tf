@@ -93,10 +93,13 @@ resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
 }
 
 
+# Each IQ Server pod opens up to 90 connections, 45 in its main pool and 45 in its
+# lock pool, so 500 covers the five pods the XL autoscaling maximum allows plus 50
+# for the server's own and administrative connections.
 resource "azurerm_postgresql_flexible_server_configuration" "max_connections" {
   name      = "max_connections"
   server_id = azurerm_postgresql_flexible_server.iq_db.id
-  value     = "200"
+  value     = "500"
 }
 
 

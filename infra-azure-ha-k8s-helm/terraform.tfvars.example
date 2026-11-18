@@ -11,21 +11,23 @@ db_subnet_cidr     = "10.1.20.0/24"
 
 # AKS Configuration
 kubernetes_version      = "1.36"
-node_instance_type      = "Standard_E8ps_v6" # 8 vCPU, 64GB RAM (ARM), Size M and L
+node_instance_type      = "Standard_D8ps_v6"  # 8 vCPU, 32 GB RAM (ARM), Size M
 node_group_min_size     = 2
-node_group_max_size     = 5
-node_group_desired_size = 3
+node_group_max_size     = 3
+node_group_desired_size = 2
 node_disk_size          = 50
 
 # PostgreSQL Configuration (Zone-Redundant HA) - matching AWS Aurora specs
 postgres_version                 = "18"
-db_sku_name                      = "MO_Standard_E8ds_v6" # Memory Optimized: 8 vCores, 64 GB (matches AWS db.r8g.2xlarge)
+db_sku_name                      = "MO_Standard_E4ds_v6" # Memory Optimized: 4 vCPU, 32 GB (matches AWS db.r8g.xlarge)
 db_high_availability_mode        = "ZoneRedundant"
-db_storage_mb                    = 131072 # 128GB, grows automatically
+db_storage_mb                    = 131072 # 128 GB, grows automatically
 db_storage_tier                  = "P10"
 database_name                    = "nexusiq"
 database_username                = "nexusiq"
 database_password                = "CHANGE_ME_STRONG_PASSWORD"
+iq_admin_initial_password = "CHANGE_ME"  # IQ Server's admin password, at least 12 characters, read on its first start only
+iq_license_file = "CHANGE_ME"  # path to your IQ Server license file (.lic), installed by every IQ Server node on its first start
 backup_retention_period          = 7
 db_geo_redundant_backup_enabled  = false # Not supported in all regions
 
@@ -42,22 +44,18 @@ app_gateway_min_capacity = 2
 app_gateway_max_capacity = 10
 
 # Nexus IQ Server HA Configuration
-nexus_iq_license         = ""
-nexus_iq_admin_password  = "admin123"
-nexus_iq_replica_count   = 3
+nexus_iq_replica_count   = 2
 
 # Pod CPU, memory and heap are set by iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
-helm_chart_version      = "201.0.0"
+helm_chart_version      = "209.0.0"
 helm_namespace          = "nexus-iq"
 agic_helm_version       = "1.7.2"
 aad_pod_identity_version = "4.1.18"
 
 # Monitoring Configuration
 log_retention_days = 30
-enable_fluentd     = true
-enable_monitoring  = true
 
 # Pod autoscaling is set by hpa.* in helm-values.yaml.
 
@@ -66,13 +64,22 @@ ingress_hostname    = "" # Optional: custom hostname
 ingress_tls_enabled = false
 
 # Search Backend, needed for Advanced Search and the Nexus One index at every size
-# "lucene" (default) uses IQ Server's embedded index. "opensearch" names an OpenSearch
-# cluster you run on Azure Virtual Machines; this configuration does not create it.
-# README.md gives the cluster specification and the private certificate authority steps.
-# The scripts read these from this file. Port, TLS and replicas default as the variables
-# do; the endpoint, user name and password must be set here for "opensearch".
-search_engine = "lucene"
+# Required: "lucene" uses IQ Server's embedded index. "opensearch" builds an OpenSearch
+# cluster on two dedicated AKS node pools with the OpenSearch Kubernetes Operator, sized below.
+# helm-install.sh then reads its endpoint, user name, password and certificate authority from
+# terraform output.
+search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run without it
 
+# The OpenSearch cluster this configuration builds. These are the Size M values; README.md
+# gives every size. Passwords left unset are generated.
+opensearch_data_node_count       = 3
+opensearch_data_instance_type    = "Standard_D2ps_v6"
+opensearch_manager_instance_type = "Standard_D2pls_v6"
+opensearch_data_disk_gb          = 128
+
+# To use a cluster you run yourself instead, set opensearch_create = false and these. The
+# scripts then read them from this file.
+# opensearch_create         = false
 # opensearch_endpoint       = "CHANGE_ME-opensearch.internal.example.com"
 # opensearch_port           = 9200
 # opensearch_use_tls        = true

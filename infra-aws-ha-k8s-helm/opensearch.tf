@@ -5,7 +5,8 @@
 # names an existing one. The pods sign requests with SigV4 through IRSA: the role
 # trusts the cluster's OIDC provider for one service account, and helm-install.sh
 # writes the iq_server_irsa_role_arn output into that account's annotation.
-# README.md gives the teardown steps, since the domain carries prevent_destroy.
+# The domain carries prevent_destroy; ./tf-destroy.sh --delete-opensearch-domain
+# removes it from state and deletes it before the rest of the teardown.
 
 resource "aws_iam_role" "iq_server_irsa" {
   count = var.search_engine == "opensearch" ? 1 : 0
@@ -89,21 +90,11 @@ resource "aws_iam_role_policy_attachment" "iq_server_opensearch" {
   role       = aws_iam_role.iq_server_irsa[0].name
   policy_arn = aws_iam_policy.iq_server_opensearch[0].arn
 }
-
-# helm-install.sh gives nexus-iq-sa the Fluentd role too, so this role keeps the
-# same CloudWatch policy and OpenSearch only adds permissions.
-resource "aws_iam_role_policy_attachment" "iq_server_cloudwatch" {
-  count = var.search_engine == "opensearch" ? 1 : 0
-
-  role       = aws_iam_role.iq_server_irsa[0].name
-  policy_arn = aws_iam_policy.fluentd_cloudwatch.arn
-}
-
 # =============================================================================
 # THE DOMAIN
 # =============================================================================
 # Created when search_engine is "opensearch" and opensearch_domain_endpoint is
-# empty. The defaults are the Size M shape on two nodes.
+# empty. The defaults are the Size M shape: three data nodes in three zones.
 
 locals {
   # Naming an endpoint means use that domain, so creating and naming are exclusive.
@@ -123,6 +114,10 @@ locals {
 
   opensearch_zone_aware = local.opensearch_create && var.opensearch_availability_zone_count > 1
 
+  # The node group's two private subnets, then the third zone's subnet when the
+  # domain spreads across three.
+  opensearch_subnet_ids = concat(aws_subnet.private[*].id, aws_subnet.opensearch[*].id)
+
   # The endpoint and name the rest of the configuration reads, created or named.
   opensearch_endpoint = local.opensearch_create ? (
     length(aws_opensearch_domain.nexus_one) > 0 ? aws_opensearch_domain.nexus_one[0].endpoint : ""
@@ -139,6 +134,23 @@ locals {
 #
 #     aws iam create-service-linked-role \
 #       --aws-service-name opensearchservice.amazonaws.com
+
+# The node group runs in two private subnets, so a domain spread across three
+# zones gets a subnet of its own in the third. It holds only the domain's network
+# interfaces, which the nodes reach inside the VPC, so it needs no route out.
+resource "aws_subnet" "opensearch" {
+  count = local.opensearch_create && var.opensearch_availability_zone_count == 3 ? 1 : 0
+
+  availability_zone = data.aws_availability_zones.available.names[2]
+  cidr_block        = "10.0.12.0/24"
+  vpc_id            = aws_vpc.iq_vpc.id
+
+  tags = merge(var.common_tags, {
+    Name        = "${var.cluster_name}-opensearch-3"
+    Project     = "nexus-iq-server-ha"
+    Environment = var.environment
+  })
+}
 
 # Reachable only from the node group, inside the private subnets. Pod traffic
 # leaves through its node, so the module's node security group is the source.
@@ -252,7 +264,7 @@ resource "aws_opensearch_domain" "nexus_one" {
   # One subnet per zone, or exactly one without zone awareness.
   vpc_options {
     subnet_ids = local.opensearch_zone_aware ? slice(
-      aws_subnet.private[*].id, 0, var.opensearch_availability_zone_count
+      local.opensearch_subnet_ids, 0, var.opensearch_availability_zone_count
     ) : [aws_subnet.private[0].id]
     security_group_ids = [aws_security_group.opensearch[0].id]
   }
@@ -312,8 +324,8 @@ resource "aws_opensearch_domain" "nexus_one" {
     }
 
     precondition {
-      condition     = var.opensearch_availability_zone_count <= length(aws_subnet.private)
-      error_message = "opensearch_availability_zone_count cannot exceed the number of private subnets this root builds, which is two, since the domain needs one subnet per zone. Three zones needs a third private subnet in main.tf."
+      condition     = var.opensearch_availability_zone_count <= length(local.opensearch_subnet_ids)
+      error_message = "opensearch_availability_zone_count cannot exceed the subnets this root builds for the domain, one per zone."
     }
   }
 

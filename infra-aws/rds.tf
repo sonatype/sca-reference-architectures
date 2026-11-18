@@ -12,7 +12,7 @@ resource "aws_db_subnet_group" "iq_db_subnet_group" {
 resource "aws_secretsmanager_secret" "db_credentials" {
   name                    = "${var.cluster_name}-iq-db-credentials"
   description             = "Database credentials for Nexus IQ Server"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   tags = {
     Name = "${var.cluster_name}-iq-db-credentials"
@@ -50,8 +50,9 @@ resource "aws_db_instance" "iq_db" {
   backup_window           = var.db_backup_window
   maintenance_window      = var.db_maintenance_window
 
-  skip_final_snapshot = var.db_skip_final_snapshot
-  deletion_protection = var.db_deletion_protection
+  skip_final_snapshot       = var.db_skip_final_snapshot
+  final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  deletion_protection       = var.db_deletion_protection
 
   performance_insights_enabled = true
   monitoring_interval          = 60

@@ -96,6 +96,12 @@ resource "azurerm_application_gateway" "appgw" {
     Name = "agw-${var.cluster_name}"
   })
 
+  # helm-install.sh and helm-upgrade.sh put the IQ Server load balancer's address in the backend
+  # pool, so a later apply leaves the pool as it finds it rather than emptying it.
+  lifecycle {
+    ignore_changes = [backend_address_pool]
+  }
+
   depends_on = [
     azurerm_subnet.public_subnet,
     azurerm_public_ip.appgw_pip

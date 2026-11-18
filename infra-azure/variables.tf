@@ -43,33 +43,33 @@ variable "db_subnet_cidr" {
 
 
 variable "container_cpu" {
-  description = "vCPU for the IQ Server container. The default is the Size M value. It must be less than one node of workload_profile_type, because Container Apps keeps part of every node for itself."
+  description = "vCPU for the IQ Server container. The default is the Size M value. Every size leaves 0.5 vCPU and 2 GB of one node of workload_profile_type, because Container Apps keeps part of every node for itself."
   type        = number
   default     = 7.5
 }
 
 variable "container_memory" {
-  description = "Memory for the IQ Server container. The default is the Size M value. It must be less than one node of workload_profile_type, because Container Apps keeps part of every node for itself."
+  description = "Memory for the IQ Server container. The default is the Size M value. Every size leaves 0.5 vCPU and 2 GB of one node of workload_profile_type, because Container Apps keeps part of every node for itself."
   type        = string
-  default     = "56Gi"
+  default     = "30Gi"
 }
 
 variable "workload_profile_type" {
-  description = "Azure Container Apps dedicated workload profile type, which sets the cores and memory of the node the container runs on. E8 is 8 cores and 64 GB, for Size M. E4 is 4 cores and 32 GB, for Size S. D4 is 4 cores and 16 GB, for Size XS."
+  description = "Azure Container Apps dedicated workload profile type, which sets the vCPU and memory of the node the container runs on. D8 is 8 vCPU and 32 GB, for Size M. E4 is 4 vCPU and 32 GB, for Size S. D4 is 4 vCPU and 16 GB, for Size XS."
   type        = string
-  default     = "E8"
+  default     = "D8"
 }
 
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:latest"
+  default     = "sonatype/nexus-iq-server:1.209.0"
 }
 
 variable "java_opts" {
   description = "Java options for IQ Server"
   type        = string
-  default     = "-Xms44g -Xmx44g -XX:MaxDirectMemorySize=8g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
+  default     = "-Xms18g -Xmx18g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 }
 
 
@@ -96,6 +96,17 @@ variable "db_password" {
   }
 }
 
+variable "iq_admin_initial_password" {
+  description = "Password for IQ Server's admin user, at least 12 characters. It is kept in Key Vault and as a Container App secret and given to IQ Server as NXIQ_INITIAL_ADMIN_PASSWORD, which IQ Server reads only on its very first start, against an empty database. Changing it afterwards changes nothing: change the password in IQ Server instead."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.iq_admin_initial_password)) && length(var.iq_admin_initial_password) >= 12
+    error_message = "iq_admin_initial_password must be a real password of at least 12 characters, not a CHANGE_ME placeholder. Set it in terraform.tfvars."
+  }
+}
+
 variable "postgres_version" {
   description = "PostgreSQL major version."
   type        = string
@@ -103,9 +114,9 @@ variable "postgres_version" {
 }
 
 variable "db_sku_name" {
-  description = "PostgreSQL Flexible Server SKU. The default, 8 vCores and 64 GB, is the Size M value; the Sizing Guide in README.md gives XS and S."
+  description = "PostgreSQL Flexible Server SKU. The default, 4 vCPU and 32 GB, is the Size M value; the Sizing Guide in README.md gives XS and S."
   type        = string
-  default     = "MO_Standard_E8ds_v6"
+  default     = "MO_Standard_E4ds_v6"
 }
 
 variable "db_storage_mb" {
@@ -141,7 +152,7 @@ variable "db_high_availability_enabled" {
 
 
 variable "log_share_quota_gb" {
-  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running. With storage_account_tier = \"Premium\" the share is billed on this full size and cannot be below 100."
+  description = "Quota in GB of the Azure Files share mounted at /var/log/nexus-iq-server, which holds IQ Server's application, request and audit logs off the container's ephemeral storage. A full share stops IQ Server writing those files but leaves the container running. With storage_account_tier = \"Premium\" the share is provisioned at this full size and cannot be below 100."
   type        = number
   default     = 128
 }
@@ -190,22 +201,22 @@ variable "key_vault_sku_name" {
 # SEARCH BACKEND (Lucene or self-managed OpenSearch)
 # =============================================================================
 # search_engine picks the engine the conditional search: block in container_app.tf
-# names. "opensearch" means a cluster you run on Azure Virtual Machines, reached over
-# basic auth and named by opensearch_endpoint; this configuration does not create it.
+# names. "opensearch" means an OpenSearch cluster on Azure Virtual Machines, which this
+# configuration builds (opensearch_cluster.tf) unless opensearch_create is false, in which case
+# opensearch_endpoint names a cluster you run yourself.
 
 variable "search_engine" {
-  description = "Which search backend IQ Server's config.yml should use: \"lucene\" (default, embedded index, no external dependency) or \"opensearch\" (a self-managed OpenSearch cluster whose endpoint must be supplied in opensearch_endpoint)."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
   type        = string
-  default     = "lucene"
 
   validation {
-    condition     = contains(["lucene", "opensearch"], var.search_engine)
-    error_message = "search_engine must be one of: 'lucene', 'opensearch'."
+    condition     = contains(["opensearch", "lucene"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 
 variable "opensearch_endpoint" {
-  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\"; ignored otherwise."
+  description = "Host name or IP address of the OpenSearch cluster's client endpoint, without a scheme or port (for example \"opensearch.internal.example.com\"). Required when search_engine is \"opensearch\" and opensearch_create is false; ignored otherwise."
   type        = string
   default     = ""
 
@@ -233,7 +244,7 @@ variable "opensearch_use_tls" {
 }
 
 variable "opensearch_username" {
-  description = "User name IQ Server authenticates to OpenSearch with. Mandatory on this connection type, so it has no usable default."
+  description = "User name IQ Server authenticates to OpenSearch with. Empty, the default, means iq-server."
   type        = string
   default     = ""
 }
@@ -258,6 +269,40 @@ variable "opensearch_index_replicas" {
   validation {
     condition     = var.opensearch_index_replicas >= 0 && var.opensearch_index_replicas <= 10
     error_message = "opensearch_index_replicas must be between 0 and 10."
+  }
+}
+
+variable "container_registry_server" {
+  description = "Login server of a private container registry holding iq_docker_image, for example myregistry.azurecr.io. Leave empty for an image on a public registry, which writes no registry block and no credential."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_server))
+    error_message = "container_registry_server still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "container_registry_username" {
+  description = "User name the container app authenticates to the private registry with. Required when container_registry_server is set."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_username))
+    error_message = "container_registry_username still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
+  }
+}
+
+variable "container_registry_password" {
+  description = "Password for container_registry_username, delivered to the container app as a secret rather than a plain value. sensitive = true keeps it out of CLI output only: Terraform holds every variable in the state file as plain text, so treat terraform.tfstate as a secret. Keep the value in terraform.tfvars, which is gitignored, and never in terraform.tfvars.example."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !can(regex("CHANGE_ME", var.container_registry_password))
+    error_message = "container_registry_password still holds a CHANGE_ME placeholder. Set a real value in terraform.tfvars."
   }
 }
 
