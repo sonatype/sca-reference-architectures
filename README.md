@@ -1289,7 +1289,7 @@ and the JVM's own memory come out of that free third.
 -XX:+ExitOnOutOfMemoryError
 ```
 
-The first out-of-memory error writes a heap dump to that file and the JVM exits; a later one skips the dump while the file exists, so delete it to allow another. The Kubernetes architectures name `/sonatype-work/clm-cluster/heap-dump.hprof`, because only that directory is on the shared storage in a pod.
+The first out-of-memory error writes a heap dump to that file and the JVM exits; a later one skips the dump while the file exists, so delete it to allow another. The Kubernetes architectures name `/sonatype-work/clm-cluster/heap-dump.hprof`, because only that directory is on the shared storage in a pod. XS and S leave out the last three flags, so there IQ Server writes no heap dump and keeps running after an out-of-memory error.
 
 Every figure below is in GB. Each cell is memory for IQ Server, then heap, then direct memory.
 
