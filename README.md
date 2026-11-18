@@ -80,7 +80,7 @@ You need an active cloud account with permissions to create:
 - **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server)), pinned to `1.209.0` in every architecture
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments. Every architecture requires the license file, named by `iq_license_file`: Terraform keeps it in the cloud's secret store, or a Kubernetes secret, and every IQ Server node installs it on its first start. An unlicensed IQ Server runs one node only, and choosing OpenSearch as the search backend needs a license
 - **PostgreSQL**: Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default for new deployments). Provisioned automatically by Terraform
-- **OpenSearch**: A reachable OpenSearch cluster, required at every size. Terraform creates it on every cloud: on AWS as an Amazon OpenSearch Service domain, and on Azure and GCP, which have no managed OpenSearch service, as a self-managed OpenSearch 3.7 cluster. To use a cluster you already run, give Terraform its endpoint and credentials instead. See [OpenSearch](#opensearch).
+- **OpenSearch**: A reachable OpenSearch cluster, required at every size. Terraform creates it on every cloud: on AWS as an Amazon OpenSearch Service domain, and on Azure and GCP, which have no managed OpenSearch service, as a self-managed OpenSearch 3.x cluster (3.7 recommended). To use a cluster you already run, give Terraform its endpoint and credentials instead. See [OpenSearch](#opensearch).
 
 ### SSL Certificate (Optional)
 
@@ -111,7 +111,7 @@ Choose your deployment size based on your application count and daily evaluation
 
 > ³ Typical evaluations/day is a normal day for the size, and evaluations an hour per node is a guide for planning, not a limit.
 
-The Database and OpenSearch columns give the AWS types. Azure and GCP use the database class with the same vCPU and memory, listed in [Database Instance Comparison](#database-instance-comparison) for M, L and XL and in [Detailed Specifications](#detailed-specifications) for XS and S, and their OpenSearch node types are in [Per-size cluster specification](#per-size-cluster-specification). The Java heap for each platform is in [JVM Configuration](#jvm-configuration).
+The Database and OpenSearch columns give the AWS types. Azure uses a database class with the same vCPU and memory at every size, and GCP does at M, L and XL; at XS and S the GCP class has the same vCPU and less memory, 7.5 GB and 13 GB against 8 GB and 16 GB. The classes are listed in [Database Instance Comparison](#database-instance-comparison) for M, L and XL and in [Detailed Specifications](#detailed-specifications) for XS and S, and their OpenSearch node types are in [Per-size cluster specification](#per-size-cluster-specification). The Java heap for each platform is in [JVM Configuration](#jvm-configuration).
 
 ### Option 1: The Guided Deploy Script
 
@@ -1300,7 +1300,8 @@ Every figure below is in GB. Each cell is memory for IQ Server, then heap, then 
 **Some heaps are below the rule's value.** Two thirds of 32 GB is 21 GB, and the heap is 20 GB on the 32 GB
 hosts (Compute Engine at S and M, Fargate at M), so heap plus 4 GB direct memory leaves 8 GB. On `infra-azure`,
 two thirds of 14 GB is 9 GB and of 30 GB is 20 GB, and the heap stays at 8 GB at XS and 18 GB at S and M, so
-the smaller replicas keep room for direct memory and the JVM's own memory.
+the smaller replicas keep room for direct memory and the JVM's own memory. On `infra-azure-ha` at XL, two
+thirds of 126 GB is 84 GB, and the heap is 80 GB, the same as on Fargate at XL.
 
 **Direct memory is 4 GB at S and M on every platform**, 8 GB at L and XL, and 3 GB at XS (2 GB on Container Apps).
 
