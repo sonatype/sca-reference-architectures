@@ -229,7 +229,7 @@ the rest, indices included. A cluster you brought yourself is not touched.
 `terraform.tfvars.example` lists every variable with its Size M value. Settings worth knowing:
 
 - **Single replica**: the Container App runs exactly one IQ Server.
-- **`iq_docker_image`**: pinned to `sonatype/nexus-iq-server:1.209.0`. To pull from a private registry, set `container_registry_server`, `container_registry_username` and `container_registry_password`; leave all three empty for a public registry.
+- **`iq_docker_image`**: the IQ Server image and its version tag, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. Set it in `terraform.tfvars` only to run a different image. To pull from a private registry, set `container_registry_server`, `container_registry_username` and `container_registry_password`; leave all three empty for a public registry.
 - **`db_high_availability_enabled`, `db_geo_redundant_backup_enabled`**: `false` by default; set them to `true` for production.
 - **`postgres_version`**: `18` by default.
 - **`log_share_quota_gb`**: the size of the log share, 128 GB by default.

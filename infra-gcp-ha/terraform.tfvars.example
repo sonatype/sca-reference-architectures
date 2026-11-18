@@ -24,7 +24,7 @@ db_subnet_cidr       = "10.200.20.0/24"
 allowed_ssh_cidrs = ["CHANGE_ME/32"] # the range allowed to SSH to the instances
 
 # Nexus IQ Server Configuration
-iq_docker_image = "sonatype/nexus-iq-server:1.209.0"
+# iq_docker_image defaults to the IQ Server release pinned in variables.tf. Set it here only to run a different image.
 
 # Compute Engine Instance Configuration
 instance_machine_type = "n4a-standard-8" # 8 vCPU, 32 GB (ARM)

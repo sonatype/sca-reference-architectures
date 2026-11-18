@@ -142,7 +142,7 @@ variable "iq_memory_target_value" {
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:1.209.0"
+  default     = "sonatype/nexus-iq-server:1.209.2"
 }
 
 variable "java_opts" {

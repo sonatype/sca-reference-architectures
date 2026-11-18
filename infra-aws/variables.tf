@@ -86,7 +86,7 @@ variable "iq_desired_count" {
 variable "iq_docker_image" {
   description = "Docker image for Nexus IQ Server"
   type        = string
-  default     = "sonatype/nexus-iq-server:1.209.0"
+  default     = "sonatype/nexus-iq-server:1.209.2"
 }
 
 variable "java_opts" {

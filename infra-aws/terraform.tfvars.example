@@ -18,7 +18,7 @@ db_subnet_cidrs        = ["10.0.30.0/24", "10.0.40.0/24"]
 ecs_cpu           = 8192  # 8 vCPU
 ecs_memory        = 32768 # 32 GB, the Size M value
 iq_desired_count  = 1 # Single instance (recommended)
-iq_docker_image   = "sonatype/nexus-iq-server:1.209.0"
+# iq_docker_image defaults to the IQ Server release pinned in variables.tf. Set it here only to run a different image.
 java_opts         = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # Database Configuration

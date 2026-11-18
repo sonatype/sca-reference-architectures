@@ -227,7 +227,7 @@ the rest, indices included. A cluster you brought yourself is not touched.
 - **`iq_min_replicas`, `iq_max_replicas`**: the replica counts per size in the Sizing Guide. Every size keeps at least 2 for HA.
 - **`cpu_utilization_threshold = 70`, `memory_utilization_threshold = 80`, `scale_rule_concurrent_requests = 100`**: the auto scaling rules.
 - **`db_high_availability_mode = "ZoneRedundant"`**: a standby in another zone with automatic failover.
-- **`iq_docker_image`**: pinned to `sonatype/nexus-iq-server:1.209.0`. To pull from a private registry, set `container_registry_server`, `container_registry_username` and `container_registry_password`.
+- **`iq_docker_image`**: the IQ Server image and its version tag, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. Set it in `terraform.tfvars` only to run a different image. To pull from a private registry, set `container_registry_server`, `container_registry_username` and `container_registry_password`.
 - **`db_geo_redundant_backup_enabled`**: set to `true` if the region supports geo-redundant backups.
 
 ### Clustering

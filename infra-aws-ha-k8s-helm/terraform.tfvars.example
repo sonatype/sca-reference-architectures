@@ -34,7 +34,8 @@ nexus_iq_replica_count = 2
 # Set iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
-helm_chart_version = "209.0.0"
+# helm_chart_version defaults to the chart pinned in variables.tf, which also sets the IQ Server version.
+# Set it here only to run a different chart.
 
 # Ingress Configuration
 enable_ingress_nginx = true

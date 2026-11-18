@@ -129,12 +129,15 @@ echo ""
 
 helm repo update >/dev/null 2>&1
 
+# terraform.tfvars wins when it sets helm_chart_version, otherwise the pin in variables.tf.
 CHART_VERSION=$(tfvar helm_chart_version)
-# Unset in terraform.tfvars, keep the chart version the release already runs.
 if [[ -z "$CHART_VERSION" ]]; then
-    CHART_VERSION=$(helm list -n "$NAMESPACE" -f "^${HELM_RELEASE_NAME}\$" -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+    CHART_VERSION=$(awk '/^variable "helm_chart_version"/ {f=1} f && /^[[:space:]]*default[[:space:]]*=/ {split($0, q, "\""); print q[2]; exit}' variables.tf)
 fi
-CHART_VERSION=${CHART_VERSION:-209.0.0}
+if [[ -z "$CHART_VERSION" ]]; then
+    echo -e "${RED}❌ Error: no helm_chart_version in terraform.tfvars or variables.tf${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"

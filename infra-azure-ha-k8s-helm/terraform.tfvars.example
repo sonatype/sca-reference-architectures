@@ -49,7 +49,8 @@ nexus_iq_replica_count   = 2
 # Pod CPU, memory and heap are set by iq_server.resources and iq_server.javaOpts in helm-values.yaml.
 
 # Helm Configuration
-helm_chart_version      = "209.0.0"
+# helm_chart_version defaults to the chart pinned in variables.tf, which also sets the IQ Server version.
+# Set it here only to run a different chart.
 helm_namespace          = "nexus-iq"
 agic_helm_version       = "1.7.2"
 aad_pod_identity_version = "4.1.18"

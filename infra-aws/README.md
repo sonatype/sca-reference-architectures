@@ -295,7 +295,7 @@ With `db_skip_final_snapshot = false` the destroy leaves the database's final sn
 `terraform.tfvars.example` lists every variable with its Size M value. Settings worth knowing:
 
 - **`iq_desired_count = 1`**: keep it at 1. This architecture runs a single IQ Server.
-- **`iq_docker_image`**: pinned to `sonatype/nexus-iq-server:1.209.0`.
+- **`iq_docker_image`**: the IQ Server image and its version tag, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. Set it in `terraform.tfvars` only to run a different image.
 - **`cluster_name`**: the base name for every resource, `ref-arch` by default, so the ECS cluster is
   `ref-arch-iq-cluster` and the log group `/ecs/ref-arch-nexus-iq-server`. **Give each deployment its own
   value to run more than one in a single AWS account**, since the load balancer, target groups, IAM roles,

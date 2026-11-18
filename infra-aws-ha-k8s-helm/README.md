@@ -233,7 +233,7 @@ terraform init
 
 `helm-install.sh` configures kubectl for the cluster, creates the initial admin password secret from
 `iq_admin_initial_password` and the license secret from `iq_license_file`, which every pod installs on
-its first start, installs chart `209.0.0` (`helm_chart_version`) with IQ Server `1.209.0`, and then runs
+its first start, installs the chart version in `helm_chart_version` with the IQ Server release it carries, and then runs
 `iq-post-deploy.sh`, which sets the shard counts and chooses the search backend, and installs the license
 only if IQ Server has none yet. Run `./iq-post-deploy.sh` again at any time.
 
@@ -275,7 +275,7 @@ backup AWS Backup keeps in `aws/efs/automatic-backup-vault` is not deleted and e
 - **`nexus_iq_replica_count`**: the initial number of IQ pods. `helm-install.sh` writes it into `iq_server.replicas`.
 - **`hpa.minReplicas`, `hpa.maxReplicas`**: the pod autoscaler bounds, set per size in `examples/<size>.helm-values.yaml`. Every size keeps at least 2 for HA.
 - **`aurora_instance_count = 2`**: a writer and a reader in different zones.
-- **`helm_chart_version`**: `209.0.0`. The IQ Server image is pinned to `1.209.0` in `helm-values.yaml`.
+- **`helm_chart_version`**: the `nexus-iq-server-ha` chart version, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. The chart sets the IQ Server image, so this also sets the IQ Server version.
 - **`cluster_name`**: all AWS resources are prefixed with it, `nexus-iq-ha` by default. **Give each deployment its own value to run more than one in a single AWS account**, since the EKS cluster, load balancer, IAM roles, log groups, Secrets Manager secrets and Aurora cluster identifier all have to be unique.
 - **`deletion_protection`, `skip_final_snapshot`**: set them for production.
 

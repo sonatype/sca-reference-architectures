@@ -51,12 +51,15 @@ if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
   exit 1
 fi
 
-# Unset in terraform.tfvars, keep the chart version the release already runs.
+# terraform.tfvars wins when it sets helm_chart_version, otherwise the pin in variables.tf.
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
 if [ -z "$CHART_VERSION" ]; then
-  CHART_VERSION=$(helm list -n nexus-iq -f '^nexus-iq-server-ha$' -o json | sed -n 's/.*"chart":"nexus-iq-server-ha-\([^"]*\)".*/\1/p')
+  CHART_VERSION=$(awk '/^variable "helm_chart_version"/ {f=1} f && /^[[:space:]]*default[[:space:]]*=/ {split($0, q, "\""); print q[2]; exit}' variables.tf)
 fi
-CHART_VERSION=${CHART_VERSION:-209.0.0}
+if [ -z "$CHART_VERSION" ]; then
+  echo "Error: no helm_chart_version in terraform.tfvars or variables.tf"
+  exit 1
+fi
 
 echo "Updating Helm repository..."
 helm repo update

@@ -227,7 +227,7 @@ cluster you brought yourself is not touched.
 
 - **`iq_target_instances`** sets the group size only when the group is created: `compute.tf` sets `ignore_changes = [target_size]` on the instance group manager, so an apply does not resize a running group. Change the size with `gcloud compute instance-groups managed resize`.
 - **`iq_min_instances`, `iq_max_instances`, `cpu_target_utilization`**: the autoscaler bounds and its CPU target, 0.7 by default.
-- **`iq_docker_image`**: pinned to `sonatype/nexus-iq-server:1.209.0`. The startup script installs Docker, mounts Filestore and runs the container with `--restart always`.
+- **`iq_docker_image`**: the IQ Server image and its version tag, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. Set it in `terraform.tfvars` only to run a different image. The startup script installs Docker, mounts Filestore and runs the container with `--restart always`.
 - **`iq_log_levels`**: optional logger levels passed to IQ Server's configuration.
 - **Database tier and disk type**: a change to `db_instance_tier` or `db_disk_type` updates the existing instance rather than replacing it. With `db_disk_type = "PD_SSD"`, `db_disk_provisioned_iops` and `db_disk_provisioned_throughput` are ignored.
 

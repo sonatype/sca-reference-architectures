@@ -49,7 +49,8 @@ enable_monitoring_alerts         = true
 cloud_armor_rate_limit_threshold = 1000
 
 nexus_iq_replica_count  = 2
-helm_chart_version      = "209.0.0"
+# helm_chart_version defaults to the chart pinned in variables.tf, which also sets the IQ Server version.
+# Set it here only to run a different chart.
 
 # Search Backend, needed for Advanced Search and the Nexus One index at every size
 # Required: "lucene" uses the built-in index. "opensearch" builds an OpenSearch cluster

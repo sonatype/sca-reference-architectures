@@ -77,7 +77,7 @@ You need an active cloud account with permissions to create:
 
 ### IQ Server Requirements
 
-- **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server)), pinned to `1.209.0` in every architecture
+- **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server)), with its version pinned in one place per architecture: the default of `iq_docker_image` in `variables.tf`, or of `helm_chart_version` on the three Kubernetes architectures. `scripts/bump-iq-version.sh <version>` sets it in all nine
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments. Every architecture requires the license file, named by `iq_license_file`: Terraform keeps it in the cloud's secret store, or a Kubernetes secret, and every IQ Server node installs it on its first start. An unlicensed IQ Server runs one node only, and choosing OpenSearch as the search backend needs a license
 - **PostgreSQL**: Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default for new deployments). Provisioned automatically by Terraform
 - **OpenSearch**: A reachable OpenSearch cluster, required at every size. Terraform creates it on every cloud: on AWS as an Amazon OpenSearch Service domain, and on Azure and GCP, which have no managed OpenSearch service, as a self-managed OpenSearch 3.x cluster (3.7 recommended). To use a cluster you already run, give Terraform its endpoint and credentials instead. See [OpenSearch](#opensearch).
@@ -1227,8 +1227,8 @@ The three Kubernetes architectures install IQ Server with Sonatype's `nexus-iq-s
 source and README are in [the chart repository](https://github.com/sonatype/nexus-iq-server-ha/tree/main/chart),
 and it is published on [Artifact Hub](https://artifacthub.io/packages/helm/sonatype/nexus-iq-server-ha).
 
-- **The chart version is pinned** in `helm_chart_version`, to `209.0.0`.
-- **The IQ Server image is pinned to the version released with that chart**, `iq_server.tag: "1.209.0"`, so the chart and the IQ Server it runs always match. Move both together when upgrading.
+- **The chart version is pinned** by the default of `helm_chart_version` in `variables.tf`.
+- **The IQ Server image comes from that chart**, since `helm-values.yaml` sets no tag, so the chart and the IQ Server it runs always match.
 - **The initial admin password** comes from a Kubernetes secret that `helm-install.sh` creates from `iq_admin_initial_password`, named in `iq_server.initialAdminPasswordSecret`.
 - **On AKS and GKE, OpenSearch runs on its own node pools**, one for data nodes and one for cluster managers, managed by the [OpenSearch Kubernetes Operator](https://github.com/opensearch-project/opensearch-k8s-operator). The pools are tainted so only OpenSearch runs there, and IQ Server reaches OpenSearch through a Service that selects only the data nodes.
 
@@ -1632,8 +1632,8 @@ An existing deployment needs these before its next plan:
 - **EKS: the apply deletes the `/eks/<cluster>/nexus-iq-server` log group.** Logs go through the Amazon
   CloudWatch Observability add-on, and the apply deletes that log group and the logs in it. Export any you
   need first.
-- **Kubernetes: the chart is `209.0.0`.** It does not bundle Fluentd, and the IQ Server image is pinned
-  to `1.209.0`.
+- **Kubernetes: the chart does not bundle Fluentd.** Its version is `helm_chart_version` in
+  `variables.tf`, and the IQ Server image comes from the chart.
 
 ---
 

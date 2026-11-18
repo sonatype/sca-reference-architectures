@@ -294,7 +294,7 @@ EFS backup AWS Backup keeps in `aws/efs/automatic-backup-vault` is not deleted a
 - **`iq_desired_count`, `iq_min_count`, `iq_max_count`**: the task counts per size in the Sizing Guide. Every size keeps at least 2 for HA.
 - **`iq_cpu_target_value = 70`, `iq_memory_target_value = 80`**: the auto scaling targets, in percent.
 - **`aurora_instances = 2`**: a writer and a reader in different zones.
-- **`iq_docker_image`**: pinned to `sonatype/nexus-iq-server:1.209.0`.
+- **`iq_docker_image`**: the IQ Server image and its version tag, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. Set it in `terraform.tfvars` only to run a different image.
 - **`cluster_name`**: the base name for every resource, `ref-arch-iq-ha-cluster` by default. **Give each deployment its own value to run more than one in a single AWS account**, since the load balancer, target groups, IAM roles, log group, SSM parameters, Secrets Manager secrets and Aurora cluster identifier all have to be unique.
 - **`db_deletion_protection`, `db_skip_final_snapshot`, `alb_deletion_protection`**: set them for production.
 - **`aurora_engine_version`**: `18.6` by default. An instance class change applies in the next maintenance window, because this configuration does not set `apply_immediately`.

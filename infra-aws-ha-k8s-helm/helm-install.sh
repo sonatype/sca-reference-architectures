@@ -349,8 +349,15 @@ fi
 echo -e "${GREEN}✅ Helm chart configured${NC}"
 echo ""
 
+# terraform.tfvars wins when it sets helm_chart_version, otherwise the pin in variables.tf.
 CHART_VERSION=$(sed -n 's/^helm_chart_version *= *"\([^"]*\)".*/\1/p' terraform.tfvars)
-CHART_VERSION=${CHART_VERSION:-209.0.0}
+if [[ -z "$CHART_VERSION" ]]; then
+    CHART_VERSION=$(awk '/^variable "helm_chart_version"/ {f=1} f && /^[[:space:]]*default[[:space:]]*=/ {split($0, q, "\""); print q[2]; exit}' variables.tf)
+fi
+if [[ -z "$CHART_VERSION" ]]; then
+    echo -e "${RED}❌ Error: no helm_chart_version in terraform.tfvars or variables.tf${NC}"
+    exit 1
+fi
 
 echo -e "${BLUE}🚀 Installing Helm Release${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"

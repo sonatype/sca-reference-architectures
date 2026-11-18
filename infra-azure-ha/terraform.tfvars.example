@@ -18,7 +18,7 @@ iq_min_replicas        = 2         # Minimum replicas, the Size M value (must be
 iq_max_replicas        = 3         # Maximum replicas for auto-scaling, the Size M value
 # Container Apps workload profile. D8 (8 vCPU, 32 GB) for Size M, D16 (16 vCPU, 64 GB) for Size L, E16 for XL.
 workload_profile_type  = "D8"
-iq_docker_image        = "sonatype/nexus-iq-server:1.209.0"
+# iq_docker_image defaults to the IQ Server release pinned in variables.tf. Set it here only to run a different image.
 java_opts              = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
 
 # Auto Scaling Configuration

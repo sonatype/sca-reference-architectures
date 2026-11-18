@@ -226,7 +226,7 @@ indices included. A cluster you brought yourself is not touched.
 
 `terraform.tfvars.example` lists every variable with its Size M value. Settings worth knowing:
 
-- **`iq_docker_image`**: pinned to `sonatype/nexus-iq-server:1.209.0`. The startup script installs Docker, mounts Filestore, and runs the container with `--restart always`, with `/sonatype-work` and `/var/log/nexus-iq-server` on Filestore.
+- **`iq_docker_image`**: the IQ Server image and its version tag, set by this variable's default in `variables.tf`, the one place this architecture pins the IQ Server version. Set it in `terraform.tfvars` only to run a different image. The startup script installs Docker, mounts Filestore, and runs the container with `--restart always`, with `/sonatype-work` and `/var/log/nexus-iq-server` on Filestore.
 - **`db_max_connections`**: 200, which covers one IQ Server.
 - **`gce_machine_type`**: the IQ Server VM. ARM `n4a` types are the default.
 

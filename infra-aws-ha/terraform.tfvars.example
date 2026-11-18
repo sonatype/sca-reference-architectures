@@ -32,7 +32,7 @@ iq_min_count           = 2  # Minimum for auto scaling
 iq_max_count           = 3  # Maximum for auto scaling
 iq_cpu_target_value    = 70  # CPU target for auto scaling (%) 
 iq_memory_target_value = 80  # Memory target for auto scaling (%) 
-iq_docker_image        = "sonatype/nexus-iq-server:1.209.0"
+# iq_docker_image defaults to the IQ Server release pinned in variables.tf. Set it here only to run a different image.
 java_opts              = "-Xms20g -Xmx20g -XX:MaxDirectMemorySize=4g -XX:+UseG1GC -XX:+AlwaysPreTouch -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/sonatype-work/heap-dump.hprof -XX:+ExitOnOutOfMemoryError -Dinsight.threads.monitor=10 -Djava.util.prefs.userRoot=/sonatype-work/javaprefs"
  
 # ================================

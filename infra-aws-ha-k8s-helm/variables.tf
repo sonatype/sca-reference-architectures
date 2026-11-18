@@ -161,9 +161,9 @@ variable "nexus_iq_replica_count" {
 }
 
 variable "helm_chart_version" {
-  description = "Version of the Nexus IQ Server HA Helm chart"
+  description = "Version of the Nexus IQ Server HA Helm chart. The chart sets the IQ Server image, so this also sets the IQ Server version."
   type        = string
-  default     = "209.0.0"
+  default     = "209.2.0"
 }
 
 variable "enable_ingress_nginx" {

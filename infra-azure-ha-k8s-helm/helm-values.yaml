@@ -4,7 +4,7 @@
 
 iq_server:
   image: "sonatype/nexus-iq-server"
-  tag: "1.209.0"
+  # No tag here. The chart sets it, so IQ Server always matches helm_chart_version in variables.tf.
   imagePullPolicy: "IfNotPresent"
 
 
