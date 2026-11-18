@@ -5,7 +5,7 @@
 # Server reaches the data nodes through a Standard internal load balancer.
 
 locals {
-  os_create  = local.opensearch_enabled && coalesce(var.opensearch_create, true)
+  os_create  = local.opensearch_enabled && coalesce(var.opensearch_create, var.opensearch_endpoint == "")
   os_cluster = var.opensearch_data_node_count > 1
   os_prefix  = var.cluster_name
 
@@ -24,14 +24,25 @@ locals {
     Standard_E2ps_v6  = 16
     Standard_E4ps_v6  = 32
     Standard_E8ps_v6  = 64
+    # The previous Arm series, which deploy.sh suggests when a zone has no v6 capacity.
+    Standard_D2pls_v5 = 4
+    Standard_D4pls_v5 = 8
+    Standard_D2ps_v5  = 8
+    Standard_D4ps_v5  = 16
+    Standard_D8ps_v5  = 32
+    Standard_E2ps_v5  = 16
+    Standard_E4ps_v5  = 32
+    Standard_E8ps_v5  = 64
   }
   os_data_heap_gb    = coalesce(var.opensearch_data_heap_gb, min(31, floor(lookup(local.os_vm_memory_gb, var.opensearch_data_instance_type, 0) / 2)))
   os_manager_heap_gb = coalesce(var.opensearch_manager_heap_gb, min(31, floor(lookup(local.os_vm_memory_gb, var.opensearch_manager_instance_type, 0) / 2)))
 
+  # A single node has its own key, name and address. A node is set up only at first boot, so
+  # moving between one and three or more data nodes replaces every data node and its disk.
   os_data_nodes = {
-    for i in range(var.opensearch_data_node_count) : "data-${i + 1}" => {
-      name     = "${local.os_prefix}-os-data-${i + 1}"
-      ip       = cidrhost(var.opensearch_subnet_cidr, 11 + i)
+    for i in range(var.opensearch_data_node_count) : (local.os_cluster ? "data-${i + 1}" : "solo-1") => {
+      name     = local.os_cluster ? "${local.os_prefix}-os-data-${i + 1}" : "${local.os_prefix}-os-solo-1"
+      ip       = cidrhost(var.opensearch_subnet_cidr, local.os_cluster ? 11 + i : 10)
       zone     = local.os_zones[i % length(local.os_zones)]
       roles    = local.os_cluster ? "data,ingest" : "cluster_manager,data,ingest"
       vm_size  = var.opensearch_data_instance_type
@@ -53,14 +64,15 @@ locals {
   os_nodes = local.os_create ? merge(local.os_data_nodes, local.os_manager_nodes) : {}
 
   # The node that creates the IQ Server user: the first manager, or the single node.
-  os_bootstrap_key = local.os_cluster ? "mgr-1" : "data-1"
+  os_bootstrap_key = local.os_cluster ? "mgr-1" : "solo-1"
 
-  os_endpoint = local.os_create ? (local.os_cluster ? local.os_lb_ip : cidrhost(var.opensearch_subnet_cidr, 11)) : var.opensearch_endpoint
+  os_endpoint = local.os_create ? (local.os_cluster ? local.os_lb_ip : cidrhost(var.opensearch_subnet_cidr, 10)) : var.opensearch_endpoint
   os_password = local.os_create && var.opensearch_password == "" ? try(random_password.os_iq[0].result, "") : var.opensearch_password
   os_ca_pem   = local.os_create ? tls_self_signed_cert.os_ca[0].cert_pem : ""
   # Base64 of the authority IQ Server trusts, in the form the container entrypoint decodes.
   os_ca_pem_b64 = local.os_create ? base64encode(local.os_ca_pem) : var.opensearch_ca_pem
-  os_replicas   = local.os_create ? (local.os_cluster ? 1 : 0) : var.opensearch_index_replicas
+  # A replica needs a second data node, so a created single node gets none.
+  os_replicas = local.os_create ? min(var.opensearch_index_replicas, var.opensearch_data_node_count - 1) : var.opensearch_index_replicas
 
   os_admin_password = var.opensearch_admin_password != "" ? var.opensearch_admin_password : try(random_password.os_admin[0].result, "")
   os_username       = var.opensearch_username != "" ? var.opensearch_username : "iq-server"

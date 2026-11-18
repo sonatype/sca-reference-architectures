@@ -24,3 +24,8 @@ output "opensearch_node_names" {
   description = "Names of the OpenSearch VMs, for az vm run-command when a node needs attention."
   value       = local.os_create ? sort([for n in local.os_nodes : n.name]) : null
 }
+
+output "opensearch_bootstrap_node" {
+  description = "Name of the OpenSearch VM that creates the user IQ Server signs in as, when this configuration built the cluster. iq-post-deploy.sh waits for it before choosing OpenSearch."
+  value       = local.os_create ? local.os_nodes[local.os_bootstrap_key].name : ""
+}

@@ -32,3 +32,13 @@ output "opensearch_node_names" {
   description = "Names of the OpenSearch instances, when this configuration built the cluster"
   value       = keys(local.os_nodes)
 }
+
+output "opensearch_bootstrap_node" {
+  description = "Name of the OpenSearch instance that creates the user Nexus IQ Server signs in as, when this configuration built the cluster. iq-post-deploy.sh waits for it before choosing OpenSearch."
+  value       = local.opensearch_create ? local.os_bootstrap_node : ""
+}
+
+output "opensearch_bootstrap_zone" {
+  description = "Zone of the instance named by opensearch_bootstrap_node, when this configuration built the cluster"
+  value       = local.opensearch_create ? local.os_zones[local.os_nodes[local.os_bootstrap_node].zone_index] : ""
+}

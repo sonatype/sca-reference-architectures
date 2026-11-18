@@ -4,7 +4,7 @@
 # Nexus IQ Server reaches the data pods only, through the Service nexus-iq-opensearch-data-http.
 
 locals {
-  opensearch_create = local.opensearch_enabled && coalesce(var.opensearch_create, true)
+  opensearch_create = local.opensearch_enabled && coalesce(var.opensearch_create, var.opensearch_endpoint == "")
 
   os_namespace    = "nexus-iq-opensearch"
   os_cluster_name = "nexus-iq-opensearch"
@@ -68,7 +68,6 @@ data "google_compute_zones" "opensearch" {
   count   = local.opensearch_create && length(var.opensearch_zones) == 0 ? 1 : 0
   region  = var.gcp_region
   project = var.gcp_project_id
-  status  = "UP"
 }
 
 # The certificate authority the operator signs every node certificate with. Terraform makes it,

@@ -88,7 +88,7 @@ variable "system_node_count" {
 }
 
 variable "node_group_min_size" {
-  description = "Minimum number of nodes in the AKS user node pool, which the pool starts with, one per IQ pod: 2 at Size M and L, 3 at Size XL."
+  description = "Minimum number of nodes in the AKS user node pool, one per IQ pod: 2 at Size M and L, 3 at Size XL."
   type        = number
   default     = 2
 }
@@ -100,7 +100,7 @@ variable "node_group_max_size" {
 }
 
 variable "node_group_desired_size" {
-  description = "Nodes the AKS user node pool starts with: 2 at Size M and L, 3 at Size XL. Kept equal to node_group_min_size, which is the count AKS starts an autoscaled pool at."
+  description = "Nodes the AKS user node pool starts with: 2 at Size M and L, 3 at Size XL. Must be from node_group_min_size to node_group_max_size. After the pool exists the cluster autoscaler sets the count, so a later change here has no effect."
   type        = number
   default     = 2
 }

@@ -62,3 +62,7 @@ for c in "$c1" "$c2" "$c3"; do
 done
 [ "$c4" = 200 ] || exit 1
 echo "IQ_USER_READY ${iq_username}"
+# iq-post-deploy.sh waits for this guest attribute before it switches IQ Server to OpenSearch.
+curl -fsS -X PUT -H 'Metadata-Flavor: Google' --data "ready" \
+  http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/opensearch/iq-user-ready \
+  || echo "could not record the opensearch/iq-user-ready guest attribute"

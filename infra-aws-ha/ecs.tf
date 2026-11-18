@@ -560,6 +560,17 @@ resource "aws_appautoscaling_target" "iq_target" {
   tags = merge(var.common_tags, {
     Name = "${var.cluster_name}-autoscaling-target"
   })
+
+  lifecycle {
+    precondition {
+      condition     = var.iq_max_count >= var.iq_min_count
+      error_message = "iq_max_count (${var.iq_max_count}) must be at least iq_min_count (${var.iq_min_count})."
+    }
+    precondition {
+      condition     = var.iq_desired_count >= var.iq_min_count && var.iq_desired_count <= var.iq_max_count
+      error_message = "iq_desired_count (${var.iq_desired_count}) must be from iq_min_count (${var.iq_min_count}) to iq_max_count (${var.iq_max_count})."
+    }
+  }
 }
 
 

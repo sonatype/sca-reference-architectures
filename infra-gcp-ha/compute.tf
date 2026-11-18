@@ -185,4 +185,15 @@ resource "google_compute_region_autoscaler" "iq_autoscaler" {
       time_window_sec = var.scale_in_cooldown_seconds
     }
   }
+
+  lifecycle {
+    precondition {
+      condition     = var.iq_max_instances >= var.iq_min_instances
+      error_message = "iq_max_instances (${var.iq_max_instances}) must be at least iq_min_instances (${var.iq_min_instances})."
+    }
+    precondition {
+      condition     = var.iq_target_instances >= var.iq_min_instances && var.iq_target_instances <= var.iq_max_instances
+      error_message = "iq_target_instances (${var.iq_target_instances}) must be from iq_min_instances (${var.iq_min_instances}) to iq_max_instances (${var.iq_max_instances})."
+    }
+  }
 }

@@ -70,9 +70,15 @@ variable "node_instance_type" {
 }
 
 variable "node_group_min_size" {
-  description = "Minimum number of nodes in the IQ Server node pool, in total, one per IQ pod: 2 at Size M and L, 3 at Size XL. The pool uses as many zones as this, up to 3, with one node in each at start."
+  description = "Minimum number of nodes in the IQ Server node pool, in total, one per IQ pod: 2 at Size M and L, 3 at Size XL. The pool uses as many zones as this, up to 3, unless node_pool_zones names them, with one node in each at start."
   type        = number
   default     = 2
+}
+
+variable "node_pool_zones" {
+  description = "Zones of the IQ Server node pool. Empty, the default, uses the first zones of gcp_region in name order, as many as node_group_min_size from 2 to 3. node_group_desired_size must divide evenly by the number of zones."
+  type        = list(string)
+  default     = []
 }
 
 variable "node_group_max_size" {
@@ -82,7 +88,7 @@ variable "node_group_max_size" {
 }
 
 variable "node_group_desired_size" {
-  description = "Nodes the IQ Server node pool starts with, in total; the pool starts at least one per zone. Set it to node_group_min_size: 2 at Size M and L, 3 at Size XL."
+  description = "Nodes the IQ Server node pool starts with, in total, the same number in each zone, so it must divide evenly by the zone count. Set it to node_group_min_size: 2 at Size M and L, 3 at Size XL."
   type        = number
   default     = 2
 }

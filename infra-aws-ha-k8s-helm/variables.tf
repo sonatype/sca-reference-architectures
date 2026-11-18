@@ -369,7 +369,7 @@ variable "opensearch_create_log_resource_policy" {
 }
 
 variable "opensearch_index_replicas" {
-  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This architecture always writes it; when IQ Server is not given a count, it uses 1. One is the default here, matching the default domain's two data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
+  description = "Replicas per shard for the Nexus One index, written to config.yml as search.nexusOneIndexReplicas. This architecture always writes it; when IQ Server is not given a count, it uses 1. One is the default here, matching the default domain's three data nodes: at 0 replicas losing a node means rebuilding the index rather than recovering it."
   type        = number
   default     = 1
 

@@ -143,6 +143,11 @@ echo -e "${BLUE}📦 Preparing Upgrade${NC}"
 echo "━━━━━━━━━━━━━━━━━━━"
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
+# The file holds the database password, so it is written mode 600, and the trap removes it
+# however the script ends.
+trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE".bak*' EXIT INT TERM
+umask 077
+rm -f "$TEMP_VALUES_FILE"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 DB_PASSWORD=$(tfvar database_password)
@@ -167,12 +172,10 @@ fi
 
 load_search_vars
 if ! write_search_block "$TEMP_VALUES_FILE"; then
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
 if ! write_ca_block "$TEMP_VALUES_FILE" "$NAMESPACE"; then
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -180,7 +183,6 @@ fi
 if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
     grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -210,7 +212,6 @@ NEW_IMAGE=$(helm template "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     | sed -n "/name: $IQ_CONTAINER\$/{n;s/^ *image: *//p;}" || true)
 if [[ -z "$NEW_IMAGE" ]]; then
     echo -e "${RED}❌ Error: could not render the IQ Server image from chart $CHART_VERSION${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 MIGRATE_ARGS=()
@@ -219,7 +220,6 @@ if [[ "$CURRENT_IMAGE" != "$NEW_IMAGE" ]]; then
         echo -e "${RED}❌ Error: the IQ Server image changes from ${CURRENT_IMAGE:-none} to $NEW_IMAGE${NC}"
         echo "   A new image needs a database migration, which stops IQ Server for its duration."
         echo "   Back up the database, then re-run with MIGRATE_DATABASE=yes ./helm-upgrade.sh"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
         exit 1
     fi
     MIGRATE_ARGS=(--set-string 'iq_server_jobs.migrationJobAnnotations.helm\.sh/hook=pre-upgrade')
@@ -242,7 +242,6 @@ echo ""
 read -p "Continue with upgrade? (yes/no): " -r
 if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
     echo -e "${YELLOW}❌ Upgrade cancelled${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 0
 fi
 
@@ -270,7 +269,6 @@ if [[ ${#MIGRATE_ARGS[@]} -gt 0 ]]; then
         --wait \
         --timeout 10m; then
         echo -e "${RED}❌ Error: scaling IQ Server to zero failed, so the migration did not start${NC}"
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
         exit 1
     fi
     kubectl wait --for=delete pod -l "name=${HELM_RELEASE_NAME}-iq-server" -n "$NAMESPACE" --timeout=10m 2>/dev/null || true
@@ -296,7 +294,6 @@ if ! helm upgrade "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
     else
         echo -e "${RED}❌ Upgrade failed, and --atomic rolls the release back to revision $CURRENT_REVISION${NC}"
     fi
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -304,7 +301,6 @@ echo ""
 echo -e "${GREEN}✅ Upgrade Completed Successfully${NC}"
 echo ""
 
-rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
 AGW_NAME=$(terraform output -raw application_gateway_name 2>/dev/null || echo "")
 if [[ -n "$AGW_NAME" && "$AGW_NAME" != "null" ]]; then

@@ -111,6 +111,8 @@ Choose your deployment size based on your application count and daily evaluation
 
 > ³ Evaluations per day, hour are typical figures for the whole cluster on a normal day, a guide for planning, not a limit.
 
+The generic IQ Server sizing and deployment guidance is in Sonatype's [reference architecture help pages](https://help.sonatype.com/en/sonatype-platform-reference-architectures.html).
+
 The Database and OpenSearch columns give the AWS types. Azure uses a database class with the same vCPU and memory at every size, and GCP does at M, L and XL; at XS and S the GCP class has the same vCPU and less memory, 7.5 GB and 13 GB against 8 GB and 16 GB. The classes are listed in [Database Instance Comparison](#database-instance-comparison) for M, L and XL and in [Detailed Specifications](#detailed-specifications) for XS and S, and their OpenSearch node types are in [Per-size cluster specification](#per-size-cluster-specification). The Java heap for each platform is in [JVM Configuration](#jvm-configuration).
 
 ### Option 1: The Guided Deploy Script
@@ -121,7 +123,9 @@ The quickest route is `deploy.sh` at the top of the repository. It asks for:
 2. The architecture: Single Instance, High Availability, or Kubernetes
 3. The size, from those the architecture offers
 4. The search backend: `opensearch` or `lucene`
-5. Every value the architecture's example file marks `CHANGE_ME`, such as the region, the database password, the initial admin password and the license file, which `--license-file` or `license_file` in the answers file also answers
+5. Every value the architecture's example file marks `CHANGE_ME`, such as the database password, the initial admin password and the license file, which `--license-file` or `license_file` in the answers file also answers
+
+The region comes from the example file. `deploy.sh` shows it before asking you to continue, and `--set aws_region=...`, `--set azure_region=...` or `--set gcp_region=...` changes it.
 
 It then writes `terraform.tfvars` from the example file and that size's values in `examples/<size>.tfvars`, runs the plan and the apply, installs the Helm chart on the Kubernetes architectures, and sets up search on IQ Server.
 
@@ -1318,6 +1322,10 @@ OpenSearch is part of every reference architecture and is required at every size
 both of IQ Server's search features: Advanced Search and the Nexus One index behind the Nexus One list
 pages, typeahead, and dashboard.
 
+IQ Server keeps seven indices in that one shared cluster: the Advanced Search index, behind the
+`iq-index` alias, and six Nexus One indices, one each for applications, violations, waivers, components,
+vulnerabilities and the shared entity data, named `iq-index-nexus-one-<generation>-<type>`.
+
 **Terraform creates the cluster on every cloud**, at the shape in the [Per-size cluster specification](#per-size-cluster-specification):
 
 - **AWS** (`infra-aws`, `infra-aws-ha`, `infra-aws-ha-k8s-helm`): an Amazon OpenSearch Service domain
@@ -1336,8 +1344,9 @@ On Azure and GCP, Terraform generates the certificate authority, the certificate
 creates an `iq-server` user for IQ Server. You own upgrades, snapshots, and node replacement on these
 clusters.
 
-**To bring your own cluster instead**, set `opensearch_create = false` on Azure and GCP, or
-`opensearch_domain_endpoint` on AWS, and give the endpoint and credentials in the variables each
+**To bring your own cluster instead**, set `opensearch_endpoint` on Azure and GCP, which leaves
+`opensearch_create` false unless you set it, or `opensearch_domain_endpoint` on AWS, and give the
+endpoint and credentials in the variables each
 architecture's README names. Point the endpoint at an address that reaches every data node, and set
 `opensearch_data_node_count` (Azure and GCP) or `opensearch_instance_count` (AWS) to your cluster's data
 node count, since the deploy sets the shard counts from it.
@@ -1485,6 +1494,11 @@ the data disk is the smallest Premium SSD tier at or above it: 32, 64, 128, 256 
 
 The XL data node is 8 vCPU and 64 GB on every cloud.
 
+**Moving between one and three data nodes on the Azure and GCP virtual machines builds a new cluster.**
+Terraform replaces every data node and its disk, so the new cluster starts with no indices. Once the
+apply and `iq-post-deploy.sh` finish, start a Nexus One index build in the Index Manager, as on a first
+deploy.
+
 Three dedicated cluster managers run at every size with more than one data node, one per zone, and
 none at XS and S, where the one data node is its own cluster manager:
 
@@ -1564,6 +1578,7 @@ All architectures create their own VPC/VNet with:
 - **Network**: Security groups restrict access; compute and OpenSearch run in private subnets
 - **Identity**: IAM roles (AWS), Managed Identity (Azure), Workload Identity (GCP)
 - **State**: `terraform.tfvars` and the Terraform state hold the passwords, so keep both private
+- **Plain HTTP**: `infra-aws` and the `infra-azure-ha` Application Gateway serve IQ Server over plain HTTP until you put TLS in front, so `iq-post-deploy.sh` warns before it sends the admin password there. On `infra-azure-ha`, run it with `IQ_URL` set to the `container_app_url` output, which is `https://`
 
 ### Development vs Production
 
@@ -1610,10 +1625,18 @@ The load balancer performs health checks on `/ping`. If the application shows un
 
 An existing deployment needs these before its next plan:
 
+- **Pin your size.** The defaults are now the Size M values, so a `terraform.tfvars` that leaves sizing
+  unset shrinks compute and the database on the next apply. On `infra-aws-ha`, for example, the heap goes
+  from 44 GB to 20 GB and Aurora from `db.r8g.2xlarge` to `db.r8g.xlarge`, and a database class change
+  restarts the database. Copy your size's values from `examples/<size>.tfvars` into `terraform.tfvars`
+  before the next plan.
 - **Set `search_engine`.** It has no default. To keep what you have, set `search_engine = "lucene"`; to
-  move to OpenSearch, set `"opensearch"`, and Terraform creates the cluster.
+  move to OpenSearch, set `"opensearch"`, and Terraform creates the cluster. A deployment that already
+  sets `opensearch_endpoint` (`opensearch_domain_endpoint` on AWS) keeps the cluster it names.
 - **Set `iq_admin_initial_password`.** The plan requires it. IQ Server reads it only on its first start,
-  so an existing admin password stays as it is.
+  so an existing admin password stays as it is: `admin123` unless it was changed. The post-deploy step
+  then stops on a 401, so run `./iq-post-deploy.sh` again with `IQ_ADMIN_PASSWORD` set to the existing
+  password.
 - **Set `iq_license_file`.** The plan requires it, and the file has to exist wherever Terraform runs,
   for the destroy as well. IQ Server installs it only when it has no license, so an installed license
   stays as it is. On Kubernetes, `helm-install.sh` replaces the `nexus-iq-license` secret with it.

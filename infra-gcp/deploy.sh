@@ -114,54 +114,11 @@ validate_gcp_project() {
 # Function to create terraform.tfvars file if it doesn't exist
 create_tfvars_template() {
     if [[ ! -f "$TFVARS_FILE" ]]; then
-        print_status "Creating terraform.tfvars template..."
-        cat > "$TFVARS_FILE" << 'EOF'
-# GCP Configuration
-gcp_project_id = "CHANGE_ME-gcp-project-id"
-gcp_region     = "us-central1"
-environment    = "dev"
-
-# Database Configuration
-db_password = "CHANGE_ME_STRONG_PASSWORD"
-
-# IQ Server's admin password, at least 12 characters, read on its first start only
-iq_admin_initial_password = "CHANGE_ME"
-
-# Search backend: "opensearch" for Nexus One, or "lucene" to run without it
-search_engine = "CHANGE_ME"
-
-# Network Configuration (optional - defaults will be used if not specified)
-# vpc_cidr              = "10.100.0.0/16"
-# public_subnet_cidr    = "10.100.1.0/24"
-# private_subnet_cidr   = "10.100.10.0/24"
-# db_subnet_cidr        = "10.100.20.0/24"
-
-
-# SSL/TLS Configuration
-enable_ssl = true
-# domain_name = "CHANGE_ME-nexus-iq.example.com"
-
-# Security Configuration
-enable_cloud_armor = true
-# blocked_countries = ["CN", "RU"]
-# ssh_source_ranges = ["CHANGE_ME/32"]
-
-# Monitoring Configuration
-enable_monitoring_alerts = true
-# alert_email_addresses = ["CHANGE_ME_EMAIL"]
-# slack_webhook_url = "https://hooks.slack.com/services/..."
-
-# Storage Configuration
-backup_retention_days = 30
-log_retention_days = 30
-
-# Scaling Configuration
-iq_desired_count = "1"
-iq_cpu_limit = "2000m"
-iq_memory_limit = "4Gi"
-EOF
-        print_warning "Created terraform.tfvars template. Please edit it with your configuration before proceeding."
-        print_warning "At minimum, set 'gcp_project_id' and 'db_password' values."
+        print_status "Creating terraform.tfvars from terraform.tfvars.example..."
+        cp "$TERRAFORM_DIR/terraform.tfvars.example" "$TFVARS_FILE"
+        chmod 600 "$TFVARS_FILE"
+        print_warning "Created terraform.tfvars. Edit it before proceeding, and set every CHANGE_ME value,"
+        print_warning "including iq_license_file, the path to your license file, and iq_admin_initial_password."
         exit 0
     fi
 }

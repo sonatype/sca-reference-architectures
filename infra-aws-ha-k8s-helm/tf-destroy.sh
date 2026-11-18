@@ -123,9 +123,14 @@ PLAN_OUTPUT=$(terraform plan -destroy 2>&1) || PLAN_STATUS=$?
 
 if [[ $PLAN_STATUS -ne 0 ]]; then
     if ! grep -q "prevent_destroy" <<<"$PLAN_OUTPUT"; then
-        echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
-        echo "Nothing to destroy."
-        exit 0
+        if [[ -z "$(terraform state list 2>/dev/null)" ]]; then
+            echo -e "${YELLOW}⚠️  No infrastructure found${NC}"
+            echo "Nothing to destroy."
+            exit 0
+        fi
+        printf '%s\n' "$PLAN_OUTPUT"
+        echo -e "${RED}❌ The destroy plan failed, so nothing was destroyed. Fix the error above, then run this script again.${NC}"
+        exit 1
     fi
     DOMAIN_NAME=$(terraform output -raw opensearch_domain_name 2>/dev/null || true)
     if [[ "$DELETE_OPENSEARCH_DOMAIN" != true || -z "$DOMAIN_NAME" ]]; then

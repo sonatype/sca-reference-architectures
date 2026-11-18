@@ -8,6 +8,8 @@
 #   2. With search_engine = "opensearch":
 #      - sets the three Nexus One index shard counts to the OpenSearch data node
 #        count, so the first index build creates the indices with them;
+#      - on the virtual machine architectures, when this configuration built the
+#        OpenSearch cluster, waits for the node that creates IQ Server's user;
 #      - chooses OpenSearch as the Nexus One search backend, on IQ Server
 #        versions that ask for that choice. Older versions answer 404 and are
 #        left alone.
@@ -30,6 +32,10 @@
 #                       answers with 502, 503 or 504, default 600
 #   IQ_CURL_INSECURE=1  skip the TLS certificate check, for a certificate that
 #                       does not name the host in IQ_URL
+#   OPENSEARCH_READY_WAIT_SECONDS
+#                       on the virtual machine architectures, how long to wait
+#                       for the OpenSearch node that creates IQ Server's user to
+#                       finish, default 1200. 0 skips the wait
 
 set -euo pipefail
 
@@ -41,6 +47,10 @@ cd "$(dirname "$0")"
 URL_OUTPUT=""
 K8S_NAMESPACE="nexus-iq"
 K8S_SERVICE="nexus-iq-server-ha-iq-server-application-service"
+# How to ask the OpenSearch node that creates IQ Server's user whether it has
+# finished, when this architecture built the cluster on virtual machines: azure,
+# gcp, or empty when there is nothing to wait for.
+OPENSEARCH_NODE_CHECK=""
 LOCAL_PORT="${IQ_LOCAL_PORT:-18070}"
 
 # IQ Server accepts shard counts from 1 to nexusOneIndexMaxShards, which is 12
@@ -149,6 +159,13 @@ else
 fi
 IQ_URL="${IQ_URL%/}"
 
+IQ_HOST="${IQ_URL#http://}"
+IQ_HOST="${IQ_HOST%%[:/]*}"
+if [[ "$IQ_URL" == http://* && "$IQ_HOST" != "127.0.0.1" && "$IQ_HOST" != "localhost" ]]; then
+    warn "$IQ_URL is plain HTTP, so the admin password crosses the network unencrypted."
+    warn "Once TLS is in front of IQ Server, run this with IQ_URL set to its https:// address."
+fi
+
 # Sends one request and prints the HTTP status, 000 when nothing answered. The
 # response body is left in $BODY.
 iq_request() {
@@ -209,6 +226,9 @@ while true; do
     case "$STATUS" in
         200) break ;;
         401)
+            if [[ -z "${IQ_ADMIN_PASSWORD:-}" ]]; then
+                fail "IQ Server refused iq_admin_initial_password. IQ Server keeps the admin password it was given on its very first start, so a deployment first started before iq_admin_initial_password existed still has its existing admin password, admin123 unless it was changed. Run again with IQ_ADMIN_PASSWORD set to it."
+            fi
             fail "IQ Server refused the admin password. IQ Server keeps the password it was given on its very first start; if it has been changed since, run again with IQ_ADMIN_PASSWORD set to the current one."
             ;;
         403) fail "IQ Server answered 403: the admin user cannot change system configuration." ;;
@@ -261,6 +281,63 @@ else
 fi
 
 echo ""
+# On the virtual machine architectures, one OpenSearch node creates the user IQ Server
+# signs in as once the cluster has formed, which can finish after the apply does. Wait
+# for that node to report the user ready before choosing OpenSearch. There is nothing
+# to wait for when the cluster was brought rather than built here.
+OS_NODE=""
+if [[ -n "$OPENSEARCH_NODE_CHECK" ]]; then
+    OS_NODE="$(tf_output opensearch_bootstrap_node)"
+fi
+OS_READY_WAIT_SECONDS="${OPENSEARCH_READY_WAIT_SECONDS:-1200}"
+[[ "$OS_READY_WAIT_SECONDS" =~ ^[0-9]+$ ]] || fail "OPENSEARCH_READY_WAIT_SECONDS must be a whole number of seconds"
+if [[ -n "$OS_NODE" && "$OS_READY_WAIT_SECONDS" -gt 0 ]]; then
+    case "$OPENSEARCH_NODE_CHECK" in
+        azure)
+            command -v az >/dev/null 2>&1 || fail "az is not installed, and it is needed to check OpenSearch node $OS_NODE. Set OPENSEARCH_READY_WAIT_SECONDS=0 to skip the check."
+            OS_GROUP="$(tf_output resource_group_name)"
+            [[ -n "$OS_GROUP" ]] || fail "No resource_group_name output found"
+            OS_CHECK_HINT="the opensearch-iq-user.service journal on VM $OS_NODE, for example with: az vm run-command invoke --resource-group $OS_GROUP --name $OS_NODE --command-id RunShellScript --scripts 'journalctl -u opensearch-iq-user.service --no-pager | tail -50'"
+            ;;
+        gcp)
+            command -v gcloud >/dev/null 2>&1 || fail "gcloud is not installed, and it is needed to check OpenSearch node $OS_NODE. Set OPENSEARCH_READY_WAIT_SECONDS=0 to skip the check."
+            OS_ZONE="$(tf_output opensearch_bootstrap_zone)"
+            OS_PROJECT="$(tf_output project_id)"
+            [[ -n "$OS_ZONE" && -n "$OS_PROJECT" ]] || fail "No opensearch_bootstrap_zone or project_id output found"
+            OS_CHECK_HINT="the opensearch-iq-user.service journal on instance $OS_NODE in zone $OS_ZONE"
+            ;;
+        *) fail "Unknown OPENSEARCH_NODE_CHECK '$OPENSEARCH_NODE_CHECK'" ;;
+    esac
+
+    # Succeeds once the node reports the user ready: on Azure, the IQ_USER_READY line in
+    # the user service's journal; on GCP, the guest attribute it writes after that line.
+    opensearch_user_ready() {
+        case "$OPENSEARCH_NODE_CHECK" in
+            azure)
+                az vm run-command invoke --resource-group "$OS_GROUP" --name "$OS_NODE" --command-id RunShellScript \
+                    --scripts "if journalctl -u opensearch-iq-user.service --no-pager 2>/dev/null | grep -q IQ_USER_READY; then echo user-is-ready; fi" \
+                    --query 'value[0].message' -o tsv 2>/dev/null | grep -qx 'user-is-ready'
+                ;;
+            gcp)
+                [[ "$(gcloud compute instances get-guest-attributes "$OS_NODE" --zone "$OS_ZONE" --project "$OS_PROJECT" \
+                    --query-path=opensearch/iq-user-ready --format='value(value)' 2>/dev/null)" == "ready" ]]
+                ;;
+        esac
+    }
+
+    info "Waiting up to ${OS_READY_WAIT_SECONDS}s for OpenSearch node $OS_NODE to create the IQ Server user"
+    OS_DEADLINE=$((SECONDS + OS_READY_WAIT_SECONDS))
+    until opensearch_user_ready; do
+        if [[ $SECONDS -ge $OS_DEADLINE ]]; then
+            fail "OpenSearch node $OS_NODE did not report the IQ Server user ready within ${OS_READY_WAIT_SECONDS}s. Read $OS_CHECK_HINT, then run ./iq-post-deploy.sh again."
+        fi
+        echo "  not ready yet after ${SECONDS}s, checking again in 30s"
+        sleep 30
+    done
+    ok "OpenSearch node $OS_NODE has created the IQ Server user"
+    echo ""
+fi
+
 # IQ Server installs the license iq_license_file names on its first start. This script
 # installs it only when IQ Server still has none, which choosing the backend reports
 # as 402.

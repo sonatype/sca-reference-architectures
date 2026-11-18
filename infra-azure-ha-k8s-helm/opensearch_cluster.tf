@@ -4,7 +4,7 @@
 # Nexus IQ Server reaches the data pods only, through the Service nexus-iq-opensearch-data-http.
 
 locals {
-  opensearch_create = local.opensearch_enabled && coalesce(var.opensearch_create, true)
+  opensearch_create = local.opensearch_enabled && coalesce(var.opensearch_create, var.opensearch_endpoint == "")
 
   os_namespace    = "nexus-iq-opensearch"
   os_cluster_name = "nexus-iq-opensearch"
@@ -22,6 +22,15 @@ locals {
     Standard_E2ps_v6  = 16
     Standard_E4ps_v6  = 32
     Standard_E8ps_v6  = 64
+    # The previous Arm series, which deploy.sh suggests when a zone has no v6 capacity.
+    Standard_D2pls_v5 = 4
+    Standard_D4pls_v5 = 8
+    Standard_D2ps_v5  = 8
+    Standard_D4ps_v5  = 16
+    Standard_D8ps_v5  = 32
+    Standard_E2ps_v5  = 16
+    Standard_E4ps_v5  = 32
+    Standard_E8ps_v5  = 64
   }
   os_type   = { data = var.opensearch_data_instance_type, manager = var.opensearch_manager_instance_type }
   os_mem_gb = { for role, type in local.os_type : role => lookup(local.os_vm_memory_gb, type, 0) }

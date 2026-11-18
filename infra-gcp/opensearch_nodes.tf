@@ -62,6 +62,8 @@ resource "google_compute_instance" "os" {
 
   metadata = {
     enable-oslogin = "TRUE"
+    # iq-post-deploy.sh reads the bootstrap node's guest attributes to know the IQ Server user exists.
+    enable-guest-attributes = "TRUE"
     user-data = templatefile("${path.module}/templates/opensearch-cloud-init.yaml.tftpl", {
       project   = var.gcp_project_id
       bootstrap = each.value.bootstrap

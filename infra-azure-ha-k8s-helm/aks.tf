@@ -94,6 +94,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   auto_scaling_enabled  = true
   min_count             = var.node_group_min_size
   max_count             = var.node_group_max_size
+  node_count            = var.node_group_desired_size
   os_disk_size_gb       = var.node_disk_size
   os_disk_type          = "Managed"
   mode                  = "User"
@@ -111,6 +112,21 @@ resource "azurerm_kubernetes_cluster_node_pool" "user_pool" {
   tags = merge(local.common_tags, {
     Name = "aks-${var.cluster_name}-user-nodepool"
   })
+
+  lifecycle {
+    # The cluster autoscaler owns the live node count, so node_count only sets the
+    # count the pool starts with.
+    ignore_changes = [node_count]
+
+    precondition {
+      condition     = var.node_group_max_size >= var.node_group_min_size
+      error_message = "node_group_max_size (${var.node_group_max_size}) must be at least node_group_min_size (${var.node_group_min_size})."
+    }
+    precondition {
+      condition     = var.node_group_desired_size >= var.node_group_min_size && var.node_group_desired_size <= var.node_group_max_size
+      error_message = "node_group_desired_size (${var.node_group_desired_size}) must be from node_group_min_size (${var.node_group_min_size}) to node_group_max_size (${var.node_group_max_size})."
+    }
+  }
 }
 
 

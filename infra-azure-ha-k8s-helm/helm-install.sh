@@ -185,6 +185,11 @@ else
 fi
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
+# The file holds the database password, so it is written mode 600, and the trap removes it
+# however the script ends.
+trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE".bak*' EXIT INT TERM
+umask 077
+rm -f "$TEMP_VALUES_FILE"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 # sed rather than cut, which keeps a trailing comment. The default covers an absent key.
@@ -200,12 +205,10 @@ sed -i.bak \
     "$TEMP_VALUES_FILE"
 
 if ! write_search_block "$TEMP_VALUES_FILE"; then
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
 if ! write_ca_block "$TEMP_VALUES_FILE" "$NAMESPACE"; then
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -213,7 +216,6 @@ fi
 if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
     grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -225,7 +227,6 @@ fi
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -274,6 +275,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         --timeout 30m; then
         echo -e "${RED}❌ The first IQ Server pod did not become ready within 30 minutes${NC}"
         echo "Check it with: kubectl logs -n $NAMESPACE deployment/$IQ_DEPLOYMENT"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
         exit 1
     fi
     # The values files carry the configured replica count and autoscaler, so this
@@ -286,11 +288,10 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
         --timeout 10m; then
         echo -e "${RED}❌ Setting the IQ Server replica count failed${NC}"
-        echo "Run ./helm-upgrade.sh to apply helm-values.yaml again"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
         exit 1
     fi
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
     kubectl wait --for=condition=ready pod -l name=nexus-iq-server-ha-iq-server -n "$NAMESPACE" --timeout=5m >/dev/null 2>&1 || true
 
@@ -310,6 +311,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         if [[ -z "$LB_IP" ]]; then
             echo -e "${RED}❌ Error: the application service has no load balancer address after ${timeout}s${NC}"
             echo "   The Application Gateway backend pool is not set. Check: kubectl get svc -n $NAMESPACE"
+            echo "   Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
             exit 1
         fi
 
@@ -326,6 +328,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
                 --name aks-backend-pool \
                 --servers "$LB_IP" >/dev/null; then
                 echo -e "${RED}❌ Error: could not point the Application Gateway backend pool at $LB_IP${NC}"
+                echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
                 exit 1
             fi
         fi
@@ -378,6 +381,5 @@ else
     kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || true
     echo ""
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi

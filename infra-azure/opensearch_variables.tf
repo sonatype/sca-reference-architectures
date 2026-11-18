@@ -5,7 +5,7 @@
 # are the Size M values; README.md, "Search Backend", gives every size.
 
 variable "opensearch_create" {
-  description = "Build the OpenSearch cluster with this configuration. Null, the default, means true whenever search_engine is \"opensearch\". Set false to bring your own cluster through opensearch_endpoint, opensearch_username, opensearch_password and opensearch_ca_pem."
+  description = "Build the OpenSearch cluster with this configuration. Null, the default, means true whenever search_engine is \"opensearch\" and opensearch_endpoint is empty, so a deployment that sets opensearch_endpoint keeps the cluster it names. Set false to bring your own cluster through opensearch_endpoint, opensearch_username, opensearch_password and opensearch_ca_pem."
   type        = bool
   default     = null
 }

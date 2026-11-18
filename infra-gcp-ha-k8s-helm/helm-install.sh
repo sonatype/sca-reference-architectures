@@ -257,6 +257,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         --timeout 30m; then
         echo -e "${RED}❌ The first IQ Server pod did not become ready within 30 minutes${NC}"
         echo "Check it with: kubectl logs -n $NAMESPACE deployment/$IQ_DEPLOYMENT"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
         exit 1
     fi
     # The values files carry the configured replica count and autoscaler, so this
@@ -269,7 +270,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
         --timeout 10m; then
         echo -e "${RED}❌ Setting the IQ Server replica count failed${NC}"
-        echo "Run ./helm-upgrade.sh to apply helm-values.yaml again"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
         exit 1
     fi
 

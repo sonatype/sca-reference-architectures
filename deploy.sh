@@ -818,13 +818,18 @@ start_log() {
 # plan has changes. That is the normal result before an apply, so on the plan step
 # 2 means continue and only 1 or above 2 is a failure.
 run_step() {
-    local cmd="$1" rc
+    local cmd="$1" rc f
     say ""
     say "==> $ROOT_NAME: $cmd"
+    # Terraform state holds the admin password and the license, so the steps run under
+    # umask 077 and any state already there is made private first.
+    for f in "$ROOT_DIR"/terraform.tfstate*; do
+        if [[ -e "$f" ]]; then chmod 600 "$f"; fi
+    done
     if can_prompt; then
-        (cd "$ROOT_DIR" && eval "$cmd") < /dev/tty
+        (cd "$ROOT_DIR" && umask 077 && eval "$cmd") < /dev/tty
     else
-        (cd "$ROOT_DIR" && eval "$cmd") < /dev/null
+        (cd "$ROOT_DIR" && umask 077 && eval "$cmd") < /dev/null
     fi
     rc=$?
     if [[ $rc -eq 2 && "$cmd" == "$(plan_cmd)" ]]; then
@@ -860,11 +865,13 @@ capacity_hint() {
         errlines=$(grep "ZonalAllocationFailed\|SkuNotAvailable\|AllocationFailed\|Allocation failed" "$LOG")
         sizes=$(printf '%s\n' "$errlines" | sed "s/alternative sizes '[^']*'//g" | grep -o "Standard_[A-Za-z0-9_]*" | sort -u | paste -sd ' ' -)
         alt=$(printf '%s\n' "$errlines" | grep -o "alternative sizes '[^']*' ([^)]*)" | head -n 1)
-        # The fallback is the deployed size's own VM size from the AMD series, which has the same vCPUs
-        # and memory: Standard_D16ps_v6 becomes Standard_D16as_v6, Standard_D2pls_v6 Standard_D2als_v6.
+        # The IQ Server node fallback is the deployed size's own VM size from the AMD series, which has
+        # the same vCPUs and memory: Standard_D16ps_v6 becomes Standard_D16as_v6. The OpenSearch nodes
+        # run Arm only, so their fallback is the previous Arm series: Standard_D2ps_v6 becomes
+        # Standard_D2ps_v5, Standard_D2pls_v6 Standard_D2pls_v5.
         [[ -f "$tfvars" ]] || tfvars="$ROOT_DIR/examples/${SIZE:-m}.tfvars"
         node_alt=$(sed -n 's/^node_instance_type *= *"\(Standard_[A-Za-z0-9]*\)p\(l\{0,1\}\)s_v6".*/\1a\2s_v6/p' "$tfvars" 2>/dev/null | head -n 1)
-        os_alt=$(sed -n 's/^opensearch_data_instance_type *= *"\(Standard_[A-Za-z0-9]*\)p\(l\{0,1\}\)s_v6".*/\1a\2s_v6/p' "$tfvars" 2>/dev/null | head -n 1)
+        os_alt=$(sed -n 's/^opensearch_data_instance_type *= *"\(Standard_[A-Za-z0-9]*p[a-z]*\)_v6".*/\1_v5/p' "$tfvars" 2>/dev/null | head -n 1)
         say ""
         say "Azure has no capacity for a VM size in a zone${sizes:+ ($sizes)}."
         [[ -n "$alt" ]] && say "Azure's error suggests $alt."
@@ -873,13 +880,13 @@ capacity_hint() {
             infra-azure-ha-k8s-helm)
                 say "  --set 'node_pool_zones=[\"2\",\"3\"]'   the IQ Server node pool in the zones that have capacity"
                 say "  --set node_instance_type=${node_alt:-<type>}   the same vCPUs and memory from another series"
-                say "  --set opensearch_data_instance_type=${os_alt:-<type>}   for an OpenSearch size, the same from another series"
+                say "  --set opensearch_data_instance_type=${os_alt:-<type>}   for an OpenSearch size, the same vCPUs and memory from the previous Arm series"
                 say "A node pool that failed this way can exist in Azure and not in Terraform state; delete it with"
                 say "az aks nodepool delete before the retry, or the retry fails with 'already exists'."
                 ;;
             *)
                 say "  --set 'opensearch_zones=[\"2\",\"3\"]'   the OpenSearch nodes in the zones that have capacity"
-                say "  --set opensearch_data_instance_type=${os_alt:-<type>}   the same vCPUs and memory from another series"
+                say "  --set opensearch_data_instance_type=${os_alt:-<type>}   the same vCPUs and memory from the previous Arm series"
                 ;;
         esac
     elif grep -q "InsufficientInstanceCapacity\|InsufficientCapacity" "$LOG"; then
@@ -968,8 +975,13 @@ print_access() {
 confirm() {
     local question="$1" word="$2" reply
     [[ "$YES" == true ]] && return 0
-    if ! can_prompt; then
-        die "confirmation needed: run from a terminal, or pass --yes"
+    # Asks on the terminal even when the answers come from a file, so only --yes or
+    # --non-interactive skips the question.
+    if [[ "$NON_INTERACTIVE" == true ]]; then
+        die "confirmation needed and --non-interactive is set: pass --yes"
+    fi
+    if ! { : < /dev/tty; } 2>/dev/null; then
+        die "confirmation needed and there is no terminal to ask on: pass --yes"
     fi
     printf '%s Type %s to continue: ' "$question" "$word" >&2
     IFS= read -r reply < /dev/tty || die "canceled"
@@ -981,7 +993,7 @@ confirm() {
 # ---------------------------------------------------------------------------
 
 do_deploy() {
-    local target="$ROOT_DIR/terraform.tfvars" stamp cmds="" c post
+    local target="$ROOT_DIR/terraform.tfvars" stamp cmds="" c post region
     select_size_and_search
     resolve_license
     build_tfvars
@@ -1039,6 +1051,8 @@ $post"
     cloud_env "$WORK/tfvars"
     cloud_tools
     if [[ "$PLAN_ONLY" != true ]]; then
+        region=$(live_value "$WORK/tfvars" "${CLOUD}_region" | sed 's/^"\([^"]*\)".*/\1/')
+        say "Region: ${region:-the default in $ROOT_NAME/variables.tf}. To change it, run again with --set ${CLOUD}_region=<region>."
         confirm "This creates the $ROOT_NAME deployment at size $SIZE in your $CLOUD account." yes
     fi
 

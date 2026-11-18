@@ -1,6 +1,18 @@
 # The node AMI must match the instance architecture: Graviton types get the arm64 AMI.
 data "aws_ec2_instance_type" "node" {
   instance_type = var.node_instance_type
+
+  # Here rather than on the node group, which sits inside the EKS module.
+  lifecycle {
+    precondition {
+      condition     = var.node_group_max_size >= var.node_group_min_size
+      error_message = "node_group_max_size (${var.node_group_max_size}) must be at least node_group_min_size (${var.node_group_min_size})."
+    }
+    precondition {
+      condition     = var.node_group_desired_size >= var.node_group_min_size && var.node_group_desired_size <= var.node_group_max_size
+      error_message = "node_group_desired_size (${var.node_group_desired_size}) must be from node_group_min_size (${var.node_group_min_size}) to node_group_max_size (${var.node_group_max_size})."
+    }
+  }
 }
 
 locals {

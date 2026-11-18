@@ -273,6 +273,11 @@ OPENSEARCH_ENDPOINT=$(terraform output -raw opensearch_domain_endpoint 2>/dev/nu
 OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
 
 TEMP_VALUES_FILE="helm-values-runtime.yaml"
+# The file holds the database password, so it is written mode 600, and the trap removes it
+# however the script ends.
+trap 'rm -f "$TEMP_VALUES_FILE" "$TEMP_VALUES_FILE".bak*' EXIT INT TERM
+umask 077
+rm -f "$TEMP_VALUES_FILE"
 cp "$VALUES_FILE" "$TEMP_VALUES_FILE"
 
 sed -i.bak \
@@ -291,7 +296,6 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
         echo -e "${RED}❌ Error: search_engine is 'opensearch' but no domain endpoint was found${NC}"
         echo "   Run terraform apply with search_engine = \"opensearch\" and check it created the domain."
         echo "   Set opensearch_domain_endpoint only to use a domain you already run."
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
         exit 1
     fi
     sed -i.bak2 \
@@ -304,13 +308,11 @@ if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     if [[ -z "$IQ_IRSA_ROLE_ARN" ]]; then
         echo -e "${RED}❌ Error: no iq_server_irsa_role_arn output found${NC}"
         echo "   Re-run terraform apply with search_engine = \"opensearch\" set."
-        rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak" "${TEMP_VALUES_FILE}.bak2"
         exit 1
     fi
     sed -i.bak3 \
         -e "/^serviceAccount:/,/^[a-z]/s|^\( \{4\}\)eks.amazonaws.com/role-arn: \".*\"|\1eks.amazonaws.com/role-arn: \"$IQ_IRSA_ROLE_ARN\"|" \
         "$TEMP_VALUES_FILE"
-    rm -f "${TEMP_VALUES_FILE}.bak3"
     echo "• Search backend: OpenSearch at $OPENSEARCH_ENDPOINT, $OPENSEARCH_REPLICAS replica(s)"
 else
     sed -i.bak2 \
@@ -318,12 +320,10 @@ else
         "$TEMP_VALUES_FILE"
     echo "• Search backend: Lucene, built into IQ Server"
 fi
-rm -f "${TEMP_VALUES_FILE}.bak2"
 
 if grep -q "_PLACEHOLDER" "$TEMP_VALUES_FILE"; then
     echo -e "${RED}❌ Error: a placeholder was left unsubstituted in $TEMP_VALUES_FILE${NC}"
     grep -n "_PLACEHOLDER" "$TEMP_VALUES_FILE"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -331,13 +331,11 @@ fi
 if grep -v '^[[:space:]]*#' "$TEMP_VALUES_FILE" | grep -q "CHANGE_ME"; then
     echo -e "${RED}❌ Error: $TEMP_VALUES_FILE still has CHANGE_ME placeholders${NC}"
     grep -n "CHANGE_ME" "$TEMP_VALUES_FILE" | grep -v '^[0-9]*:[[:space:]]*#' || true
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then
     echo -e "${YELLOW}⚠️  Helm release already exists - use ./helm-upgrade.sh${NC}"
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi
 
@@ -392,6 +390,7 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         --timeout 30m; then
         echo -e "${RED}❌ The first IQ Server pod did not become ready within 30 minutes${NC}"
         echo "Check it with: kubectl logs -n $NAMESPACE deployment/$IQ_DEPLOYMENT"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
         exit 1
     fi
     # The values files carry the configured replica count and autoscaler, so this
@@ -404,11 +403,10 @@ if helm install "$HELM_RELEASE_NAME" sonatype/nexus-iq-server-ha \
         ${EXTRA_VALUES_ARGS[@]+"${EXTRA_VALUES_ARGS[@]}"} \
         --timeout 10m; then
         echo -e "${RED}❌ Setting the IQ Server replica count failed${NC}"
-        echo "Run ./helm-upgrade.sh to apply helm-values.yaml again"
+        echo "Run ./helm-upgrade.sh, then ./iq-post-deploy.sh"
         exit 1
     fi
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
 
     kubectl wait --for=condition=ready pod -l name=nexus-iq-server-ha-iq-server -n "$NAMESPACE" --timeout=5m >/dev/null 2>&1 || true
 
@@ -469,6 +467,5 @@ else
     kubectl get events -n "$NAMESPACE" --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || true
     echo ""
 
-    rm -f "$TEMP_VALUES_FILE" "${TEMP_VALUES_FILE}.bak"
     exit 1
 fi

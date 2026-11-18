@@ -5,7 +5,7 @@
 # parts that differ.
 
 locals {
-  opensearch_create = local.opensearch_enabled && coalesce(var.opensearch_create, true)
+  opensearch_create = local.opensearch_enabled && coalesce(var.opensearch_create, var.opensearch_endpoint == "")
   os_cluster        = local.opensearch_create && var.opensearch_data_node_count > 1
   os_manager_count  = local.os_cluster ? 3 : 0
 
@@ -26,9 +26,11 @@ locals {
   os_data_heap_gb = var.opensearch_data_heap_gb != null ? var.opensearch_data_heap_gb : min(31, floor(local.os_data_mem_gb / 2))
   os_mgr_heap_gb  = var.opensearch_manager_heap_gb != null ? var.opensearch_manager_heap_gb : min(31, floor(local.os_mgr_mem_gb / 2))
 
+  # A single node has its own name, and so its own address and disk. A node is set up only at
+  # first boot, so moving between one and three or more data nodes replaces every data node.
   os_data_nodes = {
     for i in range(local.opensearch_create ? var.opensearch_data_node_count : 0) :
-    "${local.os_prefix}-os-data-${i + 1}" => {
+    (local.os_cluster ? "${local.os_prefix}-os-data-${i + 1}" : "${local.os_prefix}-os-solo-1") => {
       role       = "data"
       zone_index = i % length(local.os_zones)
       roles      = local.os_cluster ? ["data", "ingest"] : ["cluster_manager", "data", "ingest"]

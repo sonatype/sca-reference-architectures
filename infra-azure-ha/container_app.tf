@@ -532,6 +532,11 @@ CONFIGEOF
       condition     = var.container_registry_server == "" || (length(var.container_registry_username) > 0 && length(var.container_registry_password) > 0)
       error_message = "container_registry_username and container_registry_password must both be set when container_registry_server is set."
     }
+
+    precondition {
+      condition     = var.iq_max_replicas >= var.iq_min_replicas
+      error_message = "iq_max_replicas (${var.iq_max_replicas}) must be at least iq_min_replicas (${var.iq_min_replicas})."
+    }
   }
 
   tags = merge(var.common_tags, {

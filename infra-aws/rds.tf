@@ -50,8 +50,9 @@ resource "aws_db_instance" "iq_db" {
   backup_window           = var.db_backup_window
   maintenance_window      = var.db_maintenance_window
 
-  skip_final_snapshot       = var.db_skip_final_snapshot
-  final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  skip_final_snapshot = var.db_skip_final_snapshot
+  # The suffix is fixed when the deployment is created, so the name does not change on every plan.
+  final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${var.cluster_name}-final-snapshot-${random_string.bucket_suffix.result}"
   deletion_protection       = var.db_deletion_protection
 
   performance_insights_enabled = true
