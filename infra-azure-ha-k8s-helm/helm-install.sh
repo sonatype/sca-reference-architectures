@@ -222,7 +222,7 @@ fi
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     echo "• Search backend: OpenSearch at $SEARCH_URI"
 else
-    echo "• Search backend: Lucene (embedded)"
+    echo "• Search backend: builtin (IQ Server's built-in index, no OpenSearch)"
 fi
 
 if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$HELM_RELEASE_NAME"; then

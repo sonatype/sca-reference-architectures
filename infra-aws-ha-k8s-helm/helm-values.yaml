@@ -53,8 +53,8 @@ iq_server:
     # BEGIN search backend
     # helm-install.sh and helm-upgrade.sh fill the three placeholders below from
     # Terraform when search_engine is "opensearch", and delete everything between
-    # these two markers when it is "lucene". Leave the
-    # markers, the indentation and the placeholder names alone.
+    # these two markers when it is "builtin". Leave the markers, the indentation and
+    # the placeholder names alone.
     #
     # The values here are placeholders on purpose. Both scripts first substitute
     # default values over the whole file for the database, such as hostname: "",

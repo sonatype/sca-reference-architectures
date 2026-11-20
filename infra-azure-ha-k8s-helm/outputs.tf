@@ -192,11 +192,11 @@ output "search_engine" {
 }
 
 output "opensearch_uri" {
-  description = "The OpenSearch URI helm-install.sh writes into helm-values-runtime.yaml. Null when search_engine is 'lucene'."
+  description = "The OpenSearch URI helm-install.sh writes into helm-values-runtime.yaml. Null when search_engine is 'builtin'."
   value       = local.opensearch_enabled ? local.opensearch_uri : null
 }
 
 output "opensearch_index_replicas" {
-  description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'lucene'."
+  description = "Replicas per Nexus One index shard written as nexusOne.connection.nexusOneIndexReplicas. Null when search_engine is 'builtin'."
   value       = local.opensearch_enabled ? local.os_index_replicas : null
 }

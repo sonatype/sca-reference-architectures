@@ -206,7 +206,7 @@ fi
 
 # Fill in or delete the search: block between its markers, after the database
 # substitutions above so their patterns cannot touch it.
-SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "lucene")
+SEARCH_ENGINE=$(terraform output -raw search_engine 2>/dev/null || echo "builtin")
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     OPENSEARCH_ENDPOINT=$(terraform output -raw opensearch_domain_endpoint 2>/dev/null || echo "")
     OPENSEARCH_REPLICAS=$(terraform output -raw opensearch_index_replicas 2>/dev/null || echo "0")
@@ -228,7 +228,7 @@ else
     sed -i.bak2 \
         -e "/# BEGIN search backend/,/# END search backend/d" \
         "$TEMP_VALUES_FILE"
-    echo "• Search backend: Lucene, built into IQ Server"
+    echo "• Search backend: builtin (IQ Server's built-in index, no OpenSearch)"
 fi
 
 if grep -q "_PLACEHOLDER" "$TEMP_VALUES_FILE"; then

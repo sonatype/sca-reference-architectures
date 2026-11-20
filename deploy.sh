@@ -58,7 +58,7 @@ Selection:
   --cloud aws|azure|gcp
   --architecture single|ha|ha-k8s
   --size xs|s|m|l|xl          only the sizes the architecture publishes
-  --search-engine opensearch|lucene
+  --search-engine opensearch|builtin
 
 Values:
   --set key=value             a value for terraform.tfvars, repeatable. A key
@@ -689,15 +689,15 @@ select_size_and_search() {
     # shellcheck disable=SC2086
     in_list "$SIZE" $sizes || die "$ROOT_NAME publishes sizes $sizes, not $SIZE"
     enums=$(var_rule search_engine 5 | tr ',' ' ')
-    [[ -n "$enums" ]] || enums="opensearch lucene"
-    # opensearch first, since the Nexus One index needs it.
+    [[ -n "$enums" ]] || enums="opensearch builtin"
+    # opensearch first, then the others in the order the variable lists them.
     # shellcheck disable=SC2086
     if in_list opensearch $enums; then
         enums="opensearch $(printf '%s\n' $enums | grep -vx opensearch | paste -sd ' ' -)"
     fi
     if [[ -z "$SEARCH" ]]; then
         # shellcheck disable=SC2086
-        choose SEARCH "Which search backend? opensearch is needed for the Nexus One index; lucene is IQ Server's built-in index" --search-engine $enums
+        choose SEARCH "Which search backend? opensearch creates an OpenSearch cluster for Advanced Search and the Nexus One index; builtin creates none, so Advanced Search uses IQ Server's built-in index and Nexus One can keep its index in IQ Server's PostgreSQL database" --search-engine $enums
     fi
     # shellcheck disable=SC2086
     in_list "$SEARCH" $enums || die "search engine must be one of: $enums"

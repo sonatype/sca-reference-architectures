@@ -64,12 +64,15 @@ log_retention_days = 30
 ingress_hostname    = "" # Optional: custom hostname
 ingress_tls_enabled = false
 
-# Search Backend, needed for Advanced Search and the Nexus One index at every size
-# Required: "lucene" uses IQ Server's embedded index. "opensearch" builds an OpenSearch
-# cluster on two dedicated AKS node pools with the OpenSearch Kubernetes Operator, sized below.
-# helm-install.sh then reads its endpoint, user name, password and certificate authority from
-# terraform output.
-search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run without it
+# Search Backend, chosen at every size. Required:
+#   "opensearch"  builds an OpenSearch cluster on two dedicated AKS node pools with the
+#                 OpenSearch Kubernetes Operator, sized below, for Advanced Search and the
+#                 Nexus One index. helm-install.sh then reads its endpoint, user name,
+#                 password and certificate authority from terraform output.
+#   "builtin"     builds no OpenSearch. Advanced Search uses IQ Server's built-in index, and
+#                 Nexus One can keep its index in IQ Server's PostgreSQL database, chosen on
+#                 the Nexus One setup page.
+search_engine = "CHANGE_ME"  # "opensearch" for an OpenSearch cluster, or "builtin" for no OpenSearch
 
 # The OpenSearch cluster this configuration builds. These are the Size M values; README.md
 # gives every size. Passwords left unset are generated.

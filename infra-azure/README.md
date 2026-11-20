@@ -42,8 +42,9 @@ Shared storage is an Azure Files share over SMB, Standard tier and LRS (`storage
 With `search_engine = "opensearch"`, this configuration builds a self-managed **OpenSearch 3.7 cluster on
 Azure virtual machines** (`opensearch_version`) and points IQ Server at it. Azure has no first-party
 managed OpenSearch service, so you own upgrades, snapshots and node replacement on the cluster. With
-`search_engine = "lucene"` nothing is built, `config.yml` carries no `search:` block, and there is no
-Nexus One index.
+`search_engine = "builtin"` nothing is built, `config.yml` carries no `search:` block, Advanced Search
+uses the index built into IQ Server, and Nexus One can keep its index in IQ Server's PostgreSQL
+database, chosen on the Nexus One setup page.
 
 ### What Terraform builds
 
