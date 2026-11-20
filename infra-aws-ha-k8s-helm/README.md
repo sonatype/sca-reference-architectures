@@ -42,8 +42,8 @@ With `search_engine = "opensearch"`, this configuration creates an Amazon OpenSe
 running `OpenSearch_3.7` (`opensearch_engine_version`), on three data nodes in three zones at every size.
 The IQ Server pods sign their requests with SigV4 through an IAM role for service accounts, which
 `iq_server_irsa_role_arn` outputs, so there is no password to store. With `search_engine = "builtin"` there
-is no domain: Advanced Search uses the index built into IQ Server, and Nexus One can keep its index in
-IQ Server's PostgreSQL database, chosen on the Nexus One setup page.
+is no domain: Advanced Search uses the index built into IQ Server, and Nexus One (IQ Server 1.210 and
+later) can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page.
 
 The domain shape is set per size by `opensearch_instance_type`, `opensearch_instance_count`,
 `opensearch_volume_size_gb`, `opensearch_availability_zone_count`, `opensearch_dedicated_master_type` and

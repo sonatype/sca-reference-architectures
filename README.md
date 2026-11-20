@@ -225,7 +225,7 @@ This displays the application URL, database endpoint, and other access details.
 1. Navigate to the application URL from the Terraform outputs
 2. Wait 5-15 minutes for the application to initialize
 3. Log in as `admin`, with the password you set in `iq_admin_initial_password`
-4. With `search_engine = "opensearch"`, start the first Nexus One index build in the Index Manager. With `"builtin"`, Nexus One can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page
+4. With `search_engine = "opensearch"`, start the first Nexus One index build in the Index Manager. With `"builtin"`, from IQ Server 1.210, Nexus One can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page
 
 ---
 ## Reference Architectures: Detailed Specifications
@@ -1708,7 +1708,7 @@ Server: it loads only when its files are there.
 | Clustering not working | Missing HA license | Install an HA-capable license for multi-node deployments |
 | Every IQ Server node but one stops with "Node clustering is not supported by the current license" and restarts | IQ Server has no license that allows clustering, so it runs one node | Check that `iq_license_file` names an HA-capable license and that the IQ Server log shows "Installing license". Once the license is installed, the nodes start on their next restart |
 | AWS destroy stops naming `prevent_destroy` | The OpenSearch domain holds the Nexus One index, so Terraform refuses to delete it | Run `./tf-destroy.sh --delete-opensearch-domain`, which deletes the domain first and then the rest. `deploy.sh --destroy` passes it |
-| No Nexus One index in OpenSearch | `search_engine = "builtin"`, or the first build not started | With `builtin`, Nexus One keeps its index in IQ Server's PostgreSQL database when you choose that on the Nexus One setup page. To use OpenSearch instead, set `search_engine = "opensearch"` and apply, then start the build in the Index Manager |
+| No Nexus One index in OpenSearch | `search_engine = "builtin"`, or the first build not started | With `builtin`, from IQ Server 1.210, Nexus One keeps its index in IQ Server's PostgreSQL database when you choose that on the Nexus One setup page. To use OpenSearch instead, set `search_engine = "opensearch"` and apply, then start the build in the Index Manager |
 | No audit events in the audit log | Audit events go to the database by default | Turn off `audit-log-destination-database`, see [Logging](#logging) |
 | High disk usage | Report accumulation | Configure report purge policies; plan storage based on app count |
 | Terraform destroy fails | Deletion protection enabled | Set `deletion_protection = false` before destroying |

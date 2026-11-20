@@ -45,8 +45,8 @@ With `search_engine = "opensearch"`, this configuration builds a self-managed **
 Azure virtual machines** (`opensearch_version`) and points IQ Server at it. Azure has no first-party
 managed OpenSearch service, so you own upgrades, snapshots and node replacement on the cluster. With
 `search_engine = "builtin"` nothing is built, `config.yml` carries no `search:` block, Advanced Search
-uses the index built into IQ Server, and Nexus One can keep its index in IQ Server's PostgreSQL
-database, chosen on the Nexus One setup page.
+uses the index built into IQ Server, and Nexus One (IQ Server 1.210 and later) can keep its index in IQ
+Server's PostgreSQL database, chosen on the Nexus One setup page.
 
 ### What Terraform builds
 

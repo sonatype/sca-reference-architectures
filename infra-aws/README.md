@@ -34,8 +34,8 @@ Why the Fargate heap is lower than on a whole VM is in [JVM Configuration](../RE
 With `search_engine = "opensearch"`, this configuration creates an Amazon OpenSearch Service domain
 running `OpenSearch_3.7` (`opensearch_engine_version`). IQ Server authenticates with AWS SigV4 signed by
 the ECS task role, so there is no password to store. With `search_engine = "builtin"` there is no domain:
-Advanced Search uses the index built into IQ Server, and Nexus One can keep its index in IQ Server's
-PostgreSQL database, chosen on the Nexus One setup page.
+Advanced Search uses the index built into IQ Server, and Nexus One (IQ Server 1.210 and later) can keep
+its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page.
 
 The domain shape is set per size by `opensearch_instance_type`, `opensearch_instance_count`,
 `opensearch_volume_size_gb`, `opensearch_availability_zone_count` and `opensearch_index_replicas`, from

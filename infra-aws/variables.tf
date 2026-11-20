@@ -236,12 +236,12 @@ variable "log_archive_retention_days" {
 # names one. The defaults are the Size M shape; README.md gives XS and S.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an AWS-managed OpenSearch domain for Advanced Search and the Nexus One index, created here unless opensearch_domain_endpoint names an existing one; \"builtin\" creates no OpenSearch, so Advanced Search uses IQ Server's built-in index, and Nexus One can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an AWS-managed OpenSearch domain for Advanced Search and the Nexus One index, created here unless opensearch_domain_endpoint names an existing one; \"builtin\" creates no OpenSearch, so Advanced Search uses IQ Server's built-in index, and Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page."
   type        = string
 
   validation {
     condition     = contains(["opensearch", "builtin"], var.search_engine)
-    error_message = "search_engine must be \"opensearch\", for an OpenSearch domain, or \"builtin\", for no OpenSearch: Advanced Search then uses IQ Server's built-in index, and Nexus One can keep its index in IQ Server's PostgreSQL database. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
+    error_message = "search_engine must be \"opensearch\", for an OpenSearch domain, or \"builtin\", for no OpenSearch: Advanced Search then uses IQ Server's built-in index, and Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's PostgreSQL database. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 

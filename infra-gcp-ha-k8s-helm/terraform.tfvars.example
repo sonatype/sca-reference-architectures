@@ -56,8 +56,8 @@ nexus_iq_replica_count  = 2
 #   "opensearch"  builds an OpenSearch cluster with this configuration, sized below, for
 #                 Advanced Search and the Nexus One index.
 #   "builtin"     builds no OpenSearch. Advanced Search uses IQ Server's built-in index, and
-#                 Nexus One can keep its index in IQ Server's PostgreSQL database, chosen on
-#                 the Nexus One setup page.
+#                 Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's
+#                 PostgreSQL database, chosen on the Nexus One setup page.
 search_engine = "CHANGE_ME"  # "opensearch" for an OpenSearch cluster, or "builtin" for no OpenSearch
 
 # The OpenSearch cluster this configuration builds. These are the Size M values; README.md
