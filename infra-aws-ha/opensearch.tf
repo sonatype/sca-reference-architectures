@@ -15,7 +15,7 @@
 #     # wait for the delete to finish
 #     ./tf-destroy.sh
 #
-# Switching search_engine to "lucene", or to another domain, takes the same steps.
+# Switching search_engine to "builtin", or to another domain, takes the same steps.
 
 locals {
   # Naming an endpoint means use that domain, so creating and naming are exclusive.

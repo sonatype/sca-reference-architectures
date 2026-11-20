@@ -13,12 +13,13 @@
 #      - chooses OpenSearch as the Nexus One search backend, on IQ Server
 #        versions that ask for that choice. Older versions answer 404 and are
 #        left alone.
-#   With search_engine = "lucene" there is nothing to set.
+#   With search_engine = "builtin" there is nothing to set: there is no OpenSearch, and
+#   the Nexus One index is chosen on the Nexus One setup page.
 #
 # Every setting comes from this directory's Terraform outputs. Each can be
 # overridden from the environment:
 #   IQ_URL              IQ Server base URL, such as https://iq.example.com
-#   SEARCH_ENGINE       opensearch or lucene
+#   SEARCH_ENGINE       opensearch or builtin
 #   IQ_ADMIN_PASSWORD   the admin password, once it has been changed from
 #                       iq_admin_initial_password
 #   OPENSEARCH_DATA_NODE_COUNT
@@ -86,14 +87,14 @@ command -v terraform >/dev/null 2>&1 || fail "terraform is not installed"
 
 SEARCH_ENGINE="${SEARCH_ENGINE:-$(tf_output search_engine)}"
 case "$SEARCH_ENGINE" in
-    opensearch | lucene) ;;
+    opensearch | builtin) ;;
     "") fail "No search_engine output found. Run this from the architecture directory after terraform apply." ;;
-    *) fail "search_engine output is '$SEARCH_ENGINE'; expected opensearch or lucene." ;;
+    *) fail "search_engine output is '$SEARCH_ENGINE'; expected opensearch or builtin." ;;
 esac
 info "Search backend: $SEARCH_ENGINE"
 
-if [[ "$SEARCH_ENGINE" == "lucene" ]]; then
-    ok "search_engine is lucene: IQ Server uses its built-in index and needs no settings here"
+if [[ "$SEARCH_ENGINE" == "builtin" ]]; then
+    ok "search_engine is builtin: there is no OpenSearch to set up here. Advanced Search uses IQ Server's built-in index, and the Nexus One index is chosen on the Nexus One setup page"
     exit 0
 fi
 

@@ -25,7 +25,7 @@ iq_server:
     # and helm-upgrade.sh, through search-values.sh, append one to
     # helm-values-runtime.yaml when search_engine is
     # "opensearch" in terraform.tfvars, and appends nothing when it is
-    # "lucene".
+    # "builtin".
     #
     # It is generated rather than committed because this file is rewritten by
     # an unanchored sed that replaces every empty password value with the

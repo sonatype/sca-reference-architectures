@@ -189,7 +189,7 @@ fi
 if [[ "$SEARCH_ENGINE" == "opensearch" ]]; then
     echo "• Search backend: OpenSearch at $SEARCH_URI"
 else
-    echo "• Search backend: Lucene (embedded)"
+    echo "• Search backend: builtin (IQ Server's built-in index, no OpenSearch)"
 fi
 
 echo "• Chart Version: $CHART_VERSION"

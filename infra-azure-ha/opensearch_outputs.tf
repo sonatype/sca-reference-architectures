@@ -1,7 +1,7 @@
 # Outputs for the OpenSearch cluster this configuration builds. Each is null when it builds none.
 
 output "opensearch_data_node_count" {
-  description = "Number of OpenSearch data nodes: the nodes this configuration builds, or opensearch_data_node_count for a cluster you bring with opensearch_create = false. The deploy sets the Nexus One shard counts from it: 1 with one data node, the data node count above that. Null when search_engine is \"lucene\"."
+  description = "Number of OpenSearch data nodes: the nodes this configuration builds, or opensearch_data_node_count for a cluster you bring with opensearch_create = false. The deploy sets the Nexus One shard counts from it: 1 with one data node, the data node count above that. Null when search_engine is \"builtin\"."
   value       = local.opensearch_enabled ? var.opensearch_data_node_count : null
 }
 

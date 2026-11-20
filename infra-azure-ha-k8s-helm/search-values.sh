@@ -44,7 +44,7 @@ tfvar() {
 # Loads every search setting, with the defaults the Terraform variables declare.
 load_search_vars() {
     SEARCH_ENGINE=$(tfvar search_engine)
-    SEARCH_ENGINE=${SEARCH_ENGINE:-lucene}
+    SEARCH_ENGINE=${SEARCH_ENGINE:-builtin}
     OPENSEARCH_ENDPOINT=$(tfvar opensearch_endpoint)
     OPENSEARCH_USERNAME=$(tfvar opensearch_username)
     OPENSEARCH_PASSWORD=$(tfvar opensearch_password)
@@ -88,7 +88,7 @@ write_ca_block() {
 }
 
 # Appends the search: block under iq_server.config to the file named in $1, or nothing
-# for Lucene. Credentials are single-quoted YAML scalars with ' doubled.
+# for builtin. Credentials are single-quoted YAML scalars with ' doubled.
 write_search_block() {
     local values_file="$1"
     local anchor='    clusterDirectory: "/sonatype-work/clm-cluster"'

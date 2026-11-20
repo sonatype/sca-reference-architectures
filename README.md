@@ -29,7 +29,7 @@ Sonatype provides these configurations as reference examples. You are responsibl
 | **High Availability** | ECS Fargate + Aurora + EFS | Container Apps + Zone-Redundant DB | MIG + Regional Cloud SQL + Filestore |
 | **Kubernetes** | EKS + Helm | AKS + Helm | GKE + Helm |
 
-Every architecture also creates its OpenSearch cluster: an Amazon OpenSearch Service domain on AWS, and a self-managed OpenSearch 3.7 cluster on Azure and GCP.
+With `search_engine = "opensearch"`, every architecture also creates its OpenSearch cluster: an Amazon OpenSearch Service domain on AWS, and a self-managed OpenSearch 3.7 cluster on Azure and GCP. With `search_engine = "builtin"`, none is created.
 
 ### Key Features
 
@@ -38,7 +38,7 @@ Every architecture also creates its OpenSearch cluster: an Amazon OpenSearch Ser
 - Multi-AZ/Zone deployments for high availability
 - Auto-scaling (CPU, memory, and load-based)
 - Managed PostgreSQL databases with automated backups and failover
-- OpenSearch created by Terraform on every cloud, for Advanced Search and the Nexus One index, at every size
+- OpenSearch created by Terraform on every cloud, at every size, for Advanced Search and the Nexus One index, or no OpenSearch at all with `search_engine = "builtin"`
 - Encrypted storage and secrets management, including the initial admin password
 - Load balancing with health checks
 - Official Sonatype Helm chart, pinned to a released version (Kubernetes deployments)
@@ -80,7 +80,7 @@ You need an active cloud account with permissions to create:
 - **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server)), with its version pinned in one place per architecture: the default of `iq_docker_image` in `variables.tf`, or of `helm_chart_version` on the three Kubernetes architectures. `scripts/bump-iq-version.sh <version>` sets it in all nine
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments. Every architecture requires the license file, named by `iq_license_file`: Terraform keeps it in the cloud's secret store, or a Kubernetes secret, and every IQ Server node installs it on its first start. An unlicensed IQ Server runs one node only, and choosing OpenSearch as the search backend needs a license
 - **PostgreSQL**: Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default for new deployments). Provisioned automatically by Terraform
-- **OpenSearch**: A reachable OpenSearch cluster, required at every size. Terraform creates it on every cloud: on AWS as an Amazon OpenSearch Service domain, and on Azure and GCP, which have no managed OpenSearch service, as a self-managed OpenSearch 3.x cluster (3.7 recommended). To use a cluster you already run, give Terraform its endpoint and credentials instead. See [OpenSearch](#opensearch).
+- **OpenSearch**: Optional, chosen with `search_engine`. With `opensearch`, a reachable OpenSearch cluster serves Advanced Search and the Nexus One index. Terraform creates it on every cloud: on AWS as an Amazon OpenSearch Service domain, and on Azure and GCP, which have no managed OpenSearch service, as a self-managed OpenSearch 3.x cluster (3.7 recommended). To use a cluster you already run, give Terraform its endpoint and credentials instead. With `builtin`, no OpenSearch is created. See [OpenSearch](#opensearch).
 
 ### SSL Certificate (Optional)
 
@@ -97,19 +97,17 @@ For HTTPS access, prepare:
 
 Choose your deployment size based on your application count and daily evaluation volume:
 
-| Size | Applications | Evaluations per day, hour ³ | IQ Server nodes | Compute (per node) | Database (AWS) | HA Required | OpenSearch data nodes (AWS) |
+| Size | Applications | Evaluations per day, hour ² | IQ Server nodes | Compute (per node) | Database (AWS) | HA Required | OpenSearch data nodes (AWS) |
 |------|:------------:|:---------------:|:---------------:|:------------------:|:--------------:|:-----------:|:---------------------:|
-| **XS** | < 500 | ~2.5k, 100 | 1 | 2 vCPU / 16 GB | db.m8g.large (2 vCPU / 8 GB) | No | 1 x m8g.medium.search ¹ ² |
-| **S** | 500 - 2k | ~5k, 150 | 1 | 4 vCPU / 32 GB | db.r8g.large (2 vCPU / 16 GB) | No | 1 x m8g.large.search ¹ ² |
+| **XS** | < 500 | ~2.5k, 100 | 1 | 2 vCPU / 16 GB | db.m8g.large (2 vCPU / 8 GB) | No | 1 x m8g.medium.search ¹ |
+| **S** | 500 - 2k | ~5k, 150 | 1 | 4 vCPU / 32 GB | db.r8g.large (2 vCPU / 16 GB) | No | 1 x m8g.large.search ¹ |
 | **M** | 2k - 10k | ~7.5k, 250 | 2 to 3 | 8 vCPU / 32 GB | db.r8g.xlarge (4 vCPU / 32 GB) | Recommended | 3 x m8g.large.search ¹ |
 | **L** | 10k - 30k | ~15k, 350 | 2 to 4 | 16 vCPU / 64 GB | db.r8g.2xlarge (8 vCPU / 64 GB) | Required | 3 x m8g.xlarge.search ¹ |
 | **XL** | 30k - 100k | ~25k, 450 | 3 to 5 | 16 vCPU / 128 GB | db.r8g.4xlarge (16 vCPU / 128 GB) | Required | 3 x r8g.2xlarge.search ¹ |
 
-> ¹ OpenSearch is part of every size, and Terraform creates it. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification).
+> ¹ With `search_engine = "opensearch"`, OpenSearch is part of every size, and Terraform creates it. The per-size cluster specification, meaning data node count, node size, storage, shards and replicas, is in [Per-size cluster specification](#per-size-cluster-specification). With `search_engine = "builtin"`, no OpenSearch is created: see [Choosing the search backend](#choosing-the-search-backend).
 
-> ² A future IQ Server release is expected to let smaller deployments run Nexus One without OpenSearch. Until then, OpenSearch is required as described below.
-
-> ³ Evaluations per day, hour are typical figures for the whole cluster on a normal day, a guide for planning, not a limit.
+> ² Evaluations per day, hour are typical figures for the whole cluster on a normal day, a guide for planning, not a limit.
 
 The generic IQ Server sizing and deployment guidance is in Sonatype's [reference architecture help pages](https://help.sonatype.com/en/sonatype-platform-reference-architectures.html).
 
@@ -122,7 +120,7 @@ The quickest route is `deploy.sh` at the top of the repository. It asks for:
 1. The cloud: AWS, Azure or GCP
 2. The architecture: Single Instance, High Availability, or Kubernetes
 3. The size, from those the architecture offers
-4. The search backend: `opensearch` or `lucene`
+4. The search backend: `opensearch` or `builtin`
 5. Every value the architecture's example file marks `CHANGE_ME`, such as the database password, the initial admin password and the license file, which `--license-file` or `license_file` in the answers file also answers
 
 The region comes from the example file. `deploy.sh` shows it before asking you to continue, and `--set aws_region=...`, `--set azure_region=...` or `--set gcp_region=...` changes it.
@@ -166,9 +164,9 @@ Then navigate to the corresponding directory:
 | **Azure** | [`infra-azure`](./infra-azure/) | [`infra-azure-ha`](./infra-azure-ha/) | [`infra-azure-ha-k8s-helm`](./infra-azure-ha-k8s-helm/) |
 | **GCP** | [`infra-gcp`](./infra-gcp/) | [`infra-gcp-ha`](./infra-gcp-ha/) | [`infra-gcp-ha-k8s-helm`](./infra-gcp-ha-k8s-helm/) |
 
-#### Step 2: OpenSearch Is Created for You
+#### Step 2: Choose the Search Backend
 
-Terraform creates the OpenSearch cluster on every cloud, at the shape the size's example file sets: an Amazon OpenSearch Service domain on AWS; OpenSearch 3.7 on virtual machines with an internal load balancer on the Azure and GCP single instance and High Availability architectures; and OpenSearch 3.7 on dedicated node pools, run by the OpenSearch Kubernetes Operator, on AKS and GKE. To use a cluster you already run instead, set its endpoint and credentials in `terraform.tfvars`. See [OpenSearch](#opensearch).
+With `search_engine = "opensearch"`, Terraform creates the OpenSearch cluster on every cloud, at the shape the size's example file sets: an Amazon OpenSearch Service domain on AWS; OpenSearch 3.7 on virtual machines with an internal load balancer on the Azure and GCP single instance and High Availability architectures; and OpenSearch 3.7 on dedicated node pools, run by the OpenSearch Kubernetes Operator, on AKS and GKE. To use a cluster you already run instead, set its endpoint and credentials in `terraform.tfvars`. See [OpenSearch](#opensearch). With `search_engine = "builtin"`, no OpenSearch is created: see [Choosing the search backend](#choosing-the-search-backend).
 
 #### Step 3: Configure Your Deployment
 
@@ -181,7 +179,7 @@ cp terraform.tfvars.example terraform.tfvars
 # Replace every CHANGE_ME with your values: region, passwords, and so on.
 # Set iq_admin_initial_password to the password IQ Server's admin user starts with.
 # Set iq_license_file to the path of your IQ Server license file.
-# Set search_engine to "opensearch" for Nexus One, or "lucene" to run without it.
+# Set search_engine to "opensearch" for an OpenSearch cluster, or "builtin" for no OpenSearch.
 ```
 
 #### Step 4: Deploy
@@ -206,9 +204,10 @@ For **Kubernetes deployments**, also run:
 Every IQ Server node installs the license from `iq_license_file` on its first start. On Kubernetes,
 `helm-install.sh` installs the release with no IQ Server pod, so the database migration Job runs alone,
 then starts one pod, which creates the Advanced Search index, and then scales to the configured count.
-Once IQ Server answers, the apply or install runs `iq-post-deploy.sh`, which sets the OpenSearch shard
-counts from the number of data nodes, chooses OpenSearch as the search backend on IQ Server versions that
-ask for that choice, and installs the license only if IQ Server has none yet. Behind a load balancer it retries a
+Once IQ Server answers, the apply or install runs `iq-post-deploy.sh`. With `search_engine = "opensearch"`
+it sets the OpenSearch shard counts from the number of data nodes, chooses OpenSearch as the search
+backend on IQ Server versions that ask for that choice, and installs the license only if IQ Server has
+none yet; with `"builtin"` it has nothing to set. Behind a load balancer it retries a
 502, 503 or 504 for up to 10 minutes (`IQ_GATEWAY_RETRY_SECONDS`), since one IQ Server node can answer
 while another is still starting. Run `./iq-post-deploy.sh` again at any time; it changes only what is
 not yet set.
@@ -226,7 +225,7 @@ This displays the application URL, database endpoint, and other access details.
 1. Navigate to the application URL from the Terraform outputs
 2. Wait 5-15 minutes for the application to initialize
 3. Log in as `admin`, with the password you set in `iq_admin_initial_password`
-4. With `search_engine = "opensearch"`, start the first Nexus One index build in the Index Manager
+4. With `search_engine = "opensearch"`, start the first Nexus One index build in the Index Manager. With `"builtin"`, from IQ Server 1.210, Nexus One can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page
 
 ---
 ## Reference Architectures: Detailed Specifications
@@ -1318,9 +1317,10 @@ and GKE at XL).
 
 ### OpenSearch
 
-OpenSearch is part of every reference architecture and is required at every size. One cluster serves
-both of IQ Server's search features: Advanced Search and the Nexus One index behind the Nexus One list
-pages, typeahead, and dashboard.
+With `search_engine = "opensearch"`, OpenSearch is part of the reference architecture at every size.
+One cluster serves both of IQ Server's search features: Advanced Search and the Nexus One index behind
+the Nexus One list pages, typeahead, and dashboard. With `"builtin"`, no cluster is created: see
+[Choosing the search backend](#choosing-the-search-backend).
 
 IQ Server keeps seven indices in that one shared cluster: the Advanced Search index, behind the
 `iq-index` alias, and six Nexus One indices, one each for applications, violations, waivers, components,
@@ -1357,14 +1357,15 @@ node count, since the deploy sets the shard counts from it.
 
 | Value | What IQ Server uses |
 |---|---|
-| `opensearch` | The OpenSearch cluster, for Advanced Search and the Nexus One index. Required for Nexus One |
-| `lucene` | IQ Server's built-in search index, with no Nexus One index, and no OpenSearch cluster is created |
+| `opensearch` | An OpenSearch cluster, for Advanced Search and the Nexus One index. Terraform creates it, unless you name one you already run |
+| `builtin` | No OpenSearch cluster is created. Advanced Search uses IQ Server's built-in index. From IQ Server 1.210, Nexus One can keep its index in IQ Server's PostgreSQL database, which you choose on the Nexus One setup page |
 
 A plan stops if `search_engine` still reads `CHANGE_ME`, or holds anything else.
 
 With `opensearch`, the deploy also tells IQ Server, once, to use OpenSearch for the Nexus One index, on
 IQ Server versions that ask for that choice. That choice is permanent, and it needs a license, which
-IQ Server installs from `iq_license_file` on its first start.
+IQ Server installs from `iq_license_file` on its first start. With `builtin`, the deploy makes no choice
+for Nexus One: you choose where it keeps its index on the Nexus One setup page.
 
 #### What IQ Server's configuration carries
 
@@ -1630,7 +1631,7 @@ An existing deployment needs these before its next plan:
   from 44 GB to 20 GB and Aurora from `db.r8g.2xlarge` to `db.r8g.xlarge`, and a database class change
   restarts the database. Copy your size's values from `examples/<size>.tfvars` into `terraform.tfvars`
   before the next plan.
-- **Set `search_engine`.** It has no default. To keep what you have, set `search_engine = "lucene"`; to
+- **Set `search_engine`.** It has no default. To keep what you have, set `search_engine = "builtin"`; to
   move to OpenSearch, set `"opensearch"`, and Terraform creates the cluster. A deployment that already
   sets `opensearch_endpoint` (`opensearch_domain_endpoint` on AWS) keeps the cluster it names.
 - **Set `iq_admin_initial_password`.** The plan requires it. IQ Server reads it only on its first start,
@@ -1707,7 +1708,7 @@ Server: it loads only when its files are there.
 | Clustering not working | Missing HA license | Install an HA-capable license for multi-node deployments |
 | Every IQ Server node but one stops with "Node clustering is not supported by the current license" and restarts | IQ Server has no license that allows clustering, so it runs one node | Check that `iq_license_file` names an HA-capable license and that the IQ Server log shows "Installing license". Once the license is installed, the nodes start on their next restart |
 | AWS destroy stops naming `prevent_destroy` | The OpenSearch domain holds the Nexus One index, so Terraform refuses to delete it | Run `./tf-destroy.sh --delete-opensearch-domain`, which deletes the domain first and then the rest. `deploy.sh --destroy` passes it |
-| No Nexus One index | `search_engine = "lucene"`, or the first build not started | Set `search_engine = "opensearch"` and apply, then start the build in the Index Manager |
+| No Nexus One index in OpenSearch | `search_engine = "builtin"`, or the first build not started | With `builtin`, from IQ Server 1.210, Nexus One keeps its index in IQ Server's PostgreSQL database when you choose that on the Nexus One setup page. To use OpenSearch instead, set `search_engine = "opensearch"` and apply, then start the build in the Index Manager |
 | No audit events in the audit log | Audit events go to the database by default | Turn off `audit-log-destination-database`, see [Logging](#logging) |
 | High disk usage | Report accumulation | Configure report purge policies; plan storage based on app count |
 | Terraform destroy fails | Deletion protection enabled | Set `deletion_protection = false` before destroying |

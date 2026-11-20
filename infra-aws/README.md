@@ -29,12 +29,13 @@ Why the Fargate heap is lower than on a whole VM is in [JVM Configuration](../RE
 
 ---
 
-## OpenSearch for the Nexus One Index
+## OpenSearch for Advanced Search and the Nexus One Index
 
 With `search_engine = "opensearch"`, this configuration creates an Amazon OpenSearch Service domain
 running `OpenSearch_3.7` (`opensearch_engine_version`). IQ Server authenticates with AWS SigV4 signed by
-the ECS task role, so there is no password to store. With `search_engine = "lucene"` there is no domain
-and no Nexus One index, and Advanced Search uses the index built into the server.
+the ECS task role, so there is no password to store. With `search_engine = "builtin"` there is no domain:
+Advanced Search uses the index built into IQ Server, and Nexus One (IQ Server 1.210 and later) can keep
+its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page.
 
 The domain shape is set per size by `opensearch_instance_type`, `opensearch_instance_count`,
 `opensearch_volume_size_gb`, `opensearch_availability_zone_count` and `opensearch_index_replicas`, from
@@ -134,7 +135,7 @@ The `state rm` is what gets past `prevent_destroy`. The delete is what lets the 
 finish: the domain's network interfaces sit in this VPC's private subnets and hold its security group, so
 destroying the VPC around a live domain fails on `DependencyViolation`.
 
-**Switching away from this domain takes the same steps.** Setting `search_engine = "lucene"`, or pointing
+**Switching away from this domain takes the same steps.** Setting `search_engine = "builtin"`, or pointing
 `opensearch_domain_endpoint` at another domain, drops this one from the plan, so the plan fails on
 `prevent_destroy` in the same way. Read the name, `state rm`, delete the domain and wait, then run
 `terraform apply` with the new settings in place of `./tf-destroy.sh`.

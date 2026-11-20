@@ -52,10 +52,13 @@ nexus_iq_replica_count  = 2
 # helm_chart_version defaults to the chart pinned in variables.tf, which also sets the IQ Server version.
 # Set it here only to run a different chart.
 
-# Search Backend, needed for Advanced Search and the Nexus One index at every size
-# Required: "lucene" uses the built-in index. "opensearch" builds an OpenSearch cluster
-# with this configuration, sized below.
-search_engine = "CHANGE_ME"  # "opensearch" for Nexus One, or "lucene" to run without it
+# Search Backend, chosen at every size. Required:
+#   "opensearch"  builds an OpenSearch cluster with this configuration, sized below, for
+#                 Advanced Search and the Nexus One index.
+#   "builtin"     builds no OpenSearch. Advanced Search uses IQ Server's built-in index, and
+#                 Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's
+#                 PostgreSQL database, chosen on the Nexus One setup page.
+search_engine = "CHANGE_ME"  # "opensearch" for an OpenSearch cluster, or "builtin" for no OpenSearch
 
 # The OpenSearch cluster this configuration builds. These are the Size M values; README.md
 # gives every size. Passwords left unset are generated.

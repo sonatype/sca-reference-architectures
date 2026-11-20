@@ -378,16 +378,18 @@ variable "common_tags" {
 # Search Backend
 #
 # search_engine picks the engine the search: block in config.yml names. "opensearch"
-# needs a cluster you run yourself, named by opensearch_endpoint.
+# means an OpenSearch cluster on Compute Engine VMs, which this configuration builds
+# (opensearch_cluster.tf) unless opensearch_create is false, in which case
+# opensearch_endpoint names a cluster you run yourself.
 # Every instance reads the same endpoint, so they share one index.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster and is what Nexus One needs; \"lucene\" uses the index built into IQ Server and runs without Nexus One."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster for Advanced Search and the Nexus One index, built here unless opensearch_endpoint names one you run; \"builtin\" builds no OpenSearch, so Advanced Search uses IQ Server's built-in index, and Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page."
   type        = string
 
   validation {
-    condition     = contains(["opensearch", "lucene"], var.search_engine)
-    error_message = "search_engine must be \"opensearch\", which Nexus One needs, or \"lucene\", which runs IQ Server on its built-in index without Nexus One. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
+    condition     = contains(["opensearch", "builtin"], var.search_engine)
+    error_message = "search_engine must be \"opensearch\", for an OpenSearch cluster, or \"builtin\", for no OpenSearch: Advanced Search then uses IQ Server's built-in index, and Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's PostgreSQL database. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 

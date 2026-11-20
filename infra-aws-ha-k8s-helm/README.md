@@ -36,13 +36,14 @@ at M, 500 GB to 1.5 TB at L and 1.5 to 4 TB at XL.
 
 ---
 
-## OpenSearch for the Nexus One Index
+## OpenSearch for Advanced Search and the Nexus One Index
 
 With `search_engine = "opensearch"`, this configuration creates an Amazon OpenSearch Service domain
 running `OpenSearch_3.7` (`opensearch_engine_version`), on three data nodes in three zones at every size.
 The IQ Server pods sign their requests with SigV4 through an IAM role for service accounts, which
-`iq_server_irsa_role_arn` outputs, so there is no password to store. With `search_engine = "lucene"` there
-is no domain and no Nexus One index.
+`iq_server_irsa_role_arn` outputs, so there is no password to store. With `search_engine = "builtin"` there
+is no domain: Advanced Search uses the index built into IQ Server, and Nexus One (IQ Server 1.210 and
+later) can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page.
 
 The domain shape is set per size by `opensearch_instance_type`, `opensearch_instance_count`,
 `opensearch_volume_size_gb`, `opensearch_availability_zone_count`, `opensearch_dedicated_master_type` and
@@ -129,7 +130,7 @@ Read the name first, because `state rm` removes it from state along with the dom
 lets the rest of the teardown finish: the domain's network interfaces sit in this VPC's private subnets
 and hold its security group, so destroying the VPC around a live domain fails on `DependencyViolation`.
 
-**Switching away from this domain takes the same steps.** Setting `search_engine = "lucene"`, or pointing
+**Switching away from this domain takes the same steps.** Setting `search_engine = "builtin"`, or pointing
 `opensearch_domain_endpoint` at another domain, drops this one from the plan, so the plan fails on
 `prevent_destroy` in the same way. Read the name, `state rm`, delete the domain and wait, then run
 `terraform apply` with the new settings in place of `./tf-destroy.sh`.
@@ -142,7 +143,7 @@ Terraform does not write `config.yml` here. The Helm chart builds it from the `i
 1. It reads the `search_engine`, `opensearch_domain_endpoint` and `opensearch_index_replicas` outputs.
 2. With `opensearch`, it fills in the values inside the `# BEGIN search backend` block and points the
    `nexus-iq-sa` service account at `iq_server_irsa_role_arn`.
-3. With `lucene`, it deletes that whole block, so `config.yml` carries no `search:` key at all.
+3. With `builtin`, it deletes that whole block, so `config.yml` carries no `search:` key at all.
 4. Either way it then fails if any of those values was left unfilled.
 
 `helm-upgrade.sh` does the same. **Leave the values inside that block alone**; the scripts fill them in.
