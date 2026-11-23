@@ -79,7 +79,7 @@ You need an active cloud account with permissions to create:
 
 - **Docker Image**: `sonatype/nexus-iq-server` ([Docker Hub](https://hub.docker.com/r/sonatype/nexus-iq-server)), with its version pinned in one place per architecture: the default of `iq_docker_image` in `variables.tf`, or of `helm_chart_version` on the three Kubernetes architectures. `scripts/bump-iq-version.sh <version>` sets it in all nine
 - **License**: Standard license for single instance; HA-capable license for multi-node deployments. Every architecture requires the license file, named by `iq_license_file`: Terraform keeps it in the cloud's secret store, or a Kubernetes secret, and every IQ Server node installs it on its first start. An unlicensed IQ Server runs one node only, and choosing OpenSearch as the search backend needs a license
-- **PostgreSQL**: Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default for new deployments). Provisioned automatically by Terraform
+- **PostgreSQL**: a major version the PostgreSQL project still supports, under its [versioning policy](https://www.postgresql.org/support/versioning/), which today means 15 or later, on its latest minor release. 18 is recommended, and the default for new deployments. Provisioned automatically by Terraform
 - **OpenSearch**: Optional, chosen with `search_engine`. With `opensearch`, a reachable OpenSearch cluster serves Advanced Search and the Nexus One index. Terraform creates it on every cloud: on AWS as an Amazon OpenSearch Service domain, and on Azure and GCP, which have no managed OpenSearch service, as a self-managed OpenSearch 3.x cluster (3.7 recommended). To use a cluster you already run, give Terraform its endpoint and credentials instead. With `builtin`, no OpenSearch is created. See [OpenSearch](#opensearch).
 
 ### SSL Certificate (Optional)
@@ -248,7 +248,7 @@ The three cloud tables carry the same rows. XS and S are single instance sizes; 
 | Deployment option | Amazon ECS on Fargate or EKS | Amazon ECS on Fargate or EKS | Amazon ECS on Fargate or EKS |
 | **Database** | | | |
 | Service | RDS PostgreSQL or Aurora PostgreSQL | Aurora PostgreSQL (recommended) | Aurora PostgreSQL (strongly recommended) |
-| PostgreSQL version | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) |
+| PostgreSQL version | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) |
 | Instance type | db.r8g.xlarge (4 vCPU, 32 GB) | db.r8g.2xlarge (8 vCPU, 64 GB) | db.r8g.4xlarge (16 vCPU, 128 GB) |
 | Storage | 128 GB gp3 on RDS, auto-scaling to 500 GB; Aurora grows on its own | Aurora, grows on its own, expected to grow to about 1 TB | Aurora, grows on its own, expected to grow to about 2 TB |
 | IOPS and throughput | gp3 baseline on RDS; managed by Aurora | Managed by Aurora | Managed by Aurora |
@@ -286,7 +286,7 @@ On EKS the Application Load Balancer is created by the AWS Load Balancer Control
 | Deployment option | Azure Container Apps or AKS | Azure Container Apps or AKS | AKS recommended at this scale |
 | **Database** | | | |
 | Service | Azure Database for PostgreSQL, Flexible Server | Azure Database for PostgreSQL, Flexible Server | Azure Database for PostgreSQL, Flexible Server |
-| PostgreSQL version | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) |
+| PostgreSQL version | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) |
 | Instance type | MO_Standard_E4ds_v6 (4 vCPU, 32 GB) | MO_Standard_E8ds_v6 (8 vCPU, 64 GB) | MO_Standard_E16ds_v6 (16 vCPU, 128 GB) |
 | Storage | 128 GB, grows automatically | 256 GB, grows automatically, expected to grow to about 1 TB | 512 GB, grows automatically, expected to grow to about 2 TB |
 | IOPS and throughput | Set by the storage tier, P10 | P15 tier | P20 tier |
@@ -325,7 +325,7 @@ On EKS the Application Load Balancer is created by the AWS Load Balancer Control
 | Deployment option | GCE with Docker or GKE | GCE with Docker or GKE | GCE with Docker or GKE |
 | **Database** | | | |
 | Service | Cloud SQL PostgreSQL, Enterprise edition | Cloud SQL PostgreSQL, Enterprise edition | Cloud SQL PostgreSQL, Enterprise edition |
-| PostgreSQL version | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) | Minimum 15.19, 16.15, 17.11 or 18.6 (18 recommended, and the default) |
+| PostgreSQL version | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) | A version PostgreSQL still supports, 15 or later today (18 recommended, and the default) |
 | Instance type | db-custom-N4-4-32768 (4 vCPU, 32 GB) | db-custom-N4-8-65536 (8 vCPU, 64 GB) | db-custom-N4-16-131072 (16 vCPU, 128 GB) |
 | Storage | 128 GB Hyperdisk Balanced, auto-resize to 500 GB | 256 GB Hyperdisk Balanced, auto-resize to 1 TB | 512 GB Hyperdisk Balanced, auto-resize to 2 TB |
 | IOPS and throughput | 8,000 IOPS, 252 MB/s | 8,000 IOPS, 357 MB/s | 10,000 IOPS, 446 MB/s |
