@@ -36,7 +36,7 @@ through a zone outage.
 
 `search_engine` chooses where Nexus One keeps its index: IQ Server's PostgreSQL database or an OpenSearch
 cluster. With `search_engine = "builtin"`, it is the Cloud SQL PostgreSQL database this configuration
-already creates (IQ Server 1.210 and later), chosen on the Nexus One setup page; Advanced Search uses the
+already creates, chosen on the Nexus One setup page; Advanced Search uses the
 index built into IQ Server, nothing more is built, and `config.yml` carries no `search:` block.
 PostgreSQL supports estates of up to 10,000 applications, so of this architecture's sizes only M can use
 it: L and XL need `search_engine = "opensearch"`. See

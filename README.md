@@ -227,7 +227,7 @@ This displays the application URL, database endpoint, and other access details.
 1. Navigate to the application URL from the Terraform outputs
 2. Wait 5-15 minutes for the application to initialize
 3. Log in as `admin`, with the password you set in `iq_admin_initial_password`
-4. With `search_engine = "opensearch"`, start the first Nexus One index build in the Index Manager. With `"builtin"`, choose PostgreSQL on the Nexus One setup page (IQ Server 1.210 and later), which keeps the Nexus One index in IQ Server's PostgreSQL database
+4. With `search_engine = "opensearch"`, start the first Nexus One index build in the Index Manager. With `"builtin"`, choose PostgreSQL on the Nexus One setup page, which keeps the Nexus One index in IQ Server's PostgreSQL database
 
 ---
 ## Reference Architectures: Detailed Specifications
@@ -1361,7 +1361,7 @@ node count, since the deploy sets the shard counts from it.
 | Value | Nexus One index | Advanced Search | Sizes |
 |---|---|---|---|
 | `opensearch` | An OpenSearch cluster. Terraform creates it, unless you name one you already run | The same OpenSearch cluster | Every size, XS to XL |
-| `builtin` | IQ Server's PostgreSQL database, the one every architecture already creates, from IQ Server 1.210. No OpenSearch cluster is created | IQ Server's built-in index | Up to 10,000 applications: XS, S and M |
+| `builtin` | IQ Server's PostgreSQL database, the one every architecture already creates. No OpenSearch cluster is created | IQ Server's built-in index | Up to 10,000 applications: XS, S and M |
 
 A plan stops if `search_engine` still reads `CHANGE_ME`, or holds anything else.
 
@@ -1717,7 +1717,7 @@ Server: it loads only when its files are there.
 | Clustering not working | Missing HA license | Install an HA-capable license for multi-node deployments |
 | Every IQ Server node but one stops with "Node clustering is not supported by the current license" and restarts | IQ Server has no license that allows clustering, so it runs one node | Check that `iq_license_file` names an HA-capable license and that the IQ Server log shows "Installing license". Once the license is installed, the nodes start on their next restart |
 | AWS destroy stops naming `prevent_destroy` | The OpenSearch domain holds the Nexus One index, so Terraform refuses to delete it | Run `./tf-destroy.sh --delete-opensearch-domain`, which deletes the domain first and then the rest. `deploy.sh --destroy` passes it |
-| No Nexus One index in OpenSearch | `search_engine = "builtin"`, or the first build not started | With `builtin`, Nexus One keeps its index in IQ Server's PostgreSQL database instead (IQ Server 1.210 and later), once you choose PostgreSQL on the Nexus One setup page. To use OpenSearch instead, set `search_engine = "opensearch"` and apply before any backend is chosen, then start the build in the Index Manager. IQ Server keeps the first backend chosen, so once PostgreSQL is chosen, `iq-post-deploy.sh` stops on the choice |
+| No Nexus One index in OpenSearch | `search_engine = "builtin"`, or the first build not started | With `builtin`, Nexus One keeps its index in IQ Server's PostgreSQL database instead, once you choose PostgreSQL on the Nexus One setup page. To use OpenSearch instead, set `search_engine = "opensearch"` and apply before any backend is chosen, then start the build in the Index Manager. IQ Server keeps the first backend chosen, so once PostgreSQL is chosen, `iq-post-deploy.sh` stops on the choice |
 | No audit events in the audit log | Audit events go to the database by default | Turn off `audit-log-destination-database`, see [Logging](#logging) |
 | High disk usage | Report accumulation | Configure report purge policies; plan storage based on app count |
 | Terraform destroy fails | Deletion protection enabled | Set `deletion_protection = false` before destroying |

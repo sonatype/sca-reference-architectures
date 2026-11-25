@@ -41,7 +41,7 @@ mounts it at `/sonatype-work/clm-cluster`.
 
 `search_engine` chooses where Nexus One keeps its index: IQ Server's PostgreSQL database or an OpenSearch
 cluster. With `search_engine = "builtin"`, it is the PostgreSQL Flexible Server this configuration
-already creates (IQ Server 1.210 and later), chosen on the Nexus One setup page; Advanced Search uses the
+already creates, chosen on the Nexus One setup page; Advanced Search uses the
 index built into IQ Server, and nothing more is built. PostgreSQL supports estates of up to 10,000
 applications, so of this architecture's sizes only M can use it: L and XL need
 `search_engine = "opensearch"`. See [Choosing the search backend](../README.md#choosing-the-search-backend).

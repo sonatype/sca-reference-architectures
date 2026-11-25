@@ -317,12 +317,12 @@ variable "helm_chart_version" {
 # Every pod reads the same endpoint, so they share one index.
 
 variable "search_engine" {
-  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster for Advanced Search and the Nexus One index, built here unless opensearch_endpoint names one you run; \"builtin\" builds no OpenSearch: Nexus One keeps its index in IQ Server's PostgreSQL database (IQ Server 1.210 and later), chosen on the Nexus One setup page, for up to 10,000 applications, and Advanced Search uses IQ Server's built-in index."
+  description = "Search backend for IQ Server, with no default: \"opensearch\" uses an OpenSearch cluster for Advanced Search and the Nexus One index, built here unless opensearch_endpoint names one you run; \"builtin\" builds no OpenSearch: Nexus One keeps its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page, for up to 10,000 applications, and Advanced Search uses IQ Server's built-in index."
   type        = string
 
   validation {
     condition     = contains(["opensearch", "builtin"], var.search_engine)
-    error_message = "search_engine must be \"opensearch\", for an OpenSearch cluster, or \"builtin\", for the Nexus One index in IQ Server's PostgreSQL database (IQ Server 1.210 and later, up to 10,000 applications) and no OpenSearch. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
+    error_message = "search_engine must be \"opensearch\", for an OpenSearch cluster, or \"builtin\", for the Nexus One index in IQ Server's PostgreSQL database (up to 10,000 applications) and no OpenSearch. Replace the CHANGE_ME placeholder in terraform.tfvars with one of them."
   }
 }
 

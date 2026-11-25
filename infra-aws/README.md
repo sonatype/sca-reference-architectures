@@ -33,7 +33,7 @@ Why the Fargate heap is lower than on a whole VM is in [JVM Configuration](../RE
 
 `search_engine` chooses where Nexus One keeps its index: IQ Server's PostgreSQL database or an OpenSearch
 domain. With `search_engine = "builtin"`, it is the RDS PostgreSQL database this configuration already
-creates (IQ Server 1.210 and later), chosen on the Nexus One setup page; Advanced Search uses the index
+creates, chosen on the Nexus One setup page; Advanced Search uses the index
 built into IQ Server, and no domain is created. PostgreSQL supports estates of up to 10,000 applications,
 which covers every size this architecture offers. See
 [Choosing the search backend](../README.md#choosing-the-search-backend).
@@ -144,9 +144,8 @@ destroying the VPC around a live domain fails on `DependencyViolation`.
 `opensearch_domain_endpoint` at another domain, drops this one from the plan, so the plan fails on
 `prevent_destroy` in the same way. Read the name, `state rm`, delete the domain and wait, then run
 `terraform apply` with the new settings in place of `./tf-destroy.sh`. Setting `"builtin"` does not move
-Nexus One to PostgreSQL: on IQ Server versions that ask for the choice (1.210 and later), the deploy
-already chose OpenSearch as IQ Server's Nexus One backend, and IQ Server keeps that choice, so with the
-domain gone Nexus One has no index.
+Nexus One to PostgreSQL: the deploy already chose OpenSearch as IQ Server's Nexus One backend, and IQ
+Server keeps that choice, so with the domain gone Nexus One has no index.
 
 ### Where the domain's own logs go
 
