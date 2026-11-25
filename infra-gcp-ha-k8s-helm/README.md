@@ -36,14 +36,18 @@ NFS v3 PersistentVolume, `filestore-pv.yaml` and `filestore-pvc.yaml`, sized fro
 
 ---
 
-## Search Backend: PostgreSQL or OpenSearch
+## Search: Nexus One Index and Advanced Search
 
-`search_engine` chooses where Nexus One keeps its index: IQ Server's PostgreSQL database or an OpenSearch
-cluster. With `search_engine = "builtin"`, it is the Cloud SQL PostgreSQL database this configuration
-already creates, chosen on the Nexus One setup page; Advanced Search uses the
-index built into IQ Server, and nothing more is built. PostgreSQL supports estates of up to 10,000
-applications, so of this architecture's sizes only M can use it: L and XL need
-`search_engine = "opensearch"`. See [Choosing the search backend](../README.md#choosing-the-search-backend).
+`search_engine` sets where both of IQ Server's search features keep their indices:
+
+| `search_engine` | Nexus One index | Advanced Search |
+|---|---|---|
+| `builtin` | This configuration's Cloud SQL PostgreSQL database, chosen on the Nexus One setup page | The index built into IQ Server |
+| `opensearch` | The OpenSearch cluster this configuration builds | The same OpenSearch cluster |
+
+PostgreSQL supports estates of up to 10,000 applications, so of this architecture's sizes only M can use
+`builtin`: L and XL need `opensearch`. With `builtin`, nothing more is built. See
+[Choosing the search backend](../README.md#choosing-the-search-backend).
 
 With `search_engine = "opensearch"`, this configuration builds a self-managed **OpenSearch 3.7 cluster in
 the Kubernetes cluster** (`opensearch_version`), run by the

@@ -29,13 +29,17 @@ Why the Fargate heap is lower than on a whole VM is in [JVM Configuration](../RE
 
 ---
 
-## Search Backend: PostgreSQL or OpenSearch
+## Search: Nexus One Index and Advanced Search
 
-`search_engine` chooses where Nexus One keeps its index: IQ Server's PostgreSQL database or an OpenSearch
-domain. With `search_engine = "builtin"`, it is the RDS PostgreSQL database this configuration already
-creates, chosen on the Nexus One setup page; Advanced Search uses the index
-built into IQ Server, and no domain is created. PostgreSQL supports estates of up to 10,000 applications,
-which covers every size this architecture offers. See
+`search_engine` sets where both of IQ Server's search features keep their indices:
+
+| `search_engine` | Nexus One index | Advanced Search |
+|---|---|---|
+| `builtin` | This configuration's RDS PostgreSQL database, chosen on the Nexus One setup page | The index built into IQ Server |
+| `opensearch` | The OpenSearch domain this configuration creates | The same OpenSearch domain |
+
+PostgreSQL supports estates of up to 10,000 applications, which covers every size this architecture
+offers. With `builtin`, no domain is created. See
 [Choosing the search backend](../README.md#choosing-the-search-backend).
 
 With `search_engine = "opensearch"`, this configuration creates an Amazon OpenSearch Service domain

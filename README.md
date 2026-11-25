@@ -29,7 +29,7 @@ Sonatype provides these configurations as reference examples. You are responsibl
 | **High Availability** | ECS Fargate + Aurora + EFS | Container Apps + Zone-Redundant DB | MIG + Regional Cloud SQL + Filestore |
 | **Kubernetes** | EKS + Helm | AKS + Helm | GKE + Helm |
 
-Every architecture runs with one of two search backends, chosen with `search_engine`. With `opensearch`, Terraform also creates an OpenSearch cluster: an Amazon OpenSearch Service domain on AWS, and a self-managed OpenSearch 3.7 cluster on Azure and GCP. With `builtin`, no OpenSearch is created and Nexus One keeps its index in IQ Server's PostgreSQL database, which supports up to 10,000 applications: sizes XS, S and M. See [Choosing the search backend](#choosing-the-search-backend).
+Every architecture runs with one of two search backends, chosen with `search_engine`, which covers both of IQ Server's search features, the Nexus One index and Advanced Search. With `opensearch`, Terraform also creates an OpenSearch cluster that serves both: an Amazon OpenSearch Service domain on AWS, and a self-managed OpenSearch 3.7 cluster on Azure and GCP. With `builtin`, no OpenSearch is created: Nexus One keeps its index in IQ Server's PostgreSQL database, which supports up to 10,000 applications (sizes XS, S and M), and Advanced Search uses IQ Server's built-in index. See [Choosing the search backend](#choosing-the-search-backend).
 
 ### Key Features
 
@@ -38,7 +38,7 @@ Every architecture runs with one of two search backends, chosen with `search_eng
 - Multi-AZ/Zone deployments for high availability
 - Auto-scaling (CPU, memory, and load-based)
 - Managed PostgreSQL databases with automated backups and failover
-- Two search backends: OpenSearch, created by Terraform on every cloud at every size, or, with `search_engine = "builtin"`, IQ Server's PostgreSQL database for estates of up to 10,000 applications
+- Two search backends: OpenSearch for the Nexus One index and Advanced Search, created by Terraform on every cloud at every size, or, with `search_engine = "builtin"`, IQ Server's PostgreSQL database for the Nexus One index on estates of up to 10,000 applications, with Advanced Search on IQ Server's built-in index
 - Encrypted storage and secrets management, including the initial admin password
 - Load balancing with health checks
 - Official Sonatype Helm chart, pinned to a released version (Kubernetes deployments)
@@ -168,7 +168,7 @@ Then navigate to the corresponding directory:
 
 #### Step 2: Choose the Search Backend
 
-Choose `opensearch` or `builtin`; [Choosing the search backend](#choosing-the-search-backend) compares them. With `search_engine = "opensearch"`, Terraform creates the OpenSearch cluster on every cloud, at the shape the size's example file sets: an Amazon OpenSearch Service domain on AWS; OpenSearch 3.7 on virtual machines with an internal load balancer on the Azure and GCP single instance and High Availability architectures; and OpenSearch 3.7 on dedicated node pools, run by the OpenSearch Kubernetes Operator, on AKS and GKE. To use a cluster you already run instead, set its endpoint and credentials in `terraform.tfvars`. See [OpenSearch](#opensearch). With `search_engine = "builtin"`, no OpenSearch is created, and Nexus One keeps its index in IQ Server's PostgreSQL database, for estates of up to 10,000 applications (sizes XS, S and M).
+Choose `opensearch` or `builtin`; [Choosing the search backend](#choosing-the-search-backend) compares them. With `search_engine = "opensearch"`, Terraform creates the OpenSearch cluster for the Nexus One index and Advanced Search on every cloud, at the shape the size's example file sets: an Amazon OpenSearch Service domain on AWS; OpenSearch 3.7 on virtual machines with an internal load balancer on the Azure and GCP single instance and High Availability architectures; and OpenSearch 3.7 on dedicated node pools, run by the OpenSearch Kubernetes Operator, on AKS and GKE. To use a cluster you already run instead, set its endpoint and credentials in `terraform.tfvars`. See [OpenSearch](#opensearch). With `search_engine = "builtin"`, no OpenSearch is created: Nexus One keeps its index in IQ Server's PostgreSQL database, for estates of up to 10,000 applications (sizes XS, S and M), and Advanced Search uses IQ Server's built-in index.
 
 #### Step 3: Configure Your Deployment
 
@@ -1366,9 +1366,10 @@ node count, since the deploy sets the shard counts from it.
 A plan stops if `search_engine` still reads `CHANGE_ME`, or holds anything else.
 
 IQ Server offers PostgreSQL for the Nexus One index on estates of up to 10,000 applications and refuses it
-above that. With `builtin` there is no OpenSearch to choose instead, so L and XL need `opensearch`. Choose
-`opensearch` for an estate you expect to grow past 10,000 applications, too, since IQ Server keeps the
-first backend chosen.
+above that. It offers OpenSearch for the Nexus One index only when `config.yml` carries a
+`nexusOne.connection` block, which `builtin` leaves out, so with `builtin` there is nothing to choose
+instead, and L and XL need `opensearch`. Choose `opensearch` for an estate you expect to grow past 10,000
+applications, too, since IQ Server keeps the first backend chosen.
 
 With `opensearch`, the deploy also tells IQ Server, once, to use OpenSearch for the Nexus One index, on
 IQ Server versions that ask for that choice. IQ Server keeps that choice, and making it needs a license,
