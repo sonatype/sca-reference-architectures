@@ -697,7 +697,7 @@ select_size_and_search() {
     fi
     if [[ -z "$SEARCH" ]]; then
         # shellcheck disable=SC2086
-        choose SEARCH "Which search backend? opensearch creates an OpenSearch cluster for Advanced Search and the Nexus One index; builtin creates none, so Advanced Search uses IQ Server's built-in index and Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's PostgreSQL database" --search-engine $enums
+        choose SEARCH "Which search backend? opensearch creates an OpenSearch cluster for Advanced Search and the Nexus One index, at any size; builtin creates none: Nexus One keeps its index in IQ Server's PostgreSQL database, for up to 10,000 applications (sizes XS, S and M), and Advanced Search uses IQ Server's built-in index" --search-engine $enums
     fi
     # shellcheck disable=SC2086
     in_list "$SEARCH" $enums || die "search engine must be one of: $enums"

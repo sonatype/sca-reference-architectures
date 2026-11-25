@@ -13,8 +13,8 @@
 #      - chooses OpenSearch as the Nexus One search backend, on IQ Server
 #        versions that ask for that choice. Older versions answer 404 and are
 #        left alone.
-#   With search_engine = "builtin" there is nothing to set: there is no OpenSearch, and
-#   the Nexus One index is chosen on the Nexus One setup page.
+#   With search_engine = "builtin" there is nothing to set: there is no OpenSearch, and Nexus One
+#   keeps its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page.
 #
 # Every setting comes from this directory's Terraform outputs. Each can be
 # overridden from the environment:
@@ -94,7 +94,7 @@ esac
 info "Search backend: $SEARCH_ENGINE"
 
 if [[ "$SEARCH_ENGINE" == "builtin" ]]; then
-    ok "search_engine is builtin: there is no OpenSearch to set up here. Advanced Search uses IQ Server's built-in index, and the Nexus One index is chosen on the Nexus One setup page"
+    ok "search_engine is builtin: there is no OpenSearch to set up here. Choose PostgreSQL on the Nexus One setup page to keep the Nexus One index in IQ Server's PostgreSQL database. Advanced Search uses IQ Server's built-in index"
     exit 0
 fi
 
