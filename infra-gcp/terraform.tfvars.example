@@ -63,13 +63,13 @@ filestore_max_iops    = 8000
 enable_ssl  = false  # Set to true and provide domain_name for HTTPS
 domain_name = ""     # Required if enable_ssl is true (e.g., "iq.example.com")
 
-# Search Backend, chosen at every size. Required:
+# Search Backend. Required:
 #   "opensearch"  builds an OpenSearch cluster with this configuration, sized below, for
 #                 Advanced Search and the Nexus One index.
-#   "builtin"     builds no OpenSearch. Advanced Search uses IQ Server's built-in index, and
-#                 Nexus One (IQ Server 1.210 and later) can keep its index in IQ Server's
-#                 PostgreSQL database, chosen on the Nexus One setup page.
-search_engine = "CHANGE_ME"  # "opensearch" for an OpenSearch cluster, or "builtin" for no OpenSearch
+#   "builtin"     builds no OpenSearch. Nexus One keeps its index in IQ Server's PostgreSQL
+#                 database (IQ Server 1.210 and later), chosen on the Nexus One setup page, and
+#                 Advanced Search uses IQ Server's built-in index. Up to 10,000 applications.
+search_engine = "CHANGE_ME"  # "opensearch" for an OpenSearch cluster, or "builtin" for the Nexus One index in PostgreSQL
 
 # The OpenSearch cluster this configuration builds. These are the Size M values; README.md
 # gives every size. Passwords left unset are generated.

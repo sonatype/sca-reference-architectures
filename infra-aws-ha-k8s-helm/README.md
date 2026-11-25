@@ -36,14 +36,19 @@ at M, 500 GB to 1.5 TB at L and 1.5 to 4 TB at XL.
 
 ---
 
-## OpenSearch for Advanced Search and the Nexus One Index
+## Search Backend: PostgreSQL or OpenSearch
+
+`search_engine` chooses where Nexus One keeps its index: IQ Server's PostgreSQL database or an OpenSearch
+domain. With `search_engine = "builtin"`, it is the Aurora PostgreSQL database this configuration already
+creates (IQ Server 1.210 and later), chosen on the Nexus One setup page; Advanced Search uses the index
+built into IQ Server, and no domain is created. PostgreSQL supports estates of up to 10,000 applications,
+so of this architecture's sizes only M can use it: L and XL need `search_engine = "opensearch"`. See
+[Choosing the search backend](../README.md#choosing-the-search-backend).
 
 With `search_engine = "opensearch"`, this configuration creates an Amazon OpenSearch Service domain
 running `OpenSearch_3.7` (`opensearch_engine_version`), on three data nodes in three zones at every size.
 The IQ Server pods sign their requests with SigV4 through an IAM role for service accounts, which
-`iq_server_irsa_role_arn` outputs, so there is no password to store. With `search_engine = "builtin"` there
-is no domain: Advanced Search uses the index built into IQ Server, and Nexus One (IQ Server 1.210 and
-later) can keep its index in IQ Server's PostgreSQL database, chosen on the Nexus One setup page.
+`iq_server_irsa_role_arn` outputs, so there is no password to store.
 
 The domain shape is set per size by `opensearch_instance_type`, `opensearch_instance_count`,
 `opensearch_volume_size_gb`, `opensearch_availability_zone_count`, `opensearch_dedicated_master_type` and
@@ -133,7 +138,10 @@ and hold its security group, so destroying the VPC around a live domain fails on
 **Switching away from this domain takes the same steps.** Setting `search_engine = "builtin"`, or pointing
 `opensearch_domain_endpoint` at another domain, drops this one from the plan, so the plan fails on
 `prevent_destroy` in the same way. Read the name, `state rm`, delete the domain and wait, then run
-`terraform apply` with the new settings in place of `./tf-destroy.sh`.
+`terraform apply` with the new settings in place of `./tf-destroy.sh`. Setting `"builtin"` does not move
+Nexus One to PostgreSQL: on IQ Server versions that ask for the choice (1.210 and later), the deploy
+already chose OpenSearch as IQ Server's Nexus One backend, and IQ Server keeps that choice, so with the
+domain gone Nexus One has no index.
 
 ### How the configuration reaches IQ Server
 

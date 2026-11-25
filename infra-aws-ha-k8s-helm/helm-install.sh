@@ -318,7 +318,7 @@ else
     sed -i.bak2 \
         -e "/# BEGIN search backend/,/# END search backend/d" \
         "$TEMP_VALUES_FILE"
-    echo "• Search backend: builtin (IQ Server's built-in index, no OpenSearch)"
+    echo "• Search backend: builtin (Nexus One index in IQ Server's PostgreSQL database, no OpenSearch)"
 fi
 
 if grep -q "_PLACEHOLDER" "$TEMP_VALUES_FILE"; then

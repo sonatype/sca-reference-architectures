@@ -204,7 +204,7 @@ output "architecture_summary" {
     compute_platform   = "Amazon ECS Fargate"
     database_type      = "Aurora PostgreSQL Cluster"
     storage_type       = "Amazon EFS"
-    search_backend     = var.search_engine == "opensearch" ? (local.opensearch_create ? "AWS-managed OpenSearch, created here" : "AWS-managed OpenSearch, named through opensearch_domain_endpoint") : "IQ Server's built-in index, no OpenSearch"
+    search_backend     = var.search_engine == "opensearch" ? (local.opensearch_create ? "AWS-managed OpenSearch, created here" : "AWS-managed OpenSearch, named through opensearch_domain_endpoint") : "Nexus One index in IQ Server's PostgreSQL database, no OpenSearch"
     load_balancer      = "Application Load Balancer"
     ssl_enabled        = var.ssl_certificate_arn != ""
     waf_enabled        = true

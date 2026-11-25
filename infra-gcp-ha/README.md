@@ -32,14 +32,19 @@ through a zone outage.
 
 ---
 
-## Search Backend
+## Search Backend: PostgreSQL or OpenSearch
+
+`search_engine` chooses where Nexus One keeps its index: IQ Server's PostgreSQL database or an OpenSearch
+cluster. With `search_engine = "builtin"`, it is the Cloud SQL PostgreSQL database this configuration
+already creates (IQ Server 1.210 and later), chosen on the Nexus One setup page; Advanced Search uses the
+index built into IQ Server, nothing more is built, and `config.yml` carries no `search:` block.
+PostgreSQL supports estates of up to 10,000 applications, so of this architecture's sizes only M can use
+it: L and XL need `search_engine = "opensearch"`. See
+[Choosing the search backend](../README.md#choosing-the-search-backend).
 
 With `search_engine = "opensearch"`, this configuration builds a self-managed **OpenSearch 3.7 cluster on
 Compute Engine VMs** (`opensearch_version`) and points IQ Server at it. Google Cloud has no first-party
-managed OpenSearch service, so you own upgrades, snapshots and node replacement on the cluster. With
-`search_engine = "builtin"` nothing is built, `config.yml` carries no `search:` block, Advanced Search
-uses the index built into IQ Server, and Nexus One (IQ Server 1.210 and later) can keep its index in IQ
-Server's PostgreSQL database, chosen on the Nexus One setup page.
+managed OpenSearch service, so you own upgrades, snapshots and node replacement on the cluster.
 
 ### What Terraform builds
 
