@@ -94,7 +94,7 @@ esac
 info "Search backend: $SEARCH_ENGINE"
 
 if [[ "$SEARCH_ENGINE" == "builtin" ]]; then
-    ok "search_engine is builtin: there is no OpenSearch to set up here. Choose PostgreSQL on the Nexus One setup page (IQ Server 1.210 and later) to keep the Nexus One index in IQ Server's PostgreSQL database. Advanced Search uses IQ Server's built-in index"
+    ok "search_engine is builtin: there is no OpenSearch to set up here. Choose PostgreSQL on the Nexus One setup page to keep the Nexus One index in IQ Server's PostgreSQL database. Advanced Search uses IQ Server's built-in index"
     exit 0
 fi
 
